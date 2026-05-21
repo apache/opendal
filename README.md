@@ -65,50 +65,50 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <th colspan="3" align="left">File Storage</th>
   </tr>
   <tr>
-    <td width="16.66%"><a href="https://aws.amazon.com/s3/"><img src="./website/static/img/services/s3.svg" width="28" height="18" alt="AWS logo"> s3</a></td>
-    <td width="16.66%"><a href="https://cloud.google.com/storage"><img src="./website/static/img/services/gcs.svg" width="18" height="18" alt="Google Cloud Storage logo"> gcs</a></td>
-    <td width="16.66%"><a href="https://azure.microsoft.com/en-us/services/storage/blobs/"><img src="./website/static/img/services/azure.svg" width="18" height="18" alt="Azure Storage logo"> azblob</a></td>
-    <td width="16.66%"><a href="https://opendal.apache.org/docs/rust/opendal/services/struct.Fs.html">fs</a></td>
-    <td width="16.66%"><a href="https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html"><img src="./website/static/img/services/hdfs.svg" width="18" height="18" alt="HDFS logo"> hdfs</a></td>
-    <td width="16.66%"><a href="https://github.com/Kimahriman/hdfs-native"><img src="./website/static/img/services/hdfs.svg" width="18" height="18" alt="HDFS logo"> hdfs-native</a></td>
+    <td width="16.66%"><a href="https://aws.amazon.com/s3/"><img src="./website/static/img/services/s3.svg" width="18" height="18" alt="AWS logo"> s3</a></td>
+    <td width="16.66%"><a href="https://cloud.google.com/storage"><img src="./website/static/img/services/gcs.svg" width="46" height="16" alt="Google Cloud logo"> gcs</a></td>
+    <td width="16.66%"><a href="https://azure.microsoft.com/en-us/services/storage/blobs/"><img src="./website/static/img/services/azure.svg" width="18" height="18" alt="Azure logo"> azblob</a></td>
+    <td width="16.66%"><a href="https://opendal.apache.org/docs/rust/opendal/services/struct.Fs.html"><img src="./website/static/img/services/opendal.svg" width="18" height="18" alt="OpenDAL logo"> fs</a></td>
+    <td width="16.66%"><a href="https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> hdfs</a></td>
+    <td width="16.66%"><a href="https://github.com/Kimahriman/hdfs-native"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> hdfs-native</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.aliyun.com/product/oss"><img src="./website/static/img/services/oss.svg" width="34" height="16" alt="Alibaba Cloud logo"> oss</a></td>
+    <td><a href="https://www.aliyun.com/product/oss"><img src="./website/static/img/services/oss.svg" width="46" height="16" alt="Alibaba Cloud logo"> oss</a></td>
     <td><a href="https://www.huaweicloud.com/intl/en-us/product/obs.html"><img src="./website/static/img/services/obs.png" width="40" height="16" alt="Huawei Cloud logo"> obs</a></td>
     <td><a href="https://www.tencentcloud.com/products/cos"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> cos</a></td>
-    <td><a href="https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html"><img src="./website/static/img/services/hdfs.svg" width="18" height="18" alt="HDFS logo"> webhdfs</a></td>
-    <td><a href="https://lakefs.io/"><img src="./website/static/img/services/lakefs.svg" width="18" height="18" alt="lakeFS logo"> lakefs</a></td>
-    <td><a href="https://ipfs.tech/"><img src="./website/static/img/services/ipfs.svg" width="18" height="18" alt="IPFS logo"> ipfs</a></td>
+    <td><a href="https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> webhdfs</a></td>
+    <td><a href="https://lakefs.io/"><img src="./website/static/img/services/lakefs.ico" width="18" height="18" alt="lakeFS logo"> lakefs</a></td>
+    <td><a href="https://ipfs.tech/"><img src="./website/static/img/services/ipfs.ico" width="18" height="18" alt="IPFS logo"> ipfs</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.volcengine.com/product/tos">tos</a></td>
-    <td><a href="https://www.backblaze.com/"><img src="./website/static/img/services/b2.svg" width="18" height="18" alt="Backblaze logo"> b2</a></td>
-    <td><a href="https://docs.openstack.org/swift/latest/"><img src="./website/static/img/services/swift.svg" width="18" height="18" alt="OpenStack logo"> swift</a></td>
-    <td><a href="https://docs.ipfs.tech/concepts/file-systems/"><img src="./website/static/img/services/ipfs.svg" width="18" height="18" alt="IPFS logo"> ipmfs</a></td>
+    <td><a href="https://www.volcengine.com/product/tos"><img src="./website/static/img/services/volcengine.png" width="18" height="18" alt="Volcengine logo"> tos</a></td>
+    <td><a href="https://www.backblaze.com/"><img src="./website/static/img/services/backblaze.png" width="18" height="18" alt="Backblaze logo"> b2</a></td>
+    <td><a href="https://docs.openstack.org/swift/latest/"><img src="./website/static/img/services/openstack.png" width="18" height="18" alt="OpenStack logo"> swift</a></td>
+    <td><a href="https://docs.ipfs.tech/concepts/file-systems/"><img src="./website/static/img/services/ipfs.ico" width="18" height="18" alt="IPFS logo"> ipmfs</a></td>
     <td><a href="https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api"><img src="./website/static/img/services/azure.svg" width="18" height="18" alt="Azure logo"> azfile</a></td>
     <td><a href="https://azure.microsoft.com/en-us/products/storage/data-lake-storage/"><img src="./website/static/img/services/azure.svg" width="18" height="18" alt="Azure logo"> azdls</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.upyun.com/"><img src="./website/static/img/services/upyun.svg" width="18" height="18" alt="Upyun logo"> upyun</a></td>
-    <td><a href="https://vercel.com/docs/storage/vercel-blob"><img src="./website/static/img/services/vercel.svg" width="18" height="18" alt="Vercel logo"> vercel-blob</a></td>
-    <td><a href="https://docs.openstack.org/swift/latest/"><img src="./website/static/img/services/swift.svg" width="18" height="18" alt="OpenStack logo"> openstack_swift</a></td>
+    <td><a href="https://www.upyun.com/"><img src="./website/static/img/services/upyun.png" width="18" height="18" alt="Upyun logo"> upyun</a></td>
+    <td><a href="https://vercel.com/docs/storage/vercel-blob"><img src="./website/static/img/services/vercel.png" width="18" height="18" alt="Vercel logo"> vercel-blob</a></td>
+    <td><a href="https://docs.openstack.org/swift/latest/"><img src="./website/static/img/services/openstack.png" width="18" height="18" alt="OpenStack logo"> openstack_swift</a></td>
     <td><a href="https://docs.alluxio.io/os/user/stable/en/api/REST-API.html"><img src="./website/static/img/services/alluxio.svg" width="18" height="18" alt="Alluxio logo"> alluxio</a></td>
-    <td><a href="https://github.com/Tencent/GooseFS">goosefs</a></td>
-    <td><a href="https://docs.databricks.com/en/dbfs/index.html">dbfs</a></td>
+    <td><a href="https://github.com/Tencent/GooseFS"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> goosefs</a></td>
+    <td><a href="https://docs.databricks.com/en/dbfs/index.html"><img src="./website/static/img/services/databricks.png" width="18" height="18" alt="Databricks logo"> dbfs</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://www.mongodb.com/docs/manual/core/gridfs/"><img src="./website/static/img/services/mongodb.svg" width="18" height="18" alt="MongoDB logo"> gridfs</a></td>
-    <td><a href="https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system">opfs</a></td>
-    <td><a href="https://github.com/bytedance/monoio">monoiofs</a></td>
+    <td><a href="https://www.mongodb.com/docs/manual/core/gridfs/"><img src="./website/static/img/services/mongodb.ico" width="18" height="18" alt="MongoDB logo"> gridfs</a></td>
+    <td><a href="https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system"><img src="./website/static/img/services/mdn.svg" width="18" height="18" alt="MDN Web Docs logo"> opfs</a></td>
+    <td><a href="https://github.com/bytedance/monoio"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> monoiofs</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://github.com/compio-rs/compio/">compfs</a></td>
+    <td><a href="https://github.com/compio-rs/compio/"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> compfs</a></td>
     <td></td>
     <td></td>
   </tr>
@@ -117,31 +117,31 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <th colspan="3" align="left">Standard Protocols</th>
   </tr>
   <tr>
-    <td><a href="https://www.google.com/drive/"><img src="./website/static/img/services/gdrive.svg" width="18" height="18" alt="Google Drive logo"> gdrive</a></td>
-    <td><a href="https://www.dropbox.com/"><img src="./website/static/img/services/dropbox.svg" width="18" height="18" alt="Dropbox logo"> dropbox</a></td>
+    <td><a href="https://www.google.com/drive/"><img src="./website/static/img/services/gdrive.png" width="18" height="18" alt="Google Drive logo"> gdrive</a></td>
+    <td><a href="https://www.dropbox.com/"><img src="./website/static/img/services/dropbox.ico" width="18" height="18" alt="Dropbox logo"> dropbox</a></td>
     <td><a href="https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage"><img src="./website/static/img/services/onedrive.svg" width="18" height="18" alt="OneDrive logo"> onedrive</a></td>
-    <td><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP">http</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/rfc959">ftp</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/rfc4918">webdav</a></td>
+    <td><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP"><img src="./website/static/img/services/mdn.svg" width="18" height="18" alt="MDN Web Docs logo"> http</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/rfc959"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> ftp</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/rfc4918"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> webdav</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.aliyundrive.com/"><img src="./website/static/img/services/aliyun-drive.svg" width="18" height="18" alt="Alibaba Cloud logo"> aliyun-drive</a></td>
-    <td><a href="https://huggingface.co/"><img src="./website/static/img/services/huggingface.svg" width="18" height="18" alt="Hugging Face logo"> huggingface</a></td>
+    <td><a href="https://www.aliyundrive.com/"><img src="./website/static/img/services/aliyundrive.png" width="18" height="18" alt="Aliyun Drive logo"> aliyun-drive</a></td>
+    <td><a href="https://huggingface.co/"><img src="./website/static/img/services/huggingface.ico" width="18" height="18" alt="Hugging Face logo"> huggingface</a></td>
     <td><a href="https://github.com/"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> github</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02">sftp</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> sftp</a></td>
     <td></td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://www.pcloud.com/"><img src="./website/static/img/services/pcloud.svg" width="18" height="18" alt="pCloud logo"> pcloud</a></td>
-    <td><a href="https://koofr.eu/"><img src="./website/static/img/services/koofr.svg" width="18" height="18" alt="Koofr logo"> koofr</a></td>
-    <td><a href="https://www.seafile.com/"><img src="./website/static/img/services/seafile.svg" width="18" height="18" alt="Seafile logo"> seafile</a></td>
+    <td><a href="https://www.pcloud.com/"><img src="./website/static/img/services/pcloud.png" width="18" height="18" alt="pCloud logo"> pcloud</a></td>
+    <td><a href="https://koofr.eu/"><img src="./website/static/img/services/koofr.ico" width="18" height="18" alt="Koofr logo"> koofr</a></td>
+    <td><a href="https://www.seafile.com/"><img src="./website/static/img/services/seafile.png" width="18" height="18" alt="Seafile logo"> seafile</a></td>
     <td></td>
     <td></td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://360.yandex.com/disk/"><img src="./website/static/img/services/yandex-disk.svg" width="18" height="18" alt="Yandex Disk logo"> yandex-disk</a></td>
+    <td><a href="https://360.yandex.com/disk/"><img src="./website/static/img/services/yandex.png" width="18" height="18" alt="Yandex Disk logo"> yandex-disk</a></td>
     <td></td>
     <td></td>
     <td></td>
@@ -153,52 +153,52 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <th colspan="3" align="left">Key-Value &amp; Embedded</th>
   </tr>
   <tr>
-    <td><a href="https://www.sqlite.org/"><img src="./website/static/img/services/sqlite.svg" width="18" height="18" alt="SQLite logo"> sqlite</a></td>
-    <td><a href="https://www.mysql.com/"><img src="./website/static/img/services/mysql.svg" width="18" height="18" alt="MySQL logo"> mysql</a></td>
-    <td><a href="https://www.postgresql.org/"><img src="./website/static/img/services/postgresql.svg" width="18" height="18" alt="PostgreSQL logo"> postgresql</a></td>
-    <td>memory</td>
-    <td><a href="https://redis.io/"><img src="./website/static/img/services/redis.svg" width="18" height="18" alt="Redis logo"> redis</a></td>
-    <td><a href="https://etcd.io/"><img src="./website/static/img/services/etcd.svg" width="18" height="18" alt="etcd logo"> etcd</a></td>
+    <td><a href="https://www.sqlite.org/"><img src="./website/static/img/services/sqlite.ico" width="18" height="18" alt="SQLite logo"> sqlite</a></td>
+    <td><a href="https://www.mysql.com/"><img src="./website/static/img/services/mysql.ico" width="18" height="18" alt="MySQL logo"> mysql</a></td>
+    <td><a href="https://www.postgresql.org/"><img src="./website/static/img/services/postgresql.ico" width="18" height="18" alt="PostgreSQL logo"> postgresql</a></td>
+    <td><img src="./website/static/img/services/opendal.svg" width="18" height="18" alt="OpenDAL logo"> memory</td>
+    <td><a href="https://redis.io/"><img src="./website/static/img/services/redis.png" width="18" height="18" alt="Redis logo"> redis</a></td>
+    <td><a href="https://etcd.io/"><img src="./website/static/img/services/etcd.png" width="18" height="18" alt="etcd logo"> etcd</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.mongodb.com/"><img src="./website/static/img/services/mongodb.svg" width="18" height="18" alt="MongoDB logo"> mongodb</a></td>
+    <td><a href="https://www.mongodb.com/"><img src="./website/static/img/services/mongodb.ico" width="18" height="18" alt="MongoDB logo"> mongodb</a></td>
     <td><a href="https://surrealdb.com/"><img src="./website/static/img/services/surrealdb.svg" width="18" height="18" alt="SurrealDB logo"> surrealdb</a></td>
-    <td><a href="https://developers.cloudflare.com/d1/"><img src="./website/static/img/services/d1.svg" width="18" height="18" alt="Cloudflare D1 logo"> d1</a></td>
-    <td><a href="http://rocksdb.org/"><img src="./website/static/img/services/rocksdb.svg" width="18" height="18" alt="RocksDB logo"> rocksdb</a></td>
-    <td><a href="https://memcached.org/"><img src="./website/static/img/services/memcached.svg" width="18" height="18" alt="Memcached logo"> memcached</a></td>
-    <td><a href="https://developers.cloudflare.com/kv/"><img src="./website/static/img/services/cloudflare-kv.svg" width="18" height="18" alt="Cloudflare KV logo"> cloudflare-kv</a></td>
+    <td><a href="https://developers.cloudflare.com/d1/"><img src="./website/static/img/services/cloudflare.ico" width="18" height="18" alt="Cloudflare logo"> d1</a></td>
+    <td><a href="http://rocksdb.org/"><img src="./website/static/img/services/rocksdb.png" width="18" height="18" alt="RocksDB logo"> rocksdb</a></td>
+    <td><a href="https://memcached.org/"><img src="./website/static/img/services/memcached.jpg" width="56" height="16" alt="Memcached logo"> memcached</a></td>
+    <td><a href="https://developers.cloudflare.com/kv/"><img src="./website/static/img/services/cloudflare.ico" width="18" height="18" alt="Cloudflare logo"> cloudflare-kv</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://tikv.org/"><img src="./website/static/img/services/tikv.svg" width="18" height="18" alt="TiKV logo"> tikv</a></td>
-    <td><a href="https://www.foundationdb.org/"><img src="./website/static/img/services/foundationdb.svg" width="18" height="18" alt="FoundationDB logo"> foundationdb</a></td>
-    <td><a href="https://crates.io/crates/sled">sled</a></td>
+    <td><a href="https://tikv.org/"><img src="./website/static/img/services/tikv.png" width="42" height="16" alt="TiKV logo"> tikv</a></td>
+    <td><a href="https://www.foundationdb.org/"><img src="./website/static/img/services/foundationdb.png" width="56" height="12" alt="FoundationDB logo"> foundationdb</a></td>
+    <td><a href="https://crates.io/crates/sled"><img src="./website/static/img/services/crates.ico" width="18" height="18" alt="crates.io logo"> sled</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://crates.io/crates/redb">redb</a></td>
-    <td><a href="https://crates.io/crates/persy">persy</a></td>
-    <td><a href="https://github.com/xacrimon/dashmap">dashmap</a></td>
+    <td><a href="https://crates.io/crates/redb"><img src="./website/static/img/services/crates.ico" width="18" height="18" alt="crates.io logo"> redb</a></td>
+    <td><a href="https://crates.io/crates/persy"><img src="./website/static/img/services/crates.ico" width="18" height="18" alt="crates.io logo"> persy</a></td>
+    <td><a href="https://github.com/xacrimon/dashmap"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> dashmap</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://crates.io/crates/cacache">cacache</a></td>
-    <td><a href="https://github.com/moka-rs/moka">moka</a></td>
-    <td><a href="https://github.com/moka-rs/mini-moka">mini-moka</a></td>
+    <td><a href="https://crates.io/crates/cacache"><img src="./website/static/img/services/crates.ico" width="18" height="18" alt="crates.io logo"> cacache</a></td>
+    <td><a href="https://github.com/moka-rs/moka"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> moka</a></td>
+    <td><a href="https://github.com/moka-rs/mini-moka"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> mini-moka</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
-    <td><a href="https://github.com/foyer-rs/foyer">foyer</a></td>
+    <td><a href="https://github.com/foyer-rs/foyer"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> foyer</a></td>
     <td><a href="https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> ghac</a></td>
-    <td><a href="https://vercel.com/docs/concepts/monorepos/remote-caching"><img src="./website/static/img/services/vercel.svg" width="18" height="18" alt="Vercel logo"> vercel-artifacts</a></td>
+    <td><a href="https://vercel.com/docs/concepts/monorepos/remote-caching"><img src="./website/static/img/services/vercel.png" width="18" height="18" alt="Vercel logo"> vercel-artifacts</a></td>
   </tr>
 </table>
 

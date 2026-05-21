@@ -73,14 +73,12 @@ pub async fn new_s3_copier(
         source_metadata: Mutex::new(None),
     };
 
-    if opts.chunk().is_some() {
-        let source_size = match source_content_length_hint {
-            Some(size) => size,
-            None => copier.load_source_metadata().await?.content_length(),
-        };
-        validate_part_count_for_s3(source_size, part_size)?;
-        source_content_length_hint = Some(source_size);
-    }
+    let source_size = match source_content_length_hint {
+        Some(size) => size,
+        None => copier.load_source_metadata().await?.content_length(),
+    };
+    validate_part_count_for_s3(source_size, part_size)?;
+    source_content_length_hint = Some(source_size);
 
     Ok(oio::MultipartCopier::new(
         core.info.clone(),

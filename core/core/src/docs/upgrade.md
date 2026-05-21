@@ -6,6 +6,14 @@
 
 `RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
 
+### `allow_anonymous` renamed to `skip_signature`
+
+S3-compatible services now use `skip_signature` to describe requests that bypass credential loading and request signing:
+
+- For S3, OSS, and GCS, `allow_anonymous` is kept as a deprecated compatibility alias. New code should use `skip_signature()` on builders or `skip_signature = true` in config.
+- For TOS, migrate from `allow_anonymous(true)` / `allow_anonymous = true` to `skip_signature()` / `skip_signature = true`.
+- For GCS, the behavior changed from fallback-on-credential-error to an unconditional signing bypass. If requests should be signed, do not set either `skip_signature` or the deprecated `allow_anonymous` alias.
+
 # Upgrade to v0.56
 
 ## Public API

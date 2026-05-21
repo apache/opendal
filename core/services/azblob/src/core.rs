@@ -42,11 +42,19 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub mod constants {
+    pub const AZBLOB_COPY_MIN_BLOCK_SIZE: usize = 1;
+    // Put Block From URL supports blocks up to 4,000 MiB with API version
+    // 2020-04-08 and later.
+    //
+    // ref: <https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url>
+    pub const AZBLOB_COPY_MAX_BLOCK_SIZE: usize = 4000 * 1024 * 1024;
+
     // Indicates the Blob Storage version that was used to execute the request
     pub const X_MS_VERSION: &str = "x-ms-version";
 
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+    pub const X_MS_COPY_SOURCE_RANGE: &str = "x-ms-source-range";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
     pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
@@ -479,6 +487,58 @@ impl AzblobCore {
         self.send(req).await
     }
 
+    pub fn azblob_put_block_from_url_request(
+        &self,
+        source: &str,
+        to: &str,
+        block_id: Uuid,
+        range: BytesRange,
+    ) -> Result<Request<Buffer>> {
+        let url = QueryPairsWriter::new(&self.build_path_url(to))
+            .push("comp", "block")
+            .push(
+                "blockid",
+                &percent_encode_path(&BASE64_STANDARD.encode(block_id.as_bytes())),
+            )
+            .finish();
+
+        let mut req = Request::put(&url)
+            .header(constants::X_MS_COPY_SOURCE, source)
+            .header(CONTENT_LENGTH, 0);
+
+        if !range.is_full() {
+            req = req.header(constants::X_MS_COPY_SOURCE_RANGE, range.to_header());
+        }
+
+        let req = self.insert_sse_headers(req);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("PutBlockFromUrl"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_put_block_from_url(
+        &self,
+        from: &str,
+        to: &str,
+        block_id: Uuid,
+        range: BytesRange,
+    ) -> Result<Response<Buffer>> {
+        let source = Request::get(self.build_path_url(from))
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("GetBlob"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let source = self.sign_query(source).await?;
+        let source = source.uri().to_string();
+        let req = self.azblob_put_block_from_url_request(&source, to, block_id, range)?;
+        let req = self.sign(req).await?;
+        self.send(req).await
+    }
+
     fn azblob_complete_put_block_list_request(
         &self,
         path: &str,
@@ -524,6 +584,51 @@ impl AzblobCore {
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
+        let req = self.sign(req).await?;
+        self.send(req).await
+    }
+
+    fn azblob_complete_copy_block_list_request(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+        args: &OpCopy,
+    ) -> Result<Request<Buffer>> {
+        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
+
+        let mut req = Request::put(&url);
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        let content = quick_xml::se::to_string(&PutBlockListRequest {
+            latest: block_ids
+                .into_iter()
+                .map(|block_id| BASE64_STANDARD.encode(block_id.as_bytes()))
+                .collect(),
+        })
+        .map_err(new_xml_serialize_error)?;
+
+        req = req.header(CONTENT_LENGTH, content.len());
+
+        let req = self.insert_sse_headers(req);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("PutBlockList"))
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_complete_copy_block_list(
+        &self,
+        path: &str,
+        block_ids: Vec<Uuid>,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let req = self.azblob_complete_copy_block_list_request(path, block_ids, args)?;
         let req = self.sign(req).await?;
         self.send(req).await
     }

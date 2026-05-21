@@ -15,20 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: nginx_with_redirect
-description: "Behavior test for nginx_with_redirect in nginx"
+name: tos
+description: "Behavior test for Volcengine TOS"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup webdav in nginx_with_redirect
-      shell: bash
-      working-directory: fixtures/webdav
-      run: docker compose -f docker-compose-webdav.yml up -d --wait
     - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_WEBDAV_ENDPOINT=http://127.0.0.1:8081
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_with_user_metadata=false
-        EOF
+      uses: 1Password/load-secrets-action@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
+      with:
+        export-env: true
+      env:
+        OPENDAL_TOS_ROOT: op://services/tos/root
+        OPENDAL_TOS_BUCKET: op://services/tos/bucket
+        OPENDAL_TOS_ENDPOINT: op://services/tos/endpoint
+        OPENDAL_TOS_ACCESS_KEY_ID: op://services/tos/access_key_id
+        OPENDAL_TOS_SECRET_ACCESS_KEY: op://services/tos/secret_access_key
+        OPENDAL_TOS_REGION: op://services/tos/region

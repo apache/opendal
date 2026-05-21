@@ -29,7 +29,7 @@ namespace OpenDAL.ServiceConfig
     public sealed class SftpServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// enable_copy of this backend
+        /// Deprecated: SFTP copy capability is enabled by default.
         /// </summary>
         public bool? EnableCopy { get; init; }
         /// <summary>

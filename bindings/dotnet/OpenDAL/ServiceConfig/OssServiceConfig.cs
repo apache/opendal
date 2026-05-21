@@ -41,11 +41,16 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AddressingStyle { get; init; }
         /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
+        /// <summary>
         /// Allow anonymous for oss.
         /// </summary>
+        [System.Obsolete("Please use SkipSignature instead of AllowAnonymous")]
         public bool? AllowAnonymous { get; init; }
         /// <summary>
-        /// The size of max batch operations.
+        /// Deprecated: OSS delete batch capability is enabled by default.
         /// </summary>
         public long? BatchMaxOperations { get; init; }
         /// <summary>
@@ -53,11 +58,11 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
-        /// The size of max delete operations.
+        /// Deprecated: OSS delete batch capability is enabled by default.
         /// </summary>
         public long? DeleteMaxSize { get; init; }
         /// <summary>
-        /// is bucket versioning enabled for this bucket
+        /// Deprecated: OSS versioning capability is enabled by default.
         /// </summary>
         public bool? EnableVersioning { get; init; }
         /// <summary>
@@ -126,10 +131,16 @@ namespace OpenDAL.ServiceConfig
             {
                 map["addressing_style"] = Utilities.ToOptionString(AddressingStyle);
             }
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
+            }
+#pragma warning disable CS0618
             if (AllowAnonymous is not null)
             {
                 map["allow_anonymous"] = Utilities.ToOptionString(AllowAnonymous);
             }
+#pragma warning restore CS0618
             if (BatchMaxOperations is not null)
             {
                 map["batch_max_operations"] = Utilities.ToOptionString(BatchMaxOperations);

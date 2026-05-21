@@ -116,11 +116,12 @@ impl SftpBuilder {
         self
     }
 
-    /// set enable_copy for sftp backend.
-    /// It requires the server supports copy-file extension.
-    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
-        self.config.enable_copy = enable_copy;
-
+    /// Deprecated: SFTP copy capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "SFTP copy capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_copy(self, _enable_copy: bool) -> Self {
         self
     }
 }
@@ -181,7 +182,7 @@ impl Builder for SftpBuilder {
                 list: true,
                 list_with_limit: true,
 
-                copy: self.config.enable_copy,
+                copy: true,
                 rename: true,
 
                 shared: true,

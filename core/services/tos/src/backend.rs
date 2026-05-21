@@ -122,19 +122,9 @@ impl TosBuilder {
         self
     }
 
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.allow_anonymous = allow;
-        self
-    }
-
-    /// Set bucket versioning status for this backend.
-    ///
-    /// If set to true, OpenDAL will support versioned operations like list with
-    /// versions, read with version, etc.
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 }
@@ -155,7 +145,7 @@ impl Builder for TosBuilder {
 
         let endpoint = config.endpoint.clone().unwrap();
         let bucket = config.bucket.clone();
-        let root = config.root.clone().unwrap_or_else(|| "/".to_string());
+        let root = normalize_root(&config.root.clone().unwrap_or_default());
 
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
@@ -182,12 +172,14 @@ impl Builder for TosBuilder {
                 .set_root(&root)
                 .set_name(&bucket)
                 .set_native_capability(Capability {
+                    stat_with_version: true,
+
                     read: true,
                     read_with_if_match: true,
                     read_with_if_none_match: true,
                     read_with_if_modified_since: true,
                     read_with_if_unmodified_since: true,
-                    read_with_version: config.enable_versioning,
+                    read_with_version: true,
 
                     write: true,
                     write_can_empty: true,
@@ -196,21 +188,27 @@ impl Builder for TosBuilder {
                     write_with_content_type: true,
                     write_with_content_encoding: true,
                     write_with_if_match: true,
-                    write_with_if_not_exists: !config.enable_versioning,
+                    write_with_if_not_exists: true,
                     write_with_user_metadata: true,
                     write_multi_min_size: Some(5 * 1024 * 1024),
                     write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
                     delete: true,
                     delete_max_size: Some(1000),
-                    delete_with_version: config.enable_versioning,
+                    delete_with_version: true,
+
+                    copy: true,
 
                     list: true,
                     list_with_limit: true,
                     list_with_start_after: true,
                     list_with_recursive: true,
 
-                    stat: false,
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
 
                     shared: false,
 
@@ -236,7 +234,7 @@ impl Builder for TosBuilder {
             endpoint_domain: endpoint_domain.to_string(),
             root,
             default_storage_class: None,
-            allow_anonymous: config.allow_anonymous,
+            skip_signature: config.skip_signature,
             signer,
         };
 
@@ -340,5 +338,20 @@ impl Access for TosBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let lister = TosLister::new(self.core.clone(), path, args);
         Ok((RpList::default(), oio::PageLister::new(lister)))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let resp = self.core.tos_copy_object(from, to, &args).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok((RpCopy::default(), ())),
+            _ => Err(parse_error(resp)),
+        }
     }
 }

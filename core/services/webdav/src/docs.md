@@ -21,6 +21,8 @@ Users can use `webdav` to connect those services.
 
 - `endpoint`: set the endpoint for webdav
 - `root`: Set the work directory for backend
+- `disable_copy`: Deprecated. WebDAV copy capability is enabled by default and this option is no longer needed.
+- `enable_user_metadata`: Deprecated. WebDAV user metadata capability is enabled by default. Use `CapabilityOverrideLayer` to override `write_with_user_metadata` for endpoints without PROPPATCH support.
 
 You can refer to [`WebdavBuilder`]'s docs for more information
 

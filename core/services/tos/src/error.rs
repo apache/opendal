@@ -50,10 +50,9 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let body_content = bs.chunk();
-    let (message, tos_err) = de::from_reader::<_, TosError>(body_content.reader())
+    let (message, tos_err) = parse_tos_error(&bs)
         .map(|tos_err| (format!("{tos_err:?}"), Some(tos_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+        .unwrap_or_else(|| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(tos_err) = tos_err {
         (kind, retryable) =
@@ -71,12 +70,19 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     err
 }
 
+fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+    de::from_reader::<_, TosError>(bs.chunk().reader())
+        .or_else(|_| serde_json::from_slice::<TosError>(bs))
+        .ok()
+}
+
 /// Returns the `Error kind` of this code and whether the error is retryable.
 /// TOS error codes: https://www.volcengine.com/docs/6349/74874
 pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
         "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
         "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+        "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
         "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
         "InternalError" => Some((ErrorKind::Unexpected, true)),
         "OperationAborted" => Some((ErrorKind::Unexpected, true)),
@@ -114,6 +120,19 @@ mod tests {
         assert_eq!(out.message, "The resource you requested does not exist");
         assert_eq!(out.resource, "/mybucket/myfoto.jpg");
         assert_eq!(out.request_id, "4442587FB7D0A2F9");
+    }
+
+    #[test]
+    fn test_parse_json_error() {
+        let bs = bytes::Bytes::from(
+            r#"{"Code":"DuplicateObject","RequestId":"request-id","Message":"The object already exists."}"#,
+        );
+
+        let out = parse_tos_error(&bs).expect("must success");
+
+        assert_eq!(out.code, "DuplicateObject");
+        assert_eq!(out.message, "The object already exists.");
+        assert_eq!(out.request_id, "request-id");
     }
 
     #[test]

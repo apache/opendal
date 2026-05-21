@@ -285,6 +285,13 @@ def generate_language_binding_cases(
             "rocksdb",
         ]]
 
+    # Remove invalid cases for go.
+    if language == "go":
+        cases = [v for v in cases if v["service"] not in [
+            # opendal-go-services doesn't provide TOS yet.
+            "tos",
+        ]]
+
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 

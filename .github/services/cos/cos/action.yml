@@ -34,4 +34,4 @@ runs:
     - name: Add extra settings
       shell: bash
       run: |
-        echo "OPENDAL_COS_ENABLE_VERSIONING=true" >> $GITHUB_ENV
+        echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=write_with_if_not_exists=false,copy_with_if_not_exists=false" >> $GITHUB_ENV

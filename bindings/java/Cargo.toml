@@ -57,6 +57,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-obs",
   "services-oss",
   "services-s3",
+  "services-tos",
   "services-webdav",
   "services-webhdfs",
   "services-aliyun-drive",

@@ -37,7 +37,11 @@ pub struct HdfsNativeConfig {
     pub root: Option<String>,
     /// name_node of this backend
     pub name_node: Option<String>,
-    /// enable the append capacity
+    /// Deprecated: HDFS Native append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "HDFS Native append capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_append: bool,
     /// other options for hdfs client
     pub options: Option<HashMap<String, String>>,
@@ -48,7 +52,6 @@ impl Debug for HdfsNativeConfig {
         f.debug_struct("HdfsNativeConfig")
             .field("root", &self.root)
             .field("name_node", &self.name_node)
-            .field("enable_append", &self.enable_append)
             .field("options", &self.options)
             .finish_non_exhaustive()
     }
@@ -72,6 +75,7 @@ impl opendal_core::Configurator for HdfsNativeConfig {
         Self::from_iter(map)
     }
 
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         HdfsNativeBuilder { config: self }
     }

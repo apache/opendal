@@ -31,14 +31,12 @@ pub struct HdfsNativeCore {
     pub info: Arc<AccessorInfo>,
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
-    pub enable_append: bool,
 }
 
 impl Debug for HdfsNativeCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeCore")
             .field("root", &self.root)
-            .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
     }
 }
@@ -116,7 +114,6 @@ impl HdfsNativeCore {
 
         let f = if target_exists {
             if args.append() {
-                assert!(self.enable_append, "append is not enabled");
                 self.client
                     .append(&target_path)
                     .await

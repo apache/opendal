@@ -30,6 +30,8 @@ This service can be used to:
 - `disable_config_load`: Disable aws config load from env.
 - `enable_virtual_host_style`: Enable virtual host style.
 - `enable_request_payer`: Enable the request payer for backend.
+- `skip_signature`: Skip loading credentials and signing requests.
+- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
 - `batch_max_operations`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
 - `delete_max_size`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
 - `disable_stat_with_override`: Deprecated. S3 stat override capabilities are enabled by default and this option is no longer needed.

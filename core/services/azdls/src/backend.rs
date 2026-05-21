@@ -265,7 +265,8 @@ impl Builder for AzdlsBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let mut envs = std::collections::HashMap::new();
+        let os_env = OsEnv;
+        let mut envs = os_env.vars();
 
         if let Some(v) = &account_name {
             envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
@@ -291,7 +292,6 @@ impl Builder for AzdlsBuilder {
             envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
         }
 
-        let os_env = OsEnv;
         let info = Arc::new(AccessorInfo::default());
 
         let ctx = Context::new()

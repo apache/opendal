@@ -66,14 +66,14 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   </tr>
   <tr>
     <td width="16.66%"><a href="https://aws.amazon.com/s3/"><img src="./website/static/img/services/s3.svg" width="18" height="18" alt="AWS logo"> s3</a></td>
-    <td width="16.66%"><a href="https://cloud.google.com/storage"><img src="./website/static/img/services/gcs.svg" width="46" height="16" alt="Google Cloud logo"> gcs</a></td>
+    <td width="16.66%"><a href="https://cloud.google.com/storage"><img src="./website/static/img/services/gcs.png" width="18" height="18" alt="Google Cloud logo"> gcs</a></td>
     <td width="16.66%"><a href="https://azure.microsoft.com/en-us/services/storage/blobs/"><img src="./website/static/img/services/azure.svg" width="18" height="18" alt="Azure logo"> azblob</a></td>
     <td width="16.66%"><a href="https://opendal.apache.org/docs/rust/opendal/services/struct.Fs.html"><img src="./website/static/img/services/opendal.svg" width="18" height="18" alt="OpenDAL logo"> fs</a></td>
     <td width="16.66%"><a href="https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> hdfs</a></td>
     <td width="16.66%"><a href="https://github.com/Kimahriman/hdfs-native"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> hdfs-native</a></td>
   </tr>
   <tr>
-    <td><a href="https://www.aliyun.com/product/oss"><img src="./website/static/img/services/oss.svg" width="46" height="16" alt="Alibaba Cloud logo"> oss</a></td>
+    <td><a href="https://www.aliyun.com/product/oss"><img src="./website/static/img/services/oss.svg" width="26" height="16" alt="Alibaba Cloud logo"> oss</a></td>
     <td><a href="https://www.huaweicloud.com/intl/en-us/product/obs.html"><img src="./website/static/img/services/obs.png" width="40" height="16" alt="Huawei Cloud logo"> obs</a></td>
     <td><a href="https://www.tencentcloud.com/products/cos"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> cos</a></td>
     <td><a href="https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html"><img src="./website/static/img/services/hadoop.ico" width="18" height="18" alt="Apache Hadoop logo"> webhdfs</a></td>
@@ -91,7 +91,7 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   <tr>
     <td><a href="https://www.upyun.com/"><img src="./website/static/img/services/upyun.png" width="18" height="18" alt="Upyun logo"> upyun</a></td>
     <td><a href="https://vercel.com/docs/storage/vercel-blob"><img src="./website/static/img/services/vercel.png" width="18" height="18" alt="Vercel logo"> vercel-blob</a></td>
-    <td><a href="https://docs.openstack.org/swift/latest/"><img src="./website/static/img/services/openstack.png" width="18" height="18" alt="OpenStack logo"> openstack_swift</a></td>
+    <td></td>
     <td><a href="https://docs.alluxio.io/os/user/stable/en/api/REST-API.html"><img src="./website/static/img/services/alluxio.svg" width="18" height="18" alt="Alluxio logo"> alluxio</a></td>
     <td><a href="https://github.com/Tencent/GooseFS"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> goosefs</a></td>
     <td><a href="https://docs.databricks.com/en/dbfs/index.html"><img src="./website/static/img/services/databricks.png" width="18" height="18" alt="Databricks logo"> dbfs</a></td>
@@ -126,7 +126,7 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   </tr>
   <tr>
     <td><a href="https://www.aliyundrive.com/"><img src="./website/static/img/services/aliyundrive.png" width="18" height="18" alt="Aliyun Drive logo"> aliyun-drive</a></td>
-    <td><a href="https://huggingface.co/"><img src="./website/static/img/services/huggingface.ico" width="18" height="18" alt="Hugging Face logo"> huggingface</a></td>
+    <td><a href="https://huggingface.co/"><img src="./website/static/img/services/huggingface.ico" width="18" height="18" alt="Hugging Face logo"> hf</a></td>
     <td><a href="https://github.com/"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> github</a></td>
     <td><a href="https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> sftp</a></td>
     <td></td>
@@ -165,15 +165,15 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <td><a href="https://surrealdb.com/"><img src="./website/static/img/services/surrealdb.svg" width="18" height="18" alt="SurrealDB logo"> surrealdb</a></td>
     <td><a href="https://developers.cloudflare.com/d1/"><img src="./website/static/img/services/cloudflare.ico" width="18" height="18" alt="Cloudflare logo"> d1</a></td>
     <td><a href="http://rocksdb.org/"><img src="./website/static/img/services/rocksdb.png" width="18" height="18" alt="RocksDB logo"> rocksdb</a></td>
-    <td><a href="https://memcached.org/"><img src="./website/static/img/services/memcached.jpg" width="56" height="16" alt="Memcached logo"> memcached</a></td>
-    <td><a href="https://developers.cloudflare.com/kv/"><img src="./website/static/img/services/cloudflare.ico" width="18" height="18" alt="Cloudflare logo"> cloudflare-kv</a></td>
+    <td><a href="https://memcached.org/"><img src="./website/static/img/services/memcached.png" width="18" height="18" alt="Memcached logo"> memcached</a></td>
+    <td><a href="https://developers.cloudflare.com/kv/">cloudflare-kv</a></td>
   </tr>
   <tr>
     <td></td>
     <td></td>
     <td></td>
     <td><a href="https://tikv.org/"><img src="./website/static/img/services/tikv.png" width="42" height="16" alt="TiKV logo"> tikv</a></td>
-    <td><a href="https://www.foundationdb.org/"><img src="./website/static/img/services/foundationdb.png" width="56" height="12" alt="FoundationDB logo"> foundationdb</a></td>
+    <td><a href="https://www.foundationdb.org/"><img src="./website/static/img/services/foundationdb.png" width="22" height="12" alt="FoundationDB logo"> foundationdb</a></td>
     <td><a href="https://crates.io/crates/sled"><img src="./website/static/img/services/crates.ico" width="18" height="18" alt="crates.io logo"> sled</a></td>
   </tr>
   <tr>
@@ -198,7 +198,7 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <td></td>
     <td><a href="https://github.com/foyer-rs/foyer"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> foyer</a></td>
     <td><a href="https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> ghac</a></td>
-    <td><a href="https://vercel.com/docs/concepts/monorepos/remote-caching"><img src="./website/static/img/services/vercel.png" width="18" height="18" alt="Vercel logo"> vercel-artifacts</a></td>
+    <td><a href="https://vercel.com/docs/concepts/monorepos/remote-caching">vercel-artifacts</a></td>
   </tr>
 </table>
 

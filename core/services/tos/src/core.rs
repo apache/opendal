@@ -413,6 +413,7 @@ impl TosCore {
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
+            quiet: false,
         })
         .map_err(new_json_serialize_error)?;
 
@@ -495,6 +496,47 @@ impl TosCore {
             url = url.push(
                 "continuation-token",
                 &percent_encode_query(continuation_token),
+            );
+        }
+
+        let req = Request::get(url.finish())
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_list_object_versions(
+        &self,
+        prefix: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        key_marker: &str,
+        version_id_marker: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, prefix);
+
+        let mut url =
+            QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
+        url = url.push("versions", "");
+
+        if !p.is_empty() {
+            url = url.push("prefix", &percent_encode_query(&p));
+        }
+        if !delimiter.is_empty() {
+            url = url.push("delimiter", &percent_encode_query(delimiter));
+        }
+        if let Some(limit) = limit {
+            url = url.push("max-keys", &limit.to_string());
+        }
+        if !key_marker.is_empty() {
+            url = url.push("key-marker", &percent_encode_query(key_marker));
+        }
+        if !version_id_marker.is_empty() {
+            url = url.push(
+                "version-id-marker",
+                &percent_encode_query(version_id_marker),
             );
         }
 
@@ -685,13 +727,14 @@ pub struct CompleteMultipartUploadResult {
 }
 
 #[derive(Default, Debug, Serialize)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct DeleteObjectsRequest {
     pub objects: Vec<DeleteObjectsRequestObject>,
+    pub quiet: bool,
 }
 
 #[derive(Default, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "PascalCase")]
 pub struct DeleteObjectsRequestObject {
     pub key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -701,7 +744,20 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
+    pub deleted: Vec<DeleteObjectsResultDeleted>,
+    #[serde(alias = "Error")]
     pub errors: Vec<DeleteObjectsResultError>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct DeleteObjectsResultDeleted {
+    pub key: String,
+    #[serde(alias = "VersionID")]
+    pub version_id: Option<String>,
+    pub delete_marker: bool,
+    #[serde(alias = "DeleteMarkerVersionID")]
+    pub delete_marker_version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -710,6 +766,7 @@ pub struct DeleteObjectsResultError {
     pub code: String,
     pub key: String,
     pub message: String,
+    #[serde(alias = "VersionID")]
     pub version_id: Option<String>,
 }
 
@@ -741,4 +798,46 @@ pub struct ListObjectsOutputContent {
 #[serde(rename_all = "PascalCase")]
 pub struct OutputCommonPrefix {
     pub prefix: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutput {
+    pub name: String,
+    pub prefix: String,
+    pub key_marker: String,
+    #[serde(alias = "VersionIDMarker")]
+    pub version_id_marker: String,
+    pub max_keys: usize,
+    pub delimiter: String,
+    pub is_truncated: Option<bool>,
+    pub next_key_marker: Option<String>,
+    #[serde(alias = "NextVersionIDMarker")]
+    pub next_version_id_marker: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub versions: Vec<ListObjectVersionsOutputVersion>,
+    pub delete_markers: Vec<ListObjectVersionsOutputDeleteMarker>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputVersion {
+    pub key: String,
+    #[serde(alias = "VersionID")]
+    pub version_id: String,
+    pub is_latest: bool,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+    pub size: u64,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectVersionsOutputDeleteMarker {
+    pub key: String,
+    #[serde(alias = "VersionID")]
+    pub version_id: String,
+    pub is_latest: bool,
+    pub last_modified: String,
 }

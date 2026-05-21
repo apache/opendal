@@ -62,8 +62,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
 <table>
   <tr>
     <td width="50%" valign="top">
-      <strong>Object Storage</strong>
       <table>
+        <tr><th colspan="3" align="left">Object Storage</th></tr>
         <tr>
           <td><a href="https://aws.amazon.com/s3/"><img src="./website/static/img/services/s3.svg" width="28" height="18" alt="AWS logo"> s3</a></td>
           <td><a href="https://cloud.google.com/storage"><img src="./website/static/img/services/gcs.svg" width="18" height="18" alt="Google Cloud Storage logo"> gcs</a></td>
@@ -87,8 +87,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
       </table>
     </td>
     <td width="50%" valign="top">
-      <strong>File Storage</strong>
       <table>
+        <tr><th colspan="3" align="left">File Storage</th></tr>
         <tr>
           <td><a href="https://opendal.apache.org/docs/rust/opendal/services/struct.Fs.html">fs</a></td>
           <td><a href="https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html"><img src="./website/static/img/services/hdfs.svg" width="18" height="18" alt="HDFS logo"> hdfs</a></td>
@@ -124,8 +124,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Cloud SaaS</strong>
       <table>
+        <tr><th colspan="3" align="left">Cloud SaaS</th></tr>
         <tr>
           <td><a href="https://www.google.com/drive/"><img src="./website/static/img/services/gdrive.svg" width="18" height="18" alt="Google Drive logo"> gdrive</a></td>
           <td><a href="https://www.dropbox.com/"><img src="./website/static/img/services/dropbox.svg" width="18" height="18" alt="Dropbox logo"> dropbox</a></td>
@@ -149,8 +149,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
       </table>
     </td>
     <td width="50%" valign="top">
-      <strong>Standard Protocols</strong>
       <table>
+        <tr><th colspan="3" align="left">Standard Protocols</th></tr>
         <tr>
           <td><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP">http</a></td>
           <td><a href="https://datatracker.ietf.org/doc/html/rfc959">ftp</a></td>
@@ -166,8 +166,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Databases</strong>
       <table>
+        <tr><th colspan="3" align="left">Databases</th></tr>
         <tr>
           <td><a href="https://www.sqlite.org/"><img src="./website/static/img/services/sqlite.svg" width="18" height="18" alt="SQLite logo"> sqlite</a></td>
           <td><a href="https://www.mysql.com/"><img src="./website/static/img/services/mysql.svg" width="18" height="18" alt="MySQL logo"> mysql</a></td>
@@ -181,8 +181,8 @@ Pick the storage services that your application needs. See the full OpenDAL serv
       </table>
     </td>
     <td width="50%" valign="top">
-      <strong>Key-Value & Embedded</strong>
       <table>
+        <tr><th colspan="3" align="left">Key-Value &amp; Embedded</th></tr>
         <tr>
           <td>memory</td>
           <td><a href="https://redis.io/"><img src="./website/static/img/services/redis.svg" width="18" height="18" alt="Redis logo"> redis</a></td>

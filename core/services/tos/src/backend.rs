@@ -19,6 +19,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::config::TosConfig;
+use crate::copier::TosCopiers;
+use crate::copier::new_tos_copier;
 use crate::core::constants::X_TOS_VERSION_ID;
 use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
 use crate::core::*;
@@ -198,6 +200,13 @@ impl Builder for TosBuilder {
                     delete_with_version: true,
 
                     copy: true,
+                    copy_can_multi: true,
+                    copy_multi_min_size: Some(5 * 1024 * 1024),
+                    copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
                     list: true,
                     list_with_limit: true,
@@ -256,7 +265,7 @@ impl Access for TosBackend {
     type Writer = oio::MultipartWriter<TosWriter>;
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
-    type Copier = ();
+    type Copier = TosCopiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -359,13 +368,9 @@ impl Access for TosBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        _opts: OpCopier,
+        opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.tos_copy_object(from, to, &args).await?;
-
-        match resp.status() {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+        let copier = new_tos_copier(self.core.clone(), from, to, args, opts)?;
+        Ok((RpCopy::default(), copier))
     }
 }

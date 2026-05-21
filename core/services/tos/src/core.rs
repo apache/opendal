@@ -35,6 +35,9 @@ use opendal_core::*;
 pub mod constants {
     pub const X_TOS_ACL: &str = "x-tos-acl";
     pub const X_TOS_COPY_SOURCE: &str = "x-tos-copy-source";
+    pub const X_TOS_COPY_SOURCE_IF_MATCH: &str = "x-tos-copy-source-if-match";
+    pub const X_TOS_COPY_SOURCE_RANGE: &str = "x-tos-copy-source-range";
+    pub const X_TOS_FORBID_OVERWRITE: &str = "x-tos-forbid-overwrite";
 
     pub const X_TOS_STORAGE_CLASS: &str = "x-tos-storage-class";
 
@@ -63,6 +66,16 @@ pub struct TosCore {
     pub skip_signature: bool,
 
     pub signer: Signer<Credential>,
+}
+
+pub(crate) struct TosUploadPartCopyRequest<'a> {
+    pub from: &'a str,
+    pub to: &'a str,
+    pub upload_id: &'a str,
+    pub part_number: usize,
+    pub range: BytesRange,
+    pub source_etag: Option<&'a str>,
+    pub source_version: Option<&'a str>,
 }
 
 impl Debug for TosCore {
@@ -452,10 +465,134 @@ impl TosCore {
             .header(constants::X_TOS_ACL, "default");
 
         if args.if_not_exists() {
-            req = req.header(http::header::IF_NONE_MATCH, "*");
+            req = req.header(constants::X_TOS_FORBID_OVERWRITE, "true");
         }
 
         let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploads",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::post(&url).header(constants::X_TOS_ACL, "default");
+
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(
+                http::HeaderName::from_static(constants::X_TOS_STORAGE_CLASS),
+                v,
+            );
+        }
+
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub fn tos_upload_part_copy_request(
+        &self,
+        input: TosUploadPartCopyRequest<'_>,
+    ) -> Result<Request<Buffer>> {
+        let source = build_abs_path(&self.root, input.from);
+        let target = build_abs_path(&self.root, input.to);
+
+        let mut url = format!(
+            "https://{}.{}/{}?partNumber={}&uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&target),
+            input.part_number,
+            percent_encode_query(input.upload_id)
+        );
+        if let Some(version) = input.source_version {
+            url.push_str(&format!(
+                "&{}={}",
+                constants::TOS_QUERY_VERSION_ID,
+                percent_encode_query(version)
+            ));
+        }
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+
+        let mut req = Request::put(&url)
+            .extension(Operation::Copy)
+            .header(constants::X_TOS_COPY_SOURCE, source)
+            .header(constants::X_TOS_COPY_SOURCE_RANGE, input.range.to_header());
+
+        if let Some(etag) = input.source_etag {
+            req = req.header(constants::X_TOS_COPY_SOURCE_IF_MATCH, etag);
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn tos_complete_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p),
+            percent_encode_query(upload_id)
+        );
+
+        let content = serde_json::to_string(&CompleteMultipartUploadRequest { parts })
+            .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(&url)
+            .header(CONTENT_LENGTH, content.len())
+            .header(CONTENT_TYPE, "application/json");
+
+        if args.if_not_exists() {
+            req = req.header(constants::X_TOS_FORBID_OVERWRITE, "true");
+        }
+
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::from(content))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_abort_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p),
+            percent_encode_query(upload_id)
+        );
+
+        let req = Request::delete(&url)
             .extension(Operation::Copy)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -840,4 +977,18 @@ pub struct ListObjectVersionsOutputDeleteMarker {
     pub version_id: String,
     pub is_latest: bool,
     pub last_modified: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct UploadPartCopyOutput {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CopyObjectOutput {
+    #[serde(rename = "ETag")]
+    pub etag: String,
 }

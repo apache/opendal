@@ -29,7 +29,7 @@ namespace OpenDAL.ServiceConfig
     public sealed class HdfsNativeServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// enable the append capacity
+        /// Deprecated: HDFS Native append capability is enabled by default.
         /// </summary>
         public bool? EnableAppend { get; init; }
         /// <summary>

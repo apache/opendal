@@ -120,10 +120,12 @@ impl CosBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: COS versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "COS versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -227,7 +229,7 @@ impl Builder for CosBuilder {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_with_version: self.config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
 
@@ -235,7 +237,7 @@ impl Builder for CosBuilder {
                             read_with_if_none_match: true,
                             read_with_if_modified_since: true,
                             read_with_if_unmodified_since: true,
-                            read_with_version: self.config.enable_versioning,
+                            read_with_version: true,
 
                             write: true,
                             write_can_empty: true,
@@ -244,10 +246,8 @@ impl Builder for CosBuilder {
                             write_with_content_type: true,
                             write_with_cache_control: true,
                             write_with_content_disposition: true,
-                            // Cos doesn't support forbid overwrite while version has been enabled.
-                            write_with_if_not_exists: !self.config.enable_versioning,
-                            // Same as write: forbid-overwrite only works when versioning is disabled.
-                            copy_with_if_not_exists: !self.config.enable_versioning,
+                            write_with_if_not_exists: true,
+                            copy_with_if_not_exists: true,
                             // The min multipart size of COS is 1 MiB.
                             //
                             // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -263,13 +263,13 @@ impl Builder for CosBuilder {
                             write_with_user_metadata: true,
 
                             delete: true,
-                            delete_with_version: self.config.enable_versioning,
+                            delete_with_version: true,
                             copy: true,
 
                             list: true,
                             list_with_recursive: true,
-                            list_with_versions: self.config.enable_versioning,
-                            list_with_deleted: self.config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,

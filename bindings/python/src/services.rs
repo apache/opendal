@@ -308,8 +308,9 @@ submit! {
                 account_name : builtins.str, optional
                     The account name of Azblob service backend.
                 batch_max_operations : builtins.int, optional
-                    The maximum batch operations of Azblob service
-                    backend.
+                    Deprecated: Azblob delete batch capability is
+                    enabled by default with Azure Blob's 256-operation
+                    batch limit.
                 container : builtins.str
                     The container name of Azblob service backend.
                 encryption_algorithm : builtins.str, optional
@@ -618,7 +619,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional
@@ -868,6 +870,7 @@ submit! {
                 root: builtins.str = ...,
                 scope: builtins.str = ...,
                 service_account: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 token: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -904,6 +907,9 @@ submit! {
                     Scope for gcs.
                 service_account : builtins.str, optional
                     Service Account for gcs.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 token : builtins.str, optional
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
@@ -1143,7 +1149,8 @@ submit! {
                 Parameters
                 ----------
                 enable_append : builtins.bool, optional
-                    enable the append capacity
+                    Deprecated: HDFS Native append capability is enabled
+                    by default.
                 name_node : builtins.str, optional
                     name_node of this backend
                 options : builtins.dict, optional
@@ -1663,7 +1670,8 @@ submit! {
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
-                    Is bucket versioning enabled for this bucket
+                    Deprecated: OBS versioning capability is not
+                    controlled by service config.
                 endpoint : builtins.str, optional
                     Endpoint for obs.
                 root : builtins.str, optional
@@ -1712,7 +1720,8 @@ submit! {
                     Microsoft Graph API Application client secret that
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
-                    Enabling version support
+                    Deprecated: OneDrive versioning capability is
+                    enabled by default.
                 refresh_token : builtins.str, optional
                     Microsoft Graph API (also OneDrive API) refresh
                     token
@@ -1749,6 +1758,7 @@ submit! {
                 delete_max_size: builtins.int = ...,
                 enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
                 presign_addressing_style: builtins.str = ...,
@@ -1759,6 +1769,7 @@ submit! {
                 security_token: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_key_id: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -1779,15 +1790,20 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:
@@ -1818,6 +1834,9 @@ submit! {
                     Server side encryption for oss.
                 server_side_encryption_key_id : builtins.str, optional
                     Server side encryption key id for oss.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
@@ -2309,7 +2328,8 @@ submit! {
                 Parameters
                 ----------
                 enable_copy : builtins.bool, optional
-                    enable_copy of this backend
+                    Deprecated: SFTP copy capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 key : builtins.str, optional
@@ -2487,15 +2507,14 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
-                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 region: builtins.str = ...,
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `tos` service.
@@ -2507,9 +2526,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -2517,11 +2533,6 @@ submit! {
                     Disable config load so that opendal will not load
                     config from environment.
                     For examples: - envs like `TOS_ACCESS_KEY_ID`
-                enable_versioning : builtins.bool, optional
-                    Enable bucket versioning for this backend.
-                    If set to true, OpenDAL will support versioned
-                    operations like list with versions, read with
-                    version, etc.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -2550,6 +2561,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 Operator
@@ -2706,7 +2720,8 @@ submit! {
                 Parameters
                 ----------
                 disable_copy : builtins.bool, optional
-                    WebDAV Service doesn't support copy.
+                    Deprecated: WebDAV copy capability is enabled by
+                    default.
                 disable_create_dir : builtins.bool, optional
                     Disable automatic parent directory creation before
                     write operations.
@@ -2721,14 +2736,8 @@ submit! {
                     files directly.
                     Default: false
                 enable_user_metadata : builtins.bool, optional
-                    Enable user metadata support via WebDAV PROPPATCH.
-                    This feature requires the WebDAV server to support
-                    RFC4918 PROPPATCH method.
-                    Not all WebDAV servers support this (e.g., nginx's
-                    basic WebDAV module doesn't).
-                    Only enable this if your server supports PROPPATCH
-                    (e.g., Apache mod_dav, Nextcloud).
-                    Default: false
+                    Deprecated: WebDAV user metadata capability is
+                    enabled by default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 password : builtins.str, optional
@@ -2988,8 +2997,9 @@ submit! {
                 account_name : builtins.str, optional
                     The account name of Azblob service backend.
                 batch_max_operations : builtins.int, optional
-                    The maximum batch operations of Azblob service
-                    backend.
+                    Deprecated: Azblob delete batch capability is
+                    enabled by default with Azure Blob's 256-operation
+                    batch limit.
                 container : builtins.str
                     The container name of Azblob service backend.
                 encryption_algorithm : builtins.str, optional
@@ -3298,7 +3308,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional
@@ -3548,6 +3559,7 @@ submit! {
                 root: builtins.str = ...,
                 scope: builtins.str = ...,
                 service_account: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 token: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -3584,6 +3596,9 @@ submit! {
                     Scope for gcs.
                 service_account : builtins.str, optional
                     Service Account for gcs.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 token : builtins.str, optional
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
@@ -3823,7 +3838,8 @@ submit! {
                 Parameters
                 ----------
                 enable_append : builtins.bool, optional
-                    enable the append capacity
+                    Deprecated: HDFS Native append capability is enabled
+                    by default.
                 name_node : builtins.str, optional
                     name_node of this backend
                 options : builtins.dict, optional
@@ -4343,7 +4359,8 @@ submit! {
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
-                    Is bucket versioning enabled for this bucket
+                    Deprecated: OBS versioning capability is not
+                    controlled by service config.
                 endpoint : builtins.str, optional
                     Endpoint for obs.
                 root : builtins.str, optional
@@ -4392,7 +4409,8 @@ submit! {
                     Microsoft Graph API Application client secret that
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
-                    Enabling version support
+                    Deprecated: OneDrive versioning capability is
+                    enabled by default.
                 refresh_token : builtins.str, optional
                     Microsoft Graph API (also OneDrive API) refresh
                     token
@@ -4429,6 +4447,7 @@ submit! {
                 delete_max_size: builtins.int = ...,
                 enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
                 presign_addressing_style: builtins.str = ...,
@@ -4439,6 +4458,7 @@ submit! {
                 security_token: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_key_id: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -4459,15 +4479,20 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:
@@ -4498,6 +4523,9 @@ submit! {
                     Server side encryption for oss.
                 server_side_encryption_key_id : builtins.str, optional
                     Server side encryption key id for oss.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
@@ -4989,7 +5017,8 @@ submit! {
                 Parameters
                 ----------
                 enable_copy : builtins.bool, optional
-                    enable_copy of this backend
+                    Deprecated: SFTP copy capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 key : builtins.str, optional
@@ -5167,15 +5196,14 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
-                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 region: builtins.str = ...,
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `tos` service.
@@ -5187,9 +5215,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -5197,11 +5222,6 @@ submit! {
                     Disable config load so that opendal will not load
                     config from environment.
                     For examples: - envs like `TOS_ACCESS_KEY_ID`
-                enable_versioning : builtins.bool, optional
-                    Enable bucket versioning for this backend.
-                    If set to true, OpenDAL will support versioned
-                    operations like list with versions, read with
-                    version, etc.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -5230,6 +5250,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 AsyncOperator
@@ -5386,7 +5409,8 @@ submit! {
                 Parameters
                 ----------
                 disable_copy : builtins.bool, optional
-                    WebDAV Service doesn't support copy.
+                    Deprecated: WebDAV copy capability is enabled by
+                    default.
                 disable_create_dir : builtins.bool, optional
                     Disable automatic parent directory creation before
                     write operations.
@@ -5401,14 +5425,8 @@ submit! {
                     files directly.
                     Default: false
                 enable_user_metadata : builtins.bool, optional
-                    Enable user metadata support via WebDAV PROPPATCH.
-                    This feature requires the WebDAV server to support
-                    RFC4918 PROPPATCH method.
-                    Not all WebDAV servers support this (e.g., nginx's
-                    basic WebDAV module doesn't).
-                    Only enable this if your server supports PROPPATCH
-                    (e.g., Apache mod_dav, Nextcloud).
-                    Default: false
+                    Deprecated: WebDAV user metadata capability is
+                    enabled by default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 password : builtins.str, optional

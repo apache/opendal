@@ -20,10 +20,14 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.need_capability("write", "write_with_if_match")
+@pytest.mark.need_capability("write", "stat", "write_with_if_match")
 def test_write_accepts_if_match_param(service_name, operator, async_operator):
     path = f"test_write_if_match_{uuid4()}.txt"
-    operator.write(path, b"test content", if_match="etag123")
+    operator.write(path, b"initial content")
+    etag = operator.stat(path).etag
+    if etag is None:
+        pytest.skip("backend does not return etag")
+    operator.write(path, b"test content", if_match=etag)
 
 
 @pytest.mark.need_capability("write", "write_with_if_none_match")
@@ -44,13 +48,17 @@ def test_write_default_params_unchanged(service_name, operator, async_operator):
     operator.write(path, b"test content")
 
 
-@pytest.mark.need_capability("write", "write_with_if_match")
+@pytest.mark.need_capability("write", "stat", "write_with_if_match")
 @pytest.mark.asyncio
 async def test_async_write_accepts_if_match_param(
     service_name, operator, async_operator
 ):
     path = f"test_async_write_if_match_{uuid4()}.txt"
-    await async_operator.write(path, b"test content", if_match="etag123")
+    await async_operator.write(path, b"initial content")
+    meta = await async_operator.stat(path)
+    if meta.etag is None:
+        pytest.skip("backend does not return etag")
+    await async_operator.write(path, b"test content", if_match=meta.etag)
 
 
 @pytest.mark.need_capability("write", "write_with_if_none_match")

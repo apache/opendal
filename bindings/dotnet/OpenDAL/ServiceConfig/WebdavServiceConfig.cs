@@ -29,7 +29,7 @@ namespace OpenDAL.ServiceConfig
     public sealed class WebdavServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// WebDAV Service doesn't support copy.
+        /// Deprecated: WebDAV copy capability is enabled by default.
         /// </summary>
         public bool? DisableCopy { get; init; }
         /// <summary>

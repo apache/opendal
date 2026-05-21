@@ -37,7 +37,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
-        /// Is bucket versioning enabled for this bucket
+        /// Deprecated: OBS versioning capability is not controlled by service config.
         /// </summary>
         public bool? EnableVersioning { get; init; }
         /// <summary>

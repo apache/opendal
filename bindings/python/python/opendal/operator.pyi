@@ -697,8 +697,9 @@ class AsyncOperator:
         account_name : builtins.str, optional
             The account name of Azblob service backend.
         batch_max_operations : builtins.int, optional
-            The maximum batch operations of Azblob service
-            backend.
+            Deprecated: Azblob delete batch capability is
+            enabled by default with Azure Blob's 256-operation
+            batch limit.
         container : builtins.str
             The container name of Azblob service backend.
         encryption_algorithm : builtins.str, optional
@@ -953,7 +954,8 @@ class AsyncOperator:
             Disable config load so that opendal will not load
             config from
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: COS versioning capability is enabled by
+            default.
         endpoint : builtins.str, optional
             Endpoint of this backend.
         root : builtins.str, optional
@@ -1149,6 +1151,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -1185,6 +1188,9 @@ class AsyncOperator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
@@ -1379,7 +1385,8 @@ class AsyncOperator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            enable the append capacity
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -1791,7 +1798,8 @@ class AsyncOperator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Is bucket versioning enabled for this bucket
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional
@@ -1831,7 +1839,8 @@ class AsyncOperator:
             Microsoft Graph API Application client secret that
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
-            Enabling version support
+            Deprecated: OneDrive versioning capability is
+            enabled by default.
         refresh_token : builtins.str, optional
             Microsoft Graph API (also OneDrive API) refresh
             token
@@ -1869,6 +1878,7 @@ class AsyncOperator:
         security_token: builtins.str = ...,
         server_side_encryption: builtins.str = ...,
         server_side_encryption_key_id: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         sts_endpoint: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -1889,13 +1899,16 @@ class AsyncOperator:
         allow_anonymous : builtins.bool, optional
             Allow anonymous for oss.
         batch_max_operations : builtins.int, optional
-            The size of max batch operations.
+            Deprecated: OSS delete batch capability is enabled
+            by default.
         bucket : builtins.str
             Bucket for oss.
         delete_max_size : builtins.int, optional
-            The size of max delete operations.
+            Deprecated: OSS delete batch capability is enabled
+            by default.
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: OSS versioning capability is enabled by
+            default.
         endpoint : builtins.str, optional
             Endpoint for oss.
         oidc_provider_arn : builtins.str, optional
@@ -1928,6 +1941,9 @@ class AsyncOperator:
             Server side encryption for oss.
         server_side_encryption_key_id : builtins.str, optional
             Server side encryption key id for oss.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         sts_endpoint : builtins.str, optional
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
@@ -2195,15 +2211,14 @@ class AsyncOperator:
             Deprecated: S3 stat override capabilities are
             enabled by default.
         disable_write_with_if_match : builtins.bool, optional
-            Disable write with if match so that opendal will not
-            send write request with if match headers.
-            For example, Ceph RADOS S3 doesn't support write
-            with if matched.
+            Deprecated: S3 write with If-Match capability is
+            enabled by default.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: S3 versioning capability is enabled by
+            default.
         enable_virtual_host_style : builtins.bool, optional
             Enable virtual host style so that opendal will send
             API requests in virtual host style instead of path
@@ -2213,8 +2228,8 @@ class AsyncOperator:
             Enabled, opendal will send API to
             `https://bucket_name.s3.us-east-1.amazonaws.com`
         enable_write_with_append : builtins.bool, optional
-            Enable write with append so that opendal will send
-            write request with append headers.
+            Deprecated: S3 append capability is enabled by
+            default.
         endpoint : builtins.str, optional
             endpoint of this backend.
             Endpoint must be full uri, e.g.
@@ -2499,15 +2514,14 @@ class AsyncOperator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
-        enable_versioning: builtins.bool = ...,
         endpoint: builtins.str = ...,
         region: builtins.str = ...,
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
         security_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `tos` service.
@@ -2519,9 +2533,6 @@ class AsyncOperator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.
@@ -2529,11 +2540,6 @@ class AsyncOperator:
             Disable config load so that opendal will not load
             config from environment.
             For examples: - envs like `TOS_ACCESS_KEY_ID`
-        enable_versioning : builtins.bool, optional
-            Enable bucket versioning for this backend.
-            If set to true, OpenDAL will support versioned
-            operations like list with versions, read with
-            version, etc.
         endpoint : builtins.str, optional
             endpoint of this backend.
             Endpoint must be full uri, e.g.
@@ -2562,6 +2568,9 @@ class AsyncOperator:
             security_token of this backend.
             This token will expire after sometime, it's
             recommended to set security_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -2684,7 +2693,8 @@ class AsyncOperator:
         Parameters
         ----------
         disable_copy : builtins.bool, optional
-            WebDAV Service doesn't support copy.
+            Deprecated: WebDAV copy capability is enabled by
+            default.
         disable_create_dir : builtins.bool, optional
             Disable automatic parent directory creation before
             write operations.
@@ -2699,14 +2709,8 @@ class AsyncOperator:
             files directly.
             Default: false
         enable_user_metadata : builtins.bool, optional
-            Enable user metadata support via WebDAV PROPPATCH.
-            This feature requires the WebDAV server to support
-            RFC4918 PROPPATCH method.
-            Not all WebDAV servers support this (e.g., nginx's
-            basic WebDAV module doesn't).
-            Only enable this if your server supports PROPPATCH
-            (e.g., Apache mod_dav, Nextcloud).
-            Default: false
+            Deprecated: WebDAV user metadata capability is
+            enabled by default.
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional
@@ -3299,8 +3303,9 @@ class Operator:
         account_name : builtins.str, optional
             The account name of Azblob service backend.
         batch_max_operations : builtins.int, optional
-            The maximum batch operations of Azblob service
-            backend.
+            Deprecated: Azblob delete batch capability is
+            enabled by default with Azure Blob's 256-operation
+            batch limit.
         container : builtins.str
             The container name of Azblob service backend.
         encryption_algorithm : builtins.str, optional
@@ -3555,7 +3560,8 @@ class Operator:
             Disable config load so that opendal will not load
             config from
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: COS versioning capability is enabled by
+            default.
         endpoint : builtins.str, optional
             Endpoint of this backend.
         root : builtins.str, optional
@@ -3751,6 +3757,7 @@ class Operator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -3787,6 +3794,9 @@ class Operator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
@@ -3981,7 +3991,8 @@ class Operator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            enable the append capacity
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -4393,7 +4404,8 @@ class Operator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Is bucket versioning enabled for this bucket
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional
@@ -4433,7 +4445,8 @@ class Operator:
             Microsoft Graph API Application client secret that
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
-            Enabling version support
+            Deprecated: OneDrive versioning capability is
+            enabled by default.
         refresh_token : builtins.str, optional
             Microsoft Graph API (also OneDrive API) refresh
             token
@@ -4471,6 +4484,7 @@ class Operator:
         security_token: builtins.str = ...,
         server_side_encryption: builtins.str = ...,
         server_side_encryption_key_id: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         sts_endpoint: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -4491,13 +4505,16 @@ class Operator:
         allow_anonymous : builtins.bool, optional
             Allow anonymous for oss.
         batch_max_operations : builtins.int, optional
-            The size of max batch operations.
+            Deprecated: OSS delete batch capability is enabled
+            by default.
         bucket : builtins.str
             Bucket for oss.
         delete_max_size : builtins.int, optional
-            The size of max delete operations.
+            Deprecated: OSS delete batch capability is enabled
+            by default.
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: OSS versioning capability is enabled by
+            default.
         endpoint : builtins.str, optional
             Endpoint for oss.
         oidc_provider_arn : builtins.str, optional
@@ -4530,6 +4547,9 @@ class Operator:
             Server side encryption for oss.
         server_side_encryption_key_id : builtins.str, optional
             Server side encryption key id for oss.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         sts_endpoint : builtins.str, optional
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
@@ -4797,15 +4817,14 @@ class Operator:
             Deprecated: S3 stat override capabilities are
             enabled by default.
         disable_write_with_if_match : builtins.bool, optional
-            Disable write with if match so that opendal will not
-            send write request with if match headers.
-            For example, Ceph RADOS S3 doesn't support write
-            with if matched.
+            Deprecated: S3 write with If-Match capability is
+            enabled by default.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
         enable_versioning : builtins.bool, optional
-            is bucket versioning enabled for this bucket
+            Deprecated: S3 versioning capability is enabled by
+            default.
         enable_virtual_host_style : builtins.bool, optional
             Enable virtual host style so that opendal will send
             API requests in virtual host style instead of path
@@ -4815,8 +4834,8 @@ class Operator:
             Enabled, opendal will send API to
             `https://bucket_name.s3.us-east-1.amazonaws.com`
         enable_write_with_append : builtins.bool, optional
-            Enable write with append so that opendal will send
-            write request with append headers.
+            Deprecated: S3 append capability is enabled by
+            default.
         endpoint : builtins.str, optional
             endpoint of this backend.
             Endpoint must be full uri, e.g.
@@ -5101,15 +5120,14 @@ class Operator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
-        enable_versioning: builtins.bool = ...,
         endpoint: builtins.str = ...,
         region: builtins.str = ...,
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
         security_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `Operator` for `tos` service.
@@ -5121,9 +5139,6 @@ class Operator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.
@@ -5131,11 +5146,6 @@ class Operator:
             Disable config load so that opendal will not load
             config from environment.
             For examples: - envs like `TOS_ACCESS_KEY_ID`
-        enable_versioning : builtins.bool, optional
-            Enable bucket versioning for this backend.
-            If set to true, OpenDAL will support versioned
-            operations like list with versions, read with
-            version, etc.
         endpoint : builtins.str, optional
             endpoint of this backend.
             Endpoint must be full uri, e.g.
@@ -5164,6 +5174,9 @@ class Operator:
             security_token of this backend.
             This token will expire after sometime, it's
             recommended to set security_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -5286,7 +5299,8 @@ class Operator:
         Parameters
         ----------
         disable_copy : builtins.bool, optional
-            WebDAV Service doesn't support copy.
+            Deprecated: WebDAV copy capability is enabled by
+            default.
         disable_create_dir : builtins.bool, optional
             Disable automatic parent directory creation before
             write operations.
@@ -5301,14 +5315,8 @@ class Operator:
             files directly.
             Default: false
         enable_user_metadata : builtins.bool, optional
-            Enable user metadata support via WebDAV PROPPATCH.
-            This feature requires the WebDAV server to support
-            RFC4918 PROPPATCH method.
-            Not all WebDAV servers support this (e.g., nginx's
-            basic WebDAV module doesn't).
-            Only enable this if your server supports PROPPATCH
-            (e.g., Apache mod_dav, Nextcloud).
-            Default: false
+            Deprecated: WebDAV user metadata capability is
+            enabled by default.
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional

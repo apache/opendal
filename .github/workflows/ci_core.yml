@@ -92,6 +92,29 @@ jobs:
         working-directory: core
         run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
+  check_tls_features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert aws-lc-rs is absent under reqwest-rustls-no-provider-tls
+        working-directory: core
+        run: |
+          set -euo pipefail
+          tree=$(cargo tree -p opendal \
+            --no-default-features \
+            --features services-gcs,reqwest-rustls-no-provider-tls \
+            --edges normal,build \
+            --prefix none)
+          if echo "$tree" | grep -E '^aws-lc-rs( |$)' ; then
+            echo "::error::aws-lc-rs is reachable from opendal with only reqwest-rustls-no-provider-tls enabled"
+            echo "$tree"
+            exit 1
+          fi
+
   build_default_features:
     runs-on: ${{ matrix.os }}
     strategy:

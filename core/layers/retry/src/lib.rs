@@ -293,7 +293,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Writer = RetryWrapper<A::Writer, I>;
     type Lister = RetryWrapper<A::Lister, I>;
     type Deleter = RetryWrapper<A::Deleter, I>;
-    type Copier = A::Copier;
+    type Copier = RetryWrapper<A::Copier, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -417,6 +417,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
                 })
             })
             .await
+            .map(|(rp, c)| (rp, RetryWrapper::new(c, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
@@ -756,6 +757,70 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
     }
 }
 
+impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.next().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.abort().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
@@ -795,7 +860,7 @@ mod tests {
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
-        type Copier = oio::Copier;
+        type Copier = MockCopier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
@@ -808,6 +873,7 @@ mod tests {
                 stat: true,
                 list: true,
                 list_with_recursive: true,
+                copy: true,
                 ..Default::default()
             });
 
@@ -848,6 +914,21 @@ mod tests {
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             let lister = MockLister::default();
             Ok((RpList::default(), lister))
+        }
+
+        async fn copy(
+            &self,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<(RpCopy, Self::Copier)> {
+            Ok((
+                RpCopy::default(),
+                MockCopier {
+                    attempt: self.attempt.clone(),
+                },
+            ))
         }
     }
 
@@ -985,6 +1066,41 @@ mod tests {
                 }
                 _ => unreachable!(),
             }
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockCopier {
+        attempt: Arc<Mutex<usize>>,
+    }
+
+    impl oio::Copy for MockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                2 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                3 => Ok(Some(8)),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                5 => Ok(Some(5)),
+                6 => Ok(None),
+                _ => unreachable!(),
+            }
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -1133,6 +1249,51 @@ mod tests {
         let paths = vec!["hello", "world", "test", "batch"];
         op.delete_stream(stream::iter(paths)).await?;
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_copy() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())?
+            .layer(
+                RetryLayer::default()
+                    .with_min_delay(Duration::from_millis(1))
+                    .with_max_delay(Duration::from_millis(1))
+                    .with_notify(recorder.clone()),
+            )
+            .finish();
+
+        op.copy("from", "to").await.expect("copy must succeed");
+
+        // The MockCopier returns errors on attempts 1, 2, 4 and progress
+        // on attempts 3, 5; finishing on attempt 6. The retry layer must
+        // retry `Copier::next` to drive the operation to completion.
+        assert_eq!(*builder.attempt.lock().unwrap(), 6);
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Copy, 1),
+                (Operation::Copy, 2),
+                (Operation::Copy, 1),
+            ],
+        );
         Ok(())
     }
 }

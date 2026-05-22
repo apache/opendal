@@ -1337,12 +1337,6 @@ pub struct CompleteMultipartUploadResult {
 
 /// Body of a `CopyObject` or `UploadPartCopy` response.
 ///
-/// S3 may return HTTP 200 OK with either a `<CopyObjectResult>` success body or
-/// an `<Error>` body for these operations.
-/// We deserialize permissively so a single struct can capture both shapes; the
-/// caller distinguishes success from failure by checking whether `etag` is
-/// present (success bodies always carry an ETag, error bodies never do).
-///
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html#API_UploadPartCopy_ResponseSyntax>
 #[derive(Debug, Default, Deserialize)]

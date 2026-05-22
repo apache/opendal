@@ -23,38 +23,51 @@ import builtins
 class AlreadyExists(builtins.Exception):
     r"""Already exists."""
 
+
 class ConditionNotMatch(builtins.Exception):
     r"""Condition not match."""
+
 
 class ConfigInvalid(builtins.Exception):
     r"""Config is invalid."""
 
+
 class Error(builtins.Exception):
     r"""OpenDAL Base Exception."""
+
 
 class IsADirectory(builtins.Exception):
     r"""Is a directory."""
 
+
 class IsSameFile(builtins.Exception):
     r"""Is same file."""
+
 
 class NotADirectory(builtins.Exception):
     r"""Not a directory."""
 
+
 class NotFound(builtins.Exception):
     r"""Not found."""
+
 
 class PermissionDenied(builtins.Exception):
     r"""Permission denied."""
 
+
 class RangeNotSatisfied(builtins.Exception):
     r"""Range not satisfied."""
+
 
 class RateLimited(builtins.Exception):
     r"""Rate limited."""
 
+
 class Unexpected(builtins.Exception):
     r"""Unexpected errors."""
 
+
 class Unsupported(builtins.Exception):
     r"""Unsupported operation."""
+

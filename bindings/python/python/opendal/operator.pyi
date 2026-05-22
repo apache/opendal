@@ -45,6 +45,23 @@ class AsyncOperator:
     Operator
     """
 
+    @staticmethod
+    def from_uri(uri: builtins.str, **kwargs: typing.Any) -> AsyncOperator:
+        r"""
+        Create a new `AsyncOperator` from a URI.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service.
+        **kwargs : dict
+            The options for the service.
+
+        Returns
+        -------
+        AsyncOperator
+            The new operator.
+        """
     def layer(self, layer: Layer) -> AsyncOperator:
         r"""
         Add a new layer to the operator.
@@ -942,6 +959,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         secret_id: builtins.str = ...,
         secret_key: builtins.str = ...,
+        security_token: builtins.str = ...,
     ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `cos` service.
@@ -964,6 +982,21 @@ class AsyncOperator:
             Secret ID of this backend.
         secret_key : builtins.str, optional
             Secret key of this backend.
+        security_token : builtins.str, optional
+            Security token (a.k.a.
+            session token) of this backend.
+            This is used for temporary credentials issued by
+            Tencent Cloud STS (e.g.
+            `GetFederationToken` / `AssumeRole`).
+            When `security_token` is provided, it will be used
+            together with `secret_id` and `secret_key` to sign
+            requests, and the `x-cos-security-token` header will
+            be attached automatically by the signer.
+            If this field is not set, OpenDAL will also fall
+            back to reading the token from environment variables
+            `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN`
+            or `QCLOUD_SECRET_TOKEN` (unless
+            `disable_config_load` is enabled).
 
         Returns
         -------
@@ -1868,6 +1901,7 @@ class AsyncOperator:
         delete_max_size: builtins.int = ...,
         enable_versioning: builtins.bool = ...,
         endpoint: builtins.str = ...,
+        external_id: builtins.str = ...,
         oidc_provider_arn: builtins.str = ...,
         oidc_token_file: builtins.str = ...,
         presign_addressing_style: builtins.str = ...,
@@ -1911,6 +1945,8 @@ class AsyncOperator:
             default.
         endpoint : builtins.str, optional
             Endpoint for oss.
+        external_id : builtins.str, optional
+            external_id for this backend.
         oidc_provider_arn : builtins.str, optional
             `oidc_provider_arn` will be loaded from - this field
             if it's `is_some` - env value:
@@ -2372,7 +2408,8 @@ class AsyncOperator:
         Parameters
         ----------
         enable_copy : builtins.bool, optional
-            enable_copy of this backend
+            Deprecated: SFTP copy capability is enabled by
+            default.
         endpoint : builtins.str, optional
             endpoint of this backend
         key : builtins.str, optional
@@ -2817,6 +2854,23 @@ class Operator:
     AsyncOperator
     """
 
+    @staticmethod
+    def from_uri(uri: builtins.str, **kwargs: typing.Any) -> Operator:
+        r"""
+        Create a new blocking `Operator` from a URI.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service.
+        **kwargs : dict
+            The options for the service.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+        """
     def layer(self, layer: Layer) -> Operator:
         r"""
         Add a new layer to this operator.
@@ -3548,6 +3602,7 @@ class Operator:
         root: builtins.str = ...,
         secret_id: builtins.str = ...,
         secret_key: builtins.str = ...,
+        security_token: builtins.str = ...,
     ) -> typing.Self:
         r"""
         Create a new `Operator` for `cos` service.
@@ -3570,6 +3625,21 @@ class Operator:
             Secret ID of this backend.
         secret_key : builtins.str, optional
             Secret key of this backend.
+        security_token : builtins.str, optional
+            Security token (a.k.a.
+            session token) of this backend.
+            This is used for temporary credentials issued by
+            Tencent Cloud STS (e.g.
+            `GetFederationToken` / `AssumeRole`).
+            When `security_token` is provided, it will be used
+            together with `secret_id` and `secret_key` to sign
+            requests, and the `x-cos-security-token` header will
+            be attached automatically by the signer.
+            If this field is not set, OpenDAL will also fall
+            back to reading the token from environment variables
+            `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN`
+            or `QCLOUD_SECRET_TOKEN` (unless
+            `disable_config_load` is enabled).
 
         Returns
         -------
@@ -4474,6 +4544,7 @@ class Operator:
         delete_max_size: builtins.int = ...,
         enable_versioning: builtins.bool = ...,
         endpoint: builtins.str = ...,
+        external_id: builtins.str = ...,
         oidc_provider_arn: builtins.str = ...,
         oidc_token_file: builtins.str = ...,
         presign_addressing_style: builtins.str = ...,
@@ -4517,6 +4588,8 @@ class Operator:
             default.
         endpoint : builtins.str, optional
             Endpoint for oss.
+        external_id : builtins.str, optional
+            external_id for this backend.
         oidc_provider_arn : builtins.str, optional
             `oidc_provider_arn` will be loaded from - this field
             if it's `is_some` - env value:
@@ -4978,7 +5051,8 @@ class Operator:
         Parameters
         ----------
         enable_copy : builtins.bool, optional
-            enable_copy of this backend
+            Deprecated: SFTP copy capability is enabled by
+            default.
         endpoint : builtins.str, optional
             endpoint of this backend
         key : builtins.str, optional

@@ -107,8 +107,8 @@ impl oio::MultipartCopy for S3Copier {
                 let (parts, body) = resp.into_parts();
                 let bs = body.to_bytes();
 
-                let result: CopyObjectResult = quick_xml::de::from_reader(bs.as_ref())
-                    .map_err(new_xml_deserialize_error)?;
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
 
                 // S3 may return 200 OK with an <Error> body for CopyObject.
                 if !result.etag.is_empty() {
@@ -177,8 +177,8 @@ impl oio::MultipartCopy for S3Copier {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
                 let bs = body.to_bytes();
-                let result: CopyObjectResult = quick_xml::de::from_reader(bs.as_ref())
-                    .map_err(new_xml_deserialize_error)?;
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
 
                 // S3 may return 200 OK with an <Error> body for UploadPartCopy.
                 if !result.code.is_empty() {

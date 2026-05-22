@@ -77,6 +77,7 @@ pub fn all_packages() -> Vec<Package> {
     let java = make_package("bindings/java", "0.48.4", vec![core.clone()]);
     let nodejs = make_package("bindings/nodejs", "0.49.4", vec![core.clone()]);
     let python = make_package("bindings/python", "0.47.2", vec![core.clone()]);
+    let ruby = make_package("bindings/ruby", "0.1.6", vec![core.clone()]);
 
     vec![
         core,
@@ -89,6 +90,7 @@ pub fn all_packages() -> Vec<Package> {
         java,
         nodejs,
         python,
+        ruby,
     ]
 }
 
@@ -113,6 +115,9 @@ pub fn update_package_version(package: &Package) -> bool {
         "bindings/lua" => false, // Lua bindings has no version to update
 
         "bindings/python" => update_cargo_version(&package.path, &package.version, &[]),
+        "bindings/ruby" => {
+            update_cargo_version(&package.path, &package.version, package.dependencies())
+        }
         "bindings/java" => update_maven_version(&package.path, &package.version),
         "bindings/nodejs" => update_nodejs_version(&package.path, &package.version),
 
@@ -536,6 +541,16 @@ mod tests {
             .unwrap();
 
         assert_eq!(parquet.version, Version::parse("0.8.1").unwrap());
+    }
+
+    #[test]
+    fn ruby_release_version_matches_manifest() {
+        let ruby = all_packages()
+            .into_iter()
+            .find(|package| package.name() == "bindings/ruby")
+            .unwrap();
+
+        assert_eq!(ruby.version, Version::parse("0.1.6").unwrap());
     }
 
     #[test]

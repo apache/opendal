@@ -16,12 +16,10 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use bytes::Buf;
 use http::StatusCode;
 
-use crate::core::constants::X_TOS_VERSION_ID;
 use crate::core::*;
 use crate::error::parse_error;
 use crate::utils::tos_parse_into_metadata;
@@ -69,7 +67,6 @@ pub fn new_tos_copier(
             from: from.to_string(),
             to: to.to_string(),
             args,
-            source_metadata: Mutex::new(None),
         },
         opts.source_content_length_hint(),
         copy_once_threshold,
@@ -83,21 +80,10 @@ pub struct TosCopier {
     from: String,
     to: String,
     args: OpCopy,
-    source_metadata: Mutex<Option<Metadata>>,
 }
 
-impl TosCopier {
-    async fn load_source_metadata(&self) -> Result<Metadata> {
-        {
-            let source_metadata = self
-                .source_metadata
-                .lock()
-                .expect("source metadata mutex poisoned");
-            if let Some(meta) = source_metadata.as_ref() {
-                return Ok(meta.clone());
-            }
-        }
-
+impl oio::MultipartCopy for TosCopier {
+    async fn source_metadata(&self) -> Result<Metadata> {
         let resp = self
             .core
             .tos_head_object(&self.from, OpStat::default())
@@ -106,28 +92,10 @@ impl TosCopier {
         match resp.status() {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = tos_parse_into_metadata(&self.from, headers)?;
-
-                if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.set_version(v);
-                }
-
-                let mut source_metadata = self
-                    .source_metadata
-                    .lock()
-                    .expect("source metadata mutex poisoned");
-                *source_metadata = Some(meta.clone());
-
-                Ok(meta)
+                tos_parse_into_metadata(&self.from, headers)
             }
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-impl oio::MultipartCopy for TosCopier {
-    async fn source_metadata(&self) -> Result<Metadata> {
-        self.load_source_metadata().await
     }
 
     async fn copy_once(&self) -> Result<()> {
@@ -155,8 +123,6 @@ impl oio::MultipartCopy for TosCopier {
     }
 
     async fn initiate_copy(&self) -> Result<String> {
-        self.load_source_metadata().await?;
-
         let resp = self.core.tos_initiate_multipart_copy(&self.to).await?;
 
         match resp.status() {
@@ -179,22 +145,6 @@ impl oio::MultipartCopy for TosCopier {
     ) -> Result<oio::MultipartPart> {
         let size = range.size().expect("multipart copy range must be sized");
         let part_number = part_number + 1;
-        let (source_etag, source_version) = {
-            let source_metadata = self
-                .source_metadata
-                .lock()
-                .expect("source metadata mutex poisoned");
-            (
-                source_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.etag())
-                    .map(ToOwned::to_owned),
-                source_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.version())
-                    .map(ToOwned::to_owned),
-            )
-        };
 
         let req = self
             .core
@@ -204,8 +154,6 @@ impl oio::MultipartCopy for TosCopier {
                 upload_id,
                 part_number,
                 range,
-                source_etag: source_etag.as_deref(),
-                source_version: source_version.as_deref(),
             })?;
         let resp = self.core.send(req).await?;
 

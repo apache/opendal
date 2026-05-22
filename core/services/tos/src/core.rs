@@ -35,7 +35,6 @@ use opendal_core::*;
 pub mod constants {
     pub const X_TOS_ACL: &str = "x-tos-acl";
     pub const X_TOS_COPY_SOURCE: &str = "x-tos-copy-source";
-    pub const X_TOS_COPY_SOURCE_IF_MATCH: &str = "x-tos-copy-source-if-match";
     pub const X_TOS_COPY_SOURCE_RANGE: &str = "x-tos-copy-source-range";
     pub const X_TOS_FORBID_OVERWRITE: &str = "x-tos-forbid-overwrite";
 
@@ -74,8 +73,6 @@ pub(crate) struct TosUploadPartCopyRequest<'a> {
     pub upload_id: &'a str,
     pub part_number: usize,
     pub range: BytesRange,
-    pub source_etag: Option<&'a str>,
-    pub source_version: Option<&'a str>,
 }
 
 impl Debug for TosCore {
@@ -510,7 +507,7 @@ impl TosCore {
         let source = build_abs_path(&self.root, input.from);
         let target = build_abs_path(&self.root, input.to);
 
-        let mut url = format!(
+        let url = format!(
             "https://{}.{}/{}?partNumber={}&uploadId={}",
             self.bucket,
             self.endpoint_domain,
@@ -518,23 +515,12 @@ impl TosCore {
             input.part_number,
             percent_encode_query(input.upload_id)
         );
-        if let Some(version) = input.source_version {
-            url.push_str(&format!(
-                "&{}={}",
-                constants::TOS_QUERY_VERSION_ID,
-                percent_encode_query(version)
-            ));
-        }
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
 
-        let mut req = Request::put(&url)
+        let req = Request::put(&url)
             .extension(Operation::Copy)
             .header(constants::X_TOS_COPY_SOURCE, source)
             .header(constants::X_TOS_COPY_SOURCE_RANGE, input.range.to_header());
-
-        if let Some(etag) = input.source_etag {
-            req = req.header(constants::X_TOS_COPY_SOURCE_IF_MATCH, etag);
-        }
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

@@ -61,22 +61,22 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.56.0", vec![]);
+    let core = make_package("core", "0.57.0", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.7.1", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.56.0", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.8.0", vec![core.clone()]);
-    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.1", vec![core.clone()]);
+    let dav_server = make_package("integrations/dav-server", "0.7.2", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.57.0", vec![core.clone()]);
+    let parquet = make_package("integrations/parquet", "0.8.1", vec![core.clone()]);
+    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.2", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
-    let c = make_package("bindings/c", "0.46.5", vec![core.clone()]);
-    let cpp = make_package("bindings/cpp", "0.45.25", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.48.3", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.49.3", vec![core.clone()]);
-    let python = make_package("bindings/python", "0.47.1", vec![core.clone()]);
+    let c = make_package("bindings/c", "0.46.6", vec![core.clone()]);
+    let cpp = make_package("bindings/cpp", "0.45.26", vec![core.clone()]);
+    let java = make_package("bindings/java", "0.48.4", vec![core.clone()]);
+    let nodejs = make_package("bindings/nodejs", "0.49.4", vec![core.clone()]);
+    let python = make_package("bindings/python", "0.47.2", vec![core.clone()]);
 
     vec![
         core,
@@ -535,7 +535,7 @@ mod tests {
             .find(|package| package.name() == "integrations/parquet")
             .unwrap();
 
-        assert_eq!(parquet.version, Version::parse("0.8.0").unwrap());
+        assert_eq!(parquet.version, Version::parse("0.8.1").unwrap());
     }
 
     #[test]

@@ -111,7 +111,7 @@ impl oio::MultipartCopy for S3Copier {
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
 
                 // S3 may return 200 OK with an <Error> body for CopyObject.
-                if !result.etag.is_empty() {
+                if result.etag.is_empty() {
                     return Err(from_s3_error(
                         S3Error {
                             code: result.code,
@@ -121,13 +121,6 @@ impl oio::MultipartCopy for S3Copier {
                         },
                         parts,
                     ));
-                }
-
-                if result.etag.is_empty() {
-                    return Err(
-                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&bs))
-                            .set_temporary(),
-                    );
                 }
 
                 Ok(())
@@ -181,7 +174,7 @@ impl oio::MultipartCopy for S3Copier {
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
 
                 // S3 may return 200 OK with an <Error> body for UploadPartCopy.
-                if !result.code.is_empty() {
+                if result.etag.is_empty() {
                     return Err(from_s3_error(
                         S3Error {
                             code: result.code,
@@ -191,13 +184,6 @@ impl oio::MultipartCopy for S3Copier {
                         },
                         parts,
                     ));
-                }
-
-                if result.etag.is_empty() {
-                    return Err(
-                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&bs))
-                            .set_temporary(),
-                    );
                 }
 
                 Ok(oio::MultipartPart {
@@ -234,7 +220,8 @@ impl oio::MultipartCopy for S3Copier {
 
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
-                if !ret.code.is_empty() {
+                // S3 may return 200 OK with an <Error> body for CompleteMultipartUpload.
+                if ret.etag.is_empty() {
                     return Err(from_s3_error(
                         S3Error {
                             code: ret.code,

@@ -3906,9 +3906,9 @@ dependencies = [
 
 [[package]]
 name = "goosefs-sdk"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "617aa41d5a617b3f902506e8fe4162f3c9c6d7594041024a56a71eeec640b919"
+checksum = "a28e6b1bfe5aef24eed29a15013a5b4202b187b464b90e93d73161500017f815"
 dependencies = [
  "async-trait",
  "bytes",

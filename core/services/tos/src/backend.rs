@@ -40,6 +40,7 @@ use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredent
 const TOS_SCHEME: &str = "tos";
 
 /// Builder for Volcengine TOS service.
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct TosBuilder {
     pub(super) config: TosConfig,

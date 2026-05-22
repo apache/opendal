@@ -48,7 +48,6 @@ use opendal_core::*;
 
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
-    pub const X_AMZ_COPY_SOURCE_IF_MATCH: &str = "x-amz-copy-source-if-match";
     pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
@@ -113,8 +112,6 @@ pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) upload_id: &'a str,
     pub(crate) part_number: usize,
     pub(crate) range: BytesRange,
-    pub(crate) source_etag: Option<&'a str>,
-    pub(crate) source_version: Option<&'a str>,
 }
 
 impl Debug for S3Core {
@@ -914,14 +911,7 @@ impl S3Core {
         let from = build_abs_path(&self.root, input.from);
         let to = build_abs_path(&self.root, input.to);
 
-        let mut source = format!("{}/{}", self.bucket, percent_encode_path(&from));
-        if let Some(version) = input.source_version {
-            source.push_str(&format!(
-                "?{}={}",
-                constants::S3_QUERY_VERSION_ID,
-                percent_encode_path(version)
-            ));
-        }
+        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -970,10 +960,6 @@ impl S3Core {
                 ),
                 v,
             )
-        }
-
-        if let Some(etag) = input.source_etag {
-            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, etag);
         }
 
         // Set request payer header if enabled.

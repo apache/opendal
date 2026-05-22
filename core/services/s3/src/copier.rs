@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use bytes::Buf;
 use http::StatusCode;
@@ -69,7 +68,6 @@ pub fn new_s3_copier(
             from: from.to_string(),
             to: to.to_string(),
             args,
-            source_metadata: Mutex::new(None),
         },
         opts.source_content_length_hint(),
         copy_once_threshold,
@@ -83,7 +81,6 @@ pub struct S3Copier {
     from: String,
     to: String,
     args: OpCopy,
-    source_metadata: Mutex<Option<Metadata>>,
 }
 
 impl oio::MultipartCopy for S3Copier {
@@ -96,19 +93,7 @@ impl oio::MultipartCopy for S3Copier {
         match resp.status() {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(&self.from, headers)?;
-
-                if let Some(v) = parse_header_to_str(headers, constants::X_AMZ_VERSION_ID)? {
-                    meta.set_version(v);
-                }
-
-                let mut source_metadata = self
-                    .source_metadata
-                    .lock()
-                    .expect("source metadata mutex poisoned");
-                *source_metadata = Some(meta.clone());
-
-                Ok(meta)
+                parse_into_metadata(&self.from, headers)
             }
             _ => Err(parse_error(resp)),
         }
@@ -161,22 +146,6 @@ impl oio::MultipartCopy for S3Copier {
     ) -> Result<oio::MultipartPart> {
         let size = range.size().expect("multipart copy range must be sized");
         let part_number = part_number + 1;
-        let (source_etag, source_version) = {
-            let source_metadata = self
-                .source_metadata
-                .lock()
-                .expect("source metadata mutex poisoned");
-            (
-                source_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.etag())
-                    .map(ToOwned::to_owned),
-                source_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.version())
-                    .map(ToOwned::to_owned),
-            )
-        };
 
         let req = self
             .core
@@ -186,8 +155,6 @@ impl oio::MultipartCopy for S3Copier {
                 upload_id,
                 part_number,
                 range,
-                source_etag: source_etag.as_deref(),
-                source_version: source_version.as_deref(),
             })?;
 
         let resp = self.core.send(req).await?;

@@ -23,6 +23,8 @@ use http::Response;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
+use http::header::HeaderValue;
+use http::header::USER_AGENT;
 use reqsign_core::Signer;
 use reqsign_volcengine_tos::Credential;
 use reqsign_volcengine_tos::{percent_encode_path, percent_encode_query};
@@ -76,8 +78,9 @@ impl Debug for TosCore {
 }
 
 impl TosCore {
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    pub async fn send(&self, mut req: Request<Buffer>) -> Result<Response<Buffer>> {
         if self.skip_signature {
+            insert_tos_user_agent_header(req.headers_mut());
             return self.info.http_client().send(req).await;
         }
 
@@ -86,6 +89,8 @@ impl TosCore {
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
+
+        insert_tos_user_agent_header(&mut parts.headers);
 
         let resp = self
             .info
@@ -96,8 +101,9 @@ impl TosCore {
         Ok(resp)
     }
 
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+    pub async fn fetch(&self, mut req: Request<Buffer>) -> Result<Response<HttpBody>> {
         if self.skip_signature {
+            insert_tos_user_agent_header(req.headers_mut());
             return self.info.http_client().fetch(req).await;
         }
 
@@ -109,6 +115,7 @@ impl TosCore {
             .map_err(|e| new_request_sign_error(e.into()))?;
 
         parts.headers.remove(HOST);
+        insert_tos_user_agent_header(&mut parts.headers);
 
         self.info
             .http_client()
@@ -505,6 +512,14 @@ impl TosCore {
 
         self.send(req).await
     }
+}
+
+fn insert_tos_user_agent_header(headers: &mut http::HeaderMap) {
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(&format!("opendal/{VERSION}"))
+            .expect("user agent must be valid header value"),
+    );
 }
 
 #[derive(Default, Debug, Serialize)]

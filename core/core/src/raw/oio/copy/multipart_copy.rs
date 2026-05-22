@@ -105,6 +105,7 @@ pub struct MultipartCopier<C: MultipartCopy> {
     copy_once_threshold: u64,
     part_size: u64,
     concurrent: usize,
+    max_parts: Option<usize>,
     completed: bool,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedPart>,
@@ -123,6 +124,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         let copier = Arc::new(inner);
         let executor = info.executor();
         let concurrent = concurrent.max(1);
+        let max_parts = info.full_capability().copy_multi_max_parts;
 
         Self {
             copier,
@@ -135,6 +137,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             copy_once_threshold,
             part_size,
             concurrent,
+            max_parts,
             completed: false,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
@@ -181,6 +184,29 @@ impl<C: MultipartCopy> MultipartCopier<C> {
                 Ok(size)
             }
         }
+    }
+
+    /// Ensure the planned multipart copy does not exceed the service's part-count limit.
+    ///
+    /// This is called before `initiate_copy` so we fail a copy operation before we make any IO.
+    fn validate_part_count(&self, source_size: u64) -> Result<()> {
+        let Some(max_parts) = self.max_parts else {
+            return Ok(());
+        };
+
+        let part_count = source_size.div_ceil(self.part_size);
+        if part_count > max_parts as u64 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "multipart copy part count exceeds service limit, please increase `OpCopier::chunk`"
+            )
+            .with_context("source_size", source_size)
+            .with_context("part_size", self.part_size)
+            .with_context("part_count", part_count)
+            .with_context("max_parts", max_parts));
+        }
+
+        Ok(())
     }
 
     async fn upload_id(&mut self) -> Result<Arc<String>> {
@@ -251,6 +277,11 @@ where
             return Ok(None);
         }
 
+        // Validate part count before performing any copy requests.
+        if self.upload_id.is_none() {
+            self.validate_part_count(source_size)?;
+        }
+
         let upload_id = self.upload_id().await?;
         self.fill_tasks(upload_id.clone(), source_size).await?;
 
@@ -312,6 +343,7 @@ mod tests {
         source_size: u64,
         source_metadata_calls: AtomicUsize,
         copy_once_calls: AtomicUsize,
+        initiate_copy_calls: AtomicUsize,
     }
 
     impl TestCopy {
@@ -320,6 +352,7 @@ mod tests {
                 source_size,
                 source_metadata_calls: AtomicUsize::new(0),
                 copy_once_calls: AtomicUsize::new(0),
+                initiate_copy_calls: AtomicUsize::new(0),
             })
         }
     }
@@ -336,6 +369,7 @@ mod tests {
         }
 
         async fn initiate_copy(&self) -> Result<String> {
+            self.initiate_copy_calls.fetch_add(1, Ordering::Relaxed);
             Ok("upload_id".to_string())
         }
 
@@ -381,6 +415,36 @@ mod tests {
         assert_eq!(copier.next().await?, None);
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_part_count_rejects_before_initiate() -> Result<()> {
+        let info = Arc::new(AccessorInfo::default());
+        info.update_full_capability(|cap| Capability {
+            copy_multi_max_parts: Some(2),
+            ..cap
+        });
+
+        // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
+        let inner = TestCopy::new(10);
+        let mut copier = MultipartCopier::new(
+            /*info=*/ info,
+            /*inner=*/ inner.clone(),
+            /*source_content_length_hint=*/ Some(10),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 1,
+            /*concurrent=*/ 1,
+        );
+
+        let err = copier
+            .next()
+            .await
+            .expect_err("part count should exceed max_parts");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        // Validation must reject before any multipart state is created on the server.
+        assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 0);
         Ok(())
     }
 }

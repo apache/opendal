@@ -985,6 +985,10 @@ impl Builder for S3Builder {
                             } else {
                                 Some(usize::MAX)
                             },
+                            // S3 allows at most 10,000 parts per multipart copy.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            copy_multi_max_parts: Some(10_000),
 
                             list: true,
                             list_with_limit: true,
@@ -1140,7 +1144,7 @@ impl Access for S3Backend {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = new_s3_copier(self.core.clone(), from, to, args, opts).await?;
+        let copier = new_s3_copier(self.core.clone(), from, to, args, opts)?;
         Ok((RpCopy::default(), copier))
     }
 

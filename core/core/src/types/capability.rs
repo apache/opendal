@@ -162,6 +162,8 @@ pub struct Capability {
     pub copy_multi_max_size: Option<usize>,
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: Option<usize>,
+    /// Maximum number of parts allowed in a single multipart copy.
+    pub copy_multi_max_parts: Option<usize>,
 
     /// Indicates if rename operations are supported.
     pub rename: bool,

@@ -30,9 +30,7 @@ use opendal_core::*;
 
 pub type S3Copiers = oio::MultipartCopier<S3Copier>;
 
-const S3_MAX_MULTIPART_PARTS: usize = 10_000;
-
-pub async fn new_s3_copier(
+pub fn new_s3_copier(
     core: Arc<S3Core>,
     from: &str,
     to: &str,
@@ -64,46 +62,20 @@ pub async fn new_s3_copier(
         }
     };
 
-    let mut source_content_length_hint = opts.source_content_length_hint();
-    let copier = S3Copier {
-        core: core.clone(),
-        from: from.to_string(),
-        to: to.to_string(),
-        args,
-        source_metadata: Mutex::new(None),
-    };
-
-    let source_size = match source_content_length_hint {
-        Some(size) => size,
-        None => copier.load_source_metadata().await?.content_length(),
-    };
-    validate_part_count_for_s3(source_size, part_size)?;
-    source_content_length_hint = Some(source_size);
-
     Ok(oio::MultipartCopier::new(
         core.info.clone(),
-        copier,
-        source_content_length_hint,
+        S3Copier {
+            core,
+            from: from.to_string(),
+            to: to.to_string(),
+            args,
+            source_metadata: Mutex::new(None),
+        },
+        opts.source_content_length_hint(),
         copy_once_threshold,
         part_size,
         opts.concurrent(),
     ))
-}
-
-fn validate_part_count_for_s3(source_size: u64, part_size: u64) -> Result<()> {
-    let part_count = source_size.div_ceil(part_size);
-    if part_count > S3_MAX_MULTIPART_PARTS as u64 {
-        return Err(Error::new(
-            ErrorKind::Unsupported,
-            "s3 multipart copy part count exceeds service limit",
-        )
-        .with_context("source_size", source_size)
-        .with_context("part_size", part_size)
-        .with_context("part_count", part_count)
-        .with_context("max_parts", S3_MAX_MULTIPART_PARTS));
-    }
-
-    Ok(())
 }
 
 pub struct S3Copier {
@@ -114,18 +86,8 @@ pub struct S3Copier {
     source_metadata: Mutex<Option<Metadata>>,
 }
 
-impl S3Copier {
-    async fn load_source_metadata(&self) -> Result<Metadata> {
-        {
-            let source_metadata = self
-                .source_metadata
-                .lock()
-                .expect("source metadata mutex poisoned");
-            if let Some(meta) = source_metadata.as_ref() {
-                return Ok(meta.clone());
-            }
-        }
-
+impl oio::MultipartCopy for S3Copier {
+    async fn source_metadata(&self) -> Result<Metadata> {
         let resp = self
             .core
             .s3_head_object(&self.from, OpStat::default())
@@ -150,12 +112,6 @@ impl S3Copier {
             }
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-impl oio::MultipartCopy for S3Copier {
-    async fn source_metadata(&self) -> Result<Metadata> {
-        self.load_source_metadata().await
     }
 
     async fn copy_once(&self) -> Result<()> {
@@ -310,21 +266,5 @@ impl oio::MultipartCopy for S3Copier {
             StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_part_count_for_s3() -> Result<()> {
-        validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5, 5)?;
-
-        let err = validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5 + 1, 5)
-            .expect_err("source should exceed max part count");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-
-        Ok(())
     }
 }

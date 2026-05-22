@@ -64,6 +64,16 @@
 
 set -euo pipefail
 
+# Force the JVM (master/worker/goosefs CLI) to resolve `localhost` to
+# 127.0.0.1 instead of ::1. On Ubuntu 24.04 GitHub Actions runners the
+# default JDK resolves `localhost` to ::1 first, so the master binds
+# 9200/9212/9202 on ::1 while the worker / `fs` CLI dials 127.0.0.1 ->
+# `Connection refused`, looping on `Failed to connect to ... :9212`
+# until the compose healthcheck times out. Pinning the stack to IPv4
+# keeps bind and dial on the same family without touching the host
+# kernel.
+export GOOSEFS_JAVA_OPTS="${GOOSEFS_JAVA_OPTS:-} -Djava.net.preferIPv4Stack=true"
+
 : "${GOOSEFS_HOME:=/opt/goosefs}"
 : "${GOOSEFS_MASTER_HOSTNAME:=localhost}"
 # OpenDAL writes to the worker via `127.0.0.1:9203` from the host; see
@@ -99,6 +109,17 @@ apply_runtime_config() {
   upsert_prop "goosefs.master.web.bind.host"   "0.0.0.0"
   upsert_prop "goosefs.worker.bind.host"       "0.0.0.0"
   upsert_prop "goosefs.worker.web.bind.host"   "0.0.0.0"
+  # The master also runs two *internal* RPC endpoints that default to
+  # binding the resolved hostname only:
+  #   * 9212 -- master <-> worker RPC (block heartbeat, register)
+  #   * 9202 -- embedded Raft journal
+  # Without these the worker logs `Failed to connect to ... :9212 ...
+  # Connection refused` in a tight retry loop and never registers,
+  # which makes the data-plane healthcheck (`fs copyFromLocal`) hang
+  # the entire compose `--wait`. Bind both on 0.0.0.0 so loopback
+  # dials from inside the container always succeed.
+  upsert_prop "goosefs.master.rpc.bind.host"             "0.0.0.0"
+  upsert_prop "goosefs.master.embedded.journal.bind.host" "0.0.0.0"
 }
 
 ensure_dirs() {

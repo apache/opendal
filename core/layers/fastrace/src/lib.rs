@@ -134,7 +134,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     type Writer = FastraceWrapper<A::Writer>;
     type Lister = FastraceWrapper<A::Lister>;
     type Deleter = FastraceWrapper<A::Deleter>;
-    type Copier = A::Copier;
+    type Copier = FastraceWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -184,7 +184,18 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner().copy(from, to, args, opts.clone()).await
+        self.inner()
+            .copy(from, to, args, opts.clone())
+            .await
+            .map(|(rp, c)| {
+                (
+                    rp,
+                    FastraceWrapper::new(
+                        Span::enter_with_local_parent(Operation::Copy.into_static()),
+                        c,
+                    ),
+                )
+            })
     }
 
     #[trace(enter_on_poll = true)]
@@ -284,5 +295,19 @@ impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for FastraceWrapper<C> {
+    fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.next()
+    }
+
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.abort()
     }
 }

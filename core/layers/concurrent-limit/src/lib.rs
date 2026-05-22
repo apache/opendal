@@ -249,7 +249,7 @@ where
     type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
     type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
     type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
-    type Copier = A::Copier;
+    type Copier = ConcurrentLimitWrapper<A::Copier, S::Permit>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -286,9 +286,12 @@ where
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let _permit = self.semaphore.acquire().await;
+        let permit = self.semaphore.acquire().await;
 
-        self.inner.copy(from, to, args, opts.clone()).await
+        self.inner
+            .copy(from, to, args, opts.clone())
+            .await
+            .map(|(rp, c)| (rp, ConcurrentLimitWrapper::new(c, permit)))
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -374,6 +377,16 @@ impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
 
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
+    }
+}
+
+impl<C: oio::Copy, P: Send + Sync + 'static + Unpin> oio::Copy for ConcurrentLimitWrapper<C, P> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner.next().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 
@@ -483,6 +496,72 @@ mod tests {
             .await
             .expect("rename should proceed once permit is released")
             .expect("rename should succeed");
+    }
+
+    #[tokio::test]
+    async fn operation_semaphore_held_until_copier_dropped() {
+        #[derive(Clone, Debug)]
+        struct CopierBackend {
+            info: Arc<AccessorInfo>,
+        }
+
+        impl Access for CopierBackend {
+            type Reader = ();
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = oio::Copier;
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn copy(
+                &self,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+                _: OpCopier,
+            ) -> Result<(RpCopy, Self::Copier)> {
+                Ok((RpCopy::default(), Box::new(())))
+            }
+
+            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+            }
+        }
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
+        let info = Arc::new(AccessorInfo::default());
+        info.set_native_capability(Capability {
+            copy: true,
+            stat: true,
+            ..Default::default()
+        });
+        let op = OperatorBuilder::new(CopierBackend { info })
+            .layer(layer)
+            .finish();
+
+        let copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
+            .await
+            .expect("copier setup should not block")
+            .expect("copier should be created");
+
+        // The permit is held by the live copier, so concurrent operations
+        // must time out until the copier is dropped.
+        let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            blocked.is_err(),
+            "stat should wait while the copier holds the permit"
+        );
+
+        drop(copier);
+
+        timeout(Duration::from_millis(50), op.stat("any"))
+            .await
+            .expect("stat should proceed once the copier is dropped")
+            .expect("stat should succeed");
     }
 
     #[tokio::test]

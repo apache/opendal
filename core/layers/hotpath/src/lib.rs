@@ -46,6 +46,8 @@ const LABEL_WRITER_ABORT: &str = "opendal.writer.abort";
 const LABEL_LISTER_NEXT: &str = "opendal.lister.next";
 const LABEL_DELETER_DELETE: &str = "opendal.deleter.delete";
 const LABEL_DELETER_CLOSE: &str = "opendal.deleter.close";
+const LABEL_COPIER_NEXT: &str = "opendal.copier.next";
+const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
@@ -113,7 +115,7 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
     type Writer = HotpathWrapper<A::Writer>;
     type Lister = HotpathWrapper<A::Lister>;
     type Deleter = HotpathWrapper<A::Deleter>;
-    type Copier = A::Copier;
+    type Copier = HotpathWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -141,7 +143,10 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        hotpath::measure_async(LABEL_COPY, self.inner.copy(from, to, args, opts.clone())).await
+        let (rp, copier) =
+            hotpath::measure_async(LABEL_COPY, self.inner.copy(from, to, args, opts.clone()))
+                .await?;
+        Ok((rp, HotpathWrapper::new(copier)))
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -211,6 +216,16 @@ impl<R: oio::Delete> oio::Delete for HotpathWrapper<R> {
 
     async fn close(&mut self) -> Result<()> {
         hotpath::measure_async(LABEL_DELETER_CLOSE, self.inner.close()).await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for HotpathWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        hotpath::measure_async(LABEL_COPIER_NEXT, self.inner.next()).await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        hotpath::measure_async(LABEL_COPIER_ABORT, self.inner.abort()).await
     }
 }
 

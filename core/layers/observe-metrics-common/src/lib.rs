@@ -720,7 +720,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     type Writer = MetricsWrapper<A::Writer, I>;
     type Lister = MetricsWrapper<A::Lister, I>;
     type Deleter = MetricsWrapper<A::Deleter, I>;
-    type Copier = A::Copier;
+    type Copier = MetricsWrapper<A::Copier, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -835,25 +835,23 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner()
-            .copy(from, to, args, opts.clone())
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
+        match self.inner.copy(from, to, args, opts.clone()).await {
+            Ok((rp, copier)) => {
+                guard.defuse();
+                Ok((
+                    rp,
+                    MetricsWrapper::new(copier, self.interceptor.clone(), labels, start),
+                ))
+            }
+            Err(err) => {
                 self.interceptor.observe(
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            });
-
-        guard.complete();
-        res
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -1033,6 +1031,7 @@ impl<R, I: MetricsIntercept> Drop for MetricsWrapper<R, I> {
 
         if self.labels.operation == Operation::Read.into_static()
             || self.labels.operation == Operation::Write.into_static()
+            || self.labels.operation == Operation::Copy.into_static()
         {
             self.interceptor
                 .observe(self.labels.clone(), MetricValue::OperationBytes(self.size));
@@ -1161,6 +1160,29 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
         let result = self
             .inner
             .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
+    }
+}
+
+impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner
+            .next()
+            .await
+            .inspect(|n| match n {
+                Some(n) => self.size += *n as u64,
+                None => self.completed = true,
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let result = self
+            .inner
+            .abort()
             .await
             .inspect_err(|err| self.record_error(err));
         self.completed = true;

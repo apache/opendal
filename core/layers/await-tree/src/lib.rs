@@ -79,7 +79,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     type Writer = AwaitTreeWrapper<A::Writer>;
     type Lister = AwaitTreeWrapper<A::Lister>;
     type Deleter = AwaitTreeWrapper<A::Deleter>;
-    type Copier = A::Copier;
+    type Copier = AwaitTreeWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -112,6 +112,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
             .copy(from, to, args, opts.clone())
             .instrument_await(format!("opendal::{}", Operation::Copy))
             .await
+            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -211,5 +212,19 @@ impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
             .close()
             .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for AwaitTreeWrapper<C> {
+    fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend {
+        self.inner
+            .next()
+            .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+    }
+
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner
+            .abort()
+            .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
     }
 }

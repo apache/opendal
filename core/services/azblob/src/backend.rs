@@ -27,10 +27,8 @@ use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 use sha2::Digest;
 use sha2::Sha256;
@@ -322,14 +320,6 @@ impl Builder for AzblobBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let os_env = OsEnv;
-        let mut envs = os_env.vars();
-
-        if let Some(v) = &account_name {
-            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
-        }
-
         if let Some(v) = &self.config.account_key {
             // Validate that account_key can be decoded as base64
             if let Err(e) = BASE64_STANDARD.decode(v) {
@@ -341,12 +331,6 @@ impl Builder for AzblobBuilder {
                 .with_context("service", AZBLOB_SCHEME)
                 .with_context("key", "account_key"));
             }
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
-        }
-
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
         }
 
         let encryption_key =
@@ -385,10 +369,7 @@ impl Builder for AzblobBuilder {
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
             .with_http_send(AccessorInfoHttpSend::new(info.clone()))
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+            .with_env(OsEnv);
 
         let mut credential = DefaultCredentialProvider::new();
 

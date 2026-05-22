@@ -44,10 +44,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Setup Haskell toolchain (ghc-9.4.8)
+      - name: Install Haskell build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y alex happy
+      - name: Setup Haskell toolchain (ghc-9.4.8)
+        env:
+          GHCUP_INSTALL_BASE_PREFIX: ${{ runner.temp }}
+        run: |
+          export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
+          echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.4.8 --set
           ghcup install cabal --set
@@ -83,10 +89,16 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
       - uses: actions/checkout@v6
-      - name: Setup Haskell toolchain (ghc-9.2.8)
+      - name: Install Haskell build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y alex happy
+      - name: Setup Haskell toolchain (ghc-9.2.8)
+        env:
+          GHCUP_INSTALL_BASE_PREFIX: ${{ runner.temp }}
+        run: |
+          export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
+          echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set

@@ -894,6 +894,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {
     if_not_exists: bool,
+    if_match: Option<String>,
 }
 
 impl OpCopy {
@@ -914,6 +915,20 @@ impl OpCopy {
     /// Get if_not_exists flag.
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
+    }
+
+    /// Set the if_match condition for the operation.
+    ///
+    /// When set, the copy operation will only proceed if the existing destination
+    /// object's ETag matches the given value.
+    pub fn with_if_match(mut self, if_match: impl Into<String>) -> Self {
+        self.if_match = Some(if_match.into());
+        self
+    }
+
+    /// Get if_match condition.
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 }
 
@@ -970,6 +985,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
         (
             OpCopy {
                 if_not_exists: value.if_not_exists,
+                if_match: value.if_match,
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),

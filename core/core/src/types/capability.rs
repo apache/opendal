@@ -156,6 +156,8 @@ pub struct Capability {
     pub copy: bool,
     /// Indicates if conditional copy operations with if-not-exists are supported.
     pub copy_with_if_not_exists: bool,
+    /// Indicates if conditional copy operations with if-match are supported.
+    pub copy_with_if_match: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.

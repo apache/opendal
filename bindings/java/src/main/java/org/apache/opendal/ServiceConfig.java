@@ -652,6 +652,19 @@ public interface ServiceConfig {
          * <p>Secret key of this backend.</p>
          */
         public final String secretKey;
+        /**
+         * <p>Security token (a.k.a. session token) of this backend.</p>
+         * <p>This is used for temporary credentials issued by Tencent Cloud STS
+         * (e.g. <code>GetFederationToken</code> / <code>AssumeRole</code>). When <code>security_token</code> is
+         * provided, it will be used together with <code>secret_id</code> and <code>secret_key</code>
+         * to sign requests, and the <code>x-cos-security-token</code> header will be
+         * attached automatically by the signer.</p>
+         * <p>If this field is not set, OpenDAL will also fall back to reading
+         * the token from environment variables <code>TENCENTCLOUD_TOKEN</code>,
+         * <code>TENCENTCLOUD_SECURITY_TOKEN</code> or <code>QCLOUD_SECRET_TOKEN</code> (unless
+         * <code>disable_config_load</code> is enabled).</p>
+         */
+        public final String securityToken;
 
         @Override
         public String scheme() {
@@ -681,6 +694,9 @@ public interface ServiceConfig {
             }
             if (secretKey != null) {
                 map.put("secret_key", secretKey);
+            }
+            if (securityToken != null) {
+                map.put("security_token", securityToken);
             }
             return map;
         }

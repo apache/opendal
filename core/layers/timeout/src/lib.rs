@@ -213,7 +213,7 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Writer = TimeoutWrapper<A::Writer>;
     type Lister = TimeoutWrapper<A::Lister>;
     type Deleter = TimeoutWrapper<A::Deleter>;
-    type Copier = A::Copier;
+    type Copier = TimeoutWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -248,6 +248,7 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             self.inner.copy(from, to, args, opts.clone()),
         )
         .await
+        .map(|(rp, c)| (rp, TimeoutWrapper::new(c, self.io_timeout)))
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -369,6 +370,18 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
     }
 }
 
+impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        let fut = self.inner.next();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let fut = self.inner.abort();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::pending;
@@ -415,6 +428,16 @@ mod tests {
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList::default(), Box::new(MockLister)))
         }
+
+        async fn copy(
+            &self,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<(RpCopy, Self::Copier)> {
+            Ok((RpCopy::default(), Box::new(MockCopier)))
+        }
     }
 
     #[derive(Debug, Clone, Default)]
@@ -445,6 +468,19 @@ mod tests {
 
         async fn close(&mut self) -> Result<()> {
             Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockCopier;
+
+    impl oio::Copy for MockCopier {
+        fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> {
+            pending()
+        }
+
+        fn abort(&mut self) -> impl Future<Output = Result<()>> {
+            pending()
         }
     }
 
@@ -510,6 +546,21 @@ mod tests {
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("timeout"));
+    }
+
+    #[tokio::test]
+    async fn test_copy_io_timeout() {
+        use oio::Copy;
+
+        let acc = TimeoutLayer::default()
+            .with_io_timeout(Duration::from_millis(100))
+            .layer(MockService);
+        let (_, mut copier) = Access::copy(&acc, "f", "t", OpCopy::default(), OpCopier::default())
+            .await
+            .unwrap();
+
+        let err = copier.next().await.unwrap_err();
         assert!(err.to_string().contains("timeout"));
     }
 

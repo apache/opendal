@@ -153,22 +153,6 @@ impl S3Copier {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_part_count_for_s3() -> Result<()> {
-        validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5, 5)?;
-
-        let err = validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5 + 1, 5)
-            .expect_err("source should exceed max part count");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-
-        Ok(())
-    }
-}
-
 impl oio::MultipartCopy for S3Copier {
     async fn source_metadata(&self) -> Result<Metadata> {
         self.load_source_metadata().await
@@ -326,5 +310,21 @@ impl oio::MultipartCopy for S3Copier {
             StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_part_count_for_s3() -> Result<()> {
+        validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5, 5)?;
+
+        let err = validate_part_count_for_s3(S3_MAX_MULTIPART_PARTS as u64 * 5 + 1, 5)
+            .expect_err("source should exceed max part count");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        Ok(())
     }
 }

@@ -556,10 +556,9 @@ mod tests {
         let acc = TimeoutLayer::default()
             .with_io_timeout(Duration::from_millis(100))
             .layer(MockService);
-        let (_, mut copier) =
-            Access::copy(&acc, "f", "t", OpCopy::default(), OpCopier::default())
-                .await
-                .unwrap();
+        let (_, mut copier) = Access::copy(&acc, "f", "t", OpCopy::default(), OpCopier::default())
+            .await
+            .unwrap();
 
         let err = copier.next().await.unwrap_err();
         assert!(err.to_string().contains("timeout"));

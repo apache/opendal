@@ -95,7 +95,7 @@ struct CopiedPart {
 /// MultipartCopier implements [`oio::Copy`] based on multipart copy.
 pub struct MultipartCopier<C: MultipartCopy> {
     copier: Arc<C>,
-    executor: Executor,
+    info: Arc<AccessorInfo>,
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
@@ -105,7 +105,6 @@ pub struct MultipartCopier<C: MultipartCopy> {
     copy_once_threshold: u64,
     part_size: u64,
     concurrent: usize,
-    max_parts: Option<usize>,
     completed: bool,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedPart>,
@@ -124,11 +123,10 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         let copier = Arc::new(inner);
         let executor = info.executor();
         let concurrent = concurrent.max(1);
-        let max_parts = info.full_capability().copy_multi_max_parts;
 
         Self {
             copier,
-            executor: executor.clone(),
+            info,
             upload_id: None,
             parts: Vec::new(),
             next_part_number: 0,
@@ -137,7 +135,6 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             copy_once_threshold,
             part_size,
             concurrent,
-            max_parts,
             completed: false,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
@@ -186,16 +183,25 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         }
     }
 
-    /// Ensure the planned multipart copy does not exceed the service's part-count limit.
+    /// Ensure the planned multipart copy does not exceed the service's derived part-count limit.
     ///
     /// This is called before `initiate_copy` so we fail a copy operation before we make any IO.
     fn validate_part_count(&self, source_size: u64) -> Result<()> {
-        let Some(max_parts) = self.max_parts else {
+        let capability = self.info.full_capability();
+        let (Some(max_total_size), Some(max_part_size)) = (
+            capability.write_total_max_size,
+            capability.write_multi_max_size,
+        ) else {
             return Ok(());
         };
 
+        if max_part_size == 0 {
+            return Ok(());
+        }
+
+        let max_parts = (max_total_size as u64).div_ceil(max_part_size as u64);
         let part_count = source_size.div_ceil(self.part_size);
-        if part_count > max_parts as u64 {
+        if part_count > max_parts {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "multipart copy part count exceeds service limit, please increase `OpCopier::chunk`"
@@ -223,6 +229,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
     async fn fill_tasks(&mut self, upload_id: Arc<String>, source_size: u64) -> Result<()> {
         let mut scheduled = 0;
+        let executor = self.info.executor();
 
         while self.next_offset < source_size
             && self.tasks.has_remaining()
@@ -233,7 +240,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
             let input = CopyInput {
                 copier: self.copier.clone(),
-                executor: self.executor.clone(),
+                executor: executor.clone(),
                 upload_id: upload_id.clone(),
                 part_number: self.next_part_number,
                 range,
@@ -422,7 +429,8 @@ mod tests {
     async fn test_validate_part_count_rejects_before_initiate() -> Result<()> {
         let info = Arc::new(AccessorInfo::default());
         info.update_full_capability(|cap| Capability {
-            copy_multi_max_parts: Some(2),
+            write_total_max_size: Some(2),
+            write_multi_max_size: Some(1),
             ..cap
         });
 

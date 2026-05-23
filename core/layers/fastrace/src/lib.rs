@@ -305,6 +305,12 @@ impl<C: oio::Copy> oio::Copy for FastraceWrapper<C> {
         self.inner.next()
     }
 
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.close()
+    }
+
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());

@@ -335,6 +335,15 @@ impl<T: oio::Copy> oio::Copy for ErrorContextWrapper<T> {
             })
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+                .with_context("copied", self.processed.to_string())
+        })
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             err.with_operation(Operation::Copy)

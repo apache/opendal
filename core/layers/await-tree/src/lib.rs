@@ -222,6 +222,12 @@ impl<C: oio::Copy> oio::Copy for AwaitTreeWrapper<C> {
             .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
     }
 
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        self.inner
+            .close()
+            .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+    }
+
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner
             .abort()

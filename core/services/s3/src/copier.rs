@@ -99,7 +99,7 @@ impl oio::MultipartCopy for S3Copier {
         }
     }
 
-    async fn copy_once(&self) -> Result<()> {
+    async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
             .s3_copy_object(&self.from, &self.to, &self.args)
@@ -109,6 +109,8 @@ impl oio::MultipartCopy for S3Copier {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
                 let bs = body.to_bytes();
+                let version = parse_header_to_str(&parts.headers, constants::X_AMZ_VERSION_ID)?
+                    .map(str::to_string);
 
                 let result: CopyObjectResult =
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
@@ -126,7 +128,16 @@ impl oio::MultipartCopy for S3Copier {
                     ));
                 }
 
-                Ok(())
+                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                meta.set_etag(&result.etag);
+                if !result.last_modified.is_empty() {
+                    meta.set_last_modified(result.last_modified.parse()?);
+                }
+                if let Some(version) = version {
+                    meta.set_version(&version);
+                }
+
+                Ok(meta)
             }
             _ => Err(parse_error(resp)),
         }
@@ -200,7 +211,11 @@ impl oio::MultipartCopy for S3Copier {
         }
     }
 
-    async fn complete_copy(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
+    async fn complete_copy(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| CompleteMultipartUploadRequestPart {
@@ -220,6 +235,8 @@ impl oio::MultipartCopy for S3Copier {
         match status {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
+                let version = parse_header_to_str(&parts.headers, constants::X_AMZ_VERSION_ID)?
+                    .map(str::to_string);
 
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
@@ -236,7 +253,13 @@ impl oio::MultipartCopy for S3Copier {
                     ));
                 }
 
-                Ok(())
+                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                meta.set_etag(&ret.etag);
+                if let Some(version) = version {
+                    meta.set_version(&version);
+                }
+
+                Ok(meta)
             }
             _ => Err(parse_error(resp)),
         }

@@ -37,6 +37,7 @@ pub struct GcsCopier {
     rewrite_token: Option<String>,
     total_bytes_rewritten: u64,
     completed: bool,
+    metadata: Option<Metadata>,
 }
 
 impl GcsCopier {
@@ -55,6 +56,7 @@ impl GcsCopier {
             rewrite_token: None,
             total_bytes_rewritten: 0,
             completed: false,
+            metadata: None,
         }
     }
 }
@@ -108,6 +110,7 @@ impl oio::Copy for GcsCopier {
         if result.done {
             self.completed = true;
             self.rewrite_token = None;
+            self.metadata = Some(result.into_metadata(&self.to)?);
         } else {
             let token = result.rewrite_token.ok_or_else(|| {
                 Error::new(
@@ -135,9 +138,18 @@ impl oio::Copy for GcsCopier {
         Ok(Some(progress))
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        while !self.completed {
+            self.next().await?;
+        }
+
+        Ok(self.metadata.clone().unwrap_or_default())
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.rewrite_token = None;
         self.completed = true;
+        self.metadata = None;
         Ok(())
     }
 }

@@ -707,40 +707,48 @@ impl GcsCore {
         let meta: GetObjectJsonResponse =
             serde_json::from_reader(data.reader()).map_err(new_json_deserialize_error)?;
 
+        meta.into_metadata(path)
+    }
+}
+
+impl GetObjectJsonResponse {
+    fn into_metadata(self, path: &str) -> Result<Metadata> {
         let mut m = Metadata::new(EntryMode::from_path(path));
 
-        m.set_etag(&meta.etag);
-        m.set_content_md5(&meta.md5_hash);
+        m.set_etag(&self.etag);
+        m.set_content_md5(&self.md5_hash);
 
-        let size = meta
+        let size = self
             .size
             .parse::<u64>()
             .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
         m.set_content_length(size);
-        if !meta.content_type.is_empty() {
-            m.set_content_type(&meta.content_type);
+        if !self.content_type.is_empty() {
+            m.set_content_type(&self.content_type);
         }
 
-        if !meta.content_encoding.is_empty() {
-            m.set_content_encoding(&meta.content_encoding);
+        if !self.content_encoding.is_empty() {
+            m.set_content_encoding(&self.content_encoding);
         }
 
-        if !meta.cache_control.is_empty() {
-            m.set_cache_control(&meta.cache_control);
+        if !self.cache_control.is_empty() {
+            m.set_cache_control(&self.cache_control);
         }
 
-        if !meta.content_disposition.is_empty() {
-            m.set_content_disposition(&meta.content_disposition);
+        if !self.content_disposition.is_empty() {
+            m.set_content_disposition(&self.content_disposition);
         }
 
-        if !meta.generation.is_empty() {
-            m.set_version(&meta.generation);
+        if !self.generation.is_empty() {
+            m.set_version(&self.generation);
         }
 
-        m.set_last_modified(meta.updated.parse::<Timestamp>()?);
+        if !self.updated.is_empty() {
+            m.set_last_modified(self.updated.parse::<Timestamp>()?);
+        }
 
-        if !meta.metadata.is_empty() {
-            m = m.with_user_metadata(meta.metadata);
+        if !self.metadata.is_empty() {
+            m = m.with_user_metadata(self.metadata);
         }
 
         Ok(m)
@@ -844,6 +852,16 @@ pub struct RewriteResponse {
     pub total_bytes_rewritten: String,
     pub done: bool,
     pub rewrite_token: Option<String>,
+    resource: Option<GetObjectJsonResponse>,
+}
+
+impl RewriteResponse {
+    pub fn into_metadata(self, path: &str) -> Result<Metadata> {
+        match self.resource {
+            Some(resource) => resource.into_metadata(path),
+            None => Ok(Metadata::default()),
+        }
+    }
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)

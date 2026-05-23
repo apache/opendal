@@ -909,6 +909,10 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
         }
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         match self.inner.abort().await {
             Ok(_) => {

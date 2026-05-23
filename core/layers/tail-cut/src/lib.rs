@@ -640,6 +640,19 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
         .await
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        let deadline = self.calculate_deadline(Operation::Copy);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Copy,
+            self.inner.close(),
+        )
+        .await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Copy);
         Self::with_io_deadline(

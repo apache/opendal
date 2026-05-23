@@ -1179,6 +1179,16 @@ impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
             .inspect_err(|err| self.record_error(err))
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        let result = self
+            .inner
+            .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let result = self
             .inner

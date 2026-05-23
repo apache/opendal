@@ -221,6 +221,7 @@ unsafe fn operator_copy(op: ffi::OperatorPtr, from: String, to: String) -> RustF
     RustFutureWrite::fallible(async move {
         op.0.copy(&from, &to)
             .await
+            .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }

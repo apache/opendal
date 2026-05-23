@@ -30,6 +30,8 @@ use rand::rng;
 use sha2::Digest;
 use sha2::Sha256;
 
+const DEFAULT_CONTENT_MAX_SIZE: usize = 4 * 1024 * 1024;
+
 pub fn sha256_digest(data: impl AsRef<[u8]>) -> String {
     use std::fmt::Write;
 
@@ -52,8 +54,7 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
 }
 
 pub fn gen_bytes(cap: Capability) -> (Vec<u8>, usize) {
-    let max_size = cap.write_total_max_size.unwrap_or(4 * 1024 * 1024);
-    gen_bytes_with_range(1..max_size)
+    gen_bytes_with_range(1..content_max_size(cap))
 }
 
 pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
@@ -138,12 +139,7 @@ impl Fixture {
 
     /// Create a new file with random content
     pub fn new_file(&self, op: impl Into<Operator>) -> (String, Vec<u8>, usize) {
-        let max_size = op
-            .into()
-            .info()
-            .full_capability()
-            .write_total_max_size
-            .unwrap_or(4 * 1024 * 1024);
+        let max_size = content_max_size(op.into().info().full_capability());
 
         self.new_file_with_range(uuid::Uuid::new_v4().to_string(), 1..max_size)
     }
@@ -153,12 +149,7 @@ impl Fixture {
         op: impl Into<Operator>,
         path: &str,
     ) -> (String, Vec<u8>, usize) {
-        let max_size = op
-            .into()
-            .info()
-            .full_capability()
-            .write_total_max_size
-            .unwrap_or(4 * 1024 * 1024);
+        let max_size = content_max_size(op.into().info().full_capability());
 
         self.new_file_with_range(path, 1..max_size)
     }
@@ -198,4 +189,11 @@ impl Fixture {
         // We try our best to clean up fixtures, but won't panic if failed.
         let _ = op.delete_iter(paths).await;
     }
+}
+
+fn content_max_size(cap: Capability) -> usize {
+    cap.write_total_max_size
+        .map_or(DEFAULT_CONTENT_MAX_SIZE, |size| {
+            size.min(DEFAULT_CONTENT_MAX_SIZE)
+        })
 }

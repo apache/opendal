@@ -648,7 +648,12 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -656,6 +661,14 @@ impl S3Core {
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
         let mut req = Request::put(&target);
+
+        // Set conditional copy headers.
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -1102,6 +1115,9 @@ impl S3Core {
 
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
         }
 
         // Set request payer header if enabled.

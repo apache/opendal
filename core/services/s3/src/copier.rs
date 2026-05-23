@@ -100,7 +100,10 @@ impl oio::MultipartCopy for S3Copier {
     }
 
     async fn copy_once(&self) -> Result<()> {
-        let resp = self.core.s3_copy_object(&self.from, &self.to).await?;
+        let resp = self
+            .core
+            .s3_copy_object(&self.from, &self.to, &self.args)
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {

@@ -59,6 +59,23 @@ impl oio::BatchDelete for S3Deleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+        // The S3 DeleteObjects (batch) API does not allow per-object If-Match
+        // headers, so we fall back to per-object DeleteObject calls whenever
+        // any entry in the batch carries an `if_match` condition.
+        if batch.iter().any(|(_, op)| op.if_match().is_some()) {
+            let mut batched_result = BatchDeleteResult {
+                succeeded: Vec::with_capacity(batch.len()),
+                failed: Vec::new(),
+            };
+            for (path, op) in batch {
+                match self.delete_once(path.clone(), op.clone()).await {
+                    Ok(()) => batched_result.succeeded.push((path, op)),
+                    Err(err) => batched_result.failed.push((path, op, err)),
+                }
+            }
+            return Ok(batched_result);
+        }
+
         let resp = self.core.s3_delete_objects(&batch).await?;
 
         let status = resp.status();

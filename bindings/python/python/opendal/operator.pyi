@@ -340,6 +340,7 @@ class AsyncOperator:
         *,
         version: builtins.str | None = None,
         recursive: builtins.bool | None = None,
+        if_match: builtins.str | None = None,
     ) -> collections.abc.Awaitable[None]:
         r"""
         Delete a file at the given path.
@@ -3069,6 +3070,7 @@ class Operator:
         *,
         version: builtins.str | None = None,
         recursive: builtins.bool | None = None,
+        if_match: builtins.str | None = None,
     ) -> None:
         r"""
         Delete a file at the given path.

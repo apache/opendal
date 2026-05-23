@@ -635,6 +635,11 @@ impl S3Core {
 
         let mut req = Request::delete(&url);
 
+        // Set conditional delete header.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 

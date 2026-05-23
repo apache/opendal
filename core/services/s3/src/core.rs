@@ -1335,15 +1335,19 @@ pub struct CompleteMultipartUploadResult {
     pub request_id: String,
 }
 
-/// Partial output of a successful `CopyObject` operation.
+/// Body of a `CopyObject` or `UploadPartCopy` response.
 ///
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html#API_UploadPartCopy_ResponseSyntax>
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct CopyObjectResult {
     #[serde(rename = "ETag")]
     pub etag: String,
     pub last_modified: String,
+    pub code: String,
+    pub message: String,
+    pub request_id: String,
 }
 
 /// Request of DeleteObjects.

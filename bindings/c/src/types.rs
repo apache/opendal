@@ -84,6 +84,58 @@ impl opendal_bytes {
     }
 }
 
+/// \brief The options for the list operation.
+///
+/// This struct carries the options for the list operation, including whether to
+/// list recursively. Use `opendal_list_options_new()` to construct and
+/// `opendal_list_options_free()` to free.
+///
+/// @see opendal_operator_list_with
+/// @see opendal_list_options_new
+/// @see opendal_list_options_free
+/// @see opendal_list_options_set_recursive
+#[repr(C)]
+pub struct opendal_list_options {
+    /// Whether to list recursively under the prefix; default false.
+    pub recursive: bool,
+}
+
+impl opendal_list_options {
+    /// \brief Construct a heap-allocated opendal_list_options with default values.
+    ///
+    /// @return A new opendal_list_options with all options set to their defaults.
+    ///
+    /// @see opendal_list_options_free
+    #[no_mangle]
+    pub extern "C" fn opendal_list_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self { recursive: false }))
+    }
+
+    /// \brief Set the recursive option.
+    ///
+    /// @param opts The opendal_list_options to modify.
+    /// @param recursive Whether to list recursively.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_set_recursive(
+        opts: *mut opendal_list_options,
+        recursive: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).recursive = recursive;
+        }
+    }
+
+    /// \brief Free the heap memory used by opendal_list_options.
+    ///
+    /// @param opts The opendal_list_options to free.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_free(opts: *mut opendal_list_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+}
+
 impl Drop for opendal_bytes {
     fn drop(&mut self) {
         unsafe {

@@ -306,6 +306,10 @@ type opendalResultList struct {
 
 type opendalLister struct{}
 
+type opendalListOptions struct {
+	recursive uint8
+}
+
 type opendalResultListerNext struct {
 	entry *opendalEntry
 	err   *opendalError

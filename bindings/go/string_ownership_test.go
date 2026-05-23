@@ -276,3 +276,51 @@ func assertFreedPointers(t *testing.T, got []*byte, want ...*byte) {
 		}
 	}
 }
+
+func TestListOptionsDefaultNotRecursive(t *testing.T) {
+	inner := ListOptions{}.toInner()
+	if inner.recursive != 0 {
+		t.Fatalf("ListOptions{}.toInner().recursive = %d, want 0", inner.recursive)
+	}
+}
+
+func TestListOptionsWithRecursiveTrue(t *testing.T) {
+	inner := ListOptions{}.WithRecursive(true).toInner()
+	if inner.recursive != 1 {
+		t.Fatalf("ListOptions{}.WithRecursive(true).toInner().recursive = %d, want 1", inner.recursive)
+	}
+}
+
+func TestListOptionsWithRecursiveFalse(t *testing.T) {
+	inner := ListOptions{}.WithRecursive(true).WithRecursive(false).toInner()
+	if inner.recursive != 0 {
+		t.Fatalf("WithRecursive(false).toInner().recursive = %d, want 0", inner.recursive)
+	}
+}
+
+func TestListOptionsWithRecursiveIsImmutable(t *testing.T) {
+	base := ListOptions{}
+	_ = base.WithRecursive(true)
+	inner := base.toInner()
+	if inner.recursive != 0 {
+		t.Fatalf("WithRecursive must not mutate the receiver: recursive = %d, want 0", inner.recursive)
+	}
+}
+
+func TestFfiOperatorListWithReturnType(t *testing.T) {
+	if ffiOperatorListWith.opts.rType != &typeResultList {
+		t.Fatalf("ffiOperatorListWith rType = %v, want typeResultList", ffiOperatorListWith.opts.rType)
+	}
+}
+
+func TestFfiOperatorListWithArgTypes(t *testing.T) {
+	aTypes := ffiOperatorListWith.opts.aTypes
+	if len(aTypes) != 3 {
+		t.Fatalf("ffiOperatorListWith aTypes len = %d, want 3", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiOperatorListWith aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}

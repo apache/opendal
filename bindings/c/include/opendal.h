@@ -440,6 +440,25 @@ typedef struct opendal_result_list {
 } opendal_result_list;
 
 /**
+ * \brief The options for the list operation.
+ *
+ * This struct carries the options for the list operation, including whether to
+ * list recursively. Use `opendal_list_options_new()` to construct and
+ * `opendal_list_options_free()` to free.
+ *
+ * @see opendal_operator_list_with
+ * @see opendal_list_options_new
+ * @see opendal_list_options_free
+ * @see opendal_list_options_set_recursive
+ */
+typedef struct opendal_list_options {
+  /**
+   * Whether to list recursively under the prefix; default false.
+   */
+  bool recursive;
+} opendal_list_options;
+
+/**
  * \brief Metadata for **operator**, users can use this metadata to get information
  * of operator.
  */
@@ -1282,6 +1301,33 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
                                                  const char *path);
 
 /**
+ * \brief Blocking list the objects in `path` with options.
+ *
+ * List the objects in `path` with the provided `opendal_list_options`. This is
+ * similar to `opendal_operator_list` but allows passing options such as
+ * `recursive` to control the listing behavior.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path you want to list
+ * @param opts The options for the list operation; pass NULL to use defaults
+ * @see opendal_lister
+ * @see opendal_list_options
+ * @return Returns opendal_result_list, containing a lister and an opendal_error.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_list opendal_operator_list_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_list_options *opts);
+
+/**
  * \brief Blocking create the directory in `path`.
  *
  * Create the directory in `path` blocking by `op_ptr`.
@@ -1536,6 +1582,30 @@ void opendal_string_free(char *ptr);
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
+
+/**
+ * \brief Construct a heap-allocated opendal_list_options with default values.
+ *
+ * @return A new opendal_list_options with all options set to their defaults.
+ *
+ * @see opendal_list_options_free
+ */
+struct opendal_list_options *opendal_list_options_new(void);
+
+/**
+ * \brief Set the recursive option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param recursive Whether to list recursively.
+ */
+void opendal_list_options_set_recursive(struct opendal_list_options *opts, bool recursive);
+
+/**
+ * \brief Free the heap memory used by opendal_list_options.
+ *
+ * @param opts The opendal_list_options to free.
+ */
+void opendal_list_options_free(struct opendal_list_options *opts);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

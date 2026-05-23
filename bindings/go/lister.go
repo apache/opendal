@@ -87,8 +87,7 @@ func (op *Operator) Check() (err error) {
 //
 // # Notes
 //
-//  1. List is a wrapper around the C-binding function `opendal_operator_list`. Recursive listing is not currently supported.
-//  2. Returned entries do not include metadata information. Use op.Stat to fetch metadata for individual entries.
+//  1. Returned entries do not include metadata information. Use op.Stat to fetch metadata for individual entries.
 //
 // # Example
 //
@@ -128,14 +127,79 @@ func (op *Operator) List(path string) (*Lister, error) {
 	return lister, nil
 }
 
-// Lister provides an mechanism for listing entries at a specified path.
+// ListOptions configures the behavior of a list operation.
+//
+// Use the With* methods to set options before passing to ListWith.
+//
+// # Example
+//
+//	opts := opendal.ListOptions{}.WithRecursive(true)
+//	lister, err := op.ListWith("path/", opts)
+type ListOptions struct {
+	recursive bool
+}
+
+// WithRecursive returns a new ListOptions with the recursive flag set.
+func (o ListOptions) WithRecursive(recursive bool) ListOptions {
+	o.recursive = recursive
+	return o
+}
+
+func (o ListOptions) toInner() opendalListOptions {
+	var r uint8
+	if o.recursive {
+		r = 1
+	}
+	return opendalListOptions{recursive: r}
+}
+
+// ListWith returns a Lister to iterate over entries that start with the given path,
+// applying the given ListOptions.
+//
+// # Parameters
+//
+//   - path: The starting path for listing entries.
+//   - opts: The options for the list operation.
+//
+// # Returns
+//
+//   - *Lister: A new Lister instance for iterating over entries.
+//   - error: An error if the listing operation fails, or nil if successful.
+//
+// # Example
+//
+//	func exampleListWith(op *opendal.Operator) {
+//		opts := opendal.ListOptions{}.WithRecursive(true)
+//		lister, err := op.ListWith("test/", opts)
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		defer lister.Close()
+//
+//		for lister.Next() {
+//			entry := lister.Entry()
+//			fmt.Printf("Path: %s\n", entry.Path())
+//		}
+//		if err := lister.Error(); err != nil {
+//			log.Printf("Error during listing: %v", err)
+//		}
+//	}
+func (op *Operator) ListWith(path string, opts ListOptions) (*Lister, error) {
+	inner := opts.toInner()
+	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, &inner)
+	if err != nil {
+		return nil, err
+	}
+	return &Lister{
+		inner: listerInner,
+		ctx:   op.ctx,
+	}, nil
+}
+
+// Lister provides a mechanism for listing entries at a specified path.
 //
 // Lister is a wrapper around the C-binding function `opendal_operator_list`. It allows
 // for efficient iteration over entries in a storage system.
-//
-// # Limitations
-//
-//   - The current implementation does not support the `list_with` functionality.
 //
 // # Usage
 //
@@ -318,6 +382,30 @@ var ffiOperatorList = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+		)
+		if result.err != nil {
+			return nil, parseError(ctx, result.err)
+		}
+		return result.lister, nil
+	}
+})
+
+var ffiOperatorListWith = newFFI(ffiOpts{
+	sym:    "opendal_operator_list_with",
+	rType:  &typeResultList,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
+	return func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
+		bytePath, err := BytePtrFromString(path)
+		if err != nil {
+			return nil, err
+		}
+		var result opendalResultList
+		ffiCall(
+			unsafe.Pointer(&result),
+			unsafe.Pointer(&op),
+			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&opts),
 		)
 		if result.err != nil {
 			return nil, parseError(ctx, result.err)

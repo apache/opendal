@@ -78,19 +78,21 @@ impl Debug for TosCore {
 }
 
 impl TosCore {
-    pub async fn send(&self, mut req: Request<Buffer>) -> Result<Response<Buffer>> {
-        if self.skip_signature {
-            insert_tos_user_agent_header(req.headers_mut());
-            return self.info.http_client().send(req).await;
+    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+        let (mut parts, body) = req.into_parts();
+
+        if !self.skip_signature {
+            self.signer
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
         }
 
-        let (mut parts, body) = req.into_parts();
-        self.signer
-            .sign(&mut parts, None)
-            .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
-
-        insert_tos_user_agent_header(&mut parts.headers);
+        parts.headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(&format!("opendal/{VERSION}"))
+                .expect("user agent must be valid header value"),
+        );
 
         let resp = self
             .info
@@ -101,21 +103,23 @@ impl TosCore {
         Ok(resp)
     }
 
-    pub async fn fetch(&self, mut req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        if self.skip_signature {
-            insert_tos_user_agent_header(req.headers_mut());
-            return self.info.http_client().fetch(req).await;
-        }
-
+    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         let (mut parts, body) = req.into_parts();
 
-        self.signer
-            .sign(&mut parts, None)
-            .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+        if !self.skip_signature {
+            self.signer
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
 
-        parts.headers.remove(HOST);
-        insert_tos_user_agent_header(&mut parts.headers);
+            parts.headers.remove(HOST);
+        }
+
+        parts.headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(&format!("opendal/{VERSION}"))
+                .expect("user agent must be valid header value"),
+        );
 
         self.info
             .http_client()
@@ -512,14 +516,6 @@ impl TosCore {
 
         self.send(req).await
     }
-}
-
-fn insert_tos_user_agent_header(headers: &mut http::HeaderMap) {
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_str(&format!("opendal/{VERSION}"))
-            .expect("user agent must be valid header value"),
-    );
 }
 
 #[derive(Default, Debug, Serialize)]

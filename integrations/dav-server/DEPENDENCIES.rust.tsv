@@ -4,12 +4,13 @@ android_system_properties@0.1.5	X							X
 anyhow@1.0.102	X							X					
 atomic-waker@1.1.2	X							X					
 autocfg@1.5.0	X							X					
-aws-lc-rs@1.16.3	X					X							
-aws-lc-sys@0.40.0	X		X			X		X	X				
+aws-lc-rs@1.17.0	X					X							
+aws-lc-sys@0.41.0	X		X			X		X	X				
 backon@1.6.0	X												
 base64@0.22.1	X							X					
 bitflags@2.11.1	X							X					
 block-buffer@0.10.4	X							X					
+block-buffer@0.12.0	X							X					
 bumpalo@3.20.2	X							X					
 bytes@1.11.1								X					
 cc@1.2.62	X							X					
@@ -17,16 +18,19 @@ cfg-if@1.0.4	X							X
 chrono@0.4.44	X							X					
 cmake@0.1.58	X							X					
 combine@4.6.7								X					
+const-oid@0.10.2	X							X					
 const-oid@0.9.6	X							X					
 core-foundation@0.10.1	X							X					
 core-foundation-sys@0.8.7	X							X					
 cpufeatures@0.2.17	X							X					
 crypto-common@0.1.7	X							X					
-ctor@1.0.4	X							X					
+crypto-common@0.2.2	X							X					
+ctor@1.0.6	X							X					
 dav-server@0.11.0	X												
-dav-server-opendalfs@0.7.1	X												
+dav-server-opendalfs@0.7.2	X												
 derive-where@1.6.1	X							X					
 digest@0.10.7	X							X					
+digest@0.11.3	X							X					
 displaydoc@0.2.5	X							X					
 dunce@1.0.5	X			X					X				
 dyn-clone@1.0.20	X							X					
@@ -61,6 +65,7 @@ http-body@1.0.1								X
 http-body-util@0.1.3								X					
 httparse@1.10.1	X							X					
 httpdate@1.0.3	X							X					
+hybrid-array@0.4.12	X							X					
 hyper@1.9.0								X					
 hyper-rustls@0.27.9	X					X		X					
 hyper-util@0.1.20								X					
@@ -87,14 +92,14 @@ jni-sys-macros@0.4.1	X							X
 jobserver@0.1.34	X							X					
 js-sys@0.3.98	X							X					
 libc@0.2.186	X							X					
-link-section@0.16.0	X							X					
+link-section@0.17.2	X							X					
 linktime-proc-macro@0.1.0	X							X					
 linux-raw-sys@0.12.1	X	X						X					
 litemap@0.8.2											X		
 lock_api@0.4.14	X							X					
 log@0.4.29	X							X					
 lru@0.16.4								X					
-md-5@0.10.6	X							X					
+md-5@0.11.0	X							X					
 mea@0.6.3	X												
 memchr@2.8.0								X				X	
 mime@0.3.17	X							X					
@@ -102,13 +107,13 @@ mime_guess@2.0.5								X
 mio@1.2.0								X					
 num-traits@0.2.19	X							X					
 once_cell@1.21.4	X							X					
-opendal@0.56.0	X												
-opendal-core@0.56.0	X												
-opendal-layer-concurrent-limit@0.56.0	X												
-opendal-layer-logging@0.56.0	X												
-opendal-layer-retry@0.56.0	X												
-opendal-layer-timeout@0.56.0	X												
-opendal-service-fs@0.56.0	X												
+opendal@0.57.0	X												
+opendal-core@0.57.0	X												
+opendal-layer-concurrent-limit@0.57.0	X												
+opendal-layer-logging@0.57.0	X												
+opendal-layer-retry@0.57.0	X												
+opendal-layer-timeout@0.57.0	X												
+opendal-service-fs@0.57.0	X												
 openssl-probe@0.2.1	X							X					
 parking_lot@0.12.5	X							X					
 parking_lot_core@0.9.12	X							X					
@@ -144,7 +149,7 @@ semver@1.0.28	X							X
 serde@1.0.228	X							X					
 serde_core@1.0.228	X							X					
 serde_derive@1.0.228	X							X					
-serde_json@1.0.149	X							X					
+serde_json@1.0.150	X							X					
 sha1@0.10.6	X							X					
 sha2@0.10.9	X							X					
 shlex@1.3.0	X							X					
@@ -166,7 +171,7 @@ tokio-macros@2.7.0								X
 tokio-rustls@0.26.4	X							X					
 tokio-util@0.7.18								X					
 tower@0.5.3								X					
-tower-http@0.6.10								X					
+tower-http@0.6.11								X					
 tower-layer@0.3.3								X					
 tower-service@0.3.3								X					
 tracing@0.1.44								X					
@@ -216,7 +221,7 @@ xml-rs@1.0.0								X
 xmltree@0.12.0								X					
 yoke@0.8.2											X		
 yoke-derive@0.8.2											X		
-zerofrom@0.1.7											X		
+zerofrom@0.1.8											X		
 zerofrom-derive@0.1.7											X		
 zeroize@1.8.2	X							X					
 zerotrie@0.2.4											X		

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * services: S3-compatible services now use `skip_signature` for unsigned requests. S3, OSS, and GCS keep `allow_anonymous` as a deprecated alias; TOS users must migrate to `skip_signature` because `allow_anonymous` has been removed. GCS `skip_signature` now unconditionally bypasses signing instead of falling back on credential errors.
 * services/tos: `TosBuilder::enable_versioning` and `TosConfig::enable_versioning` have been removed. TOS now declares versioned stat/read/delete capabilities natively.
 * bindings/java: generated `ServiceConfig` now uses canonical service names. Replace `ServiceConfig.Huggingface` with `ServiceConfig.Hf`; generated `scheme()` values for services such as Aliyun Drive, Cloudflare KV, HDFS Native, Vercel Artifacts, Vercel Blob, and Yandex Disk now return hyphenated canonical schemes instead of underscore variants.
+
 ### Added
 * feat(bindings/python): add behavior tests for conditional read/write by @TennyZhuang in https://github.com/apache/opendal/pull/7449
 * feat(bindings/python): expose list_with_versions and list_with_deleted in Capability by @TennyZhuang in https://github.com/apache/opendal/pull/7445

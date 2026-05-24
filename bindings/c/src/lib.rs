@@ -39,6 +39,9 @@ pub use error::opendal_error;
 mod lister;
 pub use lister::opendal_lister;
 
+mod layer;
+pub use layer::opendal_operator_layers;
+
 mod metadata;
 pub use metadata::opendal_metadata;
 

@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 		closeFunc func()
 		err       error
 	)
-	op, closeFunc, err = newOperator()
+	op, closeFunc, err = newOperator(opendal.WithRetry())
 	if err != nil {
 		panic(err)
 	}
@@ -66,6 +66,7 @@ func TestBehavior(t *testing.T) {
 	tests = append(tests, testsCreateDir(cap)...)
 	tests = append(tests, testsDelete(cap)...)
 	tests = append(tests, testsList(cap)...)
+	tests = append(tests, testsLayer(cap)...)
 	tests = append(tests, testsRead(cap)...)
 	tests = append(tests, testsPresign(cap)...)
 	tests = append(tests, testsRename(cap)...)
@@ -96,11 +97,10 @@ func TestBehavior(t *testing.T) {
 	}
 }
 
-func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
+func newOperator(operatorOptions ...opendal.OperatorOption) (op *opendal.Operator, closeFunc func(), err error) {
 	test := os.Getenv("OPENDAL_TEST")
 	var scheme opendal.Scheme
 	for _, s := range schemes {
-		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
 		normalizedSchemeName := strings.ReplaceAll(test, "_", "-")
 		if s.Name() != test && s.Name() != normalizedSchemeName {
 			continue
@@ -133,7 +133,7 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 		opts[strings.ToLower(strings.TrimPrefix(key, prefix))] = value
 	}
 
-	op, err = opendal.NewOperator(scheme, opts)
+	op, err = opendal.NewOperator(scheme, opts, operatorOptions...)
 	if err != nil {
 		err = fmt.Errorf("create operator must succeed: %s", err)
 	}

@@ -90,7 +90,9 @@ fn build_operator(
 ) -> core::Result<core::blocking::Operator> {
     core::init_default_registry();
 
-    let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
+    let op = core::Operator::via_iter(schema, map)?
+        .layer(core::layers::TimeoutLayer::default())
+        .layer(core::layers::RetryLayer::new());
 
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());

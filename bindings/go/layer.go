@@ -108,13 +108,7 @@ func WithRetry(options ...RetryOption) OperatorOption {
 		if retry.maxDelay < retry.minDelay {
 			return errors.New("retry max delay must be greater than or equal to retry min delay")
 		}
-		config.layers = append(config.layers, retryLayer{
-			jitter:   retry.jitter,
-			factor:   retry.factor,
-			minDelay: retry.minDelay,
-			maxDelay: retry.maxDelay,
-			maxTimes: retry.maxTimes,
-		})
+		config.layers = append(config.layers, retryLayer(retry))
 		return nil
 	})
 }

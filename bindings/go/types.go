@@ -307,7 +307,7 @@ type opendalResultList struct {
 type opendalLister struct{}
 
 type opendalListOptions struct {
-	recursive uint8
+	recursive bool
 }
 
 type opendalResultListerNext struct {

@@ -146,11 +146,7 @@ func (o ListOptions) WithRecursive(recursive bool) ListOptions {
 }
 
 func (o ListOptions) toInner() opendalListOptions {
-	var r uint8
-	if o.recursive {
-		r = 1
-	}
-	return opendalListOptions{recursive: r}
+	return opendalListOptions{recursive: o.recursive}
 }
 
 // ListWith returns a Lister to iterate over entries that start with the given path,

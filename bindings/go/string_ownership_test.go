@@ -279,22 +279,22 @@ func assertFreedPointers(t *testing.T, got []*byte, want ...*byte) {
 
 func TestListOptionsDefaultNotRecursive(t *testing.T) {
 	inner := ListOptions{}.toInner()
-	if inner.recursive != 0 {
-		t.Fatalf("ListOptions{}.toInner().recursive = %d, want 0", inner.recursive)
+	if inner.recursive {
+		t.Fatalf("ListOptions{}.toInner().recursive = true, want false")
 	}
 }
 
 func TestListOptionsWithRecursiveTrue(t *testing.T) {
 	inner := ListOptions{}.WithRecursive(true).toInner()
-	if inner.recursive != 1 {
-		t.Fatalf("ListOptions{}.WithRecursive(true).toInner().recursive = %d, want 1", inner.recursive)
+	if !inner.recursive {
+		t.Fatalf("ListOptions{}.WithRecursive(true).toInner().recursive = false, want true")
 	}
 }
 
 func TestListOptionsWithRecursiveFalse(t *testing.T) {
 	inner := ListOptions{}.WithRecursive(true).WithRecursive(false).toInner()
-	if inner.recursive != 0 {
-		t.Fatalf("WithRecursive(false).toInner().recursive = %d, want 0", inner.recursive)
+	if inner.recursive {
+		t.Fatalf("WithRecursive(false).toInner().recursive = true, want false")
 	}
 }
 
@@ -302,8 +302,8 @@ func TestListOptionsWithRecursiveIsImmutable(t *testing.T) {
 	base := ListOptions{}
 	_ = base.WithRecursive(true)
 	inner := base.toInner()
-	if inner.recursive != 0 {
-		t.Fatalf("WithRecursive must not mutate the receiver: recursive = %d, want 0", inner.recursive)
+	if inner.recursive {
+		t.Fatalf("WithRecursive must not mutate the receiver: recursive = true, want false")
 	}
 }
 

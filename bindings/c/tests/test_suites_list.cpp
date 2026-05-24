@@ -20,6 +20,7 @@
 #include "test_framework.h"
 #include <set>
 #include <string>
+#include <unordered_set>
 
 // Test: Basic list operation
 void test_list_basic(opendal_test_context* ctx)
@@ -434,7 +435,7 @@ void test_list_with_recursive(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "Recursive list should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
 
-    std::set<std::string> found_paths;
+    std::unordered_set<std::string> found_paths;
     while (true) {
         opendal_result_lister_next next = opendal_lister_next(list_result.lister);
         if (next.error) {

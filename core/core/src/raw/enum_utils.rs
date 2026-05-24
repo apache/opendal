@@ -91,6 +91,13 @@ impl<ONE: oio::Copy, TWO: oio::Copy> oio::Copy for TwoWays<ONE, TWO> {
         }
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        match self {
+            Self::One(v) => v.close().await,
+            Self::Two(v) => v.close().await,
+        }
+    }
+
     async fn abort(&mut self) -> Result<()> {
         match self {
             Self::One(v) => v.abort().await,

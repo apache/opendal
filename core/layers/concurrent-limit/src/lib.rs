@@ -385,6 +385,10 @@ impl<C: oio::Copy, P: Send + Sync + 'static + Unpin> oio::Copy for ConcurrentLim
         self.inner.next().await
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }

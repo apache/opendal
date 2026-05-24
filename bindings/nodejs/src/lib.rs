@@ -422,6 +422,7 @@ impl Operator {
         self.async_op
             .copy(&from, &to)
             .await
+            .map(|_| ())
             .map_err(format_napi_error)
     }
 
@@ -433,7 +434,10 @@ impl Operator {
     /// ```
     #[napi]
     pub fn copy_sync(&self, from: String, to: String) -> Result<()> {
-        self.blocking_op.copy(&from, &to).map_err(format_napi_error)
+        self.blocking_op
+            .copy(&from, &to)
+            .map(|_| ())
+            .map_err(format_napi_error)
     }
 
     /// Rename file according to given `from` and `to` path.

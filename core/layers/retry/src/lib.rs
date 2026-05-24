@@ -789,6 +789,37 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
         res.map_err(|err| err.set_persistent())
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.close().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+
     async fn abort(&mut self) -> Result<()> {
         use backon::RetryableWithContext;
 
@@ -1097,6 +1128,10 @@ mod tests {
                 6 => Ok(None),
                 _ => unreachable!(),
             }
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn abort(&mut self) -> Result<()> {

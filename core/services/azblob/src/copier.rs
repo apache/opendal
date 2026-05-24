@@ -25,6 +25,7 @@ use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_VERSION_ID;
 use super::error::parse_error;
+use super::writer::AzblobWriter;
 use opendal_core::raw::oio::BlockCopy;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -48,8 +49,7 @@ pub fn new_azblob_copier(
 
     let Some(chunk) = opts.chunk() else {
         return Ok(TwoWays::One(oio::OneShotCopier::new(async move {
-            copier.copy_once().await?;
-            Ok(None)
+            copier.copy_once().await
         })));
     };
 
@@ -92,14 +92,14 @@ impl oio::BlockCopy for AzblobCopier {
         }
     }
 
-    async fn copy_once(&self) -> Result<()> {
+    async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
             .azblob_copy_blob(&self.from, &self.to, self.args.clone())
             .await?;
 
         match resp.status() {
-            StatusCode::ACCEPTED => Ok(()),
+            StatusCode::ACCEPTED => AzblobWriter::parse_metadata(resp.headers()),
             _ => Err(parse_error(resp)),
         }
     }
@@ -116,14 +116,15 @@ impl oio::BlockCopy for AzblobCopier {
         }
     }
 
-    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+    async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
         let resp = self
             .core
             .azblob_complete_copy_block_list(&self.to, block_ids, &self.args)
             .await?;
 
+        let meta = AzblobWriter::parse_metadata(resp.headers())?;
         match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(resp)),
         }
     }

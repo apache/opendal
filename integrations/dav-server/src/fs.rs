@@ -200,6 +200,7 @@ impl DavFileSystem for OpendalFs {
             self.op
                 .copy(from_path, to_path)
                 .await
+                .map(|_| ())
                 .map_err(convert_error)
         }
         .boxed()

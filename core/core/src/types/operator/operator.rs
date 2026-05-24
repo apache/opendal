@@ -989,7 +989,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
         self.copy_options(from, to, options::CopyOptions::default())
             .await
     }
@@ -1027,7 +1027,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+    pub fn copy_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopy<impl Future<Output = Result<Metadata>>> {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
@@ -1089,7 +1093,7 @@ impl Operator {
         from: &str,
         to: &str,
         opts: impl Into<options::CopyOptions>,
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         let from = normalize_path(from);
         let to = normalize_path(to);
         let opts = opts.into();
@@ -1115,7 +1119,7 @@ impl Operator {
         acc: Accessor,
         from: String,
         (opts, to): (options::CopyOptions, String),
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
@@ -1145,15 +1149,11 @@ impl Operator {
         }
 
         let mut copier = Self::copier_inner(acc, from, (opts, to)).await?;
-
-        loop {
-            match copier.next().await {
-                Ok(Some(_)) => continue,
-                Ok(None) => return Ok(()),
-                Err(err) => {
-                    let _ = copier.abort().await;
-                    return Err(err);
-                }
+        match copier.close().await {
+            Ok(meta) => Ok(meta),
+            Err(err) => {
+                let _ = copier.abort().await;
+                Err(err)
             }
         }
     }

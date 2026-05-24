@@ -376,6 +376,11 @@ impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
         Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        let fut = self.inner.close();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
         Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
@@ -476,6 +481,10 @@ mod tests {
 
     impl oio::Copy for MockCopier {
         fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> {
+            pending()
+        }
+
+        fn close(&mut self) -> impl Future<Output = Result<Metadata>> {
             pending()
         }
 

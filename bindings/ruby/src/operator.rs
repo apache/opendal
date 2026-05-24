@@ -223,6 +223,7 @@ impl Operator {
         rb_self
             .blocking_op
             .copy(&from, &to)
+            .map(|_| ())
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 

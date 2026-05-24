@@ -41,7 +41,7 @@ pub trait MultipartCopy: Send + Sync + Unpin + 'static {
     ///
     /// MultipartCopier will call this API when the source object can be copied
     /// without starting a multipart copy.
-    fn copy_once(&self) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn copy_once(&self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// initiate_copy starts a multipart copy and returns the upload id.
     fn initiate_copy(&self) -> impl Future<Output = Result<String>> + MaybeSend;
@@ -61,7 +61,7 @@ pub trait MultipartCopy: Send + Sync + Unpin + 'static {
         &self,
         upload_id: &str,
         parts: &[MultipartPart],
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_copy cancels the pending multipart copy and purges intermediate state.
     fn abort_copy(&self, upload_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -106,6 +106,7 @@ pub struct MultipartCopier<C: MultipartCopy> {
     part_size: u64,
     concurrent: usize,
     completed: bool,
+    metadata: Option<Metadata>,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedPart>,
 }
@@ -136,6 +137,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             part_size,
             concurrent,
             completed: false,
+            metadata: None,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin(async move {
@@ -279,7 +281,7 @@ where
         let source_size = self.source_size().await?;
 
         if self.upload_id.is_none() && source_size <= self.copy_once_threshold {
-            self.copier.copy_once().await?;
+            self.metadata = Some(self.copier.copy_once().await?);
             self.completed = true;
             return Ok(None);
         }
@@ -321,9 +323,17 @@ where
         }
 
         self.parts.sort_by_key(|part| part.part_number);
-        self.copier.complete_copy(&upload_id, &self.parts).await?;
+        self.metadata = Some(self.copier.complete_copy(&upload_id, &self.parts).await?);
         self.completed = true;
         Ok(None)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        while !self.completed {
+            self.next().await?;
+        }
+
+        Ok(self.metadata.clone().unwrap_or_default())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -334,6 +344,7 @@ where
 
         self.copier.abort_copy(&upload_id).await?;
         self.completed = true;
+        self.metadata = None;
         Ok(())
     }
 }
@@ -370,9 +381,9 @@ mod tests {
             Ok(Metadata::default().with_content_length(self.source_size))
         }
 
-        async fn copy_once(&self) -> Result<()> {
+        async fn copy_once(&self) -> Result<Metadata> {
             self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(())
+            Ok(Metadata::default())
         }
 
         async fn initiate_copy(&self) -> Result<String> {
@@ -394,8 +405,8 @@ mod tests {
             })
         }
 
-        async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<()> {
-            Ok(())
+        async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {

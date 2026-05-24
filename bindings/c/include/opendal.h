@@ -1316,7 +1316,7 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
  *
  * # Safety
  *
- * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ * * The memory pointed to by `path` must contain a valid null terminator at the end of
  *   the string.
  *
  * # Panic

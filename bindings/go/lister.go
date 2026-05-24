@@ -85,10 +85,6 @@ func (op *Operator) Check() (err error) {
 //   - *Lister: A new Lister instance for iterating over entries.
 //   - error: An error if the listing operation fails, or nil if successful.
 //
-// # Notes
-//
-//  1. Returned entries do not include metadata information. Use op.Stat to fetch metadata for individual entries.
-//
 // # Example
 //
 //	func exampleList(op *opendal.Operator) {
@@ -146,7 +142,7 @@ func (o ListOptions) WithRecursive(recursive bool) ListOptions {
 }
 
 func (o ListOptions) toInner() opendalListOptions {
-	return opendalListOptions{recursive: o.recursive}
+	return opendalListOptions(o)
 }
 
 // ListWith returns a Lister to iterate over entries that start with the given path,

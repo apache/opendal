@@ -26,7 +26,7 @@ endif
 
 # Source files
 FRAMEWORK_SOURCES = test_framework.cpp
-SUITE_SOURCES = test_suites_basic.cpp test_suites_list.cpp test_suites_reader_writer.cpp test_suites_presign.cpp test_suites_layer.cpp
+SUITE_SOURCES = test_suites_basic.cpp test_suites_list.cpp test_suites_reader_writer.cpp test_suites_presign.cpp
 RUNNER_SOURCES = test_runner.cpp
 ALL_SOURCES = $(FRAMEWORK_SOURCES) $(SUITE_SOURCES) $(RUNNER_SOURCES)
 
@@ -105,5 +105,4 @@ test_framework.o: test_framework.h
 test_suites_basic.o: test_framework.h
 test_suites_list.o: test_framework.h
 test_suites_reader_writer.o: test_framework.h
-test_suites_layer.o: test_framework.h
 test_runner.o: test_framework.h

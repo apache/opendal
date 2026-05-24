@@ -1,3 +1,14 @@
+# Upgrade to v0.48.4
+
+## Breaking change
+
+### Generated service configs use canonical service names
+
+Generated `ServiceConfig` entries now use canonical OpenDAL service names.
+
+- Replace `ServiceConfig.Huggingface` with `ServiceConfig.Hf`.
+- `scheme()` now returns hyphenated canonical service names for affected services, such as `aliyun-drive`, `cloudflare-kv`, `hdfs-native`, `vercel-artifacts`, `vercel-blob`, and `yandex-disk`, instead of the previous underscore variants.
+
 # Upgrade to v0.49
 
 ## Breaking changes

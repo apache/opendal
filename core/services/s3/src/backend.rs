@@ -966,6 +966,14 @@ impl Builder for S3Builder {
                             } else {
                                 Some(usize::MAX)
                             },
+                            // S3 allows at most 10,000 parts and 5 GiB for each part.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_total_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(10_000 * 5 * 1024 * 1024 * 1024)
+                            } else {
+                                None
+                            },
 
                             delete: true,
                             delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),

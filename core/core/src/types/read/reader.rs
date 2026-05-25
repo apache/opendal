@@ -108,6 +108,21 @@ struct FetchReadOutput {
     buffer: Buffer,
 }
 
+impl std::fmt::Debug for Reader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let info = self.ctx.accessor().info();
+        let root = info.root();
+
+        f.debug_struct("Reader")
+            .field("scheme", &info.scheme())
+            .field("root", &root)
+            .field("path", &self.ctx.path())
+            .field("args", self.ctx.args())
+            .field("options", self.ctx.options())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Reader {
     /// Create a new reader.
     ///
@@ -649,7 +664,28 @@ mod tests {
         let srv = op.service().clone();
         let ctx = new_read_context(ctx, srv, "test", OpReader::new())?;
 
-        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
+        fn assert_reader_traits<T: std::fmt::Debug + Unpin + MaybeSend + Sync + 'static>(_: &T) {}
+
+        let reader = Reader::new(ctx);
+        assert_reader_traits(&reader);
+        let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(reader);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_debug() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", "hello").await?;
+
+        let reader = op.reader_with("test").chunk(8).await?;
+        let output = format!("{reader:?}");
+
+        assert!(output.contains("Reader"), "{output}");
+        assert!(output.contains("memory"), "{output}");
+        assert!(output.contains("test"), "{output}");
+        assert!(output.contains("args"), "{output}");
+        assert!(output.contains("options"), "{output}");
 
         Ok(())
     }

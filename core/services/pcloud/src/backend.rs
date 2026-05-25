@@ -186,6 +186,7 @@ impl Access for PcloudBackend {
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -267,7 +268,13 @@ impl Access for PcloudBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.core.ensure_dir_exists(to).await?;
 
         let resp = if from.ends_with('/') {

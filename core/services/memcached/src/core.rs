@@ -203,16 +203,15 @@ impl MemcachedCore {
         Ok(result.map(Buffer::from))
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
         let mut conn = self.conn().await?;
+        let ttl = expires.or(self.default_ttl);
 
         conn.set(
             &percent_encode_path(key),
             &value.to_vec(),
             // Set expiration to 0 if ttl not set.
-            self.default_ttl
-                .map(|v| v.as_secs() as u32)
-                .unwrap_or_default(),
+            ttl.map(|v| v.as_secs() as u32).unwrap_or_default(),
         )
         .await
     }

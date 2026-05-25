@@ -194,7 +194,11 @@ impl Builder for TosBuilder {
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
                     write_multi_min_size: Some(5 * 1024 * 1024),
-                    write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
                     delete: true,
                     delete_max_size: Some(1000),

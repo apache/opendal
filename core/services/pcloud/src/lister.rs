@@ -142,9 +142,9 @@ mod tests {
     use opendal_core::EntryMode;
     use opendal_core::raw::AccessorInfo;
 
-    use super::append_entries;
     use super::ListMetadata;
     use super::PcloudCore;
+    use super::append_entries;
 
     fn core() -> PcloudCore {
         PcloudCore::new(
@@ -191,14 +191,31 @@ mod tests {
             "/repo",
             dir(
                 "/repo/data/00",
-                vec![file("/repo/data/00/pack1", 11), dir("/repo/data/00/sub", vec![file("/repo/data/00/sub/pack2", 22)])],
+                vec![
+                    file("/repo/data/00/pack1", 11),
+                    dir(
+                        "/repo/data/00/sub",
+                        vec![file("/repo/data/00/sub/pack2", 22)],
+                    ),
+                ],
             ),
             true,
         )
         .expect("entries should flatten");
 
-        let paths: Vec<_> = entries.iter().map(|entry| entry.path().to_string()).collect();
-        assert_eq!(paths, vec!["data/00/", "data/00/pack1", "data/00/sub/", "data/00/sub/pack2"]);
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
+        assert_eq!(
+            paths,
+            vec![
+                "data/00/",
+                "data/00/pack1",
+                "data/00/sub/",
+                "data/00/sub/pack2"
+            ]
+        );
         assert_eq!(entries[0].mode(), EntryMode::DIR);
         assert_eq!(entries[1].mode(), EntryMode::FILE);
         assert_eq!(entries[3].mode(), EntryMode::FILE);
@@ -215,13 +232,22 @@ mod tests {
             "/repo",
             dir(
                 "/repo/data/00",
-                vec![file("/repo/data/00/pack1", 11), dir("/repo/data/00/sub", vec![file("/repo/data/00/sub/pack2", 22)])],
+                vec![
+                    file("/repo/data/00/pack1", 11),
+                    dir(
+                        "/repo/data/00/sub",
+                        vec![file("/repo/data/00/sub/pack2", 22)],
+                    ),
+                ],
             ),
             false,
         )
         .expect("entries should flatten");
 
-        let paths: Vec<_> = entries.iter().map(|entry| entry.path().to_string()).collect();
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
         assert_eq!(paths, vec!["data/00/"]);
     }
 
@@ -247,7 +273,10 @@ mod tests {
         )
         .expect("entries should rebuild missing child paths");
 
-        let paths: Vec<_> = entries.iter().map(|entry| entry.path().to_string()).collect();
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
         assert_eq!(paths, vec!["keys/file1"]);
     }
 }

@@ -164,7 +164,10 @@ impl PcloudCore {
     }
 
     pub fn invalidate_path_prefix_cache(&self, path: &str) {
-        let prefix = format!("{}/", self.normalize_cached_path(path).trim_end_matches('/'));
+        let prefix = format!(
+            "{}/",
+            self.normalize_cached_path(path).trim_end_matches('/')
+        );
 
         self.file_ids
             .write()
@@ -571,9 +574,7 @@ impl PcloudCore {
             query.push_str("&recursive=1");
         }
 
-        let url = self
-            .build_url("listfolder", query)
-            .await?;
+        let url = self.build_url("listfolder", query).await?;
 
         let req = Request::get(url);
 

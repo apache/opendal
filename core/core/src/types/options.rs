@@ -560,6 +560,19 @@ pub struct CopyOptions {
     ///   destination object's ETag matches the given value.
     pub if_match: Option<String>,
 
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object currently has the given ETag.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the source
+    ///   object's ETag matches the given value.
+    pub source_if_match: Option<String>,
+
     /// Known content length of the source object.
     ///
     /// This is an execution hint that allows OpenDAL to avoid extra metadata

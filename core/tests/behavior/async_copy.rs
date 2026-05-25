@@ -56,6 +56,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copier_with_if_not_exists_to_existing_file
         ))
     }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_source_if_match {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_source_if_match_match,
+            test_copy_with_source_if_match_mismatch
+        ))
+    }
 }
 
 fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
@@ -346,6 +354,70 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with source_if_match matching the source ETag should succeed.
+pub async fn test_copy_with_source_if_match_match(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_source_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let Some(etag) = op.stat(&source_path).await?.etag().map(|s| s.to_string()) else {
+        op.delete(&source_path).await.expect("delete must succeed");
+        return Ok(());
+    };
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    op.copy_with(&source_path, &target_path)
+        .source_if_match(&etag)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with source_if_match not matching should fail with ConditionNotMatch.
+pub async fn test_copy_with_source_if_match_mismatch(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_source_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .source_if_match("\"00000000000000000000000000000000\"")
+        .await
+        .expect_err("copy must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    assert!(
+        !op.exists(&target_path).await.expect("exists must succeed"),
+        "target must not be created on mismatch"
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
     Ok(())
 }
 

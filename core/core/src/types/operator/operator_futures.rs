@@ -1437,6 +1437,15 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object currently has the given ETag.
+    ///
+    /// Refer to [`options::CopyOptions::source_if_match`] for more details.
+    pub fn source_if_match(mut self, etag: &str) -> Self {
+        self.args.0.source_if_match = Some(etag.to_string());
+        self
+    }
+
     /// Sets concurrent copy operations for this copy.
     ///
     /// Refer to [`options::CopyOptions::concurrent`] for more details.

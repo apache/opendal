@@ -240,6 +240,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_match",
             ));
         }
+        if args.source_if_match().is_some() && !capability.copy_with_source_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_if_match",
+            ));
+        }
 
         self.inner.copy(from, to, args, opts).await
     }

@@ -895,6 +895,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 pub struct OpCopy {
     if_not_exists: bool,
     if_match: Option<String>,
+    source_if_match: Option<String>,
 }
 
 impl OpCopy {
@@ -929,6 +930,20 @@ impl OpCopy {
     /// Get if_match condition.
     pub fn if_match(&self) -> Option<&str> {
         self.if_match.as_deref()
+    }
+
+    /// Set the source_if_match condition for the operation.
+    ///
+    /// When set, the copy operation will only proceed if the source object's
+    /// ETag matches the given value.
+    pub fn with_source_if_match(mut self, source_if_match: impl Into<String>) -> Self {
+        self.source_if_match = Some(source_if_match.into());
+        self
+    }
+
+    /// Get source_if_match condition.
+    pub fn source_if_match(&self) -> Option<&str> {
+        self.source_if_match.as_deref()
     }
 }
 
@@ -986,6 +1001,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
             OpCopy {
                 if_not_exists: value.if_not_exists,
                 if_match: value.if_match,
+                source_if_match: value.source_if_match,
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),

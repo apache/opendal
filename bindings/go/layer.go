@@ -191,13 +191,9 @@ func (l timeoutLayer) apply(ctx context.Context, layers *operatorLayers) error {
 }
 
 func (l retryLayer) apply(ctx context.Context, layers *operatorLayers) error {
-	jitter := uint8(0)
-	if l.jitter {
-		jitter = 1
-	}
 	ffiOperatorLayersAddRetry.symbol(ctx)(
 		layers,
-		jitter,
+		l.jitter,
 		l.factor,
 		uint64(l.minDelay),
 		uint64(l.maxDelay),
@@ -229,8 +225,8 @@ var ffiOperatorLayersAddRetry = newFFI(ffiOpts{
 		&ffi.TypeUint64,
 		&ffi.TypeUint64,
 	},
-}, func(_ context.Context, ffiCall ffiCall) func(layers *operatorLayers, jitter uint8, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
-	return func(layers *operatorLayers, jitter uint8, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
+}, func(_ context.Context, ffiCall ffiCall) func(layers *operatorLayers, jitter bool, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
+	return func(layers *operatorLayers, jitter bool, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
 		ffiCall(
 			nil,
 			unsafe.Pointer(&layers),

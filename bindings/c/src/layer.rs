@@ -107,14 +107,14 @@ impl opendal_operator_layers {
     /// \brief Add a retry layer.
     pub fn add_retry(
         &mut self,
-        jitter: u8,
+        jitter: bool,
         factor: f32,
         min_delay_ns: u64,
         max_delay_ns: u64,
         max_times: u64,
     ) {
         self.deref_mut().push(OperatorLayer::Retry {
-            jitter: jitter != 0,
+            jitter,
             factor,
             min_delay: Duration::from_nanos(min_delay_ns),
             max_delay: Duration::from_nanos(max_delay_ns),
@@ -126,7 +126,7 @@ impl opendal_operator_layers {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_layers_add_retry(
         &mut self,
-        jitter: u8,
+        jitter: bool,
         factor: f32,
         min_delay_ns: u64,
         max_delay_ns: u64,

@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -44,7 +45,10 @@ func TestMain(m *testing.M) {
 		closeFunc func()
 		err       error
 	)
-	op, closeFunc, err = newOperator(opendal.WithRetry())
+	op, closeFunc, err = newOperator(
+		opendal.WithTimeout(time.Minute, 10*time.Second),
+		opendal.WithRetry(),
+	)
 	if err != nil {
 		panic(err)
 	}

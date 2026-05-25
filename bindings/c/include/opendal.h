@@ -720,7 +720,7 @@ struct opendal_operator_layers *opendal_operator_layers_new(void);
  * \brief Add a retry layer.
  */
 void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
-                                       uint8_t jitter,
+                                       bool jitter,
                                        float factor,
                                        uint64_t min_delay_ns,
                                        uint64_t max_delay_ns,

@@ -501,6 +501,7 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_not_exists: value.if_not_exists.unwrap_or_default(),
+            expires: None,
             concurrent: value.concurrent.unwrap_or_default() as usize,
         }
     }

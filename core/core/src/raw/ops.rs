@@ -896,6 +896,9 @@ pub struct OpCopy {
     if_not_exists: bool,
     if_match: Option<String>,
     source_if_match: Option<String>,
+    source_if_none_match: Option<String>,
+    source_if_modified_since: Option<Timestamp>,
+    source_if_unmodified_since: Option<Timestamp>,
 }
 
 impl OpCopy {
@@ -944,6 +947,48 @@ impl OpCopy {
     /// Get source_if_match condition.
     pub fn source_if_match(&self) -> Option<&str> {
         self.source_if_match.as_deref()
+    }
+
+    /// Set the source_if_none_match condition for the operation.
+    ///
+    /// When set, the copy operation will only proceed if the source object's
+    /// ETag does not match the given value.
+    pub fn with_source_if_none_match(mut self, source_if_none_match: impl Into<String>) -> Self {
+        self.source_if_none_match = Some(source_if_none_match.into());
+        self
+    }
+
+    /// Get source_if_none_match condition.
+    pub fn source_if_none_match(&self) -> Option<&str> {
+        self.source_if_none_match.as_deref()
+    }
+
+    /// Set the source_if_modified_since condition for the operation.
+    ///
+    /// When set, the copy operation will only proceed if the source object has
+    /// been modified after the given timestamp.
+    pub fn with_source_if_modified_since(mut self, v: Timestamp) -> Self {
+        self.source_if_modified_since = Some(v);
+        self
+    }
+
+    /// Get source_if_modified_since condition.
+    pub fn source_if_modified_since(&self) -> Option<Timestamp> {
+        self.source_if_modified_since
+    }
+
+    /// Set the source_if_unmodified_since condition for the operation.
+    ///
+    /// When set, the copy operation will only proceed if the source object has
+    /// not been modified after the given timestamp.
+    pub fn with_source_if_unmodified_since(mut self, v: Timestamp) -> Self {
+        self.source_if_unmodified_since = Some(v);
+        self
+    }
+
+    /// Get source_if_unmodified_since condition.
+    pub fn source_if_unmodified_since(&self) -> Option<Timestamp> {
+        self.source_if_unmodified_since
     }
 }
 
@@ -1002,6 +1047,9 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
                 if_not_exists: value.if_not_exists,
                 if_match: value.if_match,
                 source_if_match: value.source_if_match,
+                source_if_none_match: value.source_if_none_match,
+                source_if_modified_since: value.source_if_modified_since,
+                source_if_unmodified_since: value.source_if_unmodified_since,
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),

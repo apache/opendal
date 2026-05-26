@@ -50,32 +50,42 @@ impl StreamingReader {
         }
     }
 
-    async fn prepare(&mut self) -> Result<Option<Metadata>> {
+    async fn prepare(&mut self) -> Result<bool> {
         if self.reader.is_none() {
             let Some((metadata, reader)) = self.generator.next_reader().await? else {
-                return Ok(None);
+                return Ok(false);
             };
-            self.metadata = Some(metadata);
+            self.metadata = metadata;
             self.reader = Some(reader);
         }
 
-        Ok(self.metadata.clone())
+        Ok(true)
+    }
+
+    fn metadata_ref(&self) -> Option<&Metadata> {
+        self.metadata
+            .as_ref()
+            .or_else(|| self.generator.read_metadata())
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        self.prepare().await?.ok_or_else(|| {
-            Error::new(
+        if !self.prepare().await? {
+            return Err(Error::new(
                 ErrorKind::Unexpected,
                 "read stream doesn't have metadata before opening a reader",
-            )
-        })
+            ));
+        }
+
+        self.metadata_ref()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
     }
 }
 
 impl oio::Read for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
-            self.prepare().await?;
+            let _ = self.prepare().await?;
             let Some(r) = self.reader.as_mut() else {
                 return Ok(Buffer::new());
             };
@@ -105,7 +115,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    tasks: ConcurrentTasks<ChunkedReadInput, (Metadata, Buffer)>,
+    tasks: ConcurrentTasks<ChunkedReadInput, (Option<Metadata>, Buffer)>,
     pending: Option<Buffer>,
     metadata: Option<Metadata>,
     done: bool,
@@ -127,8 +137,7 @@ impl ChunkedReader {
                     let args = input.ctx.args().clone().with_range(input.range);
                     let result = async {
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
-                        let metadata = rp.into_metadata();
-                        input.ctx.set_metadata(&metadata, input.range);
+                        let metadata = input.ctx.set_metadata(rp.into_metadata(), input.range);
                         let buffer = r.read_all().await?;
                         Ok((metadata, buffer))
                     }
@@ -148,9 +157,13 @@ impl ChunkedReader {
         }
     }
 
+    fn metadata_ref(&self) -> Option<&Metadata> {
+        self.metadata.as_ref().or_else(|| self.ctx.read_metadata())
+    }
+
     async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.metadata.clone() {
-            return Ok(metadata);
+        if let Some(metadata) = self.metadata_ref() {
+            return Ok(metadata.clone());
         }
 
         let Some((metadata, buffer)) = self.next_output().await? else {
@@ -161,11 +174,13 @@ impl ChunkedReader {
         };
 
         self.pending = Some(buffer);
-        self.metadata = Some(metadata.clone());
-        Ok(metadata)
+        self.metadata = metadata;
+        self.metadata_ref()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
     }
 
-    async fn next_output(&mut self) -> Result<Option<(Metadata, Buffer)>> {
+    async fn next_output(&mut self) -> Result<Option<(Option<Metadata>, Buffer)>> {
         while self.tasks.has_remaining() && !self.done {
             if let Some(range) = self.next_range() {
                 self.tasks
@@ -225,7 +240,7 @@ impl oio::Read for ChunkedReader {
         };
 
         if self.metadata.is_none() {
-            self.metadata = Some(metadata);
+            self.metadata = metadata;
         }
         Ok(buffer)
     }

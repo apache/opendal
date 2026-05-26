@@ -35,7 +35,9 @@ pub struct ReadContext {
     /// Options for the reader.
     options: OpReader,
     /// Complete object metadata observed from successful read opens.
-    metadata: OnceLock<Metadata>,
+    object_metadata: OnceLock<Metadata>,
+    /// Read response metadata observed from successful read opens.
+    read_metadata: OnceLock<(Metadata, BytesRange)>,
 }
 
 impl ReadContext {
@@ -47,7 +49,8 @@ impl ReadContext {
             path,
             args,
             options,
-            metadata: OnceLock::new(),
+            object_metadata: OnceLock::new(),
+            read_metadata: OnceLock::new(),
         }
     }
 
@@ -78,14 +81,28 @@ impl ReadContext {
     /// Get complete object metadata observed by this reader.
     #[inline]
     pub fn metadata(&self) -> Option<&Metadata> {
-        self.metadata.get()
+        let (metadata, range) = self.read_metadata.get()?;
+        Some(self.object_metadata.get_or_init(|| {
+            let mut object_metadata = metadata.clone();
+            object_metadata.adjust_by_range(*range);
+            object_metadata
+        }))
     }
 
-    /// Set cached object metadata from read response metadata once.
-    pub(crate) fn set_metadata(&self, metadata: &Metadata, range: BytesRange) {
-        let mut metadata = metadata.clone();
-        metadata.adjust_by_range(range);
-        let _ = self.metadata.set(metadata);
+    /// Set cached read response metadata once.
+    ///
+    /// Returns the metadata back if this context already cached one before.
+    pub(crate) fn set_metadata(&self, metadata: Metadata, range: BytesRange) -> Option<Metadata> {
+        self.read_metadata
+            .set((metadata, range))
+            .err()
+            .map(|(metadata, _)| metadata)
+    }
+
+    /// Get read response metadata observed by this reader.
+    #[inline]
+    pub(crate) fn read_metadata(&self) -> Option<&Metadata> {
+        self.read_metadata.get().map(|(metadata, _)| metadata)
     }
 
     /// Parse the range bounds into a range.
@@ -190,16 +207,21 @@ impl ReadGenerator {
     }
 
     /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<(Metadata, oio::Reader)>> {
+    pub async fn next_reader(&mut self) -> Result<Option<(Option<Metadata>, oio::Reader)>> {
         let Some(range) = self.next_range() else {
             return Ok(None);
         };
 
         let args = self.ctx.args.clone().with_range(range);
         let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
-        let metadata = rp.into_metadata();
-        self.ctx.set_metadata(&metadata, range);
+        let metadata = self.ctx.set_metadata(rp.into_metadata(), range);
         Ok(Some((metadata, r)))
+    }
+
+    /// Get read response metadata observed by this reader.
+    #[inline]
+    pub(crate) fn read_metadata(&self) -> Option<&Metadata> {
+        self.ctx.read_metadata()
     }
 }
 

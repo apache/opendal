@@ -215,12 +215,31 @@ impl Access for FsBackend {
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let f = self.core.fs_read(path, &args).await?;
+        let file_metadata = f.metadata().await.map_err(new_std_io_error)?;
+        let total_size = file_metadata.len();
+        let range = args.range();
+        let content_length = range
+            .size()
+            .unwrap_or_else(|| total_size.saturating_sub(range.offset()))
+            .min(total_size.saturating_sub(range.offset()));
+        let mut metadata = Metadata::new(EntryMode::FILE)
+            .with_content_length(content_length)
+            .with_last_modified(Timestamp::try_from(
+                file_metadata.modified().map_err(new_std_io_error)?,
+            )?);
+        if !range.is_full() && content_length > 0 {
+            metadata.set_content_range(
+                BytesContentRange::default()
+                    .with_range(range.offset(), range.offset() + content_length - 1)
+                    .with_size(total_size),
+            );
+        }
         let r = FsReader::new(
             self.core.clone(),
             f,
             args.range().size().unwrap_or(u64::MAX) as _,
         );
-        Ok((RpRead::new(), r))
+        Ok((RpRead::new(metadata), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

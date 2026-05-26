@@ -19,6 +19,7 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::raw::*;
 use crate::*;
@@ -33,6 +34,8 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
+    /// Complete object metadata observed from successful read opens.
+    metadata: Mutex<Option<Metadata>>,
 }
 
 impl ReadContext {
@@ -44,6 +47,7 @@ impl ReadContext {
             path,
             args,
             options,
+            metadata: Mutex::new(None),
         }
     }
 
@@ -69,6 +73,72 @@ impl ReadContext {
     #[inline]
     pub fn options(&self) -> &OpReader {
         &self.options
+    }
+
+    /// Get complete object metadata observed by this reader.
+    #[inline]
+    pub fn metadata(&self) -> Option<Metadata> {
+        self.metadata
+            .lock()
+            .expect("metadata lock poisoned")
+            .clone()
+    }
+
+    /// Update cached object metadata from read response metadata.
+    pub(crate) fn update_metadata(&self, metadata: &Metadata, range: BytesRange) {
+        let Some(metadata) = Self::object_metadata_from_read_metadata(metadata, range) else {
+            return;
+        };
+        *self.metadata.lock().expect("metadata lock poisoned") = Some(metadata);
+    }
+
+    fn object_metadata_from_read_metadata(
+        metadata: &Metadata,
+        range: BytesRange,
+    ) -> Option<Metadata> {
+        let content_length = if range.is_full() {
+            if !metadata.has_content_length() {
+                return None;
+            }
+            metadata.content_length()
+        } else {
+            metadata.content_range().and_then(|range| range.size())?
+        };
+
+        let mut object_metadata = Metadata::new(metadata.mode())
+            .with_content_length(content_length)
+            .with_is_current(metadata.is_current());
+        object_metadata.set_is_deleted(metadata.is_deleted());
+
+        if let Some(v) = metadata.cache_control() {
+            object_metadata.set_cache_control(v);
+        }
+        if let Some(v) = metadata.content_md5() {
+            object_metadata.set_content_md5(v);
+        }
+        if let Some(v) = metadata.content_type() {
+            object_metadata.set_content_type(v);
+        }
+        if let Some(v) = metadata.content_encoding() {
+            object_metadata.set_content_encoding(v);
+        }
+        if let Some(v) = metadata.last_modified() {
+            object_metadata.set_last_modified(v);
+        }
+        if let Some(v) = metadata.etag() {
+            object_metadata.set_etag(v);
+        }
+        if let Some(v) = metadata.content_disposition() {
+            object_metadata.set_content_disposition(v);
+        }
+        if let Some(v) = metadata.version() {
+            object_metadata.set_version(v);
+        }
+        if let Some(v) = metadata.user_metadata() {
+            object_metadata = object_metadata.with_user_metadata(v.clone());
+        }
+
+        Some(object_metadata)
     }
 
     /// Parse the range bounds into a range.
@@ -173,14 +243,16 @@ impl ReadGenerator {
     }
 
     /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<oio::Reader>> {
+    pub async fn next_reader(&mut self) -> Result<Option<(Metadata, oio::Reader)>> {
         let Some(range) = self.next_range() else {
             return Ok(None);
         };
 
         let args = self.ctx.args.clone().with_range(range);
-        let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
-        Ok(Some(r))
+        let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
+        let metadata = rp.into_metadata();
+        self.ctx.update_metadata(&metadata, range);
+        Ok(Some((metadata, r)))
     }
 }
 
@@ -208,7 +280,7 @@ mod tests {
         ));
         let mut generator = ReadGenerator::new(ctx, 0, Some(10));
         let mut readers = vec![];
-        while let Some(r) = generator.next_reader().await? {
+        while let Some((_, r)) = generator.next_reader().await? {
             readers.push(r);
         }
 
@@ -234,7 +306,7 @@ mod tests {
         ));
         let mut generator = ReadGenerator::new(ctx, 0, None);
         let mut readers = vec![];
-        while let Some(r) = generator.next_reader().await? {
+        while let Some((_, r)) = generator.next_reader().await? {
             readers.push(r);
         }
 

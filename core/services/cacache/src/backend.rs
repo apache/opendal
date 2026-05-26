@@ -127,7 +127,9 @@ impl Access for CacacheBackend {
                     };
                     Buffer::from(bytes.slice(start..end.min(bytes.len())))
                 };
-                Ok((RpRead::new(), buffer))
+                let metadata =
+                    Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as u64);
+                Ok((RpRead::new(metadata), buffer))
             }
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }

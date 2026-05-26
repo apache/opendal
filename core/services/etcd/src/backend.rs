@@ -268,10 +268,12 @@ impl Access for EtcdBackend {
         match self.core.get(&abs_path).await? {
             Some(buffer) => {
                 let range = op.range();
+                let total_size = buffer.len() as u64;
 
                 // If range is full, return the buffer directly
                 if range.is_full() {
-                    return Ok((RpRead::new(), buffer));
+                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    return Ok((RpRead::new(metadata), buffer));
                 }
 
                 // Handle range requests
@@ -286,8 +288,20 @@ impl Access for EtcdBackend {
                 let size = range.size().map(|s| s as usize);
                 let end = size.map_or(buffer.len(), |s| (offset + s).min(buffer.len()));
                 let sliced_buffer = buffer.slice(offset..end);
+                let mut metadata =
+                    Metadata::new(EntryMode::FILE).with_content_length(sliced_buffer.len() as u64);
+                if !sliced_buffer.is_empty() {
+                    metadata.set_content_range(
+                        BytesContentRange::default()
+                            .with_range(
+                                range.offset(),
+                                range.offset() + sliced_buffer.len() as u64 - 1,
+                            )
+                            .with_size(total_size),
+                    );
+                }
 
-                Ok((RpRead::new(), sliced_buffer))
+                Ok((RpRead::new(metadata), sliced_buffer))
             }
             None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }

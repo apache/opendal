@@ -54,6 +54,14 @@ impl FuturesBytesStream {
             buf: Buffer::new(),
         })
     }
+
+    /// Get metadata for this stream.
+    ///
+    /// Calling this method opens the underlying read request if needed, but
+    /// doesn't consume the response body.
+    pub async fn metadata(&mut self) -> Result<Metadata> {
+        self.stream.metadata().await
+    }
 }
 
 impl Stream for FuturesBytesStream {

@@ -55,18 +55,24 @@ impl ObjectStoreReader {
     }
 
     pub(crate) fn rp(&self) -> RpRead {
-        let mut rp = RpRead::new().with_size(Some(self.meta.size));
+        let mut meta = Metadata::new(EntryMode::FILE);
         if !self.args.range().is_full() {
             let range = self.args.range();
-            let size = match range.size() {
-                Some(size) => size,
-                None => self.meta.size,
-            };
-            rp = rp.with_range(Some(
-                BytesContentRange::default().with_range(range.offset(), range.offset() + size - 1),
-            ));
+            let size = range
+                .size()
+                .unwrap_or_else(|| self.meta.size.saturating_sub(range.offset()));
+            meta.set_content_length(size);
+            if size > 0 {
+                meta.set_content_range(
+                    BytesContentRange::default()
+                        .with_range(range.offset(), range.offset() + size - 1)
+                        .with_size(self.meta.size),
+                );
+            }
+        } else {
+            meta.set_content_length(self.meta.size);
         }
-        rp
+        RpRead::new(meta)
     }
 }
 

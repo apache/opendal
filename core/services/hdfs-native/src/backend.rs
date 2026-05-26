@@ -194,7 +194,13 @@ impl Access for HdfsNativeBackend {
 
         let r = HdfsNativeReader::new(f, offset as _, size as _);
 
-        Ok((RpRead::new(), r))
+        Ok((
+            RpRead::new(
+                Metadata::new(EntryMode::FILE)
+                    .with_content_length(args.range().size().unwrap_or(0)),
+            ),
+            r,
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

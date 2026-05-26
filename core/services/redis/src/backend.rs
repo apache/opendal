@@ -358,7 +358,8 @@ impl Access for RedisBackend {
             }
         };
 
-        Ok((RpRead::new(), buffer))
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as u64);
+        Ok((RpRead::new(metadata), buffer))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

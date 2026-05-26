@@ -274,7 +274,10 @@ impl Access for SftpBackend {
         }
 
         Ok((
-            RpRead::default(),
+            RpRead::new(
+                Metadata::new(EntryMode::FILE)
+                    .with_content_length(args.range().size().unwrap_or(0)),
+            ),
             SftpReader::new(client, f, args.range().size()),
         ))
     }

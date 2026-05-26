@@ -324,8 +324,12 @@ impl Access for GoosefsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let content_length = args.range().size().unwrap_or(0);
         let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args);
-        Ok((RpRead::new(), reader))
+        Ok((
+            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
+            reader,
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

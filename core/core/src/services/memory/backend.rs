@@ -139,10 +139,21 @@ impl Access for MemoryBackend {
             }
         };
 
-        Ok((
-            RpRead::new(),
-            value.content.slice(args.range().to_range_as_usize()),
-        ))
+        let total_size = value.content.len() as u64;
+        let content = value.content.slice(args.range().to_range_as_usize());
+        let mut metadata = Metadata::new(EntryMode::FILE).with_content_length(content.len() as u64);
+        if !args.range().is_full() && !content.is_empty() {
+            metadata.set_content_range(
+                BytesContentRange::default()
+                    .with_range(
+                        args.range().offset(),
+                        args.range().offset() + content.len() as u64 - 1,
+                    )
+                    .with_size(total_size),
+            );
+        }
+
+        Ok((RpRead::new(metadata), content))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

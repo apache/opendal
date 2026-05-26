@@ -35,6 +35,7 @@ use crate::*;
 pub struct StreamingReader {
     generator: ReadGenerator,
     reader: Option<oio::Reader>,
+    metadata: Option<Metadata>,
 }
 
 impl StreamingReader {
@@ -45,16 +46,36 @@ impl StreamingReader {
         Self {
             generator,
             reader: None,
+            metadata: None,
         }
+    }
+
+    async fn prepare(&mut self) -> Result<Option<Metadata>> {
+        if self.reader.is_none() {
+            let Some((metadata, reader)) = self.generator.next_reader().await? else {
+                return Ok(None);
+            };
+            self.metadata = Some(metadata);
+            self.reader = Some(reader);
+        }
+
+        Ok(self.metadata.clone())
+    }
+
+    async fn metadata(&mut self) -> Result<Metadata> {
+        self.prepare().await?.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "read stream doesn't have metadata before opening a reader",
+            )
+        })
     }
 }
 
 impl oio::Read for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
-            if self.reader.is_none() {
-                self.reader = self.generator.next_reader().await?;
-            }
+            self.prepare().await?;
             let Some(r) = self.reader.as_mut() else {
                 return Ok(Buffer::new());
             };
@@ -82,6 +103,7 @@ struct ChunkedReadInput {
 /// ChunkedReader is good for concurrent read and optimized for throughput.
 pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
+    range: BytesRange,
     offset: u64,
     remaining: Option<u64>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
@@ -103,7 +125,9 @@ impl ChunkedReader {
                 Box::pin(async move {
                     let args = input.ctx.args().clone().with_range(input.range);
                     let result = async {
-                        let (_, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
+                        let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
+                        let metadata = rp.into_metadata();
+                        input.ctx.update_metadata(&metadata, input.range);
                         r.read_all().await
                     }
                     .await;
@@ -113,11 +137,17 @@ impl ChunkedReader {
         );
         Self {
             ctx,
+            range,
             offset: range.offset(),
             remaining: range.size(),
             tasks,
             done: false,
         }
+    }
+
+    fn metadata(&self) -> Metadata {
+        let content_length = self.range.size().unwrap_or_default();
+        Metadata::new(EntryMode::FILE).with_content_length(content_length)
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -185,9 +215,12 @@ pub struct BufferStream {
 }
 
 enum State {
-    Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
-    Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
+    Idle(Option<BufferStreamReader>),
+    Reading(BufferStreamFuture),
 }
+
+type BufferStreamReader = Box<TwoWays<StreamingReader, ChunkedReader>>;
+type BufferStreamFuture = BoxedStaticFuture<(BufferStreamReader, Result<Buffer>)>;
 
 impl BufferStream {
     /// Create a new buffer stream with already calculated offset and size.
@@ -204,7 +237,7 @@ impl BufferStream {
         };
 
         Self {
-            state: State::Idle(Some(reader)),
+            state: State::Idle(Some(Box::new(reader))),
         }
     }
 
@@ -224,8 +257,28 @@ impl BufferStream {
         };
 
         Ok(Self {
-            state: State::Idle(Some(reader)),
+            state: State::Idle(Some(Box::new(reader))),
         })
+    }
+
+    /// Get metadata for this stream.
+    ///
+    /// Calling this method opens the underlying read request if needed, but
+    /// doesn't consume the response body.
+    pub async fn metadata(&mut self) -> Result<Metadata> {
+        match &mut self.state {
+            State::Idle(reader) => {
+                let reader = reader.as_mut().expect("reader must exist while idle");
+                match reader.as_mut() {
+                    TwoWays::One(v) => v.metadata().await,
+                    TwoWays::Two(v) => Ok(v.metadata()),
+                }
+            }
+            State::Reading(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "can't get metadata while read stream is being polled",
+            )),
+        }
     }
 }
 

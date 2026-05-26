@@ -230,7 +230,12 @@ impl Access for CompfsBackend {
             .await?;
 
         let r = CompfsReader::new(self.core.clone(), file, op.range());
-        Ok((RpRead::new(), r))
+        Ok((
+            RpRead::new(
+                Metadata::new(EntryMode::FILE).with_content_length(op.range().size().unwrap_or(0)),
+            ),
+            r,
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

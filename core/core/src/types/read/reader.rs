@@ -510,6 +510,33 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_chunked_stream_metadata_updates_reader_metadata() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader_with("test").chunk(2).await?;
+        let mut stream = reader.clone().into_stream(4..8).await?;
+
+        let stream_meta = stream.metadata().await?;
+        assert_eq!(stream_meta.content_length(), 4);
+        let range = stream_meta
+            .content_range()
+            .expect("range read must have content range");
+        assert_eq!(range.range(), Some(4..8));
+        assert_eq!(range.size(), Some(10));
+
+        let bufs: Vec<_> = stream.try_collect().await?;
+        let buf: Buffer = bufs.into_iter().flatten().collect();
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let reader_meta = reader.metadata().expect("reader metadata must be observed");
+        assert_eq!(reader_meta.content_length(), 10);
+        assert_eq!(reader_meta.content_range(), None);
+
+        Ok(())
+    }
+
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = rand::rng();
         // Generate size between 1B..16MB.

@@ -107,6 +107,7 @@ pub struct ChunkedReader {
     offset: u64,
     remaining: Option<u64>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
+    metadata: Option<Metadata>,
     done: bool,
 }
 
@@ -141,13 +142,22 @@ impl ChunkedReader {
             offset: range.offset(),
             remaining: range.size(),
             tasks,
+            metadata: None,
             done: false,
         }
     }
 
-    fn metadata(&self) -> Metadata {
-        let content_length = self.range.size().unwrap_or_default();
-        Metadata::new(EntryMode::FILE).with_content_length(content_length)
+    async fn metadata(&mut self) -> Result<Metadata> {
+        if let Some(metadata) = self.metadata.clone() {
+            return Ok(metadata);
+        }
+
+        let args = self.ctx.args().clone().with_range(self.range);
+        let (rp, _) = self.ctx.accessor().read(self.ctx.path(), args).await?;
+        let metadata = rp.into_metadata();
+        self.ctx.set_metadata(&metadata, self.range);
+        self.metadata = Some(metadata.clone());
+        Ok(metadata)
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -271,7 +281,7 @@ impl BufferStream {
                 let reader = reader.as_mut().expect("reader must exist while idle");
                 match reader.as_mut() {
                     TwoWays::One(v) => v.metadata().await,
-                    TwoWays::Two(v) => Ok(v.metadata()),
+                    TwoWays::Two(v) => v.metadata().await,
                 }
             }
             State::Reading(_) => Err(Error::new(

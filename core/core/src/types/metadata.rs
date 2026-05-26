@@ -368,6 +368,23 @@ impl Metadata {
         self
     }
 
+    /// Adjust read response metadata into complete object metadata.
+    ///
+    /// Read metadata represents the response body: `content_length` is the
+    /// payload size and `content_range` may carry the full object size. Reader
+    /// metadata represents the object: `content_length` is the full object size
+    /// and `content_range` is unset.
+    pub(crate) fn into_object_metadata(mut self, range: BytesRange) -> Option<Self> {
+        if range.is_full() {
+            self.content_range = None;
+            return Some(self);
+        }
+
+        self.content_length = Some(self.content_range?.size()?);
+        self.content_range = None;
+        Some(self)
+    }
+
     /// Last modified of this entry.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)

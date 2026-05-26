@@ -77,27 +77,15 @@ impl ReadContext {
 
     /// Get complete object metadata observed by this reader.
     #[inline]
-    pub fn metadata(&self) -> Option<Metadata> {
-        self.metadata.get().cloned()
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.get()
     }
 
     /// Set cached object metadata from read response metadata once.
     pub(crate) fn set_metadata(&self, metadata: &Metadata, range: BytesRange) {
-        let content_length = if range.is_full() {
-            if !metadata.has_content_length() {
-                return;
-            }
-            metadata.content_length()
-        } else {
-            let Some(content_length) = metadata.content_range().and_then(|range| range.size())
-            else {
-                return;
-            };
-            content_length
+        let Some(metadata) = metadata.clone().into_object_metadata(range) else {
+            return;
         };
-
-        let mut metadata = metadata.clone();
-        metadata.set_content_length(content_length);
         let _ = self.metadata.set(metadata);
     }
 

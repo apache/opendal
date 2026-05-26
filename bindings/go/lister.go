@@ -74,11 +74,33 @@ func (op *Operator) Check() (err error) {
 
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
 //
-// This function creates a new Lister to enumerate entries in the specified path.
+// WithListFn is a functional option for the List operation.
+type WithListFn func(*listOptions)
+
+// WithRecursive sets the recursive flag for the list operation.
+//
+// When recursive is true, the list operation will descend into sub-directories.
+func WithRecursive(recursive bool) WithListFn {
+	return func(o *listOptions) {
+		o.recursive = recursive
+	}
+}
+
+// listOptions holds the options for a list operation.
+type listOptions struct {
+	recursive bool
+}
+
+func (o *listOptions) toInner() opendalListOptions {
+	return opendalListOptions{recursive: o.recursive}
+}
+
+// List returns a Lister to iterate over entries that start with the given path.
 //
 // # Parameters
 //
 //   - path: The starting path for listing entries.
+//   - opts: Optional functional options to configure the list operation.
 //
 // # Returns
 //
@@ -88,81 +110,15 @@ func (op *Operator) Check() (err error) {
 // # Example
 //
 //	func exampleList(op *opendal.Operator) {
-//		lister, err := op.List("test")
+//		// List without options
+//		lister, err := op.List("test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
+//		defer lister.Close()
 //
-//		for lister.Next() {
-//			entry := lister.Entry()
-//
-//			fmt.Printf("Name: %s\n", entry.Name())
-//			if meta := entry.Metadata(); meta != nil {
-//				fmt.Printf("Length: %d\n", meta.ContentLength())
-//				fmt.Printf("Last Modified: %s\n", meta.LastModified())
-//				fmt.Printf("Is Directory: %v, Is File: %v\n", meta.IsDir(), meta.IsFile())
-//			}
-//			fmt.Println("---")
-//		}
-//		if err := lister.Err(); err != nil {
-//			log.Printf("Error during listing: %v", err)
-//		}
-//	}
-//
-// Note: Always check lister.Err() after the loop to catch any errors that
-// occurred during iteration.
-func (op *Operator) List(path string) (*Lister, error) {
-	inner, err := ffiOperatorList.symbol(op.ctx)(op.inner, path)
-	if err != nil {
-		return nil, err
-	}
-	lister := &Lister{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return lister, nil
-}
-
-// ListOptions configures the behavior of a list operation.
-//
-// Use the With* methods to set options before passing to ListWith.
-//
-// # Example
-//
-//	opts := opendal.ListOptions{}.WithRecursive(true)
-//	lister, err := op.ListWith("path/", opts)
-type ListOptions struct {
-	recursive bool
-}
-
-// WithRecursive returns a new ListOptions with the recursive flag set.
-func (o ListOptions) WithRecursive(recursive bool) ListOptions {
-	o.recursive = recursive
-	return o
-}
-
-func (o ListOptions) toInner() opendalListOptions {
-	return opendalListOptions(o)
-}
-
-// ListWith returns a Lister to iterate over entries that start with the given path,
-// applying the given ListOptions.
-//
-// # Parameters
-//
-//   - path: The starting path for listing entries.
-//   - opts: The options for the list operation.
-//
-// # Returns
-//
-//   - *Lister: A new Lister instance for iterating over entries.
-//   - error: An error if the listing operation fails, or nil if successful.
-//
-// # Example
-//
-//	func exampleListWith(op *opendal.Operator) {
-//		opts := opendal.ListOptions{}.WithRecursive(true)
-//		lister, err := op.ListWith("test/", opts)
+//		// List with recursive option
+//		lister, err = op.List("test/", opendal.WithRecursive(true))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -176,8 +132,15 @@ func (o ListOptions) toInner() opendalListOptions {
 //			log.Printf("Error during listing: %v", err)
 //		}
 //	}
-func (op *Operator) ListWith(path string, opts ListOptions) (*Lister, error) {
-	inner := opts.toInner()
+//
+// Note: Always check lister.Error() after the loop to catch any errors that
+// occurred during iteration.
+func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
+	o := &listOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	inner := o.toInner()
 	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, &inner)
 	if err != nil {
 		return nil, err
@@ -358,29 +321,6 @@ func (e *Entry) Path() string {
 func (e *Entry) Metadata() *Metadata {
 	return e.meta
 }
-
-var ffiOperatorList = newFFI(ffiOpts{
-	sym:    "opendal_operator_list",
-	rType:  &typeResultList,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalLister, error) {
-	return func(op *opendalOperator, path string) (*opendalLister, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result opendalResultList
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		if result.err != nil {
-			return nil, parseError(ctx, result.err)
-		}
-		return result.lister, nil
-	}
-})
 
 var ffiOperatorListWith = newFFI(ffiOpts{
 	sym:    "opendal_operator_list_with",

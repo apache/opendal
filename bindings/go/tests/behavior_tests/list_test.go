@@ -24,7 +24,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -295,8 +295,6 @@ func testListDirWithFilePath(assert *require.Assertions, op *opendal.Operator, f
 	assert.Nil(obs.Error())
 }
 
-// testListWithDefaultOptions verifies that ListWith with a zero-value ListOptions
-// behaves identically to List (i.e., non-recursive, one level deep).
 func testListWithDefaultOptions(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	parent := fixture.NewDirPath()
 	subDir := fixture.PushPath(fmt.Sprintf("%s%s/", parent, uuid.NewString()))
@@ -308,8 +306,7 @@ func testListWithDefaultOptions(assert *require.Assertions, op *opendal.Operator
 	assert.Nil(op.Write(fileInParent, content))
 	assert.Nil(op.Write(fileInSub, content))
 
-	// Default ListOptions must not list recursively.
-	obs, err := op.ListWith(parent, opendal.ListOptions{})
+	obs, err := op.List(parent)
 	assert.Nil(err)
 	defer obs.Close()
 
@@ -319,16 +316,12 @@ func testListWithDefaultOptions(assert *require.Assertions, op *opendal.Operator
 	}
 	assert.Nil(obs.Error())
 
-	// fileInSub lives one level deeper — it must NOT appear.
 	assert.NotContains(paths, fileInSub,
-		"ListWith default options must not descend into sub-directories")
-	// The direct child file and sub-directory should appear.
+		"List without options must not descend into sub-directories")
 	assert.Contains(paths, fileInParent, "direct child file must appear")
 	assert.Contains(paths, subDir, "direct child dir must appear")
 }
 
-// testListWithRecursive verifies that ListWith with recursive=true returns all
-// entries under a prefix, including those nested in sub-directories.
 func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	parent := fixture.NewDirPath()
 	subDir := fixture.PushPath(fmt.Sprintf("%s%s/", parent, uuid.NewString()))
@@ -347,8 +340,7 @@ func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fix
 	assert.Nil(op.Write(fileMid, content))
 	assert.Nil(op.Write(fileDeep, content))
 
-	opts := opendal.ListOptions{}.WithRecursive(true)
-	obs, err := op.ListWith(parent, opts)
+	obs, err := op.List(parent, opendal.WithRecursive(true))
 	assert.Nil(err)
 	defer obs.Close()
 

@@ -103,10 +103,10 @@ struct ChunkedReadInput {
 /// ChunkedReader is good for concurrent read and optimized for throughput.
 pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
-    range: BytesRange,
     offset: u64,
     remaining: Option<u64>,
-    tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
+    tasks: ConcurrentTasks<ChunkedReadInput, (Metadata, Buffer)>,
+    pending: Option<Buffer>,
     metadata: Option<Metadata>,
     done: bool,
 }
@@ -129,7 +129,8 @@ impl ChunkedReader {
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
                         let metadata = rp.into_metadata();
                         input.ctx.set_metadata(&metadata, input.range);
-                        r.read_all().await
+                        let buffer = r.read_all().await?;
+                        Ok((metadata, buffer))
                     }
                     .await;
                     (input, result)
@@ -138,10 +139,10 @@ impl ChunkedReader {
         );
         Self {
             ctx,
-            range,
             offset: range.offset(),
             remaining: range.size(),
             tasks,
+            pending: None,
             metadata: None,
             done: false,
         }
@@ -152,12 +153,37 @@ impl ChunkedReader {
             return Ok(metadata);
         }
 
-        let args = self.ctx.args().clone().with_range(self.range);
-        let (rp, _) = self.ctx.accessor().read(self.ctx.path(), args).await?;
-        let metadata = rp.into_metadata();
-        self.ctx.set_metadata(&metadata, self.range);
+        let Some((metadata, buffer)) = self.next_output().await? else {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "read stream doesn't have metadata before opening a reader",
+            ));
+        };
+
+        self.pending = Some(buffer);
         self.metadata = Some(metadata.clone());
         Ok(metadata)
+    }
+
+    async fn next_output(&mut self) -> Result<Option<(Metadata, Buffer)>> {
+        while self.tasks.has_remaining() && !self.done {
+            if let Some(range) = self.next_range() {
+                self.tasks
+                    .execute(ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                    })
+                    .await?;
+            } else {
+                self.done = true;
+                break;
+            }
+            if self.tasks.has_result() {
+                break;
+            }
+        }
+
+        self.tasks.next().await.transpose()
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -190,23 +216,18 @@ impl ChunkedReader {
 
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
-        while self.tasks.has_remaining() && !self.done {
-            if let Some(range) = self.next_range() {
-                self.tasks
-                    .execute(ChunkedReadInput {
-                        ctx: self.ctx.clone(),
-                        range,
-                    })
-                    .await?;
-            } else {
-                self.done = true;
-                break;
-            }
-            if self.tasks.has_result() {
-                break;
-            }
+        if let Some(buffer) = self.pending.take() {
+            return Ok(buffer);
         }
-        Ok(self.tasks.next().await.transpose()?.unwrap_or_default())
+
+        let Some((metadata, buffer)) = self.next_output().await? else {
+            return Ok(Buffer::new());
+        };
+
+        if self.metadata.is_none() {
+            self.metadata = Some(metadata);
+        }
+        Ok(buffer)
     }
 }
 
@@ -271,8 +292,9 @@ impl BufferStream {
 
     /// Get metadata for this stream.
     ///
-    /// Calling this method opens the underlying read request if needed, but
-    /// doesn't consume the response body.
+    /// Calling this method opens the underlying read request if needed.
+    /// Chunked reads may read and buffer the first chunk so following stream
+    /// polling can reuse it.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         match &mut self.state {
             State::Idle(reader) => {

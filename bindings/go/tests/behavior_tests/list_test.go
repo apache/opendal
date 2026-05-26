@@ -42,6 +42,7 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 		testListSubDir,
 		testListNestedDir,
 		testListDirWithFilePath,
+		testListEntryMetadata,
 	}
 }
 
@@ -235,6 +236,41 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 	meta, err = op.Stat(dirPath)
 	assert.Nil(err)
 	assert.True(meta.IsDir())
+}
+
+func testListEntryMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(parent))
+
+	filePath, content, size := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+	assert.Nil(op.Write(filePath, content))
+
+	obs, err := op.List(parent)
+	assert.Nil(err)
+	defer obs.Close()
+
+	var sawFile, sawDir bool
+	for obs.Next() {
+		entry := obs.Entry()
+		meta := entry.Metadata()
+		assert.NotNil(meta, "list entry metadata must always be populated for path %s", entry.Path())
+
+		switch entry.Path() {
+		case filePath:
+			sawFile = true
+			assert.True(meta.IsFile(), "expected file for %s", entry.Path())
+			assert.False(meta.IsDir(), "expected file for %s", entry.Path())
+			assert.Equal(uint64(size), meta.ContentLength(),
+				"content length from list metadata must match written file size")
+		case parent:
+			sawDir = true
+			assert.True(meta.IsDir(), "expected dir for %s", entry.Path())
+			assert.False(meta.IsFile(), "expected dir for %s", entry.Path())
+		}
+	}
+	assert.Nil(obs.Error())
+	assert.True(sawFile, "file entry %s must be returned by list", filePath)
+	assert.True(sawDir, "parent dir entry %s must be returned by list", parent)
 }
 
 func testListDirWithFilePath(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {

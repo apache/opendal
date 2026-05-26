@@ -19,6 +19,7 @@ This service can be used to:
 - `endpoint`: Customizable endpoint setting
 - `access_key_id`: Set the access_key_id for backend.
 - `secret_access_key`: Set the secret_access_key for backend.
+- `enable_versioning`: Deprecated. OBS versioning capability is not controlled by this option and this option is no longer needed.
 
 You can refer to [`ObsBuilder`]'s docs for more information
 

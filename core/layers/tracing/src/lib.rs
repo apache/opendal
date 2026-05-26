@@ -61,28 +61,11 @@ use tracing::span;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_layer_tracing::TracingLayer;
-/// # use opentelemetry::KeyValue;
-/// # use opentelemetry_sdk::trace;
-/// # use opentelemetry_sdk::Resource;
 /// # use tracing_subscriber::prelude::*;
 /// # use tracing_subscriber::EnvFilter;
 /// #
 /// # fn main() -> Result<()> {
-/// use opentelemetry::trace::TracerProvider;
-/// let tracer_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
-///     .with_simple_exporter(
-///         opentelemetry_otlp::SpanExporter::builder()
-///             .with_tonic()
-///             .build()?,
-///     )
-///     .with_resource(
-///         Resource::builder()
-///             .with_attributes(vec![KeyValue::new("service.name", "opendal_example")])
-///             .build(),
-///     )
-///     .build();
-/// let tracer = tracer_provider.tracer("opendal_tracer");
-/// let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+/// let opentelemetry = tracing_opentelemetry::layer();
 ///
 /// tracing_subscriber::registry()
 ///     .with(EnvFilter::from_default_env())
@@ -108,10 +91,6 @@ use tracing::span;
 ///     })?;
 /// }
 ///
-/// // Shut down the current tracer provider.
-/// // This will invoke the shutdown method on all span processors.
-/// // span processors should export remaining spans before return.
-/// tracer_provider.shutdown()?;
 /// # Ok(())
 /// # }
 /// ```
@@ -223,6 +202,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     type Writer = TracingWrapper<A::Writer>;
     type Lister = TracingWrapper<A::Lister>;
     type Deleter = TracingWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -254,8 +234,14 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner().copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner().copy(from, to, args, opts.clone()).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

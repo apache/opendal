@@ -84,12 +84,12 @@ impl FoyerBuilder {
     ///
     /// ```no_run
     /// use opendal_service_foyer::Foyer;
-    /// use foyer::{HybridCacheBuilder, Engine};
+    /// use foyer::HybridCacheBuilder;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let cache = HybridCacheBuilder::new()
     ///     .memory(64 * 1024 * 1024)
-    ///     .storage(Engine::Large(Default::default()))
+    ///     .storage()
     ///     .build()
     ///     .await?;
     ///
@@ -244,6 +244,7 @@ impl Access for FoyerBackend {
     type Writer = FoyerWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -498,6 +498,7 @@ impl LabelSetSchema for OperationLabels {
             observe::LABEL_OPERATION,
             observe::LABEL_ERROR,
             observe::LABEL_STATUS_CODE,
+            observe::LABEL_SERVICE_OPERATION,
         ];
         Some(NAMES)
     }
@@ -516,6 +517,9 @@ impl EncodeLabelSet for OperationLabels {
         }
         if let Some(code) = &self.labels.status_code {
             encoder.encode(&(observe::LABEL_STATUS_CODE, code.as_str()))?;
+        }
+        if let Some(service_operation) = self.labels.service_operation {
+            encoder.encode(&(observe::LABEL_SERVICE_OPERATION, service_operation))?;
         }
         Ok(())
     }

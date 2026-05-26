@@ -174,6 +174,7 @@ impl Access for HttpBackend {
     type Writer = ();
     type Lister = ();
     type Deleter = ();
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

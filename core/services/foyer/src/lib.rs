@@ -36,7 +36,7 @@ mod writer;
 use std::ops::Deref;
 
 use foyer::Code;
-use foyer::CodeError;
+use foyer::Result as FoyerResult;
 
 use opendal_core::Buffer;
 
@@ -68,14 +68,14 @@ impl Deref for FoyerValue {
 }
 
 impl Code for FoyerValue {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
         let len = self.0.len() as u64;
         writer.write_all(&len.to_le_bytes())?;
         std::io::copy(&mut self.0.clone(), writer)?;
         Ok(())
     }
 
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
     where
         Self: Sized,
     {
@@ -100,7 +100,7 @@ pub fn register_foyer_service(registry: &opendal_core::OperatorRegistry) {
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, HybridCacheBuilder, LargeEngineOptions, RecoverMode,
+        BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCacheBuilder, RecoverMode,
     };
     use opendal_core::Operator;
     use size::consts::MiB;
@@ -122,11 +122,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(10)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -171,11 +175,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(1024 * 1024)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()

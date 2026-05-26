@@ -333,6 +333,7 @@ impl Builder for AzdlsBuilder {
                             write_can_multi: true,
                             write_with_if_none_match: true,
                             write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
 
                             create_dir: true,
 
@@ -371,6 +372,7 @@ impl Access for AzdlsBackend {
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

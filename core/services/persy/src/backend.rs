@@ -154,6 +154,7 @@ impl Access for PersyBackend {
     type Writer = PersyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PersyDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

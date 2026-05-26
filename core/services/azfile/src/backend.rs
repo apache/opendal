@@ -276,6 +276,7 @@ impl Access for AzfileBackend {
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

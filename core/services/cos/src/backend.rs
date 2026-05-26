@@ -23,7 +23,6 @@ use http::StatusCode;
 use http::Uri;
 use log::debug;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -110,6 +109,29 @@ impl CosBuilder {
         self
     }
 
+    /// Set security_token (a.k.a. session token) of this backend.
+    ///
+    /// This is used when authenticating via Tencent Cloud STS temporary
+    /// credentials (e.g. obtained from `GetFederationToken` or
+    /// `AssumeRole`). When provided, it will be combined with `secret_id`
+    /// and `secret_key` to sign requests, and the `x-cos-security-token`
+    /// header will be attached automatically.
+    ///
+    /// - If this is set along with `secret_id` and `secret_key`, a static
+    ///   credential provider with the token will be used.
+    /// - If this is not set, the default credential chain in reqsign will
+    ///   try to load credentials (including the token) from environment
+    ///   variables such as `TENCENTCLOUD_TOKEN`,
+    ///   `TENCENTCLOUD_SECURITY_TOKEN`, and `QCLOUD_SECRET_TOKEN`
+    ///   (unless `disable_config_load` is enabled).
+    pub fn security_token(mut self, security_token: &str) -> Self {
+        if !security_token.is_empty() {
+            self.config.security_token = Some(security_token.to_string());
+        }
+
+        self
+    }
+
     /// Set bucket of this backend.
     /// The param is required.
     pub fn bucket(mut self, bucket: &str) -> Self {
@@ -120,10 +142,12 @@ impl CosBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: COS versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "COS versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -180,7 +204,6 @@ impl Builder for CosBuilder {
         let info = Arc::new(AccessorInfo::default());
 
         let os_env = OsEnv;
-        let envs = os_env.vars();
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
             .with_http_send(AccessorInfoHttpSend::new(info.clone()))
@@ -199,14 +222,7 @@ impl Builder for CosBuilder {
             self.config.secret_id.as_deref(),
             self.config.secret_key.as_deref(),
         ) {
-            let security_token = envs
-                .get("TENCENTCLOUD_TOKEN")
-                .or_else(|| envs.get("TENCENTCLOUD_SECURITY_TOKEN"))
-                .or_else(|| envs.get("QCLOUD_SECRET_TOKEN"));
-
-            let static_provider = if self.config.disable_config_load {
-                StaticCredentialProvider::new(secret_id, secret_key)
-            } else if let Some(token) = security_token {
+            let static_provider = if let Some(token) = self.config.security_token.as_deref() {
                 StaticCredentialProvider::with_security_token(secret_id, secret_key, token)
             } else {
                 StaticCredentialProvider::new(secret_id, secret_key)
@@ -227,7 +243,7 @@ impl Builder for CosBuilder {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_with_version: self.config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
 
@@ -235,7 +251,7 @@ impl Builder for CosBuilder {
                             read_with_if_none_match: true,
                             read_with_if_modified_since: true,
                             read_with_if_unmodified_since: true,
-                            read_with_version: self.config.enable_versioning,
+                            read_with_version: true,
 
                             write: true,
                             write_can_empty: true,
@@ -244,8 +260,8 @@ impl Builder for CosBuilder {
                             write_with_content_type: true,
                             write_with_cache_control: true,
                             write_with_content_disposition: true,
-                            // Cos doesn't support forbid overwrite while version has been enabled.
-                            write_with_if_not_exists: !self.config.enable_versioning,
+                            write_with_if_not_exists: true,
+                            copy_with_if_not_exists: true,
                             // The min multipart size of COS is 1 MiB.
                             //
                             // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -261,13 +277,13 @@ impl Builder for CosBuilder {
                             write_with_user_metadata: true,
 
                             delete: true,
-                            delete_with_version: self.config.enable_versioning,
+                            delete_with_version: true,
                             copy: true,
 
                             list: true,
                             list_with_recursive: true,
-                            list_with_versions: self.config.enable_versioning,
-                            list_with_deleted: self.config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,
@@ -301,6 +317,7 @@ impl Access for CosBackend {
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -392,13 +409,19 @@ impl Access for CosBackend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.cos_copy_object(from, to).await?;
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let resp = self.core.cos_copy_object(from, to, &args).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

@@ -259,11 +259,23 @@ jobs:
                   }
                 }
               `;
-              await github.graphql(mutation, {
-                discussionId: discussion.node_id,
-                body: newBody,
-              });
-              core.info('Updated discussion via GraphQL');
+              try {
+                await github.graphql(mutation, {
+                  discussionId: discussion.node_id,
+                  body: newBody,
+                });
+                core.info('Updated discussion via GraphQL');
+              } catch (error) {
+                const message = error && error.message ? error.message : String(error);
+                if (message.includes('Resource not accessible by integration')) {
+                  core.warning(
+                    `Unable to update discussion with the default integration token. ` +
+                    `Computed thread URL: ${threadUrl}`
+                  );
+                  return;
+                }
+                throw error;
+              }
             }
 
             core.info(`Appended ${threadUrl}`);

@@ -83,6 +83,29 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
     }
 }
 
+impl<ONE: oio::Copy, TWO: oio::Copy> oio::Copy for TwoWays<ONE, TWO> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        match self {
+            Self::One(v) => v.next().await,
+            Self::Two(v) => v.next().await,
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match self {
+            Self::One(v) => v.close().await,
+            Self::Two(v) => v.close().await,
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match self {
+            Self::One(v) => v.abort().await,
+            Self::Two(v) => v.abort().await,
+        }
+    }
+}
+
 impl<ONE: oio::List, TWO: oio::List> oio::List for TwoWays<ONE, TWO> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self {

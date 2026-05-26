@@ -241,6 +241,7 @@ impl Access for SwiftBackend {
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -335,7 +336,13 @@ impl Access for SwiftBackend {
         )))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         // cannot copy objects larger than 5 GB.
         // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
         let resp = self.core.swift_copy(from, to).await?;
@@ -343,7 +350,7 @@ impl Access for SwiftBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

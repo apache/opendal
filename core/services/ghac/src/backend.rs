@@ -138,7 +138,7 @@ impl Builder for GhacBuilder {
         // ghac requires to use hex digest of Sha256 as version.
         if matches!(service_version, GhacVersion::V2) {
             let hash = sha2::Sha256::digest(&version);
-            version = format!("{hash:x}");
+            version = format_digest_hex(hash);
         }
 
         let cache_url = self
@@ -192,6 +192,17 @@ impl Builder for GhacBuilder {
     }
 }
 
+fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = digest.as_ref();
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
+}
+
 /// Backend for github action cache services.
 #[derive(Debug, Clone)]
 pub struct GhacBackend {
@@ -203,6 +214,7 @@ impl Access for GhacBackend {
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

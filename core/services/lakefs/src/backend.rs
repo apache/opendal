@@ -193,6 +193,7 @@ impl Access for LakefsBackend {
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -270,13 +271,19 @@ impl Access for LakefsBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.copy_object(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED => Ok(RpCopy::default()),
+            StatusCode::CREATED => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

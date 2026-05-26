@@ -336,6 +336,66 @@ impl Buffer {
         }
     }
 
+    /// Splits the buffer into two at the given index.
+    ///
+    /// Returns a new `Buffer` containing the bytes in the range `[0, at)`.
+    /// Afterwards, `self` contains the bytes in the range `[at, len)`.
+    ///
+    /// This is an O(1) operation that just updates internal offsets and reference counts.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at > len`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::Buffer;
+    ///
+    /// let mut buf = Buffer::from(vec![0u8, 1, 2, 3, 4, 5]);
+    /// let head = buf.split_to(3);
+    /// assert_eq!(head.to_vec(), vec![0, 1, 2]);
+    /// assert_eq!(buf.to_vec(), vec![3, 4, 5]);
+    /// ```
+    pub fn split_to(&mut self, at: usize) -> Self {
+        let len = self.len();
+        assert!(at <= len, "split_to out of bounds: {at:?} <= {len:?}",);
+
+        let head = self.slice(..at);
+        self.advance(at);
+        head
+    }
+
+    /// Splits the buffer into two at the given index.
+    ///
+    /// Returns a new `Buffer` containing the bytes in the range `[at, len)`.
+    /// Afterwards, `self` contains the bytes in the range `[0, at)`.
+    ///
+    /// This is an O(1) operation that just updates internal offsets and reference counts.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at > len`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::Buffer;
+    ///
+    /// let mut buf = Buffer::from(vec![0u8, 1, 2, 3, 4, 5]);
+    /// let tail = buf.split_off(3);
+    /// assert_eq!(buf.to_vec(), vec![0, 1, 2]);
+    /// assert_eq!(tail.to_vec(), vec![3, 4, 5]);
+    /// ```
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let len = self.len();
+        assert!(at <= len, "split_off out of bounds: {at:?} <= {len:?}",);
+
+        let tail = self.slice(at..);
+        self.truncate(at);
+        tail
+    }
+
     /// Split the buffer into an iterator of chunks, each with at most `chunk_size` bytes.
     ///
     /// The chunks share the same underlying storage with the original buffer. The last chunk
@@ -750,6 +810,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use rand::prelude::*;
+    use rand::rng;
 
     use super::*;
 
@@ -900,11 +961,11 @@ mod tests {
     /// - Total size of this buffer.
     /// - Total content of this buffer.
     fn setup_buffer() -> (Buffer, usize, Bytes) {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let bs = (0..100)
             .map(|_| {
-                let len = rng.gen_range(1..100);
+                let len = rng.random_range(1..100);
                 let mut buf = vec![0; len];
                 rng.fill(&mut buf[..]);
                 Bytes::from(buf)
@@ -920,7 +981,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_advance() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -932,7 +993,7 @@ mod tests {
         while !buf.is_empty() && times > 0 {
             times -= 1;
 
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -943,7 +1004,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_iter() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -951,7 +1012,7 @@ mod tests {
 
         let mut cur = 0;
         while buf.is_empty() {
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -972,7 +1033,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_truncate() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -980,7 +1041,7 @@ mod tests {
 
         let mut cur = 0;
         while buf.is_empty() {
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -988,7 +1049,7 @@ mod tests {
             assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
 
-            let truncate_size = rng.gen_range(0..total_size - cur);
+            let truncate_size = rng.random_range(0..total_size - cur);
             buf.truncate(truncate_size);
 
             // After truncate
@@ -1089,5 +1150,163 @@ mod tests {
         let mut buffer = Buffer::from(vec![Bytes::from("OutOfBounds")]);
         let result = buffer.seek(SeekFrom::Start(100));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_split_to_contiguous() {
+        let mut buf = Buffer::from(Bytes::from("HelloWorld"));
+        let head = buf.split_to(5);
+        assert_eq!(head.to_bytes(), Bytes::from("Hello"));
+        assert_eq!(buf.to_bytes(), Bytes::from("World"));
+    }
+
+    #[test]
+    fn test_split_to_non_contiguous() {
+        let mut buf = Buffer::from(vec![
+            Bytes::from("ab"),
+            Bytes::from("cd"),
+            Bytes::from("ef"),
+        ]);
+        let head = buf.split_to(3);
+        assert_eq!(head.to_bytes(), Bytes::from("abc"));
+        assert_eq!(buf.to_bytes(), Bytes::from("def"));
+    }
+
+    #[test]
+    fn test_split_to_at_zero() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        let head = buf.split_to(0);
+        assert!(head.is_empty());
+        assert_eq!(buf.to_bytes(), Bytes::from("Hello"));
+    }
+
+    #[test]
+    fn test_split_to_at_len() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        let head = buf.split_to(5);
+        assert_eq!(head.to_bytes(), Bytes::from("Hello"));
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "split_to out of bounds")]
+    fn test_split_to_out_of_bounds() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        buf.split_to(10);
+    }
+
+    #[test]
+    fn test_split_off_contiguous() {
+        let mut buf = Buffer::from(Bytes::from("HelloWorld"));
+        let tail = buf.split_off(5);
+        assert_eq!(buf.to_bytes(), Bytes::from("Hello"));
+        assert_eq!(tail.to_bytes(), Bytes::from("World"));
+    }
+
+    #[test]
+    fn test_split_off_non_contiguous() {
+        let mut buf = Buffer::from(vec![
+            Bytes::from("ab"),
+            Bytes::from("cd"),
+            Bytes::from("ef"),
+        ]);
+        let tail = buf.split_off(3);
+        assert_eq!(buf.to_bytes(), Bytes::from("abc"));
+        assert_eq!(tail.to_bytes(), Bytes::from("def"));
+    }
+
+    #[test]
+    fn test_split_off_at_zero() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        let tail = buf.split_off(0);
+        assert!(buf.is_empty());
+        assert_eq!(tail.to_bytes(), Bytes::from("Hello"));
+    }
+
+    #[test]
+    fn test_split_off_at_len() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        let tail = buf.split_off(5);
+        assert_eq!(buf.to_bytes(), Bytes::from("Hello"));
+        assert!(tail.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "split_off out of bounds")]
+    fn test_split_off_out_of_bounds() {
+        let mut buf = Buffer::from(Bytes::from("Hello"));
+        buf.split_off(10);
+    }
+
+    #[test]
+    fn test_split_to_split_off_composition() {
+        // Verify split_to and split_off can be composed correctly
+        let mut buf = Buffer::from(Bytes::from("0123456789"));
+
+        // Split off tail
+        let tail = buf.split_off(7); // buf=[0-6], tail=[7-9]
+        assert_eq!(buf.to_bytes(), Bytes::from("0123456"));
+        assert_eq!(tail.to_bytes(), Bytes::from("789"));
+
+        // Split head from remaining
+        let head = buf.split_to(3); // head=[0-2], buf=[3-6]
+        assert_eq!(head.to_bytes(), Bytes::from("012"));
+        assert_eq!(buf.to_bytes(), Bytes::from("3456"));
+    }
+
+    #[test]
+    fn test_split_preserves_underlying_storage() {
+        // Verify that split operations share underlying storage
+        let original = Bytes::from("HelloWorld");
+        let mut buf = Buffer::from(original.clone());
+
+        let head = buf.split_to(5);
+
+        // Both should reference the same underlying storage
+        // (This is implicit in Bytes behavior, but good to document)
+        assert_eq!(head.to_bytes(), Bytes::from("Hello"));
+        assert_eq!(buf.to_bytes(), Bytes::from("World"));
+    }
+
+    #[test]
+    fn fuzz_buffer_split_to() {
+        let mut rng = rng();
+
+        let (mut buf, total_size, total_content) = setup_buffer();
+        assert_eq!(buf.remaining(), total_size);
+
+        let mut cur = 0;
+        let mut times = 100;
+        while !buf.is_empty() && times > 0 {
+            times -= 1;
+            let remaining = buf.len();
+            let at = rng.random_range(0..=remaining);
+            let head = buf.split_to(at);
+            assert_eq!(head.to_bytes(), total_content.slice(cur..cur + at));
+            cur += at;
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..total_size));
+        }
+    }
+
+    #[test]
+    fn fuzz_buffer_split_off() {
+        let mut rng = rng();
+
+        let (mut buf, total_size, total_content) = setup_buffer();
+        assert_eq!(buf.remaining(), total_size);
+
+        let mut end = total_size;
+        let mut times = 100;
+        let cur = 0;
+        while !buf.is_empty() && times > 0 {
+            times -= 1;
+            let remaining = buf.len();
+            let at = rng.random_range(0..=remaining);
+            let tail = buf.split_off(at);
+            assert_eq!(buf.to_bytes(), total_content.slice(cur..cur + at));
+            assert_eq!(tail.to_bytes(), total_content.slice(cur + at..end));
+            end = cur + at;
+            // Continue with the head part
+        }
     }
 }

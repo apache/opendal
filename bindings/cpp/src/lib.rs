@@ -221,7 +221,8 @@ impl Operator {
     }
 
     fn copy(&self, src: &str, dst: &str) -> Result<()> {
-        Ok(self.0.copy(src, dst)?)
+        self.0.copy(src, dst)?;
+        Ok(())
     }
 
     fn rename(&self, src: &str, dst: &str) -> Result<()> {

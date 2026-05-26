@@ -27,17 +27,19 @@ use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 use sha2::Digest;
 use sha2::Sha256;
 
 use super::AZBLOB_SCHEME;
 use super::config::AzblobConfig;
+use super::copier::AzblobCopiers;
+use super::copier::new_azblob_copier;
 use super::core::AzblobCore;
+use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
+use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
 use super::deleter::AzblobDeleter;
@@ -237,10 +239,18 @@ impl AzblobBuilder {
         self
     }
 
-    /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
+    /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit and this option is no longer needed."
+    )]
+    pub fn batch_max_operations(self, _batch_max_operations: usize) -> Self {
+        self
+    }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 
@@ -310,14 +320,6 @@ impl Builder for AzblobBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let os_env = OsEnv;
-        let mut envs = os_env.vars();
-
-        if let Some(v) = &account_name {
-            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
-        }
-
         if let Some(v) = &self.config.account_key {
             // Validate that account_key can be decoded as base64
             if let Err(e) = BASE64_STANDARD.decode(v) {
@@ -329,12 +331,6 @@ impl Builder for AzblobBuilder {
                 .with_context("service", AZBLOB_SCHEME)
                 .with_context("key", "account_key"));
             }
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
-        }
-
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
         }
 
         let encryption_key =
@@ -373,10 +369,7 @@ impl Builder for AzblobBuilder {
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
             .with_http_send(AccessorInfoHttpSend::new(info.clone()))
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+            .with_env(OsEnv);
 
         let mut credential = DefaultCredentialProvider::new();
 
@@ -433,6 +426,9 @@ impl Builder for AzblobBuilder {
 
                             copy: true,
                             copy_with_if_not_exists: true,
+                            copy_can_multi: true,
+                            copy_multi_min_size: Some(AZBLOB_COPY_MIN_BLOCK_SIZE),
+                            copy_multi_max_size: Some(AZBLOB_COPY_MAX_BLOCK_SIZE),
 
                             list: true,
                             list_with_recursive: true,
@@ -455,7 +451,7 @@ impl Builder for AzblobBuilder {
                 encryption_key_sha256,
                 encryption_algorithm,
                 container: self.config.container.clone(),
-
+                skip_signature: self.config.skip_signature,
                 signer,
             }),
         })
@@ -473,6 +469,7 @@ impl Access for AzblobBackend {
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
+    type Copier = AzblobCopiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -552,15 +549,15 @@ impl Access for AzblobBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let copier = new_azblob_copier(self.core.clone(), from, to, args, opts)?;
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

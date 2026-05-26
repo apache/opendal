@@ -39,6 +39,9 @@ use reqsign_google::VmMetadataCredentialProvider;
 
 use super::GCS_SCHEME;
 use super::config::GcsConfig;
+use super::copier::GcsCopier;
+use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
+use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
 use super::core::*;
 use super::deleter::GcsDeleter;
 use super::error::parse_error;
@@ -217,13 +220,22 @@ impl GcsBuilder {
         self
     }
 
-    /// Allow anonymous requests.
+    /// Skip signature will skip loading credentials and signing requests.
     ///
     /// This is typically used for buckets which are open to the public or GCS
     /// storage emulators.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
+    }
+
+    /// Allow anonymous requests.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 }
 
@@ -232,6 +244,9 @@ impl Builder for GcsBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {self:?}");
+
+        #[allow(deprecated)]
+        let skip_signature = self.config.skip_signature || self.config.allow_anonymous;
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -366,7 +381,15 @@ impl Builder for GcsBuilder {
 
                             delete: true,
                             delete_max_size: Some(100),
+
                             copy: true,
+                            copy_can_multi: true,
+                            // GCS rewrite requires maxBytesRewrittenPerCall to be an
+                            // integral multiple of 1 MiB if specified.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite>
+                            copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
+                            copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
 
                             list: true,
                             list_with_limit: true,
@@ -391,7 +414,7 @@ impl Builder for GcsBuilder {
                 signer,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
-                allow_anonymous: self.config.allow_anonymous,
+                skip_signature,
             }),
         };
 
@@ -410,6 +433,7 @@ impl Access for GcsBackend {
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
+    type Copier = GcsCopier;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -475,14 +499,15 @@ impl Access for GcsBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.gcs_copy_object(from, to).await?;
-
-        if resp.status().is_success() {
-            Ok(RpCopy::default())
-        } else {
-            Err(parse_error(resp))
-        }
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let copier = GcsCopier::new(self.core.clone(), from, to, args, opts);
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

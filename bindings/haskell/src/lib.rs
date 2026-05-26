@@ -353,7 +353,7 @@ pub unsafe extern "C" fn blocking_copy(
         };
 
         let res = match op.copy(path_from_str, path_to_str) {
-            Ok(()) => FFIResult::ok(()),
+            Ok(_) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to copy", e),
         };
 

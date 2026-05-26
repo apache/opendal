@@ -227,6 +227,7 @@ impl Access for D1Backend {
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -84,6 +84,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     type Writer = OtelTraceWrapper<A::Writer>;
     type Lister = OtelTraceWrapper<A::Lister>;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -125,14 +126,23 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
             .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
-        self.inner().copy(from, to, args).with_context(cx).await
+        self.inner()
+            .copy(from, to, args, opts.clone())
+            .with_context(cx)
+            .await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {

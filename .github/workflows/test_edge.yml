@@ -90,9 +90,11 @@ jobs:
           cp -r chromedriver-linux64 /tmp/chrome/chromedriver
 
       - name: Setup wasm-pack
-        uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://wasm-bindgen.github.io/wasm-pack/installer/init.sh | bash
+          wasm-pack --version
 
       - name: Setup MinIO Server
         shell: bash

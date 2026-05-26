@@ -449,6 +449,13 @@ impl OtelMetricsInterceptor {
             ));
         }
 
+        if let Some(service_operation) = attrs.service_operation {
+            attributes.push(KeyValue::new(
+                observe::LABEL_SERVICE_OPERATION,
+                service_operation,
+            ));
+        }
+
         attributes
     }
 }

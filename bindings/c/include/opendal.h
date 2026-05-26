@@ -189,6 +189,19 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
+ * \brief The layers to apply when initializing an opendal_operator.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it.
+ */
+typedef struct opendal_operator_layers {
+  /**
+   * The pointer to the Vec<OperatorLayer> in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_operator_layers;
+
+/**
  * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
@@ -699,6 +712,33 @@ struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *sel
 void opendal_lister_free(struct opendal_lister *ptr);
 
 /**
+ * \brief Construct a heap-allocated opendal_operator_layers.
+ */
+struct opendal_operator_layers *opendal_operator_layers_new(void);
+
+/**
+ * \brief Add a retry layer.
+ */
+void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
+                                       bool jitter,
+                                       float factor,
+                                       uint64_t min_delay_ns,
+                                       uint64_t max_delay_ns,
+                                       uint64_t max_times);
+
+/**
+ * \brief Add a timeout layer.
+ */
+void opendal_operator_layers_add_timeout(struct opendal_operator_layers *self,
+                                         uint64_t timeout_ns,
+                                         uint64_t io_timeout_ns);
+
+/**
+ * \brief Free the allocated memory used by opendal_operator_layers.
+ */
+void opendal_operator_layers_free(struct opendal_operator_layers *ptr);
+
+/**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
 void opendal_metadata_free(struct opendal_metadata *ptr);
@@ -828,6 +868,20 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  */
 struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
+
+/**
+ * \brief Construct an operator based on scheme, options, and explicit layers.
+ *
+ * Unlike opendal_operator_new, this function will not add any default layer.
+ * Layers will be applied exactly as they were added to opendal_operator_layers.
+ *
+ * # Safety
+ *
+ * The only unsafe case is passing an invalid c string pointer to the scheme argument.
+ */
+struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
+                                                                    const struct opendal_operator_options *options,
+                                                                    const struct opendal_operator_layers *layers);
 
 /**
  * \brief Blocking write raw bytes to `path`.
@@ -1375,7 +1429,7 @@ struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
  * assert(!strcmp(scheme, "memory"));
  *
  * /// free the heap memory
- * free(scheme);
+ * opendal_string_free(scheme);
  * opendal_operator_info_free(info);
  * ```
  */
@@ -1389,14 +1443,14 @@ void opendal_operator_info_free(struct opendal_operator_info *ptr);
 /**
  * \brief Return the nul-terminated operator's scheme, i.e. service
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
 
 /**
  * \brief Return the nul-terminated operator's working root path
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 
@@ -1404,7 +1458,7 @@ char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
  * \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
  * namespace concept.
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 
@@ -1472,6 +1526,13 @@ uintptr_t opendal_presigned_request_headers_len(const struct opendal_presigned_r
 void opendal_presigned_request_free(struct opendal_presigned_request *req);
 
 /**
+ * \brief Frees a heap-allocated string returned by OpenDAL C APIs.
+ *
+ * \note Only pass pointers returned from OpenDAL APIs that transfer string ownership.
+ */
+void opendal_string_free(char *ptr);
+
+/**
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
@@ -1519,7 +1580,7 @@ void opendal_operator_options_free(struct opendal_operator_options *ptr);
  *
  * Path is relative to operator's root. Only valid in current operator.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_path(const struct opendal_entry *self);
 
@@ -1530,9 +1591,17 @@ char *opendal_entry_path(const struct opendal_entry *self);
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_name(const struct opendal_entry *self);
+
+/**
+ * \brief Return the metadata associated with this entry.
+ *
+ * The returned metadata is heap-allocated and must be freed
+ * by the caller via opendal_metadata_free().
+ */
+struct opendal_metadata *opendal_entry_metadata(const struct opendal_entry *self);
 
 /**
  * \brief Frees the heap memory used by the opendal_list_entry

@@ -17,7 +17,7 @@
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use opendal::raw::Access;
+use opendal::layers::CapabilityOverrideLayer;
 use opendal::raw::OpDelete;
 
 use crate::*;
@@ -351,7 +351,7 @@ pub async fn test_batch_delete(op: Operator) -> Result<()> {
     }
 
     cap.delete_max_size = Some(2);
-    op.inner().info().update_full_capability(|_| cap);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
 
     let mut files = Vec::new();
     for _ in 0..5 {
@@ -385,7 +385,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
     }
 
     cap.delete_max_size = Some(2);
-    op.inner().info().update_full_capability(|_| cap);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
 
     let mut files = Vec::new();
     for _ in 0..5 {

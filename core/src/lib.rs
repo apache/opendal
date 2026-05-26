@@ -115,6 +115,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-github")]
     opendal_service_github::register_github_service(registry);
 
+    #[cfg(feature = "services-goosefs")]
+    opendal_service_goosefs::register_goosefs_service(registry);
+
     #[cfg(feature = "services-gridfs")]
     opendal_service_gridfs::register_gridfs_service(registry);
 
@@ -237,7 +240,7 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 }
 
 #[cfg(feature = "auto-register-services")]
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn register_default_operator_registry() {
     init_default_registry();
 }
@@ -291,6 +294,8 @@ pub mod services {
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
+    #[cfg(feature = "services-goosefs")]
+    pub use opendal_service_goosefs::*;
     #[cfg(feature = "services-gridfs")]
     pub use opendal_service_gridfs::*;
     #[cfg(feature = "services-hdfs")]
@@ -357,6 +362,8 @@ pub mod services {
     pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-tos")]
+    pub use opendal_service_tos::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-artifacts")]

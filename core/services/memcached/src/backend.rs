@@ -220,6 +220,7 @@ impl Access for MemcachedBackend {
     type Writer = MemcachedWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

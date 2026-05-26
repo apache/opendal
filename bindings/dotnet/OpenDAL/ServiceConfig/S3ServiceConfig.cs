@@ -33,11 +33,16 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AccessKeyId { get; init; }
         /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
+        /// <summary>
         /// Allow anonymous will allow opendal to send request without signing when credential is not loaded.
         /// </summary>
+        [System.Obsolete("Please use SkipSignature instead of AllowAnonymous")]
         public bool? AllowAnonymous { get; init; }
         /// <summary>
-        /// Set maximum batch operations of this backend. Some compatible services have a limit on the number of operations in a batch request. For example, R2 could return Internal Error while batch delete 1000 files. Please tune this value based on services' document.
+        /// Deprecated: S3 delete batch capability is enabled by default.
         /// </summary>
         public long? BatchMaxOperations { get; init; }
         /// <summary>
@@ -53,7 +58,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? DefaultStorageClass { get; init; }
         /// <summary>
-        /// Set the maximum delete size of this backend. Some compatible services have a limit on the number of operations in a batch request. For example, R2 could return Internal Error while batch delete 1000 files. Please tune this value based on services' document.
+        /// Deprecated: S3 delete batch capability is enabled by default.
         /// </summary>
         public long? DeleteMaxSize { get; init; }
         /// <summary>
@@ -69,7 +74,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? DisableListObjectsV2 { get; init; }
         /// <summary>
-        /// Disable stat with override so that opendal will not send stat request with override queries. For example, R2 doesn't support stat with response_content_type query.
+        /// Deprecated: S3 stat override capabilities are enabled by default.
         /// </summary>
         public bool? DisableStatWithOverride { get; init; }
         /// <summary>
@@ -154,10 +159,16 @@ namespace OpenDAL.ServiceConfig
             {
                 map["access_key_id"] = Utilities.ToOptionString(AccessKeyId);
             }
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
+            }
+#pragma warning disable CS0618
             if (AllowAnonymous is not null)
             {
                 map["allow_anonymous"] = Utilities.ToOptionString(AllowAnonymous);
             }
+#pragma warning restore CS0618
             if (BatchMaxOperations is not null)
             {
                 map["batch_max_operations"] = Utilities.ToOptionString(BatchMaxOperations);

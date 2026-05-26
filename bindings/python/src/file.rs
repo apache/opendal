@@ -355,8 +355,8 @@ impl File {
         Ok(())
     }
 
-    pub fn __enter__(slf: Py<Self>) -> Py<Self> {
-        slf
+    pub fn __enter__(slf: PyRef<'_, Self>) -> Py<Self> {
+        slf.into()
     }
 
     #[allow(unused_variables)]
@@ -704,7 +704,7 @@ impl AsyncFile {
         })
     }
 
-    #[gen_stub(override_return_type(type_repr="typing_extensions.Self", imports=("typing_extensions")))]
+    #[gen_stub(override_return_type(type_repr="typing.Self", imports=("typing")))]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })

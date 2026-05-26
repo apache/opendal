@@ -268,6 +268,7 @@
 //!     type Writer = ();
 //!     type Lister = ();
 //!     type Deleter = ();
+//!     type Copier = ();
 //!
 //!     fn info(&self) -> Arc<AccessorInfo> {
 //!         let am = AccessorInfo::default();

@@ -251,6 +251,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type Writer = LoggingWriter<A::Writer, I>;
     type Lister = LoggingLister<A::Lister, I>;
     type Deleter = LoggingDeleter<A::Deleter, I>;
+    type Copier = LoggingCopier<A::Copier, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -362,7 +363,13 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.logger.log(
             &self.info,
             Operation::Copy,
@@ -372,16 +379,18 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         );
 
         self.inner
-            .copy(from, to, args)
+            .copy(from, to, args, opts.clone())
             .await
-            .inspect(|_| {
+            .map(|(rp, c)| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
                     &[("from", from), ("to", to)],
-                    "finished",
+                    "created copier",
                     None,
                 );
+                let c = LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c);
+                (rp, c)
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -834,5 +843,106 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
         };
 
         res
+    }
+}
+
+#[doc(hidden)]
+pub struct LoggingCopier<C, I: LoggingInterceptor> {
+    info: Arc<AccessorInfo>,
+    logger: I,
+    from: String,
+    to: String,
+
+    copied: u64,
+    inner: C,
+}
+
+impl<C, I: LoggingInterceptor> LoggingCopier<C, I> {
+    fn new(info: Arc<AccessorInfo>, logger: I, from: &str, to: &str, inner: C) -> Self {
+        Self {
+            info,
+            logger,
+            from: from.to_string(),
+            to: to.to_string(),
+
+            copied: 0,
+            inner,
+        }
+    }
+}
+
+impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        match self.inner.next().await {
+            Ok(Some(n)) => {
+                self.copied += n as u64;
+                Ok(Some(n))
+            }
+            Ok(None) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "finished",
+                    None,
+                );
+                Ok(None)
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
+            Ok(_) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "abort succeeded",
+                    None,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "abort failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
     }
 }

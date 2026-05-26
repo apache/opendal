@@ -84,14 +84,8 @@ pub struct TosConfig {
     /// For examples:
     /// - envs like `TOS_ACCESS_KEY_ID`
     pub disable_config_load: bool,
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub allow_anonymous: bool,
-    /// Enable bucket versioning for this backend.
-    ///
-    /// If set to true, OpenDAL will support versioned operations like list with
-    /// versions, read with version, etc.
-    pub enable_versioning: bool,
+    /// Skip signature will skip loading credentials and signing requests.
+    pub skip_signature: bool,
 }
 
 impl Debug for TosConfig {

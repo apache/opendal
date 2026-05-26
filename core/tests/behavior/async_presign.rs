@@ -23,8 +23,6 @@ use http::header;
 use log::debug;
 use opendal::raw;
 use reqwest::Url;
-use sha2::Digest;
-use sha2::Sha256;
 
 use crate::*;
 
@@ -130,11 +128,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 
     let bs = resp.bytes().await.expect("read response must succeed");
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

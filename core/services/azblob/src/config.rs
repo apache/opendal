@@ -74,8 +74,16 @@ pub struct AzblobConfig {
     )]
     pub sas_token: Option<String>,
 
-    /// The maximum batch operations of Azblob service backend.
+    /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."
+    )]
     pub batch_max_operations: Option<usize>,
+
+    /// Skip signature will skip loading credentials and signing requests.
+    #[serde(default)]
+    pub skip_signature: bool,
 }
 
 impl Debug for AzblobConfig {

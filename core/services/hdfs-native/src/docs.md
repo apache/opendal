@@ -19,4 +19,4 @@ This service can be used to:
 
 - `root`: Set the work dir for backend.
 - `name_node`: Set the name node for backend.
-- `enable_append`: enable the append capacity. Default is false.
+- `enable_append`: Deprecated. HDFS Native append capability is enabled by default and this option is no longer needed.

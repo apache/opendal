@@ -18,14 +18,29 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::TosConfig;
-use crate::core::TosCore;
+use crate::config::TosConfig;
+use crate::copier::TosCopiers;
+use crate::copier::new_tos_copier;
+use crate::core::constants::X_TOS_VERSION_ID;
+use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
+use crate::core::*;
+use crate::deleter::TosDeleter;
+use crate::error::parse_error;
+use crate::lister::{TosLister, TosListers, TosObjectVersionsLister};
+use crate::utils::tos_parse_into_metadata;
+use crate::writer::TosWriter;
+use http::Response;
+use http::StatusCode;
 use opendal_core::raw::*;
-use opendal_core::{Builder, Capability, Result};
+use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
+use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredentialProvider};
 
 const TOS_SCHEME: &str = "tos";
 
 /// Builder for Volcengine TOS service.
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct TosBuilder {
     pub(super) config: TosConfig,
@@ -110,19 +125,9 @@ impl TosBuilder {
         self
     }
 
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.allow_anonymous = allow;
-        self
-    }
-
-    /// Set bucket versioning status for this backend.
-    ///
-    /// If set to true, OpenDAL will support versioned operations like list with
-    /// versions, read with version, etc.
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 }
@@ -143,7 +148,26 @@ impl Builder for TosBuilder {
 
         let endpoint = config.endpoint.clone().unwrap();
         let bucket = config.bucket.clone();
-        let root = config.root.clone().unwrap_or_else(|| "/".to_string());
+        let root = normalize_root(&config.root.clone().unwrap_or_default());
+
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(HttpClient::with(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(OsEnv);
+
+        let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
+
+        if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
+            let static_provider = if let Some(token) = config.security_token.as_deref() {
+                StaticCredentialProvider::new(ak, sk).with_security_token(token)
+            } else {
+                StaticCredentialProvider::new(ak, sk)
+            };
+            provider = provider.push_front(static_provider);
+        }
+
+        let request_signer = RequestSigner::new(&region);
+        let signer = Signer::new(ctx, provider, request_signer);
 
         let info = {
             let am = AccessorInfo::default();
@@ -151,17 +175,58 @@ impl Builder for TosBuilder {
                 .set_root(&root)
                 .set_name(&bucket)
                 .set_native_capability(Capability {
-                    read: false,
+                    stat_with_version: true,
 
-                    write: false,
+                    read: true,
+                    read_with_if_match: true,
+                    read_with_if_none_match: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
+                    read_with_version: true,
 
-                    delete: false,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_with_cache_control: true,
+                    write_with_content_type: true,
+                    write_with_content_encoding: true,
+                    write_with_if_match: true,
+                    write_with_if_not_exists: true,
+                    write_with_user_metadata: true,
+                    write_multi_min_size: Some(5 * 1024 * 1024),
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
-                    list: false,
+                    delete: true,
+                    delete_max_size: Some(1000),
+                    delete_with_version: true,
 
-                    stat: false,
+                    copy: true,
+                    copy_can_multi: true,
+                    copy_multi_min_size: Some(5 * 1024 * 1024),
+                    copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
-                    shared: false,
+                    list: true,
+                    list_with_limit: true,
+                    list_with_start_after: true,
+                    list_with_recursive: true,
+                    list_with_versions: true,
+                    list_with_deleted: true,
+
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
+
+                    shared: true,
 
                     ..Default::default()
                 });
@@ -169,11 +234,24 @@ impl Builder for TosBuilder {
             am.into()
         };
 
+        // Extract domain from endpoint, removing http:// or https:// prefix
+        let endpoint_domain = if let Some(stripped) = endpoint.strip_prefix("http://") {
+            stripped
+        } else if let Some(stripped) = endpoint.strip_prefix("https://") {
+            stripped
+        } else {
+            &endpoint
+        };
+
         let core = TosCore {
             info,
             bucket,
             endpoint: endpoint.clone(),
+            endpoint_domain: endpoint_domain.to_string(),
             root,
+            default_storage_class: None,
+            skip_signature: config.skip_signature,
+            signer,
         };
 
         Ok(TosBackend {
@@ -188,12 +266,116 @@ pub struct TosBackend {
 }
 
 impl Access for TosBackend {
-    type Reader = ();
-    type Writer = ();
-    type Lister = ();
-    type Deleter = ();
+    type Reader = HttpBody;
+    type Writer = oio::MultipartWriter<TosWriter>;
+    type Lister = TosListers;
+    type Deleter = oio::BatchDeleter<TosDeleter>;
+    type Copier = TosCopiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.tos_head_object(path, args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = tos_parse_into_metadata(path, headers)?;
+
+                let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
+                if !user_meta.is_empty() {
+                    meta = meta.with_user_metadata(user_meta);
+                }
+
+                if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
+                    meta.set_version(v);
+                }
+
+                if let Some(is_dir) = parse_header_to_str(headers, X_TOS_DIRECTORY)?
+                    .map(|v| {
+                        v.parse::<bool>().map_err(|e| {
+                            Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                                .set_source(e)
+                        })
+                    })
+                    .transpose()?
+                {
+                    meta = meta.with_mode(if is_dir {
+                        EntryMode::DIR
+                    } else {
+                        EntryMode::FILE
+                    });
+                }
+
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.tos_get_object(path, args.range(), &args).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok((RpRead::default(), resp.into_body()))
+            }
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = TosWriter::new(self.core.clone(), path, args.clone());
+
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, args.concurrent());
+
+        Ok((RpWrite::default(), w))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let info = self.core.info.clone();
+        let capability = info.full_capability();
+        let deleter = TosDeleter::new(self.core.clone());
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(deleter, capability.delete_max_size),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = if args.versions() || args.deleted() {
+            TwoWays::Two(oio::PageLister::new(TosObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(oio::PageLister::new(TosLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        };
+        Ok((RpList::default(), lister))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let copier = new_tos_copier(self.core.clone(), from, to, args, opts)?;
+        Ok((RpCopy::default(), copier))
     }
 }

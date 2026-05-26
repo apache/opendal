@@ -47,7 +47,7 @@ You should consider [`RetryLayer`] and monitor your operations carefully.
 - `client_id`: Set the client ID for a Microsoft Graph API application (available though Azure's registration portal)
 - `client_secret`: Set the client secret for a Microsoft Graph API application
 - `root`: Set the work directory for OneDrive backend
-- `enable_versioning`: Enable versioning support for OneDrive items
+- `enable_versioning`: Deprecated. OneDrive versioning capability is enabled by default and this option is no longer needed.
 
 The configuration for tokens is one of the following:
 

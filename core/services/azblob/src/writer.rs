@@ -44,7 +44,7 @@ impl AzblobWriter {
 
     // skip extracting `content-md5` here, as it pertains to the content of the request rather than
     // the content of the block itself for the `append` and `complete put block list` operations.
-    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+    pub(crate) fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
         let mut metadata = Metadata::default();
 
         if let Some(last_modified) = parse_last_modified(headers)? {

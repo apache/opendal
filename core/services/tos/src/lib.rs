@@ -21,7 +21,13 @@
 
 mod backend;
 mod config;
+mod copier;
 mod core;
+mod deleter;
+mod error;
+mod lister;
+mod utils;
+mod writer;
 
 pub use backend::TosBuilder as Tos;
 pub use config::TosConfig;

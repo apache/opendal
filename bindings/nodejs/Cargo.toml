@@ -58,6 +58,7 @@ services-all = [
   # "services-foundationdb",
   # "services-ftp",
   "services-gdrive",
+  "services-goosefs",
   # FIXME how to support HDFS services in bindings?
   # "services-hdfs",
   # "services-hdfs-native",
@@ -76,6 +77,7 @@ services-all = [
   # "services-rocksdb",
   "services-sled",
   "services-swift",
+  "services-tos",
   # FIXME this service need protoc
   # "services-tikv",
   "services-vercel-artifacts",
@@ -118,6 +120,7 @@ services-etcd = ["opendal/services-etcd"]
 services-foundationdb = ["opendal/services-foundationdb"]
 services-ftp = ["opendal/services-ftp"]
 services-gdrive = ["opendal/services-gdrive"]
+services-goosefs = ["opendal/services-goosefs"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
 services-hdfs-native = ["opendal/services-hdfs-native"]
@@ -143,6 +146,7 @@ services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-swift = ["opendal/services-swift"]
 services-tikv = ["opendal/services-tikv"]
+services-tos = ["opendal/services-tos"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]

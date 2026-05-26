@@ -27,7 +27,7 @@ fn enabled_service(srv: &str) -> bool {
         // not enabled in bindings/python/Cargo.toml
         "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
         | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
-        | "vercel_blob" => false,
+        | "vercel_blob" | "foyer" => false,
         _ => true,
     }
 }
@@ -235,6 +235,7 @@ fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja:
         | ConfigType::U32
         | ConfigType::U16 => "builtins.int",
         ConfigType::Vec => "typing.Any",
+        ConfigType::HashMap => "builtins.dict",
         ConfigType::String => "builtins.str",
     }
     .to_string())

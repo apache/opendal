@@ -122,6 +122,7 @@ impl Access for RocksdbBackend {
     type Writer = RocksdbWriter;
     type Lister = oio::HierarchyLister<RocksdbLister>;
     type Deleter = oio::OneShotDeleter<RocksdbDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -116,11 +116,12 @@ impl SftpBuilder {
         self
     }
 
-    /// set enable_copy for sftp backend.
-    /// It requires the server supports copy-file extension.
-    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
-        self.config.enable_copy = enable_copy;
-
+    /// Deprecated: SFTP copy capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "SFTP copy capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_copy(self, _enable_copy: bool) -> Self {
         self
     }
 }
@@ -181,7 +182,7 @@ impl Builder for SftpBuilder {
                 list: true,
                 list_with_limit: true,
 
-                copy: self.config.enable_copy,
+                copy: true,
                 rename: true,
 
                 shared: true,
@@ -214,6 +215,7 @@ impl Access for SftpBackend {
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -354,7 +356,13 @@ impl Access for SftpBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let client = self.core.connect().await?;
 
         let mut fs = client.fs();
@@ -374,7 +382,7 @@ impl Access for SftpBackend {
             .await
             .map_err(parse_sftp_error)?;
 
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {

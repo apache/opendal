@@ -29,6 +29,9 @@ pub(crate) use complete::CompleteLayer;
 mod simulate;
 pub use simulate::SimulateLayer;
 
+mod capability_override;
+pub use capability_override::CapabilityOverrideLayer;
+
 mod correctness_check;
 pub(crate) use correctness_check::CorrectnessCheckLayer;
 

@@ -72,11 +72,12 @@ impl HdfsNativeBuilder {
         self
     }
 
-    /// Enable append capacity of this backend.
-    ///
-    /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(mut self, enable_append: bool) -> Self {
-        self.config.enable_append = enable_append;
+    /// Deprecated: HDFS Native append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "HDFS Native append capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_append(self, _enable_append: bool) -> Self {
         self
     }
 
@@ -130,7 +131,7 @@ impl Builder for HdfsNativeBuilder {
                             read: true,
 
                             write: true,
-                            write_can_append: self.config.enable_append,
+                            write_can_append: true,
 
                             create_dir: true,
                             delete: true,
@@ -148,7 +149,6 @@ impl Builder for HdfsNativeBuilder {
                 },
                 root,
                 client: Arc::new(client),
-                enable_append: self.config.enable_append,
             }),
         })
     }
@@ -173,6 +173,7 @@ impl Access for HdfsNativeBackend {
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

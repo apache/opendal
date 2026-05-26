@@ -48,6 +48,7 @@ use opendal_core::*;
 
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
+    pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -96,13 +97,21 @@ pub struct S3Core {
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
 
     pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+pub(crate) struct S3UploadPartCopyRequest<'a> {
+    pub(crate) from: &'a str,
+    pub(crate) to: &'a str,
+    pub(crate) upload_id: &'a str,
+    pub(crate) part_number: usize,
+    pub(crate) range: BytesRange,
 }
 
 impl Debug for S3Core {
@@ -117,8 +126,7 @@ impl Debug for S3Core {
 
 impl S3Core {
     pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 
@@ -142,8 +150,7 @@ impl S3Core {
     }
 
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().send(req).await;
         }
 
@@ -169,8 +176,7 @@ impl S3Core {
     }
 
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().fetch(req).await;
         }
 
@@ -417,7 +423,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -499,7 +507,9 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -544,7 +554,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -587,7 +599,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -627,13 +641,19 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -641,6 +661,14 @@ impl S3Core {
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
         let mut req = Request::put(&target);
+
+        // Set conditional copy headers.
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -687,6 +715,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -726,6 +755,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -776,6 +806,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -845,11 +876,117 @@ impl S3Core {
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
+    }
+
+    pub async fn s3_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::post(&url);
+
+        // Set storage class header.
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
+        // Also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CreateMultipartUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub(crate) fn s3_upload_part_copy_request(
+        &self,
+        input: S3UploadPartCopyRequest<'_>,
+    ) -> Result<Request<Buffer>> {
+        let from = build_abs_path(&self.root, input.from);
+        let to = build_abs_path(&self.root, input.to);
+
+        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(&to),
+            input.part_number,
+            percent_encode_path(input.upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                ),
+                v,
+            )
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("UploadPartCopy"))
+            .header(constants::X_AMZ_COPY_SOURCE, source)
+            .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
     }
 
     pub fn s3_upload_part_request(
@@ -887,7 +1024,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -935,9 +1074,58 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let req = req
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn s3_complete_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::post(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_serialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        req = req.header(CONTENT_TYPE, "application/xml");
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -967,6 +1155,36 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    /// Abort an on-going multipart copy.
+    pub async fn s3_abort_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1004,7 +1222,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObjects"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -1056,6 +1276,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1130,15 +1351,19 @@ pub struct CompleteMultipartUploadResult {
     pub request_id: String,
 }
 
-/// Partial output of a successful `CopyObject` operation.
+/// Body of a `CopyObject` or `UploadPartCopy` response.
 ///
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html#API_UploadPartCopy_ResponseSyntax>
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct CopyObjectResult {
     #[serde(rename = "ETag")]
     pub etag: String,
     pub last_modified: String,
+    pub code: String,
+    pub message: String,
+    pub request_id: String,
 }
 
 /// Request of DeleteObjects.

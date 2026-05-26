@@ -27,7 +27,7 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 doc = false
 
 [dependencies]
@@ -57,6 +57,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-obs",
   "services-oss",
   "services-s3",
+  "services-tos",
   "services-webdav",
   "services-webhdfs",
   "services-aliyun-drive",
@@ -95,6 +96,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-azfile",
   "services-swift",
   "services-alluxio",
+  "services-goosefs",
   "services-b2",
   "services-seafile",
   "services-upyun",

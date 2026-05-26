@@ -989,42 +989,15 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
-        let from = normalize_path(from);
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        self.copy_options(from, to, options::CopyOptions::default())
+            .await
+    }
 
-        if !validate_path(&from, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "from path is a directory")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("from", from),
-            );
-        }
-
-        let to = normalize_path(to);
-
-        if !validate_path(&to, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "to path is a directory")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("to", to),
-            );
-        }
-
-        if from == to {
-            return Err(
-                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("from", from)
-                    .with_context("to", to),
-            );
-        }
-
-        self.inner().copy(&from, &to, OpCopy::new()).await?;
-
-        Ok(())
+    /// Create a copier from `from` to `to`.
+    pub async fn copier(&self, from: &str, to: &str) -> Result<Copier> {
+        self.copier_options(from, to, options::CopyOptions::default())
+            .await
     }
 
     /// Copy a file from `from` to `to` with additional options.
@@ -1054,7 +1027,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+    pub fn copy_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopy<impl Future<Output = Result<Metadata>>> {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
@@ -1063,6 +1040,23 @@ impl Operator {
             from,
             (options::CopyOptions::default(), to),
             Self::copy_inner,
+        )
+    }
+
+    /// Create a copier from `from` to `to` with additional options.
+    pub fn copier_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopier<impl Future<Output = Result<Copier>>> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            from,
+            (options::CopyOptions::default(), to),
+            Self::copier_inner,
         )
     }
 
@@ -1099,7 +1093,7 @@ impl Operator {
         from: &str,
         to: &str,
         opts: impl Into<options::CopyOptions>,
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         let from = normalize_path(from);
         let to = normalize_path(to);
         let opts = opts.into();
@@ -1107,11 +1101,25 @@ impl Operator {
         Self::copy_inner(self.inner().clone(), from, (opts, to)).await
     }
 
+    /// Create a copier from `from` to `to` with additional options.
+    pub async fn copier_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: impl Into<options::CopyOptions>,
+    ) -> Result<Copier> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+        let opts = opts.into();
+
+        Self::copier_inner(self.inner().clone(), from, (opts, to)).await
+    }
+
     async fn copy_inner(
         acc: Accessor,
         from: String,
         (opts, to): (options::CopyOptions, String),
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
@@ -1140,12 +1148,51 @@ impl Operator {
             );
         }
 
-        let mut op = OpCopy::new();
-        if opts.if_not_exists {
-            op = op.with_if_not_exists(true);
+        let mut copier = Self::copier_inner(acc, from, (opts, to)).await?;
+        match copier.close().await {
+            Ok(meta) => Ok(meta),
+            Err(err) => {
+                let _ = copier.abort().await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn copier_inner(
+        acc: Accessor,
+        from: String,
+        (opts, to): (options::CopyOptions, String),
+    ) -> Result<Copier> {
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", from),
+            );
         }
 
-        acc.copy(&from, &to, op).await.map(|_| ())
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", &from)
+                    .with_context("to", &to),
+            );
+        }
+
+        let (args, opts) = opts.into();
+        Copier::create(acc, &from, &to, args, opts).await
     }
 
     /// Rename a file from `from` to `to`.

@@ -37,14 +37,13 @@ submit! {
         r#"
         import builtins
         import typing
-        import typing_extensions
         class Operator:
             @overload
             def __new__(cls,
                 scheme: builtins.str,
                 /,
                 **kwargs: builtins.str,
-            ) -> typing_extensions.Self: ...
+            ) -> typing.Self: ...
         "#
     }
 }
@@ -88,12 +87,11 @@ submit! {
         r#"
         import builtins
         import typing
-        import typing_extensions
         import opendal.services
         class Operator:
             @overload
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
+                scheme: typing.Literal[opendal.services.Scheme.{{ service_to_pascal(srv) }}, "{{ snake_to_kebab_case(srv) }}"],
                 /,
                 {%- if srvs[srv].config %}
                 *,
@@ -101,7 +99,7 @@ submit! {
                 {%- for field in srvs[srv].config %}
                 {{field.name}}: {{make_python_type(field.value)}}{% if field.optional %} = ...{% endif %},
                 {%- endfor %}
-            ) -> typing_extensions.Self:
+            ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `{{ snake_to_kebab_case(srv) }}` service.
                 {%- if srvs[srv].config %}
@@ -128,14 +126,13 @@ submit! {
         r#"
         import builtins
         import typing
-        import typing_extensions
         class AsyncOperator:
             @overload
             def __new__(cls,
                 scheme: builtins.str,
                 /,
                 **kwargs: builtins.str,
-            ) -> typing_extensions.Self: ...
+            ) -> typing.Self: ...
         "#
     }
 }
@@ -145,12 +142,11 @@ submit! {
         r#"
         import builtins
         import typing
-        import typing_extensions
         import opendal.services
         class AsyncOperator:
             @overload
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
+                scheme: typing.Literal[opendal.services.Scheme.{{ service_to_pascal(srv) }}, "{{ snake_to_kebab_case(srv) }}"],
                 /,
                 {%- if srvs[srv].config %}
                 *,
@@ -158,7 +154,7 @@ submit! {
                 {%- for field in srvs[srv].config %}
                 {{field.name}}: {{make_python_type(field.value)}}{% if field.optional %} = ...{% endif %},
                 {%- endfor %}
-            ) -> typing_extensions.Self:
+            ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `{{ snake_to_kebab_case(srv) }}` service.
                 {%- if srvs[srv].config %}

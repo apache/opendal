@@ -125,6 +125,7 @@ impl Access for FoundationdbBackend {
     type Writer = FoundationdbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoundationdbDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

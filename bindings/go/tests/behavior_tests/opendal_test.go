@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -37,12 +38,17 @@ import (
 
 var op *opendal.Operator
 
+const defaultContentMaxSize uint = 4 * 1024 * 1024
+
 func TestMain(m *testing.M) {
 	var (
 		closeFunc func()
 		err       error
 	)
-	op, closeFunc, err = newOperator()
+	op, closeFunc, err = newOperator(
+		opendal.WithTimeout(time.Minute, 10*time.Second),
+		opendal.WithRetry(),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -94,11 +100,10 @@ func TestBehavior(t *testing.T) {
 	}
 }
 
-func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
+func newOperator(operatorOptions ...opendal.OperatorOption) (op *opendal.Operator, closeFunc func(), err error) {
 	test := os.Getenv("OPENDAL_TEST")
 	var scheme opendal.Scheme
 	for _, s := range schemes {
-		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
 		normalizedSchemeName := strings.ReplaceAll(test, "_", "-")
 		if s.Name() != test && s.Name() != normalizedSchemeName {
 			continue
@@ -131,7 +136,7 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 		opts[strings.ToLower(strings.TrimPrefix(key, prefix))] = value
 	}
 
-	op, err = opendal.NewOperator(scheme, opts)
+	op, err = opendal.NewOperator(scheme, opts, operatorOptions...)
 	if err != nil {
 		err = fmt.Errorf("create operator must succeed: %s", err)
 	}
@@ -207,10 +212,7 @@ func (f *fixture) NewFile() (string, []byte, uint) {
 }
 
 func (f *fixture) NewFileWithPath(path string) (string, []byte, uint) {
-	maxSize := f.op.Info().GetFullCapability().WriteTotalMaxSize()
-	if maxSize == 0 {
-		maxSize = 4 * 1024 * 1024
-	}
+	maxSize := contentMaxSize(f.op.Info().GetFullCapability())
 	return f.NewFileWithRange(path, 1, maxSize)
 }
 
@@ -219,6 +221,14 @@ func (f *fixture) NewFileWithRange(path string, min, max uint) (string, []byte, 
 
 	content, size := genBytesWithRange(min, max)
 	return path, content, size
+}
+
+func contentMaxSize(cap *opendal.Capability) uint {
+	maxSize := cap.WriteTotalMaxSize()
+	if maxSize == 0 || maxSize > defaultContentMaxSize {
+		return defaultContentMaxSize
+	}
+	return maxSize
 }
 
 func (f *fixture) Cleanup(assert *require.Assertions) {

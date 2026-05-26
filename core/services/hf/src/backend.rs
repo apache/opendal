@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
@@ -120,6 +121,52 @@ impl HfBuilder {
         }
         self
     }
+
+    fn hf_endpoint(&self) -> String {
+        self.config
+            .endpoint
+            .clone()
+            .or_else(|| std::env::var("HF_ENDPOINT").ok())
+            .unwrap_or_else(|| "https://huggingface.co".to_string())
+    }
+
+    fn hf_home() -> Option<PathBuf> {
+        if let Ok(h) = std::env::var("HF_HOME") {
+            return Some(PathBuf::from(h));
+        }
+        if let Ok(xdg) = std::env::var("XDG_CACHE_HOME") {
+            return Some(PathBuf::from(xdg).join("huggingface"));
+        }
+        let home = std::env::var("HOME").ok()?;
+        Some(PathBuf::from(home).join(".cache/huggingface"))
+    }
+
+    /// Resolve the authentication token using the same priority order as hf-hub:
+    /// explicit config → HF_HUB_DISABLE_IMPLICIT_TOKEN check → HF_TOKEN env → token file.
+    fn hf_token(&self) -> Option<String> {
+        if let Some(t) = self.config.token.clone() {
+            return Some(t);
+        }
+        if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN") {
+            if !val.is_empty() {
+                return None;
+            }
+        }
+        if let Ok(t) = std::env::var("HF_TOKEN") {
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+        let token_path = if let Ok(p) = std::env::var("HF_TOKEN_PATH") {
+            Some(PathBuf::from(p))
+        } else {
+            Self::hf_home().map(|h| h.join("token"))
+        };
+        token_path
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    }
 }
 
 impl Builder for HfBuilder {
@@ -127,6 +174,9 @@ impl Builder for HfBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
+
+        let token = self.hf_token();
+        let endpoint = self.hf_endpoint();
 
         let repo_type = self.config.repo_type;
         debug!("backend use repo_type: {:?}", &repo_type);
@@ -147,21 +197,7 @@ impl Builder for HfBuilder {
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root: {}", &root);
-
-        let token = self.config.token.as_ref().cloned();
-
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => endpoint.clone(),
-            None => {
-                // Try to read from HF_ENDPOINT env var which is used
-                // by the official huggingface clients.
-                if let Ok(env_endpoint) = std::env::var("HF_ENDPOINT") {
-                    env_endpoint
-                } else {
-                    "https://huggingface.co".to_string()
-                }
-            }
-        };
+        debug!("backend use token: {}", token.is_some());
         debug!("backend use endpoint: {}", &endpoint);
 
         let info: Arc<AccessorInfo> = {
@@ -200,6 +236,7 @@ impl Access for HfBackend {
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -307,6 +344,91 @@ pub(super) mod test_utils {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Env vars are process-global; serialize all tests that mutate them.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn builder_with_token(token: &str) -> HfBuilder {
+        HfBuilder::default().token(token)
+    }
+
+    fn builder_no_token() -> HfBuilder {
+        HfBuilder::default()
+    }
+
+    #[test]
+    fn hf_token_config_takes_priority_over_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_TOKEN", "env-token") };
+        let result = builder_with_token("config-token").hf_token();
+        unsafe { std::env::remove_var("HF_TOKEN") };
+        assert_eq!(result.as_deref(), Some("config-token"));
+    }
+
+    #[test]
+    fn hf_token_reads_hf_token_env_var() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_IMPLICIT_TOKEN") };
+        unsafe { std::env::remove_var("HF_TOKEN_PATH") };
+        unsafe { std::env::set_var("HF_TOKEN", "my-env-token") };
+        let result = builder_no_token().hf_token();
+        unsafe { std::env::remove_var("HF_TOKEN") };
+        assert_eq!(result.as_deref(), Some("my-env-token"));
+    }
+
+    #[test]
+    fn hf_token_disable_flag_suppresses_discovery() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1") };
+        unsafe { std::env::set_var("HF_TOKEN", "my-env-token") };
+        let result = builder_no_token().hf_token();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_IMPLICIT_TOKEN") };
+        unsafe { std::env::remove_var("HF_TOKEN") };
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn hf_token_reads_from_file_via_hf_token_path() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let token_file = std::env::temp_dir().join("opendal-hf-token-test");
+        std::fs::write(&token_file, "file-token\n").unwrap();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_IMPLICIT_TOKEN") };
+        unsafe { std::env::remove_var("HF_TOKEN") };
+        unsafe { std::env::set_var("HF_TOKEN_PATH", &token_file) };
+        let result = builder_no_token().hf_token();
+        unsafe { std::env::remove_var("HF_TOKEN_PATH") };
+        std::fs::remove_file(&token_file).ok();
+        assert_eq!(result.as_deref(), Some("file-token"));
+    }
+
+    #[test]
+    fn hf_endpoint_returns_default() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var("HF_ENDPOINT") };
+        let result = HfBuilder::default().hf_endpoint();
+        assert_eq!(result, "https://huggingface.co");
+    }
+
+    #[test]
+    fn hf_endpoint_config_takes_priority_over_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_ENDPOINT", "https://env.example.com") };
+        let result = HfBuilder::default()
+            .endpoint("https://config.example.com")
+            .hf_endpoint();
+        unsafe { std::env::remove_var("HF_ENDPOINT") };
+        assert_eq!(result, "https://config.example.com");
+    }
+
+    #[test]
+    fn hf_endpoint_reads_hf_endpoint_env_var() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_ENDPOINT", "https://env.example.com") };
+        let result = HfBuilder::default().hf_endpoint();
+        unsafe { std::env::remove_var("HF_ENDPOINT") };
+        assert_eq!(result, "https://env.example.com");
+    }
 
     #[test]
     fn build_accepts_datasets_alias() {

@@ -119,15 +119,12 @@ impl WebdavBuilder {
         self
     }
 
-    /// Enable user metadata support via WebDAV PROPPATCH.
-    ///
-    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
-    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
-    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
-    ///
-    /// Default: false
-    pub fn enable_user_metadata(mut self, enable: bool) -> Self {
-        self.config.enable_user_metadata = enable;
+    /// Deprecated: WebDAV user metadata capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."
+    )]
+    pub fn enable_user_metadata(self, _enable: bool) -> Self {
         self
     }
 
@@ -208,12 +205,12 @@ impl Builder for WebdavBuilder {
 
                         write: true,
                         write_can_empty: true,
-                        write_with_user_metadata: self.config.enable_user_metadata,
+                        write_with_user_metadata: true,
 
                         create_dir: true,
                         delete: true,
 
-                        copy: !self.config.disable_copy,
+                        copy: true,
 
                         rename: true,
 
@@ -257,6 +254,7 @@ impl Access for WebdavBackend {
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -315,13 +313,19 @@ impl Access for WebdavBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.webdav_copy(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

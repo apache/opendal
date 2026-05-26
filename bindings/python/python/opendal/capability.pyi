@@ -44,6 +44,15 @@ class Capability:
     def stat_with_if_none_match(self) -> builtins.bool:
         r"""If operator supports stat with if none match."""
     @property
+    def stat_with_if_modified_since(self) -> builtins.bool:
+        r"""If operator supports stat with if modified since."""
+    @property
+    def stat_with_if_unmodified_since(self) -> builtins.bool:
+        r"""If operator supports stat with if unmodified since."""
+    @property
+    def stat_with_version(self) -> builtins.bool:
+        r"""If operator supports stat with version."""
+    @property
     def read(self) -> builtins.bool:
         r"""If the operator supports read operations."""
     @property
@@ -134,6 +143,12 @@ class Capability:
     def delete(self) -> builtins.bool:
         r"""If operator supports delete."""
     @property
+    def delete_with_version(self) -> builtins.bool:
+        r"""If delete operations with version are supported."""
+    @property
+    def delete_with_recursive(self) -> builtins.bool:
+        r"""If recursive delete operations are supported."""
+    @property
     def copy(self) -> builtins.bool:
         r"""If operator supports copy."""
     @property
@@ -151,6 +166,12 @@ class Capability:
     @property
     def list_with_recursive(self) -> builtins.bool:
         r"""If backend supports list without delimiter."""
+    @property
+    def list_with_versions(self) -> builtins.bool:
+        r"""If backend supports list with versions."""
+    @property
+    def list_with_deleted(self) -> builtins.bool:
+        r"""If backend supports list with deleted."""
     @property
     def presign(self) -> builtins.bool:
         r"""If operator supports presign."""

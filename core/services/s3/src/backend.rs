@@ -45,6 +45,8 @@ use url::Url;
 
 use crate::S3_SCHEME;
 use crate::config::S3Config;
+use crate::copier::S3Copiers;
+use crate::copier::new_s3_copier;
 use crate::core::*;
 use crate::deleter::S3Deleter;
 use crate::error::parse_error;
@@ -195,6 +197,18 @@ impl S3Builder {
             self.config.role_session_name = Some(v.to_string())
         }
 
+        self
+    }
+
+    /// Set assume_role_duration_seconds for this backend.
+    pub fn assume_role_duration_seconds(mut self, v: u32) -> Self {
+        self.config.assume_role_duration_seconds = Some(v);
+        self
+    }
+
+    /// Set assume_role_session_tags for this backend.
+    pub fn assume_role_session_tags(mut self, tags: HashMap<String, String>) -> Self {
+        self.config.assume_role_session_tags = Some(tags);
         self
     }
 
@@ -417,11 +431,20 @@ impl S3Builder {
         self
     }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
-        self
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 
     /// Enable virtual host style so that opendal will send API requests
@@ -434,18 +457,21 @@ impl S3Builder {
         self
     }
 
-    /// Disable stat with override so that opendal will not send stat request with override queries.
-    ///
-    /// For example, R2 doesn't support stat with `response_content_type` query.
-    pub fn disable_stat_with_override(mut self) -> Self {
-        self.config.disable_stat_with_override = true;
+    /// Deprecated: S3 stat override capabilities are enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 stat override capabilities are enabled by default and this option is no longer needed."
+    )]
+    pub fn disable_stat_with_override(self) -> Self {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: S3 versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -519,21 +545,21 @@ impl S3Builder {
         endpoint
     }
 
-    /// Set maximum batch operations of this backend.
+    /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default and this option is no longer needed."
     )]
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.delete_max_size = Some(batch_max_operations);
-
+    pub fn batch_max_operations(self, _batch_max_operations: usize) -> Self {
         self
     }
 
-    /// Set maximum delete operations of this backend.
-    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
-
+    /// Deprecated: S3 delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn delete_max_size(self, _delete_max_size: usize) -> Self {
         self
     }
 
@@ -549,15 +575,21 @@ impl S3Builder {
         self
     }
 
-    /// Disable write with if match so that opendal will not send write request with if match headers.
-    pub fn disable_write_with_if_match(mut self) -> Self {
-        self.config.disable_write_with_if_match = true;
+    /// Deprecated: S3 write with If-Match capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 write with If-Match capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn disable_write_with_if_match(self) -> Self {
         self
     }
 
-    /// Enable write with append so that opendal will send write request with append headers.
-    pub fn enable_write_with_append(mut self) -> Self {
-        self.config.enable_write_with_append = true;
+    /// Deprecated: S3 append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_write_with_append(self) -> Self {
         self
     }
 
@@ -624,6 +656,10 @@ impl S3Builder {
         }
 
         // If this bucket is AWS, we can try to match the endpoint.
+        if endpoint == "https://s3.amazonaws.com" {
+            return Some("us-east-1".to_string());
+        }
+
         if let Some(region) = endpoint
             .strip_prefix("https://s3.")
             .and_then(|v| v.strip_suffix(".amazonaws.com"))
@@ -695,6 +731,11 @@ impl Builder for S3Builder {
             mut config,
             credential_providers,
         } = self;
+
+        #[allow(deprecated)]
+        if config.allow_anonymous {
+            config.skip_signature = true;
+        }
 
         let root = normalize_root(&config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
@@ -850,6 +891,13 @@ impl Builder for S3Builder {
                 assume_role_provider =
                     assume_role_provider.with_role_session_name(role_session_name.clone());
             }
+            if let Some(duration_seconds) = config.assume_role_duration_seconds {
+                assume_role_provider = assume_role_provider.with_duration_seconds(duration_seconds);
+            }
+            if let Some(tags) = &config.assume_role_session_tags {
+                assume_role_provider = assume_role_provider
+                    .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+            }
             provider = ProvideCredentialChain::new().push(assume_role_provider);
         }
 
@@ -866,10 +914,6 @@ impl Builder for S3Builder {
         // Create the signer
         let signer = Signer::new(ctx, provider, request_signer);
 
-        let delete_max_size = config
-            .delete_max_size
-            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 info: {
@@ -882,11 +926,10 @@ impl Builder for S3Builder {
                             stat_with_if_none_match: true,
                             stat_with_if_modified_since: true,
                             stat_with_if_unmodified_since: true,
-                            stat_with_override_cache_control: !config.disable_stat_with_override,
-                            stat_with_override_content_disposition: !config
-                                .disable_stat_with_override,
-                            stat_with_override_content_type: !config.disable_stat_with_override,
-                            stat_with_version: config.enable_versioning,
+                            stat_with_override_cache_control: true,
+                            stat_with_override_content_disposition: true,
+                            stat_with_override_content_type: true,
+                            stat_with_version: true,
 
                             read: true,
                             read_with_if_match: true,
@@ -896,18 +939,18 @@ impl Builder for S3Builder {
                             read_with_override_cache_control: true,
                             read_with_override_content_disposition: true,
                             read_with_override_content_type: true,
-                            read_with_version: config.enable_versioning,
+                            read_with_version: true,
 
                             write: true,
                             write_can_empty: true,
                             write_can_multi: true,
-                            write_can_append: config.enable_write_with_append,
+                            write_can_append: true,
 
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
-                            write_with_if_match: !config.disable_write_with_if_match,
+                            write_with_if_match: true,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 
@@ -923,19 +966,42 @@ impl Builder for S3Builder {
                             } else {
                                 Some(usize::MAX)
                             },
+                            // S3 allows at most 10,000 parts and 5 GiB for each part.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            write_total_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(10_000 * 5 * 1024 * 1024 * 1024)
+                            } else {
+                                None
+                            },
 
                             delete: true,
-                            delete_max_size: Some(delete_max_size),
-                            delete_with_version: config.enable_versioning,
+                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
+                            delete_with_version: true,
 
                             copy: true,
+                            copy_can_multi: true,
+                            copy_with_if_not_exists: true,
+                            copy_with_if_match: true,
+                            // The min multipart size of S3 is 5 MiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            copy_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of S3 is 5 GiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
 
                             list: true,
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: config.enable_versioning,
-                            list_with_deleted: config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,
@@ -958,7 +1024,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
-                allow_anonymous: config.allow_anonymous,
+                skip_signature: config.skip_signature,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
                 signer,
@@ -980,6 +1046,7 @@ impl Access for S3Backend {
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
+    type Copier = S3Copiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -1076,37 +1143,15 @@ impl Access for S3Backend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                // S3 CopyObject may return an error embedded in a 200 OK response body
-                // when the error occurs during the copy (e.g., throttling, internal error).
-                // We must parse the body to detect this.
-                //
-                // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
-                // ref: https://repost.aws/knowledge-center/s3-resolve-200-internalerror
-                let body = resp.into_body().to_bytes();
-
-                let result: CopyObjectResult =
-                    quick_xml::de::from_reader(body.as_ref()).map_err(new_xml_deserialize_error)?;
-
-                // On success, ETag is always present. If it's empty, the body was not a
-                // valid <CopyObjectResult> — it's an error response embedded in 200 OK.
-                if result.etag.is_empty() {
-                    return Err(
-                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&body))
-                            .set_temporary(),
-                    );
-                }
-
-                Ok(RpCopy::default())
-            }
-            _ => Err(parse_error(resp)),
-        }
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let copier = new_s3_copier(self.core.clone(), from, to, args, opts)?;
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -1254,7 +1299,7 @@ mod tests {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
-            .allow_anonymous()
+            .skip_signature()
             .disable_config_load()
             .disable_ec2_metadata()
             .build()

@@ -364,6 +364,7 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     type Writer = TailCutWrapper<A::Writer>;
     type Lister = TailCutWrapper<A::Lister>;
     type Deleter = TailCutWrapper<A::Deleter>;
+    type Copier = TailCutWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -401,9 +402,25 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.with_deadline(Operation::Copy, None, self.inner.copy(from, to, args))
-            .await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.with_deadline(
+            Operation::Copy,
+            None,
+            self.inner.copy(from, to, args, opts.clone()),
+        )
+        .await
+        .map(|(rp, c)| {
+            (
+                rp,
+                TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()),
+            )
+        })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -604,6 +621,47 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
             self.size,
             Operation::Delete,
             self.inner.close(),
+        )
+        .await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        let deadline = self.calculate_deadline(Operation::Copy);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Copy,
+            self.inner.next(),
+        )
+        .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let deadline = self.calculate_deadline(Operation::Copy);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Copy,
+            self.inner.close(),
+        )
+        .await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Copy);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Copy,
+            self.inner.abort(),
         )
         .await
     }

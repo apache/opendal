@@ -104,11 +104,13 @@ impl GhacCore {
 
         match self.service_version {
             GhacVersion::V1 => {
-                let url = format!(
-                    "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
-                    self.cache_url,
-                    percent_encode_path(&p),
-                    self.version
+                let url = build_cache_url(
+                    &self.cache_url,
+                    format!(
+                        "{CACHE_URL_BASE}/cache?keys={}&version={}",
+                        percent_encode_path(&p),
+                        self.version
+                    ),
                 );
 
                 let mut req = Request::get(&url);
@@ -131,9 +133,9 @@ impl GhacCore {
                 Ok(location)
             }
             GhacVersion::V2 => {
-                let url = format!(
-                    "{}{CACHE_URL_BASE_V2}/GetCacheEntryDownloadURL",
-                    self.cache_url,
+                let url = build_cache_url(
+                    &self.cache_url,
+                    format!("{CACHE_URL_BASE_V2}/GetCacheEntryDownloadURL"),
                 );
 
                 let req = ghac_types::GetCacheEntryDownloadUrlRequest {
@@ -218,7 +220,7 @@ impl GhacCore {
 
         match self.service_version {
             GhacVersion::V1 => {
-                let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
+                let url = build_cache_url(&self.cache_url, format!("{CACHE_URL_BASE}/caches"));
 
                 let bs = serde_json::to_vec(&GhacReserveRequest {
                     key: p,
@@ -246,11 +248,17 @@ impl GhacCore {
                     return Err(parse_error(resp).with_operation("Backend::ghac_reserve"));
                 };
 
-                let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+                let url = build_cache_url(
+                    &self.cache_url,
+                    format!("{CACHE_URL_BASE}/caches/{cache_id}"),
+                );
                 Ok(url)
             }
             GhacVersion::V2 => {
-                let url = format!("{}{CACHE_URL_BASE_V2}/CreateCacheEntry", self.cache_url,);
+                let url = build_cache_url(
+                    &self.cache_url,
+                    format!("{CACHE_URL_BASE_V2}/CreateCacheEntry"),
+                );
 
                 let req = ghac_types::CreateCacheEntryRequest {
                     key: p,
@@ -338,9 +346,9 @@ impl GhacCore {
                 }
             }
             GhacVersion::V2 => {
-                let url = format!(
-                    "{}{CACHE_URL_BASE_V2}/FinalizeCacheEntryUpload",
-                    self.cache_url,
+                let url = build_cache_url(
+                    &self.cache_url,
+                    format!("{CACHE_URL_BASE_V2}/FinalizeCacheEntryUpload"),
                 );
 
                 let req = ghac_types::FinalizeCacheEntryUploadRequest {
@@ -367,6 +375,14 @@ impl GhacCore {
             }
         }
     }
+}
+
+fn build_cache_url(base: &str, path: impl AsRef<str>) -> String {
+    format!(
+        "{}/{}",
+        base.trim_end_matches('/'),
+        path.as_ref().trim_start_matches('/')
+    )
 }
 
 /// Determines if the current environment is GitHub Enterprise Server (GHES)
@@ -453,4 +469,38 @@ pub struct GhacReserveResponse {
 #[derive(Serialize)]
 pub struct GhacCommitRequest {
     pub size: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_cache_url_handles_trailing_slash() {
+        assert_eq!(
+            build_cache_url(
+                "https://artifactcache.actions.githubusercontent.com/123",
+                "_apis/artifactcache/cache?keys=k&version=v"
+            ),
+            "https://artifactcache.actions.githubusercontent.com/123/_apis/artifactcache/cache?keys=k&version=v"
+        );
+        assert_eq!(
+            build_cache_url(
+                "https://artifactcache.actions.githubusercontent.com/123/",
+                "_apis/artifactcache/cache?keys=k&version=v"
+            ),
+            "https://artifactcache.actions.githubusercontent.com/123/_apis/artifactcache/cache?keys=k&version=v"
+        );
+    }
+
+    #[test]
+    fn test_build_cache_url_handles_leading_slash() {
+        assert_eq!(
+            build_cache_url(
+                "https://results.actions.githubusercontent.com",
+                "/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry"
+            ),
+            "https://results.actions.githubusercontent.com/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry"
+        );
+    }
 }

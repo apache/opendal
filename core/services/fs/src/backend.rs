@@ -188,6 +188,7 @@ impl Access for FsBackend {
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -258,9 +259,15 @@ impl Access for FsBackend {
         }
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.core.fs_copy(from, to).await?;
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

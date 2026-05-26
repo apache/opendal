@@ -163,6 +163,7 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Writer = DtraceLayerWrapper<A::Writer>;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -198,6 +199,20 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
             .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
 
         probe_lazy!(opendal, write_end, c_path.as_ptr());
+        result
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let c_from = CString::new(from).unwrap();
+        probe_lazy!(opendal, copy_start, c_from.as_ptr());
+        let result = self.inner.copy(from, to, args, opts).await;
+        probe_lazy!(opendal, copy_end, c_from.as_ptr());
         result
     }
 

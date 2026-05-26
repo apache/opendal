@@ -314,18 +314,31 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn cos_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
-        let req = Request::put(&url)
+        let mut req = Request::put(&url)
             .extension(Operation::Copy)
-            .header("x-cos-copy-source", &source)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .header("x-cos-copy-source", &source);
+
+        // For a bucket which has never enabled versioning, x-cos-forbid-overwrite
+        // tells COS to reject the copy when the destination object already exists.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/10881
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let req = self.sign(req).await?;
 

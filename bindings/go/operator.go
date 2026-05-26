@@ -98,16 +98,18 @@ func (op *Operator) Rename(src, dest string) error {
 	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
 }
 
-var ffiOperatorNew = newFFI(ffiOpts{
-	sym:    "opendal_operator_new",
+func normalizeScheme(scheme Scheme) (*byte, error) {
+	return BytePtrFromString(strings.ReplaceAll(scheme.Name(), "_", "-"))
+}
+
+var ffiOperatorNewWithLayers = newFFI(ffiOpts{
+	sym:    "opendal_operator_new_with_layers",
 	rType:  &typeResultOperatorNew,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
-	return func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
-		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
-		normalizedSchemeName := strings.ReplaceAll(scheme.Name(), "_", "-")
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(scheme Scheme, opts *operatorOptions, layers *operatorLayers) (op *opendalOperator, err error) {
+	return func(scheme Scheme, opts *operatorOptions, layers *operatorLayers) (op *opendalOperator, err error) {
 		var byteName *byte
-		byteName, err = BytePtrFromString(normalizedSchemeName)
+		byteName, err = normalizeScheme(scheme)
 		if err != nil {
 			return nil, err
 		}
@@ -116,6 +118,7 @@ var ffiOperatorNew = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&byteName),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&layers),
 		)
 		if result.error != nil {
 			err = parseError(ctx, result.error)

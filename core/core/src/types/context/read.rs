@@ -19,7 +19,7 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use crate::raw::*;
 use crate::*;
@@ -35,7 +35,7 @@ pub struct ReadContext {
     /// Options for the reader.
     options: OpReader,
     /// Complete object metadata observed from successful read opens.
-    metadata: Mutex<Option<Metadata>>,
+    metadata: OnceLock<Metadata>,
 }
 
 impl ReadContext {
@@ -47,7 +47,7 @@ impl ReadContext {
             path,
             args,
             options,
-            metadata: Mutex::new(None),
+            metadata: OnceLock::new(),
         }
     }
 
@@ -78,67 +78,27 @@ impl ReadContext {
     /// Get complete object metadata observed by this reader.
     #[inline]
     pub fn metadata(&self) -> Option<Metadata> {
-        self.metadata
-            .lock()
-            .expect("metadata lock poisoned")
-            .clone()
+        self.metadata.get().cloned()
     }
 
-    /// Update cached object metadata from read response metadata.
-    pub(crate) fn update_metadata(&self, metadata: &Metadata, range: BytesRange) {
-        let Some(metadata) = Self::object_metadata_from_read_metadata(metadata, range) else {
-            return;
-        };
-        *self.metadata.lock().expect("metadata lock poisoned") = Some(metadata);
-    }
-
-    fn object_metadata_from_read_metadata(
-        metadata: &Metadata,
-        range: BytesRange,
-    ) -> Option<Metadata> {
+    /// Set cached object metadata from read response metadata once.
+    pub(crate) fn set_metadata(&self, metadata: &Metadata, range: BytesRange) {
         let content_length = if range.is_full() {
             if !metadata.has_content_length() {
-                return None;
+                return;
             }
             metadata.content_length()
         } else {
-            metadata.content_range().and_then(|range| range.size())?
+            let Some(content_length) = metadata.content_range().and_then(|range| range.size())
+            else {
+                return;
+            };
+            content_length
         };
 
-        let mut object_metadata = Metadata::new(metadata.mode())
-            .with_content_length(content_length)
-            .with_is_current(metadata.is_current());
-        object_metadata.set_is_deleted(metadata.is_deleted());
-
-        if let Some(v) = metadata.cache_control() {
-            object_metadata.set_cache_control(v);
-        }
-        if let Some(v) = metadata.content_md5() {
-            object_metadata.set_content_md5(v);
-        }
-        if let Some(v) = metadata.content_type() {
-            object_metadata.set_content_type(v);
-        }
-        if let Some(v) = metadata.content_encoding() {
-            object_metadata.set_content_encoding(v);
-        }
-        if let Some(v) = metadata.last_modified() {
-            object_metadata.set_last_modified(v);
-        }
-        if let Some(v) = metadata.etag() {
-            object_metadata.set_etag(v);
-        }
-        if let Some(v) = metadata.content_disposition() {
-            object_metadata.set_content_disposition(v);
-        }
-        if let Some(v) = metadata.version() {
-            object_metadata.set_version(v);
-        }
-        if let Some(v) = metadata.user_metadata() {
-            object_metadata = object_metadata.with_user_metadata(v.clone());
-        }
-
-        Some(object_metadata)
+        let mut metadata = metadata.clone();
+        metadata.set_content_length(content_length);
+        let _ = self.metadata.set(metadata);
     }
 
     /// Parse the range bounds into a range.
@@ -251,7 +211,7 @@ impl ReadGenerator {
         let args = self.ctx.args.clone().with_range(range);
         let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         let metadata = rp.into_metadata();
-        self.ctx.update_metadata(&metadata, range);
+        self.ctx.set_metadata(&metadata, range);
         Ok(Some((metadata, r)))
     }
 }

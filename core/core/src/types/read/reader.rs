@@ -478,7 +478,11 @@ mod tests {
 
         let meta = reader.metadata().expect("metadata must be observed");
         assert_eq!(meta.content_length(), 10);
-        assert_eq!(meta.content_range(), None);
+        let range = meta
+            .content_range()
+            .expect("range read must have content range");
+        assert_eq!(range.range(), Some(4..8));
+        assert_eq!(range.size(), Some(10));
 
         Ok(())
     }
@@ -505,7 +509,11 @@ mod tests {
 
         let reader_meta = reader.metadata().expect("reader metadata must be observed");
         assert_eq!(reader_meta.content_length(), 10);
-        assert_eq!(reader_meta.content_range(), None);
+        let range = reader_meta
+            .content_range()
+            .expect("range read must have content range");
+        assert_eq!(range.range(), Some(4..8));
+        assert_eq!(range.size(), Some(10));
 
         Ok(())
     }

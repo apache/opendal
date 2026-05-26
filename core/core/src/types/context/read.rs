@@ -83,9 +83,8 @@ impl ReadContext {
 
     /// Set cached object metadata from read response metadata once.
     pub(crate) fn set_metadata(&self, metadata: &Metadata, range: BytesRange) {
-        let Some(metadata) = metadata.clone().into_object_metadata(range) else {
-            return;
-        };
+        let mut metadata = metadata.clone();
+        metadata.adjust_by_range(range);
         let _ = self.metadata.set(metadata);
     }
 

@@ -101,12 +101,12 @@ var ffiMetaIsFile = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
-		var result uint8
+		var result ffi.Arg
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result == 1
+		return result.Bool()
 	}
 })
 
@@ -116,12 +116,12 @@ var ffiMetaIsDir = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
-		var result uint8
+		var result ffi.Arg
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result == 1
+		return result.Bool()
 	}
 })
 

@@ -224,13 +224,11 @@ pub struct BufferStream {
     state: State,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum State {
-    Idle(Option<BufferStreamReader>),
-    Reading(BufferStreamFuture),
+    Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
+    Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
 }
-
-type BufferStreamReader = Box<TwoWays<StreamingReader, ChunkedReader>>;
-type BufferStreamFuture = BoxedStaticFuture<(BufferStreamReader, Result<Buffer>)>;
 
 impl BufferStream {
     /// Create a new buffer stream with already calculated offset and size.
@@ -247,7 +245,7 @@ impl BufferStream {
         };
 
         Self {
-            state: State::Idle(Some(Box::new(reader))),
+            state: State::Idle(Some(reader)),
         }
     }
 
@@ -267,7 +265,7 @@ impl BufferStream {
         };
 
         Ok(Self {
-            state: State::Idle(Some(Box::new(reader))),
+            state: State::Idle(Some(reader)),
         })
     }
 
@@ -279,7 +277,7 @@ impl BufferStream {
         match &mut self.state {
             State::Idle(reader) => {
                 let reader = reader.as_mut().expect("reader must exist while idle");
-                match reader.as_mut() {
+                match reader {
                     TwoWays::One(v) => v.metadata().await,
                     TwoWays::Two(v) => v.metadata().await,
                 }

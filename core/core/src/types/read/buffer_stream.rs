@@ -35,7 +35,6 @@ use crate::*;
 pub struct StreamingReader {
     generator: ReadGenerator,
     reader: Option<oio::Reader>,
-    metadata: Option<Metadata>,
 }
 
 impl StreamingReader {
@@ -46,33 +45,34 @@ impl StreamingReader {
         Self {
             generator,
             reader: None,
-            metadata: None,
         }
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        if self.metadata.is_none() {
+        if let Some(metadata) = self.metadata_ref() {
+            return Ok(metadata.clone());
+        }
+
+        if self.reader.is_none() {
             self.open().await?;
         }
 
-        self.metadata
-            .as_ref()
+        self.metadata_ref()
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
     }
 
     async fn open(&mut self) -> Result<()> {
-        let Some((metadata, reader)) = self.generator.next_reader().await? else {
+        let Some(reader) = self.generator.next_reader().await? else {
             return Ok(());
         };
 
-        self.metadata = Some(metadata);
         self.reader = Some(reader);
         Ok(())
     }
 
     fn metadata_ref(&self) -> Option<&Metadata> {
-        self.metadata.as_ref()
+        self.generator.metadata()
     }
 }
 
@@ -80,9 +80,6 @@ impl oio::Read for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
-                if self.metadata.is_some() {
-                    return Ok(Buffer::new());
-                }
                 self.open().await?;
             }
 
@@ -115,9 +112,8 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    tasks: ConcurrentTasks<ChunkedReadInput, (Metadata, Buffer)>,
+    tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     pending: Option<Buffer>,
-    metadata: Option<Metadata>,
     done: bool,
 }
 
@@ -138,8 +134,10 @@ impl ChunkedReader {
                     let result = async {
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
                         let metadata = rp.into_metadata();
-                        let buffer = r.read_all().await?;
-                        Ok((metadata, buffer))
+                        if input.ctx.metadata().is_none() {
+                            input.ctx.set_metadata(metadata);
+                        }
+                        r.read_all().await
                     }
                     .await;
                     (input, result)
@@ -152,17 +150,16 @@ impl ChunkedReader {
             remaining: range.size(),
             tasks,
             pending: None,
-            metadata: None,
             done: false,
         }
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.metadata.as_ref() {
+        if let Some(metadata) = self.metadata_ref() {
             return Ok(metadata.clone());
         }
 
-        let Some((metadata, buffer)) = self.next_output().await? else {
+        let Some(buffer) = self.next_output().await? else {
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "read stream doesn't have metadata before opening a reader",
@@ -170,25 +167,16 @@ impl ChunkedReader {
         };
 
         self.pending = Some(buffer);
-        self.set_metadata(metadata);
-        self.metadata
-            .as_ref()
+        self.metadata_ref()
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
     }
 
     fn metadata_ref(&self) -> Option<&Metadata> {
-        self.metadata.as_ref()
+        self.ctx.metadata()
     }
 
-    fn set_metadata(&mut self, metadata: Metadata) {
-        if self.metadata.is_none() {
-            self.ctx.set_metadata(metadata.clone());
-            self.metadata = Some(metadata);
-        }
-    }
-
-    async fn next_output(&mut self) -> Result<Option<(Metadata, Buffer)>> {
+    async fn next_output(&mut self) -> Result<Option<Buffer>> {
         while self.tasks.has_remaining() && !self.done {
             if let Some(range) = self.next_range() {
                 self.tasks
@@ -243,11 +231,10 @@ impl oio::Read for ChunkedReader {
             return Ok(buffer);
         }
 
-        let Some((metadata, buffer)) = self.next_output().await? else {
+        let Some(buffer) = self.next_output().await? else {
             return Ok(Buffer::new());
         };
 
-        self.set_metadata(metadata);
         Ok(buffer)
     }
 }
@@ -264,7 +251,6 @@ pub struct BufferStream {
     ///   data in streaming way.
     /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
     state: State,
-    metadata: Option<Metadata>,
     pending: Option<Result<Buffer>>,
 }
 
@@ -290,7 +276,6 @@ impl BufferStream {
 
         Self {
             state: State::Idle(Some(reader)),
-            metadata: None,
             pending: None,
         }
     }
@@ -312,7 +297,6 @@ impl BufferStream {
 
         Ok(Self {
             state: State::Idle(Some(reader)),
-            metadata: None,
             pending: None,
         })
     }
@@ -323,41 +307,35 @@ impl BufferStream {
     /// Chunked reads may read and buffer the first chunk so following stream
     /// polling can reuse it.
     pub async fn metadata(&mut self) -> Result<Metadata> {
-        loop {
-            if let Some(metadata) = self.metadata.as_ref() {
-                return Ok(metadata.clone());
+        match std::mem::replace(&mut self.state, State::Idle(None)) {
+            State::Idle(reader) => {
+                let mut reader = reader.expect("reader must exist while idle");
+                let result = match &mut reader {
+                    TwoWays::One(v) => v.metadata().await,
+                    TwoWays::Two(v) => v.metadata().await,
+                };
+                self.state = State::Idle(Some(reader));
+                result
             }
+            State::Reading(fut) => {
+                let (reader, result) = fut.await;
 
-            match std::mem::replace(&mut self.state, State::Idle(None)) {
-                State::Idle(reader) => {
-                    let mut reader = reader.expect("reader must exist while idle");
-                    let result = match &mut reader {
-                        TwoWays::One(v) => v.metadata().await,
-                        TwoWays::Two(v) => v.metadata().await,
-                    };
-                    self.state = State::Idle(Some(reader));
+                let metadata = match &reader {
+                    TwoWays::One(v) => v.metadata_ref().cloned(),
+                    TwoWays::Two(v) => v.metadata_ref().cloned(),
+                };
+                self.state = State::Idle(Some(reader));
 
-                    self.metadata = Some(result?);
-                }
-                State::Reading(fut) => {
-                    let (reader, result) = fut.await;
-
-                    self.metadata = match &reader {
-                        TwoWays::One(v) => v.metadata_ref().cloned(),
-                        TwoWays::Two(v) => v.metadata_ref().cloned(),
-                    };
-                    self.state = State::Idle(Some(reader));
-
-                    if self.metadata.is_some() {
-                        self.pending = Some(result);
-                    } else {
-                        self.pending = None;
-                        result?;
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            "read stream metadata is not set",
-                        ));
-                    }
+                if let Some(metadata) = metadata {
+                    self.pending = Some(result);
+                    Ok(metadata)
+                } else {
+                    self.pending = None;
+                    result?;
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "read stream metadata is not set",
+                    ))
                 }
             }
         }
@@ -390,12 +368,6 @@ impl Stream for BufferStream {
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
                     let (reader, buf) = ready!(fut.poll(cx));
-                    if this.metadata.is_none() {
-                        this.metadata = match &reader {
-                            TwoWays::One(v) => v.metadata_ref().cloned(),
-                            TwoWays::Two(v) => v.metadata_ref().cloned(),
-                        };
-                    }
                     this.state = State::Idle(Some(reader));
                     return match buf {
                         Ok(buf) if buf.is_empty() => Poll::Ready(None),

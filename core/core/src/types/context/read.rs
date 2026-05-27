@@ -188,7 +188,7 @@ impl ReadGenerator {
     }
 
     /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<(Metadata, oio::Reader)>> {
+    pub async fn next_reader(&mut self) -> Result<Option<oio::Reader>> {
         let Some(range) = self.next_range() else {
             return Ok(None);
         };
@@ -197,9 +197,14 @@ impl ReadGenerator {
         let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         let metadata = rp.into_metadata();
         if self.ctx.metadata().is_none() {
-            self.ctx.set_metadata(metadata.clone());
+            self.ctx.set_metadata(metadata);
         }
-        Ok(Some((metadata, r)))
+        Ok(Some(r))
+    }
+
+    /// Get metadata observed by generated readers.
+    pub(crate) fn metadata(&self) -> Option<&Metadata> {
+        self.ctx.metadata()
     }
 }
 
@@ -227,7 +232,7 @@ mod tests {
         ));
         let mut generator = ReadGenerator::new(ctx, 0, Some(10));
         let mut readers = vec![];
-        while let Some((_, r)) = generator.next_reader().await? {
+        while let Some(r) = generator.next_reader().await? {
             readers.push(r);
         }
 
@@ -253,7 +258,7 @@ mod tests {
         ));
         let mut generator = ReadGenerator::new(ctx, 0, None);
         let mut readers = vec![];
-        while let Some((_, r)) = generator.next_reader().await? {
+        while let Some(r) = generator.next_reader().await? {
             readers.push(r);
         }
 

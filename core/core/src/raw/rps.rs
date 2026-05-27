@@ -98,18 +98,10 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 
 /// Reply for `read` operation.
 ///
-/// `RpRead` carries metadata for the read response opened by this operation.
-/// The metadata describes the returned reader body instead of the object in
-/// general.
-///
-/// - `metadata.content_length()` is the payload length of this read response.
-///   For a range read, this is the range payload length.
-/// - `metadata.content_range()` is set when the read response describes a
-///   ranged body. Its range is the returned byte range, and its size is the
-///   full object size if the backend provides it.
-/// - Full object metadata can be derived from read metadata by callers that
-///   understand the requested range. For full reads, the object size is
-///   `content_length`; for ranged reads, it is `content_range().and_then(|v| v.size())`.
+/// `RpRead` carries metadata observed while opening this read operation.
+/// The metadata describes the object being read. In particular,
+/// `metadata.content_length()` is the full object size, even if this read only
+/// returns a range of the object.
 #[derive(Debug, Clone)]
 pub struct RpRead {
     metadata: Metadata,

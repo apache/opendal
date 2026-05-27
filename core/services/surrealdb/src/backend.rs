@@ -271,17 +271,7 @@ impl Access for SurrealdbBackend {
             }
         };
         let content = bs.slice(args.range().to_range_as_usize());
-        let mut metadata = Metadata::new(EntryMode::FILE).with_content_length(content.len() as u64);
-        if !args.range().is_full() && !content.is_empty() {
-            metadata.set_content_range(
-                BytesContentRange::default()
-                    .with_range(
-                        args.range().offset(),
-                        args.range().offset() + content.len() as u64 - 1,
-                    )
-                    .with_size(bs.len() as u64),
-            );
-        }
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
         Ok((RpRead::new(metadata), content))
     }
 

@@ -231,15 +231,7 @@ impl Access for GhacBackend {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                // Correct content length via returning content range.
-                meta.set_content_length(
-                    meta.content_range()
-                        .expect("content range must be valid")
-                        .size()
-                        .expect("content range must contains size"),
-                );
-
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),

@@ -456,14 +456,7 @@ impl Access for CloudflareKvBackend {
             };
             resp_body.slice(start..end.min(resp_body.len()))
         };
-        let mut metadata = Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as u64);
-        if !range.is_full() && !buffer.is_empty() {
-            metadata.set_content_range(
-                BytesContentRange::default()
-                    .with_range(range.offset(), range.offset() + buffer.len() as u64 - 1)
-                    .with_size(total_size),
-            );
-        }
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
         Ok((RpRead::new(metadata), buffer))
     }
 

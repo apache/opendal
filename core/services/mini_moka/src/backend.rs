@@ -216,18 +216,7 @@ impl Access for MiniMokaBackend {
                     (offset + s).min(value.content.len())
                 });
                 let sliced_content = value.content.slice(offset..end);
-                let mut metadata =
-                    Metadata::new(EntryMode::FILE).with_content_length(sliced_content.len() as u64);
-                if !sliced_content.is_empty() {
-                    metadata.set_content_range(
-                        BytesContentRange::default()
-                            .with_range(
-                                range.offset(),
-                                range.offset() + sliced_content.len() as u64 - 1,
-                            )
-                            .with_size(total_size),
-                    );
-                }
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
                 Ok((RpRead::new(metadata), sliced_content))
             }

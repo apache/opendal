@@ -112,19 +112,9 @@ impl HfReader {
         stream.start();
 
         let total_size = file_info.file_size.unwrap_or_default();
-        let content_length = range
-            .size()
-            .unwrap_or_else(|| total_size.saturating_sub(range.offset()));
-        let mut metadata = Metadata::new(EntryMode::FILE)
-            .with_content_length(content_length)
+        let metadata = Metadata::new(EntryMode::FILE)
+            .with_content_length(total_size)
             .with_etag(file_info.hash().to_string());
-        if !range.is_full() && content_length > 0 {
-            metadata.set_content_range(
-                BytesContentRange::default()
-                    .with_range(range.offset(), range.offset() + content_length - 1)
-                    .with_size(total_size),
-            );
-        }
 
         Ok((metadata, Self::Xet(stream)))
     }

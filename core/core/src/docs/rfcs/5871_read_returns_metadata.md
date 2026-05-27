@@ -15,7 +15,7 @@ Read metadata is bound to a concrete read stream. Calling `metadata().await` on 
 
 Today, users who need metadata while reading must issue an additional `stat()` request. This is inefficient for services that already return useful metadata from their read APIs, such as S3 `GetObject`, GCS object download, and Azure Blob download. It can also observe a different object version if the object changes between read and stat.
 
-This is especially important for adapters such as `object_store_opendal`. `object_store::GetResult` must contain `ObjectMeta`, returned range, attributes, and a streaming payload at the time `get_opts()` returns. A stat-first implementation can satisfy that contract, but it adds an extra request before every ranged read. OpenDAL should expose read response metadata through its public API so these adapters can construct their result without issuing a redundant `stat`.
+This is especially important for adapters such as `object_store_opendal`. `object_store::GetResult` must contain `ObjectMeta`, returned range, attributes, and a streaming payload at the time `get_opts()` returns. A stat-first implementation can satisfy that contract, but it adds an extra request before every ranged read. OpenDAL should expose read-open object metadata through its public API so these adapters can construct their result without issuing a redundant `stat`.
 
 # Guide-level explanation
 
@@ -79,17 +79,12 @@ Semantics:
 
 - It never performs I/O.
 - It initially returns `None`.
-- It returns object metadata, not read response metadata.
+- It returns object metadata.
 - Its `content_length` is always the full object size.
-- Its `content_range` is always `None`.
-- It is updated only when a read response can be normalized into complete object metadata.
-- If several reads are opened by the same reader, the cache stores the latest complete object metadata observed by those reads.
+- It is updated from metadata returned by successful read opens.
+- If several reads are opened by the same reader, the cache stores the first object metadata observed by those reads.
 
-For a full read response, the object size is `read_metadata.content_length()`.
-
-For a ranged read response, the object size is `read_metadata.content_range().and_then(|v| v.size())`. If the ranged response does not provide the full object size, `Reader::metadata()` must not be updated from that response.
-
-This API is an ergonomic cache for users who read through `Reader::read(...)` and then want the complete object metadata observed along the way. It is not the API adapters should use when metadata must be tied to a concrete streaming payload.
+This API is an ergonomic cache for users who read through `Reader::read(...)` and then want the complete object metadata observed along the way.
 
 ## Stream API
 
@@ -107,14 +102,13 @@ impl FuturesBytesStream {
 
 Semantics:
 
-- The returned metadata describes this concrete stream and its requested range.
+- The returned metadata describes the object being read.
+- Its `content_length` is always the full object size, even for ranged reads.
 - The first `metadata().await` call prepares the stream by opening the underlying read request.
 - The stream stores the returned `raw::RpRead::metadata` and the returned `oio::Reader`.
 - Later `metadata().await` calls return the cached metadata.
 - Later `poll_next` calls consume the cached reader and must not open the same read request again.
 - `metadata().await` does not read the response body. It only opens the read and observes response metadata.
-
-The stream metadata describes the read response. For ranged reads, its `content_length` is the payload length and its `content_range` carries the range and full object size when available.
 
 ## Changes to `raw::RpRead`
 
@@ -134,61 +128,26 @@ impl RpRead {
 }
 ```
 
-`RpRead::size()` and `RpRead::range()` should be removed. Their meanings overlap with `Metadata::content_length()` and `Metadata::content_range()`, and keeping two parallel surfaces would make the range-read semantics ambiguous.
+`RpRead::size()` and `RpRead::range()` should be removed. Metadata should expose object metadata only; returned ranges are derived from the read request and the object size.
 
-Callers that need the payload size should use:
+Callers that need the object size should use:
 
 ```rust,ignore
 rp.metadata().content_length()
 ```
 
-Callers that need the read range or full object size for a ranged read should use:
-
-```rust,ignore
-let range = rp.metadata().content_range();
-let object_size = range.and_then(|v| v.size());
-```
-
 ## `content_length` Semantics
 
-`Metadata::content_length` should describe the body length of the entity represented by this metadata.
-
-For stat and list metadata, the represented entity is the object:
+`Metadata::content_length` always describes the full object size.
 
 ```text
 content_length = full object size
-content_range  = None
 ```
 
-For read metadata, the represented entity is the read response:
+For example, reading `1024..2048` from a 10 MiB object should still produce:
 
 ```text
-content_length = read response payload length
-content_range  = read response range within the full object
-```
-
-For example, reading `1024..2048` from a 10 MiB object should produce:
-
-```text
-content_length = 1024
-content_range  = bytes 1024-2047/10485760
-```
-
-The full object size for a ranged read is available from `content_range.size()`, not from `content_length`.
-
-When updating `Reader::metadata()` from read metadata, OpenDAL must normalize the read response metadata into object metadata:
-
-```text
-full read metadata:
-  reader.content_length = read.content_length
-  reader.content_range  = None
-
-range read metadata with total object size:
-  reader.content_length = read.content_range.size
-  reader.content_range  = None
-
-range read metadata without total object size:
-  reader metadata is not updated
+content_length = 10485760
 ```
 
 HTTP response mapping:
@@ -196,22 +155,18 @@ HTTP response mapping:
 ```text
 HTTP 200 + Content-Length: N
   -> content_length = N
-  -> content_range = None
 
 HTTP 206 + Content-Range: bytes start-end/total
-  -> content_length = end - start + 1
-  -> content_range = start..end/total
+  -> content_length = total
 
 HTTP 206 + Content-Range: bytes start-end/*
-  -> content_length = end - start + 1
-  -> content_range = start..end/*
+  -> content_length cannot be derived from the response alone
 
 HTTP 206 + Content-Length: M, no Content-Range
-  -> content_length = M
-  -> content_range = None
+  -> content_length cannot be derived from the response alone
 ```
 
-Adapters that need full object size, such as `object_store_opendal`, must read it from `content_range.size()` for ranged reads and fall back to `content_length()` for full reads.
+Backends must not expose HTTP `Content-Range` through public `Metadata`. They may parse it internally to populate the full object size.
 
 ## Implementation Details
 
@@ -220,8 +175,7 @@ Backends must return metadata for every successful read open.
 For services that return metadata in read responses:
 
 - Capture metadata from the read response.
-- Populate `content_length` according to the read response payload length.
-- Populate `content_range` when the response provides a valid content range.
+- Populate `content_length` with the full object size. HTTP services may derive it from `Content-Length` for full responses or from `Content-Range` for ranged responses.
 - Populate fields such as `content_type`, `etag`, `version`, `last_modified`, and user metadata when available from the response.
 
 For services whose read primitive does not naturally return metadata:
@@ -241,7 +195,7 @@ metadata().await
   -> prepare/open if needed
   -> accessor.read(path, args_with_range).await
   -> cache RpRead.metadata
-  -> update Reader metadata cache if complete object metadata can be derived
+  -> update Reader metadata cache
   -> cache returned oio::Reader
   -> return cached metadata
 
@@ -252,7 +206,7 @@ poll_next()
 
 For non-chunked streaming reads, one stream maps to one underlying `accessor.read`.
 
-For chunked or concurrent reads, a single physical read response may only describe one chunk. If metadata is exposed for a logical chunked stream, the stream layer must synthesize logical stream metadata from the requested range and the observed object size. Paths that need exact metadata before returning a streaming payload can choose the non-chunked stream path.
+For chunked or concurrent reads, a single physical read response may only return one chunk body, but its metadata still describes the full object.
 
 ## `object_store_opendal` Integration
 
@@ -270,21 +224,16 @@ let reader = self.inner.reader_with(&raw_location)
 let mut stream = reader.into_bytes_stream(read_range.clone()).await?;
 let meta = stream.metadata().await?;
 
-let object_size = meta
-    .content_range()
-    .and_then(|v| v.size())
-    .unwrap_or_else(|| meta.content_length());
-
 let result = GetResult {
     payload: GetResultPayload::Stream(Box::pin(stream.map_err(...))),
     meta: ObjectMeta {
         location: location.clone(),
         last_modified: meta.last_modified().and_then(timestamp_to_datetime).unwrap_or_default(),
-        size: object_size,
+        size: meta.content_length(),
         e_tag: meta.etag().map(ToString::to_string),
         version: meta.version().map(ToString::to_string),
     },
-    range: build_returned_range(&meta, read_range),
+    range: build_returned_range(read_range, meta.content_length()),
     attributes: build_attributes(&meta),
 };
 ```
@@ -301,16 +250,14 @@ Cases that still need stat-first behavior:
 - `RpRead` becomes a stronger backend contract: successful read open must return metadata.
 - Some backends will need extra work during read open to obtain size or status.
 - Stream implementations become more complex because they need a reusable prepare/open state.
-- `Metadata::content_length` becomes operation-scoped: it describes object size for stat/list metadata and response payload length for read metadata. This must be documented clearly.
-- There are two public metadata views: stream metadata describes a read response, while reader metadata describes the complete object metadata cache.
 
 # Rationale and alternatives
 
-This design keeps existing `Reader::read()` and `Operator::read()` return types unchanged. Users can opt into exact read response metadata by working with read streams, or inspect the complete object metadata already observed by `Reader`.
+This design keeps existing `Reader::read()` and `Operator::read()` return types unchanged. Users can opt into read-open metadata by working with read streams, or inspect the complete object metadata already observed by `Reader`.
 
-Using `Reader::metadata()` as the only metadata API is not enough: it is not tied to a concrete range and cannot satisfy APIs that must return metadata before handing out a streaming payload. Another alternative is returning a new `ReadResult` carrier from read APIs, but that would be a broader public API change and would duplicate the existing stream abstraction.
+Using `Reader::metadata()` as the only metadata API is not enough: it is not tied to a concrete read open and cannot satisfy APIs that must return metadata before handing out a streaming payload. Another alternative is returning a new `ReadResult` carrier from read APIs, but that would be a broader public API change and would duplicate the existing stream abstraction.
 
-Removing `RpRead::size()` and `RpRead::range()` avoids a second metadata surface. Payload length is represented by `metadata.content_length()`, and range information is represented by `metadata.content_range()`.
+Removing `RpRead::size()` and `RpRead::range()` avoids a second metadata surface. Object size is represented by `metadata.content_length()`, and returned range information is derived from the read request.
 
 # Prior art
 

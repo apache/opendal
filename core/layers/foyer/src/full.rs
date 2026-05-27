@@ -23,7 +23,6 @@ use opendal_core::Error;
 use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::Access;
-use opendal_core::raw::BytesContentRange;
 use opendal_core::raw::BytesRange;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
@@ -126,14 +125,9 @@ impl<A: Access> FullReader<A> {
         match result {
             Ok(entry) => {
                 let end = range_end.unwrap_or(entry.len() as u64);
-                let range = BytesContentRange::default()
-                    .with_range(range_start, end - 1)
-                    .with_size(entry.len() as _);
                 let buffer = entry.slice(range_start as usize..end as usize);
                 let rp = RpRead::new(
-                    Metadata::new(EntryMode::FILE)
-                        .with_content_length(buffer.len() as _)
-                        .with_content_range(range),
+                    Metadata::new(EntryMode::FILE).with_content_length(entry.len() as _),
                 );
                 Ok((rp, buffer))
             }

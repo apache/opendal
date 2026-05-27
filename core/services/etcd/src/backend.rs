@@ -288,18 +288,7 @@ impl Access for EtcdBackend {
                 let size = range.size().map(|s| s as usize);
                 let end = size.map_or(buffer.len(), |s| (offset + s).min(buffer.len()));
                 let sliced_buffer = buffer.slice(offset..end);
-                let mut metadata =
-                    Metadata::new(EntryMode::FILE).with_content_length(sliced_buffer.len() as u64);
-                if !sliced_buffer.is_empty() {
-                    metadata.set_content_range(
-                        BytesContentRange::default()
-                            .with_range(
-                                range.offset(),
-                                range.offset() + sliced_buffer.len() as u64 - 1,
-                            )
-                            .with_size(total_size),
-                    );
-                }
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
                 Ok((RpRead::new(metadata), sliced_buffer))
             }

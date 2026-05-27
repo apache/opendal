@@ -81,9 +81,8 @@ impl ReadContext {
         self.metadata.get()
     }
 
-    /// Set cached object metadata from read response metadata once.
-    pub(crate) fn set_metadata(&self, mut metadata: Metadata, range: BytesRange) {
-        metadata.adjust_by_range(range);
+    /// Set cached object metadata observed from successful read opens once.
+    pub(crate) fn set_metadata(&self, metadata: Metadata) {
         let _ = self.metadata.set(metadata);
     }
 
@@ -197,7 +196,7 @@ impl ReadGenerator {
         let args = self.ctx.args.clone().with_range(range);
         let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
         let metadata = rp.into_metadata();
-        self.ctx.set_metadata(metadata.clone(), range);
+        self.ctx.set_metadata(metadata.clone());
         Ok(Some((metadata, r)))
     }
 }

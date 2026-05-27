@@ -159,18 +159,7 @@ impl Access for DashmapBackend {
                     };
                     value.content.slice(start..end.min(value.content.len()))
                 };
-                let mut metadata =
-                    Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as u64);
-                if !args.range().is_full() && !buffer.is_empty() {
-                    metadata.set_content_range(
-                        BytesContentRange::default()
-                            .with_range(
-                                args.range().offset(),
-                                args.range().offset() + buffer.len() as u64 - 1,
-                            )
-                            .with_size(total_size),
-                    );
-                }
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
                 Ok((RpRead::new(metadata), buffer))
             }
             None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),

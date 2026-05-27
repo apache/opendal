@@ -133,7 +133,7 @@ impl ChunkedReader {
                     let result = async {
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
                         let metadata = rp.into_metadata();
-                        input.ctx.set_metadata(metadata.clone(), input.range);
+                        input.ctx.set_metadata(metadata.clone());
                         let buffer = r.read_all().await?;
                         Ok((metadata, buffer))
                     }

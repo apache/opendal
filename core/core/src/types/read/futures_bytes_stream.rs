@@ -58,8 +58,7 @@ impl FuturesBytesStream {
     /// Get metadata for this stream.
     ///
     /// Calling this method opens the underlying read request if needed.
-    /// Chunked reads may read and buffer the first chunk so following stream
-    /// polling can reuse it.
+    /// Chunked reads wait until one chunk read has opened and observed metadata.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         self.stream.metadata().await
     }

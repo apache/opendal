@@ -21,6 +21,8 @@ use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+use mea::latch::Latch;
+
 use crate::raw::*;
 use crate::*;
 
@@ -36,6 +38,8 @@ pub struct ReadContext {
     options: OpReader,
     /// Complete object metadata observed from successful read opens.
     metadata: OnceLock<Metadata>,
+    /// Signal that a read-open metadata attempt has finished.
+    metadata_ready: Latch,
 }
 
 impl ReadContext {
@@ -48,6 +52,7 @@ impl ReadContext {
             args,
             options,
             metadata: OnceLock::new(),
+            metadata_ready: Latch::new(1),
         }
     }
 
@@ -84,6 +89,22 @@ impl ReadContext {
     /// Set cached object metadata observed from successful read opens once.
     pub(crate) fn set_metadata(&self, metadata: Metadata) {
         let _ = self.metadata.set(metadata);
+        self.metadata_ready.count_down();
+    }
+
+    /// Notify waiters that a read-open metadata attempt has finished.
+    pub(crate) fn finish_metadata_attempt(&self) {
+        self.metadata_ready.count_down();
+    }
+
+    /// Wait for metadata observed from successful read opens.
+    pub(crate) async fn wait_metadata(&self) -> Option<&Metadata> {
+        if let Some(metadata) = self.metadata() {
+            return Some(metadata);
+        }
+
+        self.metadata_ready.wait().await;
+        self.metadata()
     }
 
     /// Parse the range bounds into a range.

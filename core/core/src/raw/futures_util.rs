@@ -202,6 +202,12 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         !self.results.is_empty()
     }
 
+    /// Return true if there are no running tasks or buffered results.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.tasks.is_empty() && self.results.is_empty()
+    }
+
     /// Create a task with given input.
     pub fn create_task(&self, input: I) -> Task<(I, Result<O>)> {
         let completed = self.completed_but_unretrieved.clone();
@@ -211,6 +217,25 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         });
 
         self.executor.execute(fut)
+    }
+
+    /// Try to execute the task with given input without waiting for running tasks.
+    ///
+    /// Returns `Ok(false)` if there is no remaining capacity to schedule this task.
+    pub fn try_execute(&mut self, input: I) -> Result<bool> {
+        if self.errored {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "concurrent tasks met an unrecoverable error",
+            ));
+        }
+
+        if !self.has_remaining() {
+            return Ok(false);
+        }
+
+        self.tasks.push_back(self.create_task(input));
+        Ok(true)
     }
 
     /// Execute the task with given input.

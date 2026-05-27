@@ -121,7 +121,14 @@ impl ChunkedReader {
                 Box::pin(async move {
                     let args = input.ctx.args().clone().with_range(input.range);
                     let result = async {
-                        let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
+                        let (rp, mut r) =
+                            match input.ctx.accessor().read(input.ctx.path(), args).await {
+                                Ok(v) => v,
+                                Err(err) => {
+                                    input.ctx.finish_metadata_attempt();
+                                    return Err(err);
+                                }
+                            };
                         let metadata = rp.into_metadata();
                         if input.ctx.metadata().is_none() {
                             input.ctx.set_metadata(metadata);
@@ -139,6 +146,45 @@ impl ChunkedReader {
             remaining: range.size(),
             tasks,
             done: false,
+        }
+    }
+
+    async fn metadata(&mut self) -> Result<Metadata> {
+        if let Some(metadata) = self.ctx.metadata() {
+            return Ok(metadata.clone());
+        }
+
+        let mut scheduled = false;
+        if self.tasks.has_remaining() && !self.done {
+            if let Some(range) = self.next_range() {
+                scheduled = self.tasks.try_execute(ChunkedReadInput {
+                    ctx: self.ctx.clone(),
+                    range,
+                })?;
+            } else {
+                self.done = true;
+            }
+        }
+
+        if !scheduled && self.tasks.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "read stream doesn't have metadata before opening a reader",
+            ));
+        }
+
+        if let Some(metadata) = self.ctx.wait_metadata().await {
+            return Ok(metadata.clone());
+        }
+
+        match self.tasks.next().await.transpose()? {
+            Some(_) => self.ctx.metadata().cloned().ok_or_else(|| {
+                Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
+            }),
+            None => Err(Error::new(
+                ErrorKind::Unexpected,
+                "read stream doesn't have metadata before opening a reader",
+            )),
         }
     }
 
@@ -262,26 +308,14 @@ impl BufferStream {
     /// Get metadata for this stream.
     ///
     /// Calling this method opens the underlying read request if needed.
-    /// Chunked reads may read and buffer the first chunk so following stream
-    /// polling can reuse it.
+    /// Chunked reads wait until one chunk read has opened and observed metadata.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         match std::mem::replace(&mut self.state, State::Idle(None)) {
             State::Idle(reader) => {
                 let mut reader = reader.expect("reader must exist while idle");
                 let result = match &mut reader {
                     TwoWays::One(v) => v.metadata().await,
-                    TwoWays::Two(v) => {
-                        if let Some(metadata) = v.ctx.metadata() {
-                            Ok(metadata.clone())
-                        } else {
-                            let buffer = v.read().await?;
-                            let metadata = v.ctx.metadata().cloned().ok_or_else(|| {
-                                Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
-                            })?;
-                            self.pending = Some(Ok(buffer));
-                            Ok(metadata)
-                        }
-                    }
+                    TwoWays::Two(v) => v.metadata().await,
                 };
                 self.state = State::Idle(Some(reader));
                 result

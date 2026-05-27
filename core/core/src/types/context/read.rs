@@ -195,8 +195,9 @@ impl ReadGenerator {
 
         let args = self.ctx.args.clone().with_range(range);
         let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
-        let metadata = rp.into_metadata();
-        if self.ctx.metadata().is_none() {
+        if let Some(metadata) = rp.into_metadata()
+            && self.ctx.metadata().is_none()
+        {
             self.ctx.set_metadata(metadata);
         }
         Ok(Some(r))

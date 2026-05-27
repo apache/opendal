@@ -108,7 +108,8 @@ impl Reader {
     /// Get complete object metadata observed by this reader.
     ///
     /// This method doesn't perform I/O. It returns `None` if no read has
-    /// observed complete object metadata yet.
+    /// observed complete object metadata yet, or if the underlying service
+    /// doesn't return metadata while opening read operations.
     pub fn metadata(&self) -> Option<&Metadata> {
         self.ctx.metadata()
     }

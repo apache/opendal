@@ -108,18 +108,7 @@ impl Access for OpfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.core.root, path);
         let handle = get_file_handle(&p, false).await?;
-        let file: File = JsFuture::from(handle.get_file())
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
-
-        let mut meta = Metadata::new(EntryMode::FILE);
-        meta.set_content_length(file.size() as u64);
-        if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
-            meta.set_last_modified(t);
-        }
-
-        Ok((RpRead::new(meta), OpfsReader::new(handle, args.range())))
+        Ok((RpRead::default(), OpfsReader::new(handle, args.range())))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

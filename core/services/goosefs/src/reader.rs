@@ -72,7 +72,7 @@ pub struct GoosefsReader {
     core: Arc<GoosefsCore>,
     path: String,
     args: OpRead,
-    content_length: u64,
+    content_length: Option<u64>,
     /// Lazily-opened SDK reader. `None` until the first `read()` call.
     inner: Option<SdkReader>,
     /// Terminal flag: once the underlying stream has returned `None`,
@@ -83,7 +83,12 @@ pub struct GoosefsReader {
 }
 
 impl GoosefsReader {
-    pub fn new(core: Arc<GoosefsCore>, path: String, args: OpRead, content_length: u64) -> Self {
+    pub fn new(
+        core: Arc<GoosefsCore>,
+        path: String,
+        args: OpRead,
+        content_length: Option<u64>,
+    ) -> Self {
         GoosefsReader {
             core,
             path,
@@ -112,7 +117,13 @@ impl GoosefsReader {
             (0, None) => self.core.open_reader(&self.path).await,
             (off, Some(len)) => self.core.open_range_reader(&self.path, off, len).await,
             (off, None) => {
-                let len = self.content_length.saturating_sub(off);
+                let content_length = self.content_length.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "content length must be known for offset reads",
+                    )
+                })?;
+                let len = content_length.saturating_sub(off);
                 if len == 0 {
                     // Empty tail — short-circuit with a zero-length
                     // ranged open so the very next `read_next_block`

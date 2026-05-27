@@ -98,28 +98,30 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 
 /// Reply for `read` operation.
 ///
-/// `RpRead` carries metadata observed while opening this read operation.
-/// The metadata describes the object being read. In particular,
-/// `metadata.content_length()` is the full object size, even if this read only
-/// returns a range of the object.
-#[derive(Debug, Clone)]
+/// `RpRead` can carry metadata observed while opening this read operation.
+/// Services should set it only when the metadata is returned natively by the
+/// read operation. In particular, `metadata.content_length()` is the full
+/// object size, even if this read only returns a range of the object.
+#[derive(Debug, Clone, Default)]
 pub struct RpRead {
-    metadata: Metadata,
+    metadata: Option<Metadata>,
 }
 
 impl RpRead {
     /// Create a new reply for `read`.
     pub fn new(metadata: Metadata) -> Self {
-        RpRead { metadata }
+        Self {
+            metadata: Some(metadata),
+        }
     }
 
     /// Get metadata returned by this read operation.
-    pub fn metadata(&self) -> &Metadata {
-        &self.metadata
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.as_ref()
     }
 
     /// Consume RpRead to get the inner metadata.
-    pub fn into_metadata(self) -> Metadata {
+    pub fn into_metadata(self) -> Option<Metadata> {
         self.metadata
     }
 }

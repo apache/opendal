@@ -245,14 +245,9 @@ impl Access for FtpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-        let content_length = ftp_stream.size(path).await.map_err(format_ftp_error)? as u64;
-
+        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
         let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
-        Ok((
-            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
-            reader,
-        ))
+        Ok((RpRead::default(), reader))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

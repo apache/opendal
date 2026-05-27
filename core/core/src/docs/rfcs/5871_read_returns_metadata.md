@@ -5,9 +5,9 @@
 
 # Summary
 
-Expose the metadata returned by read operations without requiring users or adapters to issue a separate `stat` request.
+Expose metadata returned natively by read operations without requiring users or adapters to issue a separate `stat` request.
 
-Read metadata is bound to a concrete read stream. Calling `metadata().await` on the stream opens the underlying read request, stores the returned metadata and reader, and lets subsequent stream consumption reuse the same reader.
+Read metadata is bound to a concrete read stream. Calling `metadata().await` on the stream opens the underlying read request, stores the returned reader, and caches metadata if the service returned it. Subsequent stream consumption reuses the same reader.
 
 `Reader` also maintains a best-effort cache of complete object metadata that has been observed from successful read opens.
 
@@ -15,7 +15,9 @@ Read metadata is bound to a concrete read stream. Calling `metadata().await` on 
 
 Today, users who need metadata while reading must issue an additional `stat()` request. This is inefficient for services that already return useful metadata from their read APIs, such as S3 `GetObject`, GCS object download, and Azure Blob download. It can also observe a different object version if the object changes between read and stat.
 
-This is especially important for adapters such as `object_store_opendal`. `object_store::GetResult` must contain `ObjectMeta`, returned range, attributes, and a streaming payload at the time `get_opts()` returns. A stat-first implementation can satisfy that contract, but it adds an extra request before every ranged read. OpenDAL should expose read-open object metadata through its public API so these adapters can construct their result without issuing a redundant `stat`.
+However, not every service can return metadata as part of read open. Forcing those services to call `stat`, `size`, or `metadata` internally would move the extra request into OpenDAL's core read path and make normal reads more expensive.
+
+This is especially important for adapters such as `object_store_opendal`. `object_store::GetResult` must contain `ObjectMeta`, returned range, attributes, and a streaming payload at the time `get_opts()` returns. A stat-first implementation can satisfy that contract, but it adds an extra request before every ranged read. OpenDAL should expose read-open object metadata when it is available, so these adapters can avoid redundant `stat` on metadata-capable services while preserving the existing fallback for other services.
 
 # Guide-level explanation
 
@@ -44,7 +46,9 @@ if let Some(etag) = meta.etag() {
 let data = stream.try_collect::<Vec<_>>().await?;
 ```
 
-`metadata().await` opens the read request if it has not been opened yet. The stream caches both the metadata and the underlying reader, so consuming the stream afterwards does not open a second read request.
+`metadata().await` opens the read request if it has not been opened yet. If the underlying service returns metadata while opening the read, the stream caches both the metadata and the underlying reader, so consuming the stream afterwards does not open a second read request.
+
+If the service does not return metadata while opening the read, `metadata().await` returns `ErrorKind::Unsupported`. The opened reader is still reused by later stream consumption.
 
 If users do not call `metadata().await`, streams keep their existing lazy behavior: the underlying read request is opened when the stream is first polled.
 
@@ -59,7 +63,7 @@ if let Some(meta) = reader.metadata() {
 }
 ```
 
-`Reader::metadata()` does not perform I/O. It returns `None` until a read opened by this reader has observed enough information to build complete object metadata.
+`Reader::metadata()` does not perform I/O. It returns `None` until a read opened by this reader has observed enough information to build complete object metadata. It also returns `None` for services that do not return metadata while opening read operations.
 
 # Reference-level explanation
 
@@ -82,6 +86,7 @@ Semantics:
 - It returns object metadata.
 - Its `content_length` is always the full object size.
 - It is updated from metadata returned by successful read opens.
+- It remains `None` if the service does not return metadata while opening read operations.
 - If several reads are opened by the same reader, the cache stores the first object metadata observed by those reads.
 
 This API is an ergonomic cache for users who read through `Reader::read(...)` and then want the complete object metadata observed along the way.
@@ -105,35 +110,38 @@ Semantics:
 - The returned metadata describes the object being read.
 - Its `content_length` is always the full object size, even for ranged reads.
 - The first `metadata().await` call prepares the stream by opening the underlying read request.
-- The stream stores the returned `raw::RpRead::metadata` and the returned `oio::Reader`.
+- The stream stores the returned `oio::Reader` and caches `raw::RpRead::metadata` if present.
 - Later `metadata().await` calls return the cached metadata.
 - Later `poll_next` calls consume the cached reader and must not open the same read request again.
 - `metadata().await` does not read the response body. It only opens the read and observes response metadata.
+- If `raw::RpRead::metadata` is absent, `metadata().await` returns `ErrorKind::Unsupported`.
 
 ## Changes to `raw::RpRead`
 
-`raw::RpRead` becomes the metadata carrier for a successful read open:
+`raw::RpRead` becomes an optional metadata carrier for a successful read open:
 
 ```rust,ignore
 pub struct RpRead {
-    metadata: Metadata,
+    metadata: Option<Metadata>,
 }
 
 impl RpRead {
     pub fn new(metadata: Metadata) -> Self;
 
-    pub fn metadata(&self) -> &Metadata;
+    pub fn metadata(&self) -> Option<&Metadata>;
 
-    pub fn into_metadata(self) -> Metadata;
+    pub fn into_metadata(self) -> Option<Metadata>;
 }
 ```
+
+Services should set `RpRead::metadata` only when the read operation natively returns enough information to build complete object metadata. They must not issue an extra request only to fill `RpRead::metadata`.
 
 `RpRead::size()` and `RpRead::range()` should be removed. Metadata should expose object metadata only; returned ranges are derived from the read request and the object size.
 
 Callers that need the object size should use:
 
 ```rust,ignore
-rp.metadata().content_length()
+rp.metadata().map(|m| m.content_length())
 ```
 
 ## `content_length` Semantics
@@ -170,8 +178,6 @@ Backends must not expose HTTP `Content-Range` through public `Metadata`. They ma
 
 ## Implementation Details
 
-Backends must return metadata for every successful read open.
-
 For services that return metadata in read responses:
 
 - Capture metadata from the read response.
@@ -180,11 +186,9 @@ For services that return metadata in read responses:
 
 For services whose read primitive does not naturally return metadata:
 
-- The backend must still satisfy the `RpRead { metadata }` contract.
-- File-like services may use file metadata, seek, or an equivalent backend-local primitive during read open.
-- Remote file-like services such as SFTP, HDFS, and FTP may need an additional status or size request to satisfy the contract.
-
-This cost is part of making read metadata a mandatory read-open contract instead of an optional hint.
+- Return `RpRead::default()`.
+- Do not call `stat`, `size`, `metadata`, `seek`, or equivalent extra APIs only to populate `RpRead::metadata`.
+- Keep any existing service-specific requests that are required for read correctness itself, such as resolving an open-ended range that the underlying API cannot express.
 
 ## Stream State
 
@@ -194,14 +198,14 @@ This cost is part of making read metadata a mandatory read-open contract instead
 metadata().await
   -> prepare/open if needed
   -> accessor.read(path, args_with_range).await
-  -> cache RpRead.metadata
-  -> update Reader metadata cache
+  -> cache RpRead.metadata if present
+  -> update Reader metadata cache if metadata is present
   -> cache returned oio::Reader
-  -> return cached metadata
+  -> return cached metadata, or Unsupported if metadata is absent
 
 poll_next()
-  -> prepare/open if needed
-  -> consume cached oio::Reader
+  -> open if needed
+  -> consume cached or newly opened oio::Reader
 ```
 
 For non-chunked streaming reads, one stream maps to one underlying `accessor.read`.
@@ -242,13 +246,14 @@ Cases that still need stat-first behavior:
 
 - `head = true`, because the caller explicitly asks for no body.
 - suffix ranges, because OpenDAL's public range input does not currently express suffix ranges.
+- read streams whose services do not return metadata while opening the read operation.
 - responses that cannot provide the full object size required by `ObjectMeta::size`.
 - compatibility paths that intentionally preserve existing out-of-range behavior.
 
 # Drawbacks
 
-- `RpRead` becomes a stronger backend contract: successful read open must return metadata.
-- Some backends will need extra work during read open to obtain size or status.
+- `metadata().await` is best-effort across services instead of universally available.
+- Adapters that require metadata still need a fallback path for services without read-open metadata.
 - Stream implementations become more complex because they need a reusable prepare/open state.
 
 # Rationale and alternatives
@@ -256,6 +261,8 @@ Cases that still need stat-first behavior:
 This design keeps existing `Reader::read()` and `Operator::read()` return types unchanged. Users can opt into read-open metadata by working with read streams, or inspect the complete object metadata already observed by `Reader`.
 
 Using `Reader::metadata()` as the only metadata API is not enough: it is not tied to a concrete read open and cannot satisfy APIs that must return metadata before handing out a streaming payload. Another alternative is returning a new `ReadResult` carrier from read APIs, but that would be a broader public API change and would duplicate the existing stream abstraction.
+
+Making `RpRead::metadata` mandatory was rejected because it forces services without native read metadata to add extra status calls to the read path. That violates OpenDAL's zero-extra-cost read design.
 
 Removing `RpRead::size()` and `RpRead::range()` avoids a second metadata surface. Object size is represented by `metadata.content_length()`, and returned range information is derived from the read request.
 
@@ -270,9 +277,9 @@ Similar patterns exist in other storage SDKs:
 # Unresolved questions
 
 - Whether OpenDAL should add a public suffix-range input in the future so suffix reads can also use the no-stat path.
-- How much logical metadata synthesis should be supported for chunked and concurrent streams.
+- Whether OpenDAL should expose a capability bit for services that can return read-open metadata.
 
 # Future possibilities
 
-- `object_store_opendal` can use stream metadata to avoid stat-first bounded range reads.
-- `ReadContext::parse_into_range` can use read metadata or user-provided content length hints to avoid additional stat calls for open-ended ranges.
+- `object_store_opendal` can use stream metadata to avoid stat-first bounded range reads when services support read-open metadata.
+- `ReadContext::parse_into_range` can use user-provided content length hints to avoid additional stat calls for open-ended ranges.

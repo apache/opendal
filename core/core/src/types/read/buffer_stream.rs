@@ -48,25 +48,25 @@ impl StreamingReader {
         }
     }
 
-    async fn prepare_metadata(&mut self) -> Result<bool> {
+    async fn prepare_metadata(&mut self) -> Result<()> {
         if self.generator.metadata().is_some() {
-            return Ok(true);
+            return Ok(());
         }
 
         if self.reader.is_none() {
             self.reader = self.generator.next_reader().await?;
         }
 
-        Ok(self.generator.metadata().is_some())
+        Ok(())
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        let _ = self.prepare_metadata().await?;
+        self.prepare_metadata().await?;
 
         self.generator
             .metadata()
             .cloned()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
+            .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
     }
 }
 
@@ -131,8 +131,9 @@ impl ChunkedReader {
 
                         let args = input.ctx.args().clone().with_range(input.range);
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
-                        let metadata = rp.into_metadata();
-                        if input.ctx.metadata().is_none() {
+                        if let Some(metadata) = rp.into_metadata()
+                            && input.ctx.metadata().is_none()
+                        {
                             input.ctx.set_metadata(metadata);
                         }
                         r.read_all().await
@@ -152,17 +153,18 @@ impl ChunkedReader {
         }
     }
 
-    async fn prepare_metadata(&mut self) -> Result<bool> {
+    async fn prepare_metadata(&mut self) -> Result<()> {
         if self.ctx.metadata().is_some() {
-            return Ok(true);
+            return Ok(());
         }
 
         if self.opened.is_none() {
             if let Some(range) = self.next_range() {
                 let args = self.ctx.args().clone().with_range(range);
                 let (rp, reader) = self.ctx.accessor().read(self.ctx.path(), args).await?;
-                let metadata = rp.into_metadata();
-                if self.ctx.metadata().is_none() {
+                if let Some(metadata) = rp.into_metadata()
+                    && self.ctx.metadata().is_none()
+                {
                     self.ctx.set_metadata(metadata);
                 }
                 self.opened = Some(ChunkedReadInput {
@@ -175,16 +177,16 @@ impl ChunkedReader {
             }
         }
 
-        Ok(self.ctx.metadata().is_some())
+        Ok(())
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        let _ = self.prepare_metadata().await?;
+        self.prepare_metadata().await?;
 
         self.ctx
             .metadata()
             .cloned()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
+            .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -263,7 +265,6 @@ pub struct BufferStream {
 #[allow(clippy::large_enum_variant)]
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
-    Opening(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<bool>)>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
 }
 
@@ -317,7 +318,8 @@ impl BufferStream {
     /// Get metadata for this stream.
     ///
     /// Calling this method opens the underlying read request if needed.
-    /// Chunked reads wait until one chunk read has opened and observed metadata.
+    /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
+    /// return metadata while opening the read operation.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         if let Some(metadata) = self.ctx.metadata() {
             return Ok(metadata.clone());
@@ -333,18 +335,10 @@ impl BufferStream {
                 self.state = State::Idle(Some(reader));
                 prepared
             }
-            State::Opening(fut) => {
-                let (reader, prepared) = fut.await;
-                self.state = State::Idle(Some(reader));
-                let _ = prepared?;
-                self.ctx.metadata().cloned().ok_or_else(|| {
-                    Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
-                })
-            }
             State::Reading(fut) => {
                 self.state = State::Reading(fut);
                 self.ctx.metadata().cloned().ok_or_else(|| {
-                    Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
+                    Error::new(ErrorKind::Unsupported, "read metadata is not available")
                 })
             }
         }
@@ -360,45 +354,11 @@ impl Stream for BufferStream {
             match &mut this.state {
                 State::Idle(reader) => {
                     let mut reader = reader.take().unwrap();
-                    if this.ctx.metadata().is_none() {
-                        let fut = async move {
-                            let ret = match &mut reader {
-                                TwoWays::One(v) => v.prepare_metadata().await,
-                                TwoWays::Two(v) => v.prepare_metadata().await,
-                            };
-                            (reader, ret)
-                        };
-                        this.state = State::Opening(Box::pin(fut));
-                        continue;
-                    }
-
                     let fut = async move {
                         let ret = reader.read().await;
                         (reader, ret)
                     };
                     this.state = State::Reading(Box::pin(fut));
-                }
-                State::Opening(fut) => {
-                    let fut = fut.as_mut();
-                    let (reader, prepared) = ready!(fut.poll(cx));
-                    match prepared {
-                        Ok(true) => {
-                            let fut = async move {
-                                let mut reader = reader;
-                                let ret = reader.read().await;
-                                (reader, ret)
-                            };
-                            this.state = State::Reading(Box::pin(fut));
-                        }
-                        Ok(false) => {
-                            this.state = State::Idle(Some(reader));
-                            return Poll::Ready(None);
-                        }
-                        Err(err) => {
-                            this.state = State::Idle(Some(reader));
-                            return Poll::Ready(Some(Err(err)));
-                        }
-                    }
                 }
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
@@ -423,7 +383,6 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
-    use tokio::sync::oneshot;
 
     use super::*;
 
@@ -472,41 +431,4 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_metadata_awaits_inflight_open() -> Result<()> {
-        let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
-        let reader = StreamingReader {
-            generator: ReadGenerator::new(ctx.clone(), 0, Some(0)),
-            reader: Some(Box::new(Buffer::from(Bytes::from_static(b"oWor")))),
-        };
-        let (tx, rx) = oneshot::channel();
-
-        let ctx_in_fut = ctx.clone();
-        let fut = async move {
-            let _ = rx.await;
-            ctx_in_fut.set_metadata(Metadata::new(EntryMode::FILE).with_content_length(10));
-            (TwoWays::One(reader), Ok(true))
-        };
-
-        let mut stream = BufferStream {
-            ctx,
-            state: State::Opening(Box::pin(fut)),
-        };
-
-        let _ = tx.send(());
-        let meta = stream.metadata().await?;
-        assert_eq!(meta.content_length(), 10);
-
-        let bufs: Vec<_> = stream.try_collect().await?;
-        let buf: Buffer = bufs.into_iter().flatten().collect();
-        assert_eq!(&buf.to_vec(), b"oWor");
-
-        Ok(())
-    }
 }

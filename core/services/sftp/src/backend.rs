@@ -266,7 +266,6 @@ impl Access for SftpBackend {
             .open(path.as_path())
             .await
             .map_err(parse_sftp_error)?;
-        let metadata = to_metadata(f.metadata().await.map_err(parse_sftp_error)?);
 
         if args.range().offset() != 0 {
             f.seek(SeekFrom::Start(args.range().offset()))
@@ -275,7 +274,7 @@ impl Access for SftpBackend {
         }
 
         Ok((
-            RpRead::new(metadata),
+            RpRead::default(),
             SftpReader::new(client, f, args.range().size()),
         ))
     }

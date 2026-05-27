@@ -310,13 +310,12 @@ impl Access for WebhdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let metadata = self.stat(path, OpStat::new()).await?.into_metadata();
         let resp = self.core.webhdfs_read_file(path, args.range()).await?;
 
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::new(metadata), resp.into_body()))
+                Ok((RpRead::default(), resp.into_body()))
             }
             _ => {
                 let (part, mut body) = resp.into_parts();

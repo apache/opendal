@@ -338,12 +338,13 @@ impl Access for RedisBackend {
         let p = build_abs_path(&self.root, path);
 
         let range = args.range();
-        let (buffer, content_length) = if range.is_full() {
+        let (buffer, metadata) = if range.is_full() {
             // Full read - use GET
             match self.core.get(&p).await? {
                 Some(bs) => {
-                    let content_length = bs.len() as u64;
-                    (bs, content_length)
+                    let metadata =
+                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+                    (bs, Some(metadata))
                 }
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             }
@@ -356,16 +357,13 @@ impl Access for RedisBackend {
             };
 
             match self.core.get_range(&p, start, end).await? {
-                Some(bs) => {
-                    let content_length = self.core.len(&p).await? as u64;
-                    (bs, content_length)
-                }
+                Some(bs) => (bs, None),
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             }
         };
 
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-        Ok((RpRead::new(metadata), buffer))
+        let rp = metadata.map_or_else(RpRead::default, RpRead::new);
+        Ok((rp, buffer))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

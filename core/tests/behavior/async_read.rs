@@ -154,7 +154,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// BufferStream should return complete object metadata before reading.
+/// BufferStream should return complete object metadata before reading if supported.
 pub async fn test_buffer_stream_metadata(op: Operator) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(1024);
@@ -171,12 +171,15 @@ pub async fn test_buffer_stream_metadata(op: Operator) -> anyhow::Result<()> {
         .into_stream(start as u64..end as u64)
         .await?;
 
-    let meta = stream.metadata().await?;
-    assert_eq!(
-        meta.content_length(),
-        content.len() as u64,
-        "metadata content length"
-    );
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
 
     let bs: Vec<_> = stream.try_collect().await?;
     let bs: Buffer = bs.into_iter().flatten().collect();
@@ -190,7 +193,7 @@ pub async fn test_buffer_stream_metadata(op: Operator) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// BufferStream should return complete object metadata with concurrent reads.
+/// BufferStream should return complete object metadata with concurrent reads if supported.
 pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(1024);
@@ -209,12 +212,15 @@ pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow
         .into_stream(start as u64..end as u64)
         .await?;
 
-    let meta = stream.metadata().await?;
-    assert_eq!(
-        meta.content_length(),
-        content.len() as u64,
-        "metadata content length"
-    );
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
 
     let bs: Vec<_> = stream.try_collect().await?;
     let bs: Buffer = bs.into_iter().flatten().collect();
@@ -228,7 +234,7 @@ pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow
     Ok(())
 }
 
-/// FuturesBytesStream should return complete object metadata before reading.
+/// FuturesBytesStream should return complete object metadata before reading if supported.
 pub async fn test_futures_bytes_stream_metadata(op: Operator) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(1024);
@@ -245,12 +251,15 @@ pub async fn test_futures_bytes_stream_metadata(op: Operator) -> anyhow::Result<
         .into_bytes_stream(start as u64..end as u64)
         .await?;
 
-    let meta = stream.metadata().await?;
-    assert_eq!(
-        meta.content_length(),
-        content.len() as u64,
-        "metadata content length"
-    );
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
 
     let bs = stream
         .try_fold(Vec::new(), |mut acc, chunk| {
@@ -268,7 +277,7 @@ pub async fn test_futures_bytes_stream_metadata(op: Operator) -> anyhow::Result<
     Ok(())
 }
 
-/// FuturesBytesStream should return complete object metadata with concurrent reads.
+/// FuturesBytesStream should return complete object metadata with concurrent reads if supported.
 pub async fn test_futures_bytes_stream_metadata_with_concurrent(
     op: Operator,
 ) -> anyhow::Result<()> {
@@ -289,12 +298,15 @@ pub async fn test_futures_bytes_stream_metadata_with_concurrent(
         .into_bytes_stream(start as u64..end as u64)
         .await?;
 
-    let meta = stream.metadata().await?;
-    assert_eq!(
-        meta.content_length(),
-        content.len() as u64,
-        "metadata content length"
-    );
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
 
     let bs = stream
         .try_fold(Vec::new(), |mut acc, chunk| {

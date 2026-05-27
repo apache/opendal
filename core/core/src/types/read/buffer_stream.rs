@@ -93,16 +93,10 @@ impl oio::Read for StreamingReader {
     }
 }
 
-enum ChunkedReadInput {
-    Range {
-        ctx: Arc<ReadContext>,
-        range: BytesRange,
-    },
-    Opened {
-        ctx: Arc<ReadContext>,
-        range: BytesRange,
-        reader: oio::Reader,
-    },
+struct ChunkedReadInput {
+    ctx: Arc<ReadContext>,
+    range: BytesRange,
+    reader: Option<oio::Reader>,
 }
 
 /// ChunkedReader will read the file in chunks.
@@ -112,7 +106,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    opened: Option<(BytesRange, oio::Reader)>,
+    opened: Option<ChunkedReadInput>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -128,31 +122,23 @@ impl ChunkedReader {
             ctx.accessor().info().executor(),
             ctx.options().concurrent(),
             ctx.options().prefetch(),
-            |input: ChunkedReadInput| {
+            |mut input: ChunkedReadInput| {
                 Box::pin(async move {
-                    match input {
-                        ChunkedReadInput::Range { ctx, range } => {
-                            let args = ctx.args().clone().with_range(range);
-                            let result = async {
-                                let (rp, mut r) = ctx.accessor().read(ctx.path(), args).await?;
-                                let metadata = rp.into_metadata();
-                                if ctx.metadata().is_none() {
-                                    ctx.set_metadata(metadata);
-                                }
-                                r.read_all().await
-                            }
-                            .await;
-                            (ChunkedReadInput::Range { ctx, range }, result)
+                    let result = async {
+                        if let Some(mut reader) = input.reader.take() {
+                            return reader.read_all().await;
                         }
-                        ChunkedReadInput::Opened {
-                            ctx,
-                            range,
-                            mut reader,
-                        } => {
-                            let result = reader.read_all().await;
-                            (ChunkedReadInput::Range { ctx, range }, result)
+
+                        let args = input.ctx.args().clone().with_range(input.range);
+                        let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
+                        let metadata = rp.into_metadata();
+                        if input.ctx.metadata().is_none() {
+                            input.ctx.set_metadata(metadata);
                         }
+                        r.read_all().await
                     }
+                    .await;
+                    (input, result)
                 })
             },
         );
@@ -179,7 +165,11 @@ impl ChunkedReader {
                 if self.ctx.metadata().is_none() {
                     self.ctx.set_metadata(metadata);
                 }
-                self.opened = Some((range, reader));
+                self.opened = Some(ChunkedReadInput {
+                    ctx: self.ctx.clone(),
+                    range,
+                    reader: Some(reader),
+                });
             } else {
                 self.done = true;
             }
@@ -228,19 +218,14 @@ impl ChunkedReader {
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some((range, reader)) = self.opened.take() {
-                self.tasks
-                    .execute(ChunkedReadInput::Opened {
-                        ctx: self.ctx.clone(),
-                        range,
-                        reader,
-                    })
-                    .await?;
+            if let Some(input) = self.opened.take() {
+                self.tasks.execute(input).await?;
             } else if let Some(range) = self.next_range() {
                 self.tasks
-                    .execute(ChunkedReadInput::Range {
+                    .execute(ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range,
+                        reader: None,
                     })
                     .await?;
             } else {

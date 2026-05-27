@@ -247,6 +247,7 @@ impl oio::Read for ChunkedReader {
 ///
 /// `BufferStream` implements `Stream` trait.
 pub struct BufferStream {
+    ctx: Arc<ReadContext>,
     /// # Notes to maintainers
     ///
     /// The underlying reader is either a StreamingReader or a ChunkedReader.
@@ -255,7 +256,6 @@ pub struct BufferStream {
     ///   data in streaming way.
     /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
     state: State,
-    pending: Option<Result<Buffer>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -273,14 +273,20 @@ impl BufferStream {
         );
 
         let reader = if ctx.options().chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(ctx, BytesRange::new(offset, size)))
+            TwoWays::Two(ChunkedReader::new(
+                ctx.clone(),
+                BytesRange::new(offset, size),
+            ))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, BytesRange::new(offset, size)))
+            TwoWays::One(StreamingReader::new(
+                ctx.clone(),
+                BytesRange::new(offset, size),
+            ))
         };
 
         Self {
+            ctx,
             state: State::Idle(Some(reader)),
-            pending: None,
         }
     }
 
@@ -294,14 +300,14 @@ impl BufferStream {
     ) -> Result<Self> {
         let reader = if ctx.options().chunk().is_some() {
             let range = ctx.parse_into_range(range).await?;
-            TwoWays::Two(ChunkedReader::new(ctx, range.into()))
+            TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, range.into()))
+            TwoWays::One(StreamingReader::new(ctx.clone(), range.into()))
         };
 
         Ok(Self {
+            ctx,
             state: State::Idle(Some(reader)),
-            pending: None,
         })
     }
 
@@ -310,6 +316,10 @@ impl BufferStream {
     /// Calling this method opens the underlying read request if needed.
     /// Chunked reads wait until one chunk read has opened and observed metadata.
     pub async fn metadata(&mut self) -> Result<Metadata> {
+        if let Some(metadata) = self.ctx.metadata() {
+            return Ok(metadata.clone());
+        }
+
         match std::mem::replace(&mut self.state, State::Idle(None)) {
             State::Idle(reader) => {
                 let mut reader = reader.expect("reader must exist while idle");
@@ -321,25 +331,11 @@ impl BufferStream {
                 result
             }
             State::Reading(fut) => {
-                let (reader, result) = fut.await;
-
-                let metadata = match &reader {
-                    TwoWays::One(v) => v.generator.metadata().cloned(),
-                    TwoWays::Two(v) => v.ctx.metadata().cloned(),
-                };
-                self.state = State::Idle(Some(reader));
-
-                if let Some(metadata) = metadata {
-                    self.pending = Some(result);
-                    Ok(metadata)
-                } else {
-                    self.pending = None;
-                    result?;
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "read stream metadata is not set",
-                    ))
-                }
+                self.state = State::Reading(fut);
+                Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "read stream metadata is not ready while read stream is being polled",
+                ))
             }
         }
     }
@@ -351,14 +347,6 @@ impl Stream for BufferStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         loop {
-            if let Some(buf) = this.pending.take() {
-                return match buf {
-                    Ok(buf) if buf.is_empty() => Poll::Ready(None),
-                    Ok(buf) => Poll::Ready(Some(Ok(buf))),
-                    Err(err) => Poll::Ready(Some(Err(err))),
-                };
-            }
-
             match &mut this.state {
                 State::Idle(reader) => {
                     let mut reader = reader.take().unwrap();

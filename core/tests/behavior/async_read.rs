@@ -156,18 +156,6 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
 
 /// BufferStream should return complete object metadata before reading.
 pub async fn test_buffer_stream_metadata(op: Operator) -> anyhow::Result<()> {
-    test_buffer_stream_metadata_with_options(op, false).await
-}
-
-/// BufferStream should return complete object metadata with concurrent reads.
-pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow::Result<()> {
-    test_buffer_stream_metadata_with_options(op, true).await
-}
-
-async fn test_buffer_stream_metadata_with_options(
-    op: Operator,
-    concurrent: bool,
-) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(1024);
     let start = 128;
@@ -177,12 +165,49 @@ async fn test_buffer_stream_metadata_with_options(
         .await
         .expect("write must succeed");
 
-    let reader = if concurrent {
-        op.reader_with(&path).chunk(128).concurrent(4).await?
-    } else {
-        op.reader(&path).await?
-    };
-    let mut stream = reader.into_stream(start as u64..end as u64).await?;
+    let mut stream = op
+        .reader(&path)
+        .await?
+        .into_stream(start as u64..end as u64)
+        .await?;
+
+    let meta = stream.metadata().await?;
+    assert_eq!(
+        meta.content_length(),
+        content.len() as u64,
+        "metadata content length"
+    );
+
+    let bs: Vec<_> = stream.try_collect().await?;
+    let bs: Buffer = bs.into_iter().flatten().collect();
+    assert_eq!(bs.len(), end - start, "read size");
+    assert_eq!(
+        sha256_digest(bs.to_bytes()),
+        sha256_digest(&content[start..end]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// BufferStream should return complete object metadata with concurrent reads.
+pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader_with(&path)
+        .chunk(128)
+        .concurrent(4)
+        .await?
+        .into_stream(start as u64..end as u64)
+        .await?;
 
     let meta = stream.metadata().await?;
     assert_eq!(
@@ -205,19 +230,47 @@ async fn test_buffer_stream_metadata_with_options(
 
 /// FuturesBytesStream should return complete object metadata before reading.
 pub async fn test_futures_bytes_stream_metadata(op: Operator) -> anyhow::Result<()> {
-    test_futures_bytes_stream_metadata_with_options(op, false).await
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader(&path)
+        .await?
+        .into_bytes_stream(start as u64..end as u64)
+        .await?;
+
+    let meta = stream.metadata().await?;
+    assert_eq!(
+        meta.content_length(),
+        content.len() as u64,
+        "metadata content length"
+    );
+
+    let bs = stream
+        .try_fold(Vec::new(), |mut acc, chunk| {
+            acc.extend_from_slice(&chunk);
+            async { Ok(acc) }
+        })
+        .await?;
+    assert_eq!(bs.len(), end - start, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        sha256_digest(&content[start..end]),
+        "read content"
+    );
+
+    Ok(())
 }
 
 /// FuturesBytesStream should return complete object metadata with concurrent reads.
 pub async fn test_futures_bytes_stream_metadata_with_concurrent(
     op: Operator,
-) -> anyhow::Result<()> {
-    test_futures_bytes_stream_metadata_with_options(op, true).await
-}
-
-async fn test_futures_bytes_stream_metadata_with_options(
-    op: Operator,
-    concurrent: bool,
 ) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(1024);
@@ -228,12 +281,13 @@ async fn test_futures_bytes_stream_metadata_with_options(
         .await
         .expect("write must succeed");
 
-    let reader = if concurrent {
-        op.reader_with(&path).chunk(128).concurrent(4).await?
-    } else {
-        op.reader(&path).await?
-    };
-    let mut stream = reader.into_bytes_stream(start as u64..end as u64).await?;
+    let mut stream = op
+        .reader_with(&path)
+        .chunk(128)
+        .concurrent(4)
+        .await?
+        .into_bytes_stream(start as u64..end as u64)
+        .await?;
 
     let meta = stream.metadata().await?;
     assert_eq!(

@@ -219,10 +219,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         self.executor.execute(fut)
     }
 
-    /// Try to execute the task with given input without waiting for running tasks.
+    /// Try to schedule the task with given input in the background.
+    ///
+    /// Unlike [`Self::execute`], this method always schedules the task on the
+    /// executor, even when concurrency is set to 1.
     ///
     /// Returns `Ok(false)` if there is no remaining capacity to schedule this task.
-    pub fn try_execute(&mut self, input: I) -> Result<bool> {
+    pub fn try_schedule(&mut self, input: I) -> Result<bool> {
         if self.errored {
             return Err(Error::new(
                 ErrorKind::Unexpected,

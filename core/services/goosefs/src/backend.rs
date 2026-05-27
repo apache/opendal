@@ -330,12 +330,7 @@ impl Access for GoosefsBackend {
         } else {
             None
         };
-        let reader = GoosefsReader::new(
-            self.core.clone(),
-            path.to_string(),
-            args,
-            content_length,
-        );
+        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args, content_length);
         Ok((RpRead::default(), reader))
     }
 

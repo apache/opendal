@@ -131,10 +131,10 @@ impl ChunkedReader {
 
                         let args = input.ctx.args().clone().with_range(input.range);
                         let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
-                        if let Some(metadata) = rp.into_metadata()
-                            && input.ctx.metadata().is_none()
-                        {
-                            input.ctx.set_metadata(metadata);
+                        if let Some(metadata) = rp.into_metadata() {
+                            if input.ctx.metadata().is_none() {
+                                input.ctx.set_metadata(metadata);
+                            }
                         }
                         r.read_all().await
                     }
@@ -162,10 +162,10 @@ impl ChunkedReader {
             if let Some(range) = self.next_range() {
                 let args = self.ctx.args().clone().with_range(range);
                 let (rp, reader) = self.ctx.accessor().read(self.ctx.path(), args).await?;
-                if let Some(metadata) = rp.into_metadata()
-                    && self.ctx.metadata().is_none()
-                {
-                    self.ctx.set_metadata(metadata);
+                if let Some(metadata) = rp.into_metadata() {
+                    if self.ctx.metadata().is_none() {
+                        self.ctx.set_metadata(metadata);
+                    }
                 }
                 self.opened = Some(ChunkedReadInput {
                     ctx: self.ctx.clone(),
@@ -430,5 +430,4 @@ mod tests {
 
         Ok(())
     }
-
 }

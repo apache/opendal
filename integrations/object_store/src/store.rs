@@ -117,6 +117,8 @@ fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
 
 fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::Error {
     match err.kind() {
+        // Ask get_opts to fall back to the stat path when read-open can't provide
+        // enough metadata to build a valid GetResult, such as ranges beyond EOF.
         opendal::ErrorKind::Unsupported | opendal::ErrorKind::RangeNotSatisfied => {
             object_store::Error::NotSupported {
                 source: Box::new(err),

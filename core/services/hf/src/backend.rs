@@ -307,10 +307,16 @@ impl Access for HfBackend {
 
 #[cfg(test)]
 pub(super) mod test_utils {
+    use std::sync::Arc;
+
+    use super::super::config::HfDownloadMode;
+    use super::super::core::HfCore;
+    use super::super::uri::{HfRepo, HfRepoType};
     use super::HfBuilder;
+    use opendal_core::Capability;
     use opendal_core::Operator;
     use opendal_core::layers::HttpClientLayer;
-    use opendal_core::raw::HttpClient;
+    use opendal_core::raw::{AccessorInfo, HttpClient};
 
     fn finish_operator(op: Operator) -> Operator {
         let client = HttpClient::with(reqwest::Client::new());
@@ -338,6 +344,34 @@ pub(super) mod test_utils {
         .unwrap()
         .finish();
         finish_operator(op)
+    }
+
+    pub fn testing_dataset_core() -> Arc<HfCore> {
+        let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+
+        let info = AccessorInfo::default();
+        info.set_scheme("hf").set_native_capability(Capability {
+            read: true,
+            write: true,
+            delete: true,
+            ..Default::default()
+        });
+        info.update_http_client(|_| HttpClient::with(reqwest::Client::new()));
+
+        let repo = HfRepo::new(HfRepoType::Dataset, repo_id, Some("main".to_string()));
+
+        Arc::new(
+            HfCore::build(
+                Arc::new(info),
+                repo,
+                "/".to_string(),
+                Some(token),
+                "https://huggingface.co".to_string(),
+                HfDownloadMode::Xet,
+            )
+            .expect("failed to build HfCore"),
+        )
     }
 
     pub fn testing_bucket_operator() -> Operator {

@@ -19,7 +19,6 @@ use bytes::Buf;
 
 use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
 
-use super::config::HfDownloadMode;
 use super::core::{HfCore, XetFileResponse};
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -32,22 +31,14 @@ pub enum HfReader {
 impl HfReader {
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         let resp = core.resolve(path, range, core.download_mode).await?;
-        match core.download_mode {
-            HfDownloadMode::Xet => {
-                if resp.headers().contains_key("x-xet-hash") {
-                    let (_, mut body) = resp.into_parts();
-                    let buf = body.to_buffer().await?;
-                    let info: XetFileResponse = serde_json::from_reader(buf.reader())
-                        .map_err(new_json_deserialize_error)?;
-                    Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await
-                } else {
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "file is missing XET metadata",
-                    ))
-                }
-            }
-            HfDownloadMode::Http => Ok(Self::Http(resp.into_body())),
+        if resp.headers().contains_key("x-xet-hash") {
+            let (_, mut body) = resp.into_parts();
+            let buf = body.to_buffer().await?;
+            let info: XetFileResponse =
+                serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
+            Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await
+        } else {
+            Ok(Self::Http(resp.into_body()))
         }
     }
 
@@ -100,7 +91,10 @@ impl oio::Read for HfReader {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
+    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator, testing_dataset_core};
+    use super::super::core::{CommitFile, DeletedFile};
+    use super::*;
+    use opendal_core::raw::oio::Read;
 
     /// Parquet magic bytes: "PAR1"
     const PARQUET_MAGIC: &[u8] = b"PAR1";
@@ -128,6 +122,63 @@ mod tests {
         assert!(bytes.len() > 8);
         assert_eq!(&bytes[..4], PARQUET_MAGIC);
         assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
+    }
+
+    /// Verifies that a non-XET file (plain git blob) read in Xet mode falls back
+    /// to the HTTP body path rather than erroring. Uploads a small file via the
+    /// git commit API (which does not go through XET), then reads it back.
+    /// Requires HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_xet_mode_falls_back_to_http_for_non_xet_file() {
+        use base64::Engine;
+
+        let core = testing_dataset_core();
+        let content = b"non-xet fallback test content";
+        let path = "tests/non-xet-fallback.txt";
+
+        core.commit_git(
+            vec![CommitFile {
+                path: path.to_string(),
+                content: base64::prelude::BASE64_STANDARD.encode(content),
+                encoding: "base64".to_string(),
+            }],
+            vec![],
+            vec![],
+            vec![],
+        )
+        .await
+        .expect("commit should succeed");
+
+        let mut reader = HfReader::try_new(&core, path, BytesRange::default())
+            .await
+            .expect("reading non-XET file in Xet mode should succeed via HTTP fallback");
+
+        assert!(
+            matches!(reader, HfReader::Http(_)),
+            "expected HTTP reader for non-XET file"
+        );
+
+        let mut buf = Vec::new();
+        loop {
+            let chunk: Buffer = reader.read().await.expect("read chunk should succeed");
+            if chunk.is_empty() {
+                break;
+            }
+            buf.extend_from_slice(&chunk.to_bytes());
+        }
+        assert_eq!(buf, content);
+
+        core.commit_git(
+            vec![],
+            vec![],
+            vec![DeletedFile {
+                path: path.to_string(),
+            }],
+            vec![],
+        )
+        .await
+        .ok();
     }
 
     /// Exercises XET range reads (XetDownloadStream with a byte range).

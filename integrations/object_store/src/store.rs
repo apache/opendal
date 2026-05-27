@@ -115,6 +115,17 @@ fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
     }
 }
 
+fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::Error {
+    match err.kind() {
+        opendal::ErrorKind::Unsupported | opendal::ErrorKind::RangeNotSatisfied => {
+            object_store::Error::NotSupported {
+                source: Box::new(err),
+            }
+        }
+        _ => format_object_store_error(err, path),
+    }
+}
+
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
 /// This allows users to use opendal as an object store without extra cost.
@@ -193,7 +204,7 @@ impl OpendalStore {
             .reader_options(raw_location, format_reader_options(options, None))
             .into_send()
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
 
         let mut stream = match options.range.as_ref() {
             Some(GetRange::Bounded(range)) => {
@@ -206,13 +217,13 @@ impl OpendalStore {
             Some(GetRange::Suffix(_)) => unreachable!("suffix range needs object metadata"),
             None => reader.into_bytes_stream(..).into_send().await,
         }
-        .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
 
         let metadata = stream
             .metadata()
             .into_send()
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.as_ref(), &metadata);
         let read_range = format_read_range(options.range.as_ref(), meta.size);

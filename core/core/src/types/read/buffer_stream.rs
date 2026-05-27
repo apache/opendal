@@ -49,30 +49,20 @@ impl StreamingReader {
     }
 
     async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.metadata_ref() {
+        if let Some(metadata) = self.generator.metadata() {
             return Ok(metadata.clone());
         }
 
         if self.reader.is_none() {
-            self.open().await?;
+            if let Some(reader) = self.generator.next_reader().await? {
+                self.reader = Some(reader);
+            }
         }
 
-        self.metadata_ref()
+        self.generator
+            .metadata()
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
-    }
-
-    async fn open(&mut self) -> Result<()> {
-        let Some(reader) = self.generator.next_reader().await? else {
-            return Ok(());
-        };
-
-        self.reader = Some(reader);
-        Ok(())
-    }
-
-    fn metadata_ref(&self) -> Option<&Metadata> {
-        self.generator.metadata()
     }
 }
 
@@ -80,7 +70,7 @@ impl oio::Read for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
-                self.open().await?;
+                self.reader = self.generator.next_reader().await?;
             }
 
             let Some(r) = self.reader.as_mut() else {
@@ -113,7 +103,6 @@ pub struct ChunkedReader {
     offset: u64,
     remaining: Option<u64>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
-    pending: Option<Buffer>,
     done: bool,
 }
 
@@ -149,52 +138,8 @@ impl ChunkedReader {
             offset: range.offset(),
             remaining: range.size(),
             tasks,
-            pending: None,
             done: false,
         }
-    }
-
-    async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.metadata_ref() {
-            return Ok(metadata.clone());
-        }
-
-        let Some(buffer) = self.next_output().await? else {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "read stream doesn't have metadata before opening a reader",
-            ));
-        };
-
-        self.pending = Some(buffer);
-        self.metadata_ref()
-            .cloned()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
-    }
-
-    fn metadata_ref(&self) -> Option<&Metadata> {
-        self.ctx.metadata()
-    }
-
-    async fn next_output(&mut self) -> Result<Option<Buffer>> {
-        while self.tasks.has_remaining() && !self.done {
-            if let Some(range) = self.next_range() {
-                self.tasks
-                    .execute(ChunkedReadInput {
-                        ctx: self.ctx.clone(),
-                        range,
-                    })
-                    .await?;
-            } else {
-                self.done = true;
-                break;
-            }
-            if self.tasks.has_result() {
-                break;
-            }
-        }
-
-        self.tasks.next().await.transpose()
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -227,11 +172,24 @@ impl ChunkedReader {
 
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
-        if let Some(buffer) = self.pending.take() {
-            return Ok(buffer);
+        while self.tasks.has_remaining() && !self.done {
+            if let Some(range) = self.next_range() {
+                self.tasks
+                    .execute(ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                    })
+                    .await?;
+            } else {
+                self.done = true;
+                break;
+            }
+            if self.tasks.has_result() {
+                break;
+            }
         }
 
-        let Some(buffer) = self.next_output().await? else {
+        let Some(buffer) = self.tasks.next().await.transpose()? else {
             return Ok(Buffer::new());
         };
 
@@ -312,7 +270,18 @@ impl BufferStream {
                 let mut reader = reader.expect("reader must exist while idle");
                 let result = match &mut reader {
                     TwoWays::One(v) => v.metadata().await,
-                    TwoWays::Two(v) => v.metadata().await,
+                    TwoWays::Two(v) => {
+                        if let Some(metadata) = v.ctx.metadata() {
+                            Ok(metadata.clone())
+                        } else {
+                            let buffer = v.read().await?;
+                            let metadata = v.ctx.metadata().cloned().ok_or_else(|| {
+                                Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
+                            })?;
+                            self.pending = Some(Ok(buffer));
+                            Ok(metadata)
+                        }
+                    }
                 };
                 self.state = State::Idle(Some(reader));
                 result
@@ -321,8 +290,8 @@ impl BufferStream {
                 let (reader, result) = fut.await;
 
                 let metadata = match &reader {
-                    TwoWays::One(v) => v.metadata_ref().cloned(),
-                    TwoWays::Two(v) => v.metadata_ref().cloned(),
+                    TwoWays::One(v) => v.generator.metadata().cloned(),
+                    TwoWays::Two(v) => v.ctx.metadata().cloned(),
                 };
                 self.state = State::Idle(Some(reader));
 

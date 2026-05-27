@@ -48,16 +48,20 @@ impl StreamingReader {
         }
     }
 
-    async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.generator.metadata() {
-            return Ok(metadata.clone());
+    async fn prepare_metadata(&mut self) -> Result<bool> {
+        if self.generator.metadata().is_some() {
+            return Ok(true);
         }
 
         if self.reader.is_none() {
-            if let Some(reader) = self.generator.next_reader().await? {
-                self.reader = Some(reader);
-            }
+            self.reader = self.generator.next_reader().await?;
         }
+
+        Ok(self.generator.metadata().is_some())
+    }
+
+    async fn metadata(&mut self) -> Result<Metadata> {
+        let _ = self.prepare_metadata().await?;
 
         self.generator
             .metadata()
@@ -89,10 +93,16 @@ impl oio::Read for StreamingReader {
     }
 }
 
-/// Input for a chunked read task.
-struct ChunkedReadInput {
-    ctx: Arc<ReadContext>,
-    range: BytesRange,
+enum ChunkedReadInput {
+    Range {
+        ctx: Arc<ReadContext>,
+        range: BytesRange,
+    },
+    Opened {
+        ctx: Arc<ReadContext>,
+        range: BytesRange,
+        reader: oio::Reader,
+    },
 }
 
 /// ChunkedReader will read the file in chunks.
@@ -102,6 +112,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
+    opened: Option<(BytesRange, oio::Reader)>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -119,24 +130,29 @@ impl ChunkedReader {
             ctx.options().prefetch(),
             |input: ChunkedReadInput| {
                 Box::pin(async move {
-                    let args = input.ctx.args().clone().with_range(input.range);
-                    let result = async {
-                        let (rp, mut r) =
-                            match input.ctx.accessor().read(input.ctx.path(), args).await {
-                                Ok(v) => v,
-                                Err(err) => {
-                                    input.ctx.finish_metadata_attempt();
-                                    return Err(err);
+                    match input {
+                        ChunkedReadInput::Range { ctx, range } => {
+                            let args = ctx.args().clone().with_range(range);
+                            let result = async {
+                                let (rp, mut r) = ctx.accessor().read(ctx.path(), args).await?;
+                                let metadata = rp.into_metadata();
+                                if ctx.metadata().is_none() {
+                                    ctx.set_metadata(metadata);
                                 }
-                            };
-                        let metadata = rp.into_metadata();
-                        if input.ctx.metadata().is_none() {
-                            input.ctx.set_metadata(metadata);
+                                r.read_all().await
+                            }
+                            .await;
+                            (ChunkedReadInput::Range { ctx, range }, result)
                         }
-                        r.read_all().await
+                        ChunkedReadInput::Opened {
+                            ctx,
+                            range,
+                            mut reader,
+                        } => {
+                            let result = reader.read_all().await;
+                            (ChunkedReadInput::Range { ctx, range }, result)
+                        }
                     }
-                    .await;
-                    (input, result)
                 })
             },
         );
@@ -144,48 +160,41 @@ impl ChunkedReader {
             ctx,
             offset: range.offset(),
             remaining: range.size(),
+            opened: None,
             tasks,
             done: false,
         }
     }
 
-    async fn metadata(&mut self) -> Result<Metadata> {
-        if let Some(metadata) = self.ctx.metadata() {
-            return Ok(metadata.clone());
+    async fn prepare_metadata(&mut self) -> Result<bool> {
+        if self.ctx.metadata().is_some() {
+            return Ok(true);
         }
 
-        let mut scheduled = false;
-        if self.tasks.has_remaining() && !self.done {
+        if self.opened.is_none() {
             if let Some(range) = self.next_range() {
-                scheduled = self.tasks.try_schedule(ChunkedReadInput {
-                    ctx: self.ctx.clone(),
-                    range,
-                })?;
+                let args = self.ctx.args().clone().with_range(range);
+                let (rp, reader) = self.ctx.accessor().read(self.ctx.path(), args).await?;
+                let metadata = rp.into_metadata();
+                if self.ctx.metadata().is_none() {
+                    self.ctx.set_metadata(metadata);
+                }
+                self.opened = Some((range, reader));
             } else {
                 self.done = true;
             }
         }
 
-        if !scheduled && self.tasks.is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "read stream doesn't have metadata before opening a reader",
-            ));
-        }
+        Ok(self.ctx.metadata().is_some())
+    }
 
-        if let Some(metadata) = self.ctx.wait_metadata_attempt().await {
-            return Ok(metadata.clone());
-        }
+    async fn metadata(&mut self) -> Result<Metadata> {
+        let _ = self.prepare_metadata().await?;
 
-        match self.tasks.next().await.transpose()? {
-            Some(_) => self.ctx.metadata().cloned().ok_or_else(|| {
-                Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
-            }),
-            None => Err(Error::new(
-                ErrorKind::Unexpected,
-                "read stream doesn't have metadata before opening a reader",
-            )),
-        }
+        self.ctx
+            .metadata()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "read stream metadata is not set"))
     }
 
     /// Generate the next range to read, advancing internal state.
@@ -219,9 +228,17 @@ impl ChunkedReader {
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(range) = self.next_range() {
+            if let Some((range, reader)) = self.opened.take() {
                 self.tasks
-                    .execute(ChunkedReadInput {
+                    .execute(ChunkedReadInput::Opened {
+                        ctx: self.ctx.clone(),
+                        range,
+                        reader,
+                    })
+                    .await?;
+            } else if let Some(range) = self.next_range() {
+                self.tasks
+                    .execute(ChunkedReadInput::Range {
                         ctx: self.ctx.clone(),
                         range,
                     })
@@ -248,8 +265,6 @@ impl oio::Read for ChunkedReader {
 /// `BufferStream` implements `Stream` trait.
 pub struct BufferStream {
     ctx: Arc<ReadContext>,
-    /// Buffer produced while `metadata` awaits an in-flight read.
-    pending: Option<Buffer>,
     /// # Notes to maintainers
     ///
     /// The underlying reader is either a StreamingReader or a ChunkedReader.
@@ -263,6 +278,7 @@ pub struct BufferStream {
 #[allow(clippy::large_enum_variant)]
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
+    Opening(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<bool>)>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
 }
 
@@ -288,7 +304,6 @@ impl BufferStream {
 
         Self {
             ctx,
-            pending: None,
             state: State::Idle(Some(reader)),
         }
     }
@@ -310,7 +325,6 @@ impl BufferStream {
 
         Ok(Self {
             ctx,
-            pending: None,
             state: State::Idle(Some(reader)),
         })
     }
@@ -327,22 +341,23 @@ impl BufferStream {
         match std::mem::replace(&mut self.state, State::Idle(None)) {
             State::Idle(reader) => {
                 let mut reader = reader.expect("reader must exist while idle");
-                let result = match &mut reader {
+                let prepared = match &mut reader {
                     TwoWays::One(v) => v.metadata().await,
                     TwoWays::Two(v) => v.metadata().await,
                 };
                 self.state = State::Idle(Some(reader));
-                result
+                prepared
+            }
+            State::Opening(fut) => {
+                let (reader, prepared) = fut.await;
+                self.state = State::Idle(Some(reader));
+                let _ = prepared?;
+                self.ctx.metadata().cloned().ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
+                })
             }
             State::Reading(fut) => {
-                let (reader, buffer) = fut.await;
-                self.state = State::Idle(Some(reader));
-
-                let buffer = buffer?;
-                if !buffer.is_empty() {
-                    self.pending = Some(buffer);
-                }
-
+                self.state = State::Reading(fut);
                 self.ctx.metadata().cloned().ok_or_else(|| {
                     Error::new(ErrorKind::Unexpected, "read stream metadata is not set")
                 })
@@ -357,18 +372,48 @@ impl Stream for BufferStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         loop {
-            if let Some(buf) = this.pending.take() {
-                return Poll::Ready(Some(Ok(buf)));
-            }
-
             match &mut this.state {
                 State::Idle(reader) => {
                     let mut reader = reader.take().unwrap();
+                    if this.ctx.metadata().is_none() {
+                        let fut = async move {
+                            let ret = match &mut reader {
+                                TwoWays::One(v) => v.prepare_metadata().await,
+                                TwoWays::Two(v) => v.prepare_metadata().await,
+                            };
+                            (reader, ret)
+                        };
+                        this.state = State::Opening(Box::pin(fut));
+                        continue;
+                    }
+
                     let fut = async move {
                         let ret = reader.read().await;
                         (reader, ret)
                     };
                     this.state = State::Reading(Box::pin(fut));
+                }
+                State::Opening(fut) => {
+                    let fut = fut.as_mut();
+                    let (reader, prepared) = ready!(fut.poll(cx));
+                    match prepared {
+                        Ok(true) => {
+                            let fut = async move {
+                                let mut reader = reader;
+                                let ret = reader.read().await;
+                                (reader, ret)
+                            };
+                            this.state = State::Reading(Box::pin(fut));
+                        }
+                        Ok(false) => {
+                            this.state = State::Idle(Some(reader));
+                            return Poll::Ready(None);
+                        }
+                        Err(err) => {
+                            this.state = State::Idle(Some(reader));
+                            return Poll::Ready(Some(Err(err)));
+                        }
+                    }
                 }
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
@@ -443,7 +488,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_metadata_awaits_inflight_read() -> Result<()> {
+    async fn test_metadata_awaits_inflight_open() -> Result<()> {
         let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
@@ -451,23 +496,22 @@ mod tests {
             OpRead::new(),
             OpReader::new(),
         ));
-        let reader = StreamingReader::new(ctx.clone(), BytesRange::new(0, Some(0)));
+        let reader = StreamingReader {
+            generator: ReadGenerator::new(ctx.clone(), 0, Some(0)),
+            reader: Some(Box::new(Buffer::from(Bytes::from_static(b"oWor")))),
+        };
         let (tx, rx) = oneshot::channel();
 
         let ctx_in_fut = ctx.clone();
         let fut = async move {
             let _ = rx.await;
             ctx_in_fut.set_metadata(Metadata::new(EntryMode::FILE).with_content_length(10));
-            (
-                TwoWays::One(reader),
-                Ok(Buffer::from(Bytes::from_static(b"oWor"))),
-            )
+            (TwoWays::One(reader), Ok(true))
         };
 
         let mut stream = BufferStream {
             ctx,
-            pending: None,
-            state: State::Reading(Box::pin(fut)),
+            state: State::Opening(Box::pin(fut)),
         };
 
         let _ = tx.send(());

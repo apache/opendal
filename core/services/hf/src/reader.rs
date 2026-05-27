@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use http::Response;
-use http::StatusCode;
-use http::header;
+use bytes::Buf;
 
 use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
 
-use super::core::HfCore;
+use super::config::HfDownloadMode;
+use super::core::{HfCore, XetFileResponse};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -31,56 +30,24 @@ pub enum HfReader {
 }
 
 impl HfReader {
-    /// Create a reader, automatically choosing between XET and HTTP.
-    ///
-    /// Buckets always use XET. For other repo types, a HEAD request
-    /// probes for the `X-Xet-Hash` header. Files stored on XET are
-    /// downloaded via the CAS protocol; all others fall back to HTTP GET.
-    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(Metadata, Self)> {
-        if let Some(xet_file) = core.maybe_xet_file(path).await? {
-            return Self::try_new_xet(core, &xet_file, range).await;
-        }
-
-        if core.repo.is_bucket() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "bucket file is missing XET metadata",
-            ));
-        }
-
-        Self::try_new_http(core, path, range).await
-    }
-
-    pub async fn try_new_http(
-        core: &HfCore,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<(Metadata, Self)> {
-        let client = core.info.http_client();
-        let uri = core.uri(path);
-        let url = uri.resolve_url(&core.endpoint);
-
-        let mut req = core.request(http::Method::GET, &url, Operation::Read)?;
-
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
-        }
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        let resp = client.fetch(req).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                parse_into_metadata(path, resp.headers())?,
-                Self::Http(resp.into_body()),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(super::error::parse_error(Response::from_parts(part, buf)))
+    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
+        let resp = core.resolve(path, range, core.download_mode).await?;
+        match core.download_mode {
+            HfDownloadMode::Xet => {
+                if resp.headers().contains_key("x-xet-hash") {
+                    let (_, mut body) = resp.into_parts();
+                    let buf = body.to_buffer().await?;
+                    let info: XetFileResponse = serde_json::from_reader(buf.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await
+                } else {
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "file is missing XET metadata",
+                    ))
+                }
             }
+            HfDownloadMode::Http => Ok(Self::Http(resp.into_body())),
         }
     }
 
@@ -88,7 +55,7 @@ impl HfReader {
         core: &HfCore,
         file_info: &XetFileInfo,
         range: BytesRange,
-    ) -> Result<(Metadata, Self)> {
+    ) -> Result<Self> {
         let group = core.xet_download_group().await?;
 
         let xet_range = if range.is_full() {
@@ -110,13 +77,7 @@ impl HfReader {
                 .set_source(err)
             })?;
         stream.start();
-
-        let total_size = file_info.file_size.unwrap_or_default();
-        let metadata = Metadata::new(EntryMode::FILE)
-            .with_content_length(total_size)
-            .with_etag(file_info.hash().to_string());
-
-        Ok((metadata, Self::Xet(stream)))
+        Ok(Self::Xet(stream))
     }
 }
 

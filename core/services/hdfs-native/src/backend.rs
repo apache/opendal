@@ -191,10 +191,14 @@ impl Access for HdfsNativeBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let (f, offset, size) = self.core.hdfs_read(path, &args).await?;
+        let content_length = f.file_length() as u64;
 
         let r = HdfsNativeReader::new(f, offset as _, size as _);
 
-        Ok((RpRead::new(), r))
+        Ok((
+            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
+            r,
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

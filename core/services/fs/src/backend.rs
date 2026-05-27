@@ -204,15 +204,6 @@ impl Access for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    /// # Notes
-    ///
-    /// There are three ways to get the total file length:
-    ///
-    /// - call std::fs::metadata directly and then open. (400ns)
-    /// - open file first, and then use `f.metadata()` (300ns)
-    /// - open file first, and then use `seek`. (100ns)
-    ///
-    /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let f = self.core.fs_read(path, &args).await?;
         let r = FsReader::new(
@@ -220,7 +211,7 @@ impl Access for FsBackend {
             f,
             args.range().size().unwrap_or(u64::MAX) as _,
         );
-        Ok((RpRead::new(), r))
+        Ok((RpRead::default(), r))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

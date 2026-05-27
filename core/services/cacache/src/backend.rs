@@ -117,6 +117,7 @@ impl Access for CacacheBackend {
         match data {
             Some(bytes) => {
                 let range = args.range();
+                let content_length = bytes.len() as u64;
                 let buffer = if range.is_full() {
                     Buffer::from(bytes)
                 } else {
@@ -127,7 +128,8 @@ impl Access for CacacheBackend {
                     };
                     Buffer::from(bytes.slice(start..end.min(bytes.len())))
                 };
-                Ok((RpRead::new(), buffer))
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+                Ok((RpRead::new(metadata), buffer))
             }
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }

@@ -268,8 +268,8 @@ impl Access for HfBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let reader = HfReader::try_new(&self.core, path, args.range()).await?;
-        Ok((RpRead::default(), reader))
+        let (metadata, reader) = HfReader::try_new(&self.core, path, args.range()).await?;
+        Ok((RpRead::new(metadata), reader))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

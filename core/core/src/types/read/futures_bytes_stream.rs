@@ -54,6 +54,15 @@ impl FuturesBytesStream {
             buf: Buffer::new(),
         })
     }
+
+    /// Get metadata for this stream.
+    ///
+    /// Calling this method opens the underlying read request if needed.
+    /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
+    /// return metadata while opening the read operation.
+    pub async fn metadata(&mut self) -> Result<Metadata> {
+        self.stream.metadata().await
+    }
 }
 
 impl Stream for FuturesBytesStream {

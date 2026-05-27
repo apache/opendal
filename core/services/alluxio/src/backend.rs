@@ -165,7 +165,10 @@ impl Access for AlluxioBackend {
             let buf = body.to_buffer().await?;
             return Err(parse_error(Response::from_parts(part, buf)));
         }
-        Ok((RpRead::new(), resp.into_body()))
+        Ok((
+            RpRead::new(parse_into_metadata(path, resp.headers())?),
+            resp.into_body(),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

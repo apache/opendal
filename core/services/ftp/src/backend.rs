@@ -246,9 +246,8 @@ impl Access for FtpBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-
         let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
-        Ok((RpRead::new(), reader))
+        Ok((RpRead::default(), reader))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

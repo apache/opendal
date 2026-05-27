@@ -35,9 +35,7 @@ pub struct ReadContext {
     /// Options for the reader.
     options: OpReader,
     /// Complete object metadata observed from successful read opens.
-    object_metadata: OnceLock<Metadata>,
-    /// Read response metadata observed from successful read opens.
-    read_metadata: OnceLock<(Metadata, BytesRange)>,
+    metadata: OnceLock<Metadata>,
 }
 
 impl ReadContext {
@@ -49,8 +47,7 @@ impl ReadContext {
             path,
             args,
             options,
-            object_metadata: OnceLock::new(),
-            read_metadata: OnceLock::new(),
+            metadata: OnceLock::new(),
         }
     }
 
@@ -81,17 +78,13 @@ impl ReadContext {
     /// Get complete object metadata observed by this reader.
     #[inline]
     pub fn metadata(&self) -> Option<&Metadata> {
-        let (metadata, range) = self.read_metadata.get()?;
-        Some(self.object_metadata.get_or_init(|| {
-            let mut object_metadata = metadata.clone();
-            object_metadata.adjust_by_range(*range);
-            object_metadata
-        }))
+        self.metadata.get()
     }
 
-    /// Set cached read response metadata once.
-    pub(crate) fn set_metadata(&self, metadata: Metadata, range: BytesRange) {
-        let _ = self.read_metadata.set((metadata, range));
+    /// Set cached object metadata from read response metadata once.
+    pub(crate) fn set_metadata(&self, mut metadata: Metadata, range: BytesRange) {
+        metadata.adjust_by_range(range);
+        let _ = self.metadata.set(metadata);
     }
 
     /// Parse the range bounds into a range.

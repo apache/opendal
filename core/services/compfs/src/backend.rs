@@ -224,16 +224,21 @@ impl Access for CompfsBackend {
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = self.core.prepare_path(path);
 
-        let file = self
+        let (file, content_length) = self
             .core
-            .exec(|| async move { compio::fs::OpenOptions::new().read(true).open(&path).await })
+            .exec(|| async move {
+                let file = compio::fs::OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .await?;
+                let content_length = file.metadata().await?.len();
+                Ok((file, content_length))
+            })
             .await?;
 
         let r = CompfsReader::new(self.core.clone(), file, op.range());
         Ok((
-            RpRead::new(
-                Metadata::new(EntryMode::FILE).with_content_length(op.range().size().unwrap_or(0)),
-            ),
+            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
             r,
         ))
     }

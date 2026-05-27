@@ -324,12 +324,15 @@ impl Access for GoosefsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let content_length = args.range().size().unwrap_or(0);
-        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args);
-        Ok((
-            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
-            reader,
-        ))
+        let file_info = self.core.get_status(path).await?;
+        let metadata = self.core.file_info_to_metadata(&file_info);
+        let reader = GoosefsReader::new(
+            self.core.clone(),
+            path.to_string(),
+            args,
+            metadata.content_length(),
+        );
+        Ok((RpRead::new(metadata), reader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -46,32 +46,46 @@ pub struct MonoiofsReader {
 }
 
 impl MonoiofsReader {
-    pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf, range: BytesRange) -> Result<Self> {
+    pub async fn new(
+        core: Arc<MonoiofsCore>,
+        path: PathBuf,
+        range: BytesRange,
+    ) -> Result<(Self, u64)> {
         let (open_result_tx, open_result_rx) = oneshot::channel();
         let (tx, rx) = mpsc::unbounded();
         core.spawn(move || Self::worker_entrypoint(path, rx, open_result_tx))
             .await;
-        core.unwrap(open_result_rx.await)?;
-        Ok(Self {
-            core,
-            tx,
-            pos: range.offset(),
-            end_pos: range.size().map(|size| range.offset() + size),
-        })
+        let content_length = core.unwrap(open_result_rx.await)?;
+        Ok((
+            Self {
+                core,
+                tx,
+                pos: range.offset(),
+                end_pos: range.size().map(|size| range.offset() + size),
+            },
+            content_length,
+        ))
     }
 
     /// entrypoint of worker task that runs in context of monoio
     async fn worker_entrypoint(
         path: PathBuf,
         mut rx: mpsc::UnboundedReceiver<ReaderRequest>,
-        open_result_tx: oneshot::Sender<Result<()>>,
+        open_result_tx: oneshot::Sender<Result<u64>>,
     ) {
         let result = OpenOptions::new().read(true).open(path).await;
         // [`monoio::fs::File`] is non-Send, hence it is kept within
         // worker thread
         let file = match result {
             Ok(file) => {
-                let Ok(()) = open_result_tx.send(Ok(())) else {
+                let content_length = match file.metadata().await {
+                    Ok(metadata) => metadata.len(),
+                    Err(err) => {
+                        let _ = open_result_tx.send(Err(new_std_io_error(err)));
+                        return;
+                    }
+                };
+                let Ok(()) = open_result_tx.send(Ok(content_length)) else {
                     // MonoiofsReader::new is cancelled, exit worker task
                     return;
                 };

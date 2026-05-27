@@ -219,13 +219,11 @@ impl Access for HdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let metadata = self.core.hdfs_stat(path)?;
         let f = self.core.hdfs_read(path, &args).await?;
 
         Ok((
-            RpRead::new(
-                Metadata::new(EntryMode::FILE)
-                    .with_content_length(args.range().size().unwrap_or(0)),
-            ),
+            RpRead::new(metadata),
             HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
         ))
     }

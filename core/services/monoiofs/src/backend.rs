@@ -127,12 +127,10 @@ impl Access for MonoiofsBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = self.core.prepare_path(path);
-        let reader = MonoiofsReader::new(self.core.clone(), path, args.range()).await?;
+        let (reader, content_length) =
+            MonoiofsReader::new(self.core.clone(), path, args.range()).await?;
         Ok((
-            RpRead::new(
-                Metadata::new(EntryMode::FILE)
-                    .with_content_length(args.range().size().unwrap_or(0)),
-            ),
+            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
             reader,
         ))
     }

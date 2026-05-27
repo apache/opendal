@@ -26,6 +26,7 @@ use object_store::path::Path as ObjectStorePath;
 use opendal::raw::*;
 use opendal::*;
 
+use super::core::format_metadata;
 use super::core::parse_op_read;
 use super::error::parse_error;
 
@@ -33,7 +34,6 @@ use super::error::parse_error;
 pub struct ObjectStoreReader {
     bytes_stream: BoxStream<'static, object_store::Result<Bytes>>,
     meta: object_store::ObjectMeta,
-    args: OpRead,
 }
 
 impl ObjectStoreReader {
@@ -47,32 +47,11 @@ impl ObjectStoreReader {
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
         let bytes_stream = result.into_stream();
-        Ok(Self {
-            bytes_stream,
-            meta,
-            args,
-        })
+        Ok(Self { bytes_stream, meta })
     }
 
     pub(crate) fn rp(&self) -> RpRead {
-        let mut meta = Metadata::new(EntryMode::FILE);
-        if !self.args.range().is_full() {
-            let range = self.args.range();
-            let size = range
-                .size()
-                .unwrap_or_else(|| self.meta.size.saturating_sub(range.offset()));
-            meta.set_content_length(size);
-            if size > 0 {
-                meta.set_content_range(
-                    BytesContentRange::default()
-                        .with_range(range.offset(), range.offset() + size - 1)
-                        .with_size(self.meta.size),
-                );
-            }
-        } else {
-            meta.set_content_length(self.meta.size);
-        }
-        RpRead::new(meta)
+        RpRead::new(format_metadata(&self.meta))
     }
 }
 

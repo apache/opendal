@@ -72,6 +72,7 @@ pub struct GoosefsReader {
     core: Arc<GoosefsCore>,
     path: String,
     args: OpRead,
+    content_length: u64,
     /// Lazily-opened SDK reader. `None` until the first `read()` call.
     inner: Option<SdkReader>,
     /// Terminal flag: once the underlying stream has returned `None`,
@@ -82,11 +83,12 @@ pub struct GoosefsReader {
 }
 
 impl GoosefsReader {
-    pub fn new(core: Arc<GoosefsCore>, path: String, args: OpRead) -> Self {
+    pub fn new(core: Arc<GoosefsCore>, path: String, args: OpRead, content_length: u64) -> Self {
         GoosefsReader {
             core,
             path,
             args,
+            content_length,
             inner: None,
             done: false,
         }
@@ -110,9 +112,7 @@ impl GoosefsReader {
             (0, None) => self.core.open_reader(&self.path).await,
             (off, Some(len)) => self.core.open_range_reader(&self.path, off, len).await,
             (off, None) => {
-                let info = self.core.get_status(&self.path).await?;
-                let file_len = info.length.unwrap_or(0) as u64;
-                let len = file_len.saturating_sub(off);
+                let len = self.content_length.saturating_sub(off);
                 if len == 0 {
                     // Empty tail — short-circuit with a zero-length
                     // ranged open so the very next `read_next_block`

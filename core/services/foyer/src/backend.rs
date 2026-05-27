@@ -272,6 +272,7 @@ impl Access for FoyerBackend {
             Some(bs) => bs,
             None => return Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),
         };
+        let content_length = buffer.len() as u64;
 
         let buffer = if args.range().is_full() {
             buffer
@@ -285,7 +286,7 @@ impl Access for FoyerBackend {
             buffer.slice(start..end.min(buffer.len()))
         };
 
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as u64);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
         Ok((RpRead::new(metadata), buffer))
     }
 

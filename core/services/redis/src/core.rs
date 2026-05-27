@@ -184,6 +184,11 @@ impl RedisCore {
         Ok(result.map(Buffer::from))
     }
 
+    pub async fn len(&self, key: &str) -> Result<usize> {
+        let mut conn = self.conn().await?;
+        conn.strlen(key).await.map_err(format_redis_error)
+    }
+
     pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut conn = self.conn().await?;
         let value = value.to_vec();

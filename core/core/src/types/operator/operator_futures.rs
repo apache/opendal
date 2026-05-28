@@ -1437,6 +1437,15 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Sets the condition that copy operation will succeed only if the
+    /// destination object currently has the given ETag.
+    ///
+    /// Refer to [`options::CopyOptions::if_match`] for more details.
+    pub fn if_match(mut self, etag: &str) -> Self {
+        self.args.0.if_match = Some(etag.to_string());
+        self
+    }
+
     /// Sets concurrent copy operations for this copy.
     ///
     /// Refer to [`options::CopyOptions::concurrent`] for more details.
@@ -1473,6 +1482,15 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     /// Refer to [`options::CopyOptions::if_not_exists`] for more details.
     pub fn if_not_exists(mut self, v: bool) -> Self {
         self.args.0.if_not_exists = v;
+        self
+    }
+
+    /// Sets the condition that copy operation will succeed only if the
+    /// destination object currently has the given ETag.
+    ///
+    /// Refer to [`options::CopyOptions::if_match`] for more details.
+    pub fn if_match(mut self, etag: &str) -> Self {
+        self.args.0.if_match = Some(etag.to_string());
         self
     }
 

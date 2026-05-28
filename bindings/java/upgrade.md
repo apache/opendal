@@ -2,6 +2,19 @@
 
 ## Breaking changes
 
+### Hugging Face config requires `repoType`
+
+`ServiceConfig.Hf` no longer relies on the backend's implicit `model` default. Set `repoType` explicitly when creating Hugging Face operators:
+
+```diff
+ ServiceConfig.Hf config = ServiceConfig.Hf.builder()
++    .repoType("model")
+     .repoId("username/repo")
+     .build();
+```
+
+Use the appropriate value for the repository: `model`, `dataset`, `space`, or `bucket`.
+
 ### Generated service configs use canonical service names
 
 Generated `ServiceConfig` entries now use canonical OpenDAL service names.

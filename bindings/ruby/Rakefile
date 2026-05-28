@@ -75,11 +75,23 @@ end
 
 Rake::Task[:test].prerequisites << :compile
 
-Rake::TestTask.new do |t|
+Rake::TestTask.new(:test_base) do |t|
   t.libs << "lib"
   t.libs << "test"
-  t.pattern = "test/**/*_test.rb"
+  t.test_files = FileList["test/*_test.rb"]
 end
+
+Rake::TestTask.new(:test_service) do |t|
+  t.libs << "lib"
+  t.libs << "test"
+  t.test_files = FileList["test/service/*_test.rb"]
+end
+
+desc "Test base functionality"
+task test_base: :test
+
+desc "Test service functionality"
+task test_service: :test
 
 namespace :doc do
   task default: %i[rustdoc yard]

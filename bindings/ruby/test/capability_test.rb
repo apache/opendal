@@ -19,11 +19,9 @@
 
 require "test_helper"
 
-SERVICE = ENV["OPENDAL_TEST"] || "memory"
-
 class CapabilityTest < ActiveSupport::TestCase
   setup do
-    @op = OpenDal::Operator.new(SERVICE, nil)
+    @op = OpenDal::Operator.new("memory", {"root" => "/"})
   end
 
   test "has read capability" do

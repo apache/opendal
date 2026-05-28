@@ -20,13 +20,11 @@
 require "test_helper"
 require "tmpdir"
 
-SERVICE = ENV["OPENDAL_TEST"] || "fs"
-
-class OpenDalTest < ActiveSupport::TestCase
+class BlockingOperatorTest < ActiveSupport::TestCase
   setup do
     @root = Dir.mktmpdir
     File.write("#{@root}/sample", "Sample data for testing")
-    @op = OpenDal::Operator.new(SERVICE, {"root" => @root})
+    @op = OpenDal::Operator.new("fs", {"root" => @root})
   end
 
   teardown do

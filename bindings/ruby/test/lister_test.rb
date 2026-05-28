@@ -20,8 +20,6 @@
 require "test_helper"
 require "tmpdir"
 
-SERVICE = ENV["OPENDAL_TEST"] || "fs"
-
 class ListerTest < ActiveSupport::TestCase
   setup do
     @root = Dir.mktmpdir

@@ -19,11 +19,9 @@
 
 require "test_helper"
 
-SERVICE = ENV["OPENDAL_TEST"] || "memory"
-
 class MetadataTest < ActiveSupport::TestCase
   setup do
-    @op = OpenDal::Operator.new(SERVICE, {})
+    @op = OpenDal::Operator.new("memory", {"root" => "/"})
     @op.write("/file", "OpenDAL Ruby is ready.")
   end
 

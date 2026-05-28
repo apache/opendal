@@ -32,7 +32,42 @@ defaults:
     working-directory: bindings/ruby
 
 jobs:
-  test:
+  test_base:
+    name: base
+    runs-on: ${{ inputs.os }}
+
+    env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
+      BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+          need-protoc: true
+          need-rocksdb: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup 1Password Connect
+        shell: bash
+        run: |
+          echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
+          echo "::add-mask::${{ secrets.OP_CONNECT_TOKEN }}"
+          echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
+          echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
+
+      - name: Setup Ruby and install dependencies
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
+
+      - name: Test base
+        run: |
+          bundle exec rake test_base
+
+  test_service:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
     strategy:
@@ -67,7 +102,7 @@ jobs:
           bundler-cache: true
           working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
 
-      - name: Test services
+      - name: Test service
         uses: ./.github/actions/test_behavior_binding_ruby
         with:
           setup: ${{ matrix.cases.setup }}

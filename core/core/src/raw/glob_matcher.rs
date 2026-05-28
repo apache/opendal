@@ -31,7 +31,13 @@ use crate::*;
 /// Classification of a single pattern segment used by guided traversal.
 #[derive(Debug, Clone)]
 pub(crate) enum Segment {
-    /// Pure literal — append directly to the path without listing.
+    /// A literal path piece — append directly to the path without listing.
+    ///
+    /// At the leading edge of a pattern this may contain `/` (consecutive
+    /// literal segments are folded together by `compile_segments` into a
+    /// single `Literal("a/b/c")`). After any `Glob` or `DoubleStar` has
+    /// appeared, every `Literal` corresponds to a single path component
+    /// and contains no `/`.
     Literal(String),
     /// Single-segment glob (`*.jpg`, `[ab].txt`, `{x,y}.csv`). Matched by
     /// listing the parent and filtering child names.
@@ -75,20 +81,40 @@ impl SegmentMatcher {
 /// Compile a pattern into the per-segment representation used by guided
 /// traversal. Returns the segments in order.
 ///
-/// Consecutive `**` segments are collapsed into a single `DoubleStar`: they
-/// are semantically equivalent (both match "zero or more components"), and
-/// the collapse avoids redundant list calls in the guided traversal.
+/// Two collapses happen at compile time to reduce work at traversal time:
+///
+/// - **Consecutive `**`**: `**/**` ≡ `**`. Both match "zero or more
+///   components". Collapsing avoids redundant list calls.
+/// - **Leading literal prefix**: consecutive literal segments at the very
+///   start of the pattern (before any `Glob` or `DoubleStar`) are folded
+///   into a single `Literal("a/b/c")`. This skips a frame-loop iteration
+///   per segment when seeding the traversal, which is the most common
+///   case (e.g. `a/b/c/**/*.json`). Literals following a wildcard segment
+///   are kept separate so that downstream entry handlers — which compare
+///   the next segment against a single basename — can match them
+///   unambiguously.
 pub(crate) fn compile_segments(pattern: &str) -> Result<Vec<Segment>> {
     let mut out: Vec<Segment> = Vec::new();
+    // Only fold while we are still in the leading literal prefix region.
+    let mut in_leading_prefix = true;
     for seg in split_segments(pattern) {
         if seg == "**" {
+            in_leading_prefix = false;
             // Skip if previous segment is already `**` — `**/**` ≡ `**`.
             if matches!(out.last(), Some(Segment::DoubleStar)) {
                 continue;
             }
             out.push(Segment::DoubleStar);
         } else if has_meta(seg) {
+            in_leading_prefix = false;
             out.push(Segment::Glob(SegmentMatcher::new(seg)?));
+        } else if in_leading_prefix {
+            if let Some(Segment::Literal(prev)) = out.last_mut() {
+                prev.push('/');
+                prev.push_str(seg);
+            } else {
+                out.push(Segment::Literal(seg.to_string()));
+            }
         } else {
             out.push(Segment::Literal(seg.to_string()));
         }
@@ -393,11 +419,10 @@ mod tests {
     #[test]
     fn compile_segments_classifies() {
         let segs = compile_segments("media/2024/**/*.jpg").unwrap();
-        assert_eq!(segs.len(), 4);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "media"));
-        assert!(matches!(&segs[1], Segment::Literal(s) if s == "2024"));
-        assert!(matches!(segs[2], Segment::DoubleStar));
-        assert!(matches!(&segs[3], Segment::Glob(_)));
+        assert_eq!(segs.len(), 3);
+        assert!(matches!(&segs[0], Segment::Literal(s) if s == "media/2024"));
+        assert!(matches!(segs[1], Segment::DoubleStar));
+        assert!(matches!(&segs[2], Segment::Glob(_)));
     }
 
     #[test]
@@ -412,6 +437,38 @@ mod tests {
         assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
         assert!(matches!(segs[1], Segment::DoubleStar));
         assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
+    }
+
+    #[test]
+    fn compile_segments_folds_leading_literal_prefix() {
+        // Leading literal run folds into one segment.
+        let segs = compile_segments("a/b/c/**/*.jpg").unwrap();
+        assert_eq!(segs.len(), 3);
+        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a/b/c"));
+        assert!(matches!(segs[1], Segment::DoubleStar));
+        assert!(matches!(&segs[2], Segment::Glob(_)));
+
+        // Pure literal pattern folds end-to-end.
+        let segs = compile_segments("a/b/c.txt").unwrap();
+        assert_eq!(segs.len(), 1);
+        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a/b/c.txt"));
+
+        // Literals after a wildcard segment stay one-component-per-Literal
+        // so downstream basename matching works.
+        let segs = compile_segments("a/*/b/c").unwrap();
+        assert_eq!(segs.len(), 4);
+        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
+        assert!(matches!(&segs[1], Segment::Glob(_)));
+        assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
+        assert!(matches!(&segs[3], Segment::Literal(s) if s == "c"));
+
+        // Literals after `**` likewise stay one-component-per-Literal.
+        let segs = compile_segments("a/**/b/c").unwrap();
+        assert_eq!(segs.len(), 4);
+        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
+        assert!(matches!(segs[1], Segment::DoubleStar));
+        assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
+        assert!(matches!(&segs[3], Segment::Literal(s) if s == "c"));
     }
 
     #[test]

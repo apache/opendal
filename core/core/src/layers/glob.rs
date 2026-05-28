@@ -369,18 +369,22 @@ impl<A: Access> GuidedLister<A> {
     /// literal segments via stat). Otherwise the frame either enqueues
     /// further work or opens an active list call.
     async fn advance_frame(&mut self, frame: Frame) -> Result<Option<oio::Entry>> {
-        // Consume zero-cost literal segments inline.
+        // Consume zero-cost literal segments inline. `compile_segments`
+        // folds consecutive literals into a single `Literal` variant, so at
+        // most one iteration of this loop runs per frame — but we keep it
+        // as a loop to remain robust against future segment-classification
+        // changes.
         let mut path = frame.path;
         let mut idx = frame.idx;
 
         while idx < self.segments.len() {
             match &self.segments[idx] {
-                Segment::Literal(name) => {
+                Segment::Literal(run) => {
                     let mut child = path.clone();
-                    child.push_str(name);
+                    child.push_str(run);
                     if idx + 1 == self.segments.len() {
-                        // Terminal literal — confirm existence via stat.
-                        // Missing entries simply yield no match.
+                        // Terminal literal run — confirm existence via
+                        // stat. Missing entries simply yield no match.
                         return self.stat_terminal(child).await;
                     }
                     child.push('/');
@@ -674,6 +678,30 @@ mod tests {
         assert_eq!(
             got,
             BTreeSet::from(["a/x.jpg".to_string(), "a/y.jpg".to_string()])
+        );
+    }
+
+    /// Long leading literal prefix (`a/b/c/**/*.jpg`) is folded into a
+    /// single Literal segment at compile time. Verify behaviour is
+    /// unchanged.
+    #[tokio::test]
+    async fn long_literal_prefix_then_recursive_glob() {
+        let op = seed(&[
+            "a/b/c/x.jpg",
+            "a/b/c/d/y.jpg",
+            "a/b/c/d/e/z.jpg",
+            "a/b/c/w.png",
+            "a/b/other/q.jpg",
+        ])
+        .await;
+        let got = glob(&op, "a/b/c/**/*.jpg").await;
+        assert_eq!(
+            got,
+            BTreeSet::from([
+                "a/b/c/x.jpg".to_string(),
+                "a/b/c/d/y.jpg".to_string(),
+                "a/b/c/d/e/z.jpg".to_string(),
+            ])
         );
     }
 

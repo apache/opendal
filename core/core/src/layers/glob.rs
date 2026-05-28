@@ -66,12 +66,12 @@ use crate::*;
 /// # Example
 ///
 /// ```no_run
-/// use opendal::layers::GlobLayer;
-/// use opendal::services::Fs;
-/// use opendal::Operator;
+/// use opendal_core::layers::GlobLayer;
+/// use opendal_core::services;
+/// use opendal_core::Operator;
 ///
-/// # async fn run() -> opendal::Result<()> {
-/// let op = Operator::new(Fs::default().root("/tmp"))?
+/// # async fn run() -> opendal_core::Result<()> {
+/// let op = Operator::new(services::Memory::default())?
 ///     .layer(GlobLayer)
 ///     .finish();
 ///

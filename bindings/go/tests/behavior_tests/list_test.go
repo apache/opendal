@@ -24,7 +24,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 	if !cap.Read() || !cap.Write() || !cap.List() || !cap.CreateDir() {
 		return nil
 	}
-	return []behaviorTest{
+	tests := []behaviorTest{
 		testListCheck,
 		testListDir,
 		testListRichDir,
@@ -43,7 +43,12 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 		testListNestedDir,
 		testListDirWithFilePath,
 		testListEntryMetadata,
+		testListWithDefaultOptions,
 	}
+	if cap.ListWithRecursive() {
+		tests = append(tests, testListWithRecursive)
+	}
+	return tests
 }
 
 func testListCheck(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
@@ -288,4 +293,64 @@ func testListDirWithFilePath(assert *require.Assertions, op *opendal.Operator, f
 		assert.Equal(parent, entry.Path())
 	}
 	assert.Nil(obs.Error())
+}
+
+func testListWithDefaultOptions(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	subDir := fixture.PushPath(fmt.Sprintf("%s%s/", parent, uuid.NewString()))
+	fileInParent, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+	fileInSub := fixture.PushPath(fmt.Sprintf("%s%s", subDir, uuid.NewString()))
+
+	assert.Nil(op.CreateDir(parent))
+	assert.Nil(op.CreateDir(subDir))
+	assert.Nil(op.Write(fileInParent, content))
+	assert.Nil(op.Write(fileInSub, content))
+
+	obs, err := op.List(parent)
+	assert.Nil(err)
+	defer obs.Close()
+
+	var paths []string
+	for obs.Next() {
+		paths = append(paths, obs.Entry().Path())
+	}
+	assert.Nil(obs.Error())
+
+	assert.NotContains(paths, fileInSub,
+		"List without options must not descend into sub-directories")
+	assert.Contains(paths, fileInParent, "direct child file must appear")
+	assert.Contains(paths, subDir, "direct child dir must appear")
+}
+
+func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	subDir := fixture.PushPath(fmt.Sprintf("%s%s/", parent, uuid.NewString()))
+	deepDir := fixture.PushPath(fmt.Sprintf("%s%s/", subDir, uuid.NewString()))
+
+	fileTop := fixture.PushPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+	fileMid := fixture.PushPath(fmt.Sprintf("%s%s", subDir, uuid.NewString()))
+	fileDeep := fixture.PushPath(fmt.Sprintf("%s%s", deepDir, uuid.NewString()))
+
+	content := []byte("recursive test content")
+
+	assert.Nil(op.CreateDir(parent))
+	assert.Nil(op.CreateDir(subDir))
+	assert.Nil(op.CreateDir(deepDir))
+	assert.Nil(op.Write(fileTop, content))
+	assert.Nil(op.Write(fileMid, content))
+	assert.Nil(op.Write(fileDeep, content))
+
+	obs, err := op.List(parent, opendal.ListWithRecursive(true))
+	assert.Nil(err)
+	defer obs.Close()
+
+	var paths []string
+	for obs.Next() {
+		paths = append(paths, obs.Entry().Path())
+	}
+	assert.Nil(obs.Error())
+
+	assert.Contains(paths, fileTop, "recursive list must include top-level file")
+	assert.Contains(paths, fileMid, "recursive list must include file in sub-directory")
+	assert.Contains(paths, fileDeep, "recursive list must include file in deep directory")
 }

@@ -767,6 +767,58 @@ pub unsafe extern "C" fn opendal_operator_list(
     }
 }
 
+/// \brief Blocking list the objects in `path` with options.
+///
+/// List the objects in `path` with the provided `opendal_list_options`. This is
+/// similar to `opendal_operator_list` but allows passing options such as
+/// `recursive` to control the listing behavior.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to list
+/// @param opts The options for the list operation; pass NULL to use defaults
+/// @see opendal_lister
+/// @see opendal_list_options
+/// @return Returns opendal_result_list, containing a lister and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid null terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_list_options,
+) -> opendal_result_list {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let list_opts = if opts.is_null() {
+        core::options::ListOptions::default()
+    } else {
+        let o = &*opts;
+        core::options::ListOptions {
+            recursive: o.recursive,
+            ..Default::default()
+        }
+    };
+    match op.deref().lister_options(path, list_opts) {
+        Ok(lister) => opendal_result_list {
+            lister: Box::into_raw(Box::new(opendal_lister::new(lister))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking create the directory in `path`.
 ///
 /// Create the directory in `path` blocking by `op_ptr`.

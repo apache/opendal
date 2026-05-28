@@ -39,6 +39,10 @@ jobs:
       fail-fast: false
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
+      
+    env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
+      BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
+
     steps:
       - uses: actions/checkout@v6
       - name: Setup Rust toolchain

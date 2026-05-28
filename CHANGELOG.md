@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
-## [v0.57.0] - 2026-05-25
+## [v0.57.0] - 2026-05-28
 
 ### Breaking Changes
 * core: `Operator::copy`, `copy_options`, `copy_with`, and blocking copy APIs now return `Metadata` instead of `()`. Custom raw copy implementations must implement the new copier flow and return server-side completion metadata from `oio::Copy::close`.
+* core: `RpRead` now carries optional `Metadata` observed while opening a read operation. Out-of-tree raw services that previously populated `RpRead` size or range fields must return `RpRead::new(metadata)` when read metadata is available, or `RpRead::default()` otherwise.
 * core: `RetryInterceptor::intercept` now takes a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. Update custom retry interceptors to read retry error, delay, operation, and attempt data from the event.
 * observability: HTTP metrics now include the `service_operation` label for service-specific request names. Update Prometheus, OpenTelemetry, fastmetrics, or custom metrics consumers that assume the previous HTTP metric label set.
 * services: S3-compatible services now use `skip_signature` for unsigned requests. S3, OSS, and GCS keep `allow_anonymous` as a deprecated alias; TOS users must migrate to `skip_signature` because `allow_anonymous` has been removed. GCS `skip_signature` now unconditionally bypasses signing instead of falling back on credential errors.
+* services/hf: `repo_type` is now required for the Hugging Face service. Set `repo_type` explicitly, for example `model`, `dataset`, `space`, or `bucket`, instead of relying on the previous implicit `model` default.
 * services/tos: `TosBuilder::enable_versioning` and `TosConfig::enable_versioning` have been removed. TOS now declares versioned stat/read/delete capabilities natively.
 * bindings/java: generated `ServiceConfig` now uses canonical service names. Replace `ServiceConfig.Huggingface` with `ServiceConfig.Hf`; generated `scheme()` values for services such as Aliyun Drive, Cloudflare KV, HDFS Native, Vercel Artifacts, Vercel Blob, and Yandex Disk now return hyphenated canonical schemes instead of underscore variants.
 
@@ -72,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(copy): add conditional destination copy by @dentiny in https://github.com/apache/opendal/pull/7600
 * feat(s3): validate multipart copy part number by @dentiny in https://github.com/apache/opendal/pull/7585
 * feat(core): return metadata from copy by @Xuanwo in https://github.com/apache/opendal/pull/7606
+* feat: C/Go bindings support layers by @yuchanns in https://github.com/apache/opendal/pull/7611
+* feat(core): return metadata from read by @Xuanwo in https://github.com/apache/opendal/pull/7624
+* feat(core): complete copy_with_if_match implementation by @YuangGao in https://github.com/apache/opendal/pull/7627
+* feat(services/hf): add download_mode option and require explicit repo_type by @kszucs in https://github.com/apache/opendal/pull/7625
 ### Changed
 * refactor(services/s3): complete capability override migration by @Xuanwo in https://github.com/apache/opendal/pull/7546
 * refactor(services/oss): complete capability override migration by @Xuanwo in https://github.com/apache/opendal/pull/7549
@@ -122,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: reshape README around action cards by @Xuanwo in https://github.com/apache/opendal/pull/7578
 * docs: tune service logo presentation by @Xuanwo in https://github.com/apache/opendal/pull/7581
 * docs(services/tos): add service docs by @ddupg in https://github.com/apache/opendal/pull/7587
+* docs: update read returns metadata RFC by @Xuanwo in https://github.com/apache/opendal/pull/7623
 ### CI
 * ci(bindings/dotnet): drive releases via workflow_dispatch with previe… by @Fatorin in https://github.com/apache/opendal/pull/7422
 * ci: drop skipStagingRepositoryClose for smoother staging by @tisonkun in https://github.com/apache/opendal/pull/7436

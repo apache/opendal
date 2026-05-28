@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]
+LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
@@ -82,6 +82,8 @@ class Hint:
     binding_java: bool = field(default=False, init=False)
     # Is binding python affected?
     binding_python: bool = field(default=False, init=False)
+    # Is binding ruby affected?
+    binding_ruby: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
     # Is binding go affected?

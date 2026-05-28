@@ -18,7 +18,7 @@
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
 use super::HUGGINGFACE_SCHEME;
-pub use super::config::HfRepoType;
+pub use super::core::HfRepoType;
 use opendal_core::raw::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

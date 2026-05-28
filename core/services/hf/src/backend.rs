@@ -21,8 +21,9 @@ use std::sync::Arc;
 use log::debug;
 
 use super::HF_SCHEME;
-use super::config::{HfConfig, HfDownloadMode};
+use super::config::HfConfig;
 use super::core::HfCore;
+use super::core::HfDownloadMode;
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
 use super::reader::HfReader;
@@ -118,7 +119,7 @@ impl HfBuilder {
     pub fn download_mode(mut self, mode: &str) -> Self {
         if !mode.is_empty() {
             if let Ok(m) = HfDownloadMode::parse(mode) {
-                self.config.download_mode = m;
+                self.config.download_mode = Some(m);
             }
         }
         self
@@ -215,6 +216,8 @@ impl Builder for HfBuilder {
         debug!("backend use root: {}", &root);
         debug!("backend use token: {}", token.is_some());
         debug!("backend use endpoint: {}", &endpoint);
+        let download_mode = self.config.download_mode.unwrap_or_default();
+        debug!("backend use download_mode: {:?}", download_mode);
 
         let info: Arc<AccessorInfo> = {
             let am = AccessorInfo::default();
@@ -242,7 +245,7 @@ impl Builder for HfBuilder {
                 root,
                 token,
                 endpoint,
-                self.config.download_mode,
+                download_mode,
             )?),
         })
     }
@@ -309,8 +312,7 @@ impl Access for HfBackend {
 pub(super) mod test_utils {
     use std::sync::Arc;
 
-    use super::super::config::HfDownloadMode;
-    use super::super::core::HfCore;
+    use super::super::core::{HfCore, HfDownloadMode};
     use super::super::uri::{HfRepo, HfRepoType};
     use super::HfBuilder;
     use opendal_core::Capability;

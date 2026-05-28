@@ -23,16 +23,88 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::config::HfDownloadMode;
+use super::HUGGINGFACE_SCHEME;
 use super::error::parse_error;
 use super::uri::{HfRepo, HfUri};
+
+/// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
+/// [Reference](https://huggingface.co/docs/hub/repositories)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HfRepoType {
+    Model,
+    Dataset,
+    Space,
+    Bucket,
+}
+
+impl HfRepoType {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.to_lowercase().replace(' ', "").as_str() {
+            "model" | "models" => Ok(Self::Model),
+            "dataset" | "datasets" => Ok(Self::Dataset),
+            "space" | "spaces" => Ok(Self::Space),
+            "bucket" | "buckets" => Ok(Self::Bucket),
+            other => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown repo type: {other}"),
+            )
+            .with_context("service", HUGGINGFACE_SCHEME)),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Model => "model",
+            Self::Dataset => "dataset",
+            Self::Space => "space",
+            Self::Bucket => "bucket",
+        }
+    }
+
+    pub fn as_plural_str(&self) -> &'static str {
+        match self {
+            Self::Model => "models",
+            Self::Dataset => "datasets",
+            Self::Space => "spaces",
+            Self::Bucket => "buckets",
+        }
+    }
+}
+
+/// Download mode for HuggingFace files.
+///
+/// - `xet` (default): uses the XET protocol, asks resolve for XET file metadata,
+///   and routes XET files through the CAS download stream.
+/// - `http`: follows the resolve redirect and streams bytes directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum HfDownloadMode {
+    #[default]
+    Xet,
+    Http,
+}
+
+impl HfDownloadMode {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "xet" => Ok(Self::Xet),
+            "http" => Ok(Self::Http),
+            other => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown download mode: {other}"),
+            )
+            .with_context("service", HUGGINGFACE_SCHEME)),
+        }
+    }
+}
 
 /// API payload structures for commit operations
 #[derive(Debug, serde::Serialize)]

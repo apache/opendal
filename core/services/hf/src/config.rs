@@ -16,86 +16,14 @@
 // under the License.
 
 use super::backend::HfBuilder;
+use super::core::HfDownloadMode;
+use super::core::HfRepoType;
 use super::uri::HfUri;
-use opendal_core::ErrorKind;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
 
 use super::HUGGINGFACE_SCHEME;
-
-/// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
-/// [Reference](https://huggingface.co/docs/hub/repositories)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum HfRepoType {
-    Model,
-    Dataset,
-    Space,
-    Bucket,
-}
-
-impl HfRepoType {
-    pub fn parse(s: &str) -> opendal_core::Result<Self> {
-        match s.to_lowercase().replace(' ', "").as_str() {
-            "model" | "models" => Ok(Self::Model),
-            "dataset" | "datasets" => Ok(Self::Dataset),
-            "space" | "spaces" => Ok(Self::Space),
-            "bucket" | "buckets" => Ok(Self::Bucket),
-            other => Err(opendal_core::Error::new(
-                opendal_core::ErrorKind::ConfigInvalid,
-                format!("unknown repo type: {other}"),
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)),
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Model => "model",
-            Self::Dataset => "dataset",
-            Self::Space => "space",
-            Self::Bucket => "bucket",
-        }
-    }
-
-    pub fn as_plural_str(&self) -> &'static str {
-        match self {
-            Self::Model => "models",
-            Self::Dataset => "datasets",
-            Self::Space => "spaces",
-            Self::Bucket => "buckets",
-        }
-    }
-}
-
-/// Download mode for HuggingFace files.
-///
-/// - `xet` (default): uses the XET protocol — GET with `Accept: application/vnd.xet-fileinfo+json`,
-///   routes XET files through the CAS download stream and non-XET files through plain HTTP.
-/// - `http`: plain GET without the Accept header, follows the 302 redirect from the server and
-///   streams the response body directly. Simpler, but no XET-specific range deduplication.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum HfDownloadMode {
-    #[default]
-    Xet,
-    Http,
-}
-
-impl HfDownloadMode {
-    pub fn parse(s: &str) -> opendal_core::Result<Self> {
-        match s.to_lowercase().as_str() {
-            "xet" => Ok(Self::Xet),
-            "http" => Ok(Self::Http),
-            other => Err(opendal_core::Error::new(
-                ErrorKind::ConfigInvalid,
-                format!("unknown download mode: {other}"),
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)),
-        }
-    }
-}
 
 /// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -125,7 +53,7 @@ pub struct HfConfig {
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
     /// Download mode. Either `xet` (default) or `http`.
-    pub download_mode: HfDownloadMode,
+    pub download_mode: Option<HfDownloadMode>,
 }
 
 impl Debug for HfConfig {
@@ -170,8 +98,7 @@ impl opendal_core::Configurator for HfConfig {
         let download_mode = opts
             .get("download_mode")
             .map(|s| HfDownloadMode::parse(s))
-            .transpose()?
-            .unwrap_or_default();
+            .transpose()?;
 
         if !path.is_empty() {
             // Full URI like "hf://datasets/user/repo@rev/path"
@@ -272,7 +199,7 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.download_mode, HfDownloadMode::Http);
+        assert_eq!(cfg.download_mode, Some(HfDownloadMode::Http));
     }
 
     #[test]
@@ -287,6 +214,6 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.download_mode, HfDownloadMode::Xet);
+        assert_eq!(cfg.download_mode.unwrap_or_default(), HfDownloadMode::Xet);
     }
 }

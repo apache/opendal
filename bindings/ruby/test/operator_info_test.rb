@@ -19,15 +19,17 @@
 
 require "test_helper"
 
+SERVICE = ENV["OPENDAL_TEST"] || "memory"
+
 class OperatorInfoTest < ActiveSupport::TestCase
   setup do
-    @op = OpenDal::Operator.new("memory", {})
+    @op = OpenDal::Operator.new(SERVICE, {})
   end
 
   test "returns meta information" do
     info = @op.info
 
-    assert_equal "memory", info.scheme
+    assert_equal SERVICE, info.scheme
     assert_equal "/", info.root
     assert info.name.length > 0
     assert info.capability.stat

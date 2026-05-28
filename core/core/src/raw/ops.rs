@@ -134,6 +134,15 @@ pub struct OpList {
     ///
     /// Default to `false`
     deleted: bool,
+    /// The glob pattern used to filter entries returned by the list operation.
+    ///
+    /// When set, only entries whose paths (relative to the list root) match the
+    /// given Unix shell style glob pattern will be returned.
+    ///
+    /// Pattern matching is delegated to the underlying service if it advertises
+    /// `list_with_glob` capability; otherwise a [`GlobLayer`] (or similar) is
+    /// required to provide a client-side fallback.
+    glob: Option<String>,
 }
 
 impl OpList {
@@ -216,6 +225,39 @@ impl OpList {
     pub fn deleted(&self) -> bool {
         self.deleted
     }
+
+    /// Change the glob pattern of this list operation.
+    ///
+    /// When set, only entries whose paths match the given Unix shell style glob
+    /// pattern will be returned. Patterns support `*`, `?`, `**`, `{a,b}` and
+    /// character classes like `[a-z]`.
+    pub fn with_glob(mut self, glob: &str) -> Self {
+        self.glob = Some(glob.to_string());
+        self
+    }
+
+    /// Get the glob pattern of this list operation.
+    pub fn glob(&self) -> Option<&str> {
+        self.glob.as_deref()
+    }
+
+    /// Clear the glob pattern. Used by `GlobLayer` when forwarding a
+    /// guided-traversal template to the underlying accessor.
+    pub(crate) fn clear_glob(&mut self) {
+        self.glob = None;
+    }
+
+    /// Clear the limit. Used by `GlobLayer`: the caller's limit applies to
+    /// filtered results, not raw entries from each downstream list call.
+    pub(crate) fn clear_limit(&mut self) {
+        self.limit = None;
+    }
+
+    /// Clear the `start_after` cursor. Used by `GlobLayer`: pagination is
+    /// undefined across the layer's multi-list traversal.
+    pub(crate) fn clear_start_after(&mut self) {
+        self.start_after = None;
+    }
 }
 
 impl From<options::ListOptions> for OpList {
@@ -226,6 +268,7 @@ impl From<options::ListOptions> for OpList {
             recursive: value.recursive,
             versions: value.versions,
             deleted: value.deleted,
+            glob: value.glob,
         }
     }
 }

@@ -184,6 +184,17 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is supported natively by the
+    /// underlying service.
+    ///
+    /// Services without native support can still expose `list_with_glob`
+    /// behaviour by wrapping the accessor with a client-side `GlobLayer`.
+    ///
+    /// The contract for this capability is fsspec / `pathlib` glob syntax:
+    /// `*`, `?`, `**`, `[abc]`, `[!abc]`, `{a,b}`. Services with native glob
+    /// that use a different dialect (e.g. GCS `matchGlob` differs subtly)
+    /// must normalize before advertising this capability.
+    pub list_with_glob: bool,
 
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,

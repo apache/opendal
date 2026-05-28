@@ -1128,9 +1128,10 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
                 /,
                 *,
+                download_mode: builtins.str = ...,
                 endpoint: builtins.str = ...,
                 repo_id: builtins.str = ...,
-                repo_type: builtins.str,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -1140,16 +1141,18 @@ submit! {
 
                 Parameters
                 ----------
+                download_mode : builtins.str, optional
+                    Download mode.
+                    Either `xet` (default) or `http`.
                 endpoint : builtins.str, optional
                     Endpoint of the Hugging Face Hub.
                     Default is "https://huggingface.co".
                 repo_id : builtins.str, optional
                     Repo id of this backend.
                     This is required.
-                repo_type : builtins.str
+                repo_type : builtins.str, optional
                     Repo type of this backend.
-                    Default is model.
-                    Default is model
+                    Required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.
@@ -3769,9 +3772,10 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
                 /,
                 *,
+                download_mode: builtins.str = ...,
                 endpoint: builtins.str = ...,
                 repo_id: builtins.str = ...,
-                repo_type: builtins.str,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -3781,16 +3785,18 @@ submit! {
 
                 Parameters
                 ----------
+                download_mode : builtins.str, optional
+                    Download mode.
+                    Either `xet` (default) or `http`.
                 endpoint : builtins.str, optional
                     Endpoint of the Hugging Face Hub.
                     Default is "https://huggingface.co".
                 repo_id : builtins.str, optional
                     Repo id of this backend.
                     This is required.
-                repo_type : builtins.str
+                repo_type : builtins.str, optional
                     Repo type of this backend.
-                    Default is model.
-                    Default is model
+                    Required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.

@@ -293,6 +293,27 @@ def generate_language_binding_cases(
             # opendal-go-services doesn't provide TOS yet.
             "tos",
         ]]
+    
+    # Enable integrated services (cases) for ruby.
+    # Ruby binding only integrates some services. Read more in bindings/ruby/Cargo.toml
+    if language == "ruby":
+        cases = [v for v in cases if v["service"] in [
+            "azblob",
+            "azdls",
+            "cos",
+            "fs",
+            "gcs",
+            "ghac",
+            "http",
+            "ipmfs",
+            "memory",
+            "obs",
+            "oss",
+            "s3",
+            "webdav",
+            "webhdfs",
+            "azfile",
+        ]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

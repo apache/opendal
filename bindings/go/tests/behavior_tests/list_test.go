@@ -340,7 +340,7 @@ func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fix
 	assert.Nil(op.Write(fileMid, content))
 	assert.Nil(op.Write(fileDeep, content))
 
-	obs, err := op.List(parent, opendal.WithRecursive(true))
+	obs, err := op.List(parent, opendal.ListWithRecursive(true))
 	assert.Nil(err)
 	defer obs.Close()
 

@@ -277,30 +277,27 @@ func assertFreedPointers(t *testing.T, got []*byte, want ...*byte) {
 	}
 }
 
-func TestListDefaultNotRecursive(t *testing.T) {
+func TestListWithRecursiveDefaultNotRecursive(t *testing.T) {
 	o := &listOptions{}
-	inner := o.toInner()
-	if inner.recursive {
-		t.Fatalf("default listOptions.toInner().recursive = true, want false")
+	if o.recursive {
+		t.Fatalf("default listOptions.recursive = true, want false")
 	}
 }
 
-func TestWithRecursiveTrue(t *testing.T) {
+func TestListWithRecursiveTrue(t *testing.T) {
 	o := &listOptions{}
-	WithRecursive(true)(o)
-	inner := o.toInner()
-	if !inner.recursive {
-		t.Fatalf("WithRecursive(true): recursive = false, want true")
+	ListWithRecursive(true)(o)
+	if !o.recursive {
+		t.Fatalf("ListWithRecursive(true): recursive = false, want true")
 	}
 }
 
-func TestWithRecursiveFalse(t *testing.T) {
+func TestListWithRecursiveFalse(t *testing.T) {
 	o := &listOptions{}
-	WithRecursive(true)(o)
-	WithRecursive(false)(o)
-	inner := o.toInner()
-	if inner.recursive {
-		t.Fatalf("WithRecursive(false): recursive = true, want false")
+	ListWithRecursive(true)(o)
+	ListWithRecursive(false)(o)
+	if o.recursive {
+		t.Fatalf("ListWithRecursive(false): recursive = true, want false")
 	}
 }
 

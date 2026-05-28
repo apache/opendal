@@ -77,10 +77,10 @@ func (op *Operator) Check() (err error) {
 // WithListFn is a functional option for the List operation.
 type WithListFn func(*listOptions)
 
-// WithRecursive sets the recursive flag for the list operation.
+// ListWithRecursive sets the recursive flag for the list operation.
 //
 // When recursive is true, the list operation will descend into sub-directories.
-func WithRecursive(recursive bool) WithListFn {
+func ListWithRecursive(recursive bool) WithListFn {
 	return func(o *listOptions) {
 		o.recursive = recursive
 	}
@@ -89,10 +89,6 @@ func WithRecursive(recursive bool) WithListFn {
 // listOptions holds the options for a list operation.
 type listOptions struct {
 	recursive bool
-}
-
-func (o *listOptions) toInner() opendalListOptions {
-	return opendalListOptions{recursive: o.recursive}
 }
 
 // List returns a Lister to iterate over entries that start with the given path.
@@ -118,7 +114,7 @@ func (o *listOptions) toInner() opendalListOptions {
 //		defer lister.Close()
 //
 //		// List with recursive option
-//		lister, err = op.List("test/", opendal.WithRecursive(true))
+//		lister, err = op.List("test/", opendal.ListWithRecursive(true))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -140,8 +136,10 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 	for _, opt := range opts {
 		opt(o)
 	}
-	inner := o.toInner()
-	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, &inner)
+	cOpts := ffiListOptionsNew.symbol(op.ctx)()
+	defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
+	ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
+	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +319,48 @@ func (e *Entry) Path() string {
 func (e *Entry) Metadata() *Metadata {
 	return e.meta
 }
+
+var ffiListOptionsNew = newFFI(ffiOpts{
+	sym:   "opendal_list_options_new",
+	rType: &ffi.TypePointer,
+}, func(_ context.Context, ffiCall ffiCall) func() *opendalListOptions {
+	return func() *opendalListOptions {
+		var opts *opendalListOptions
+		ffiCall(unsafe.Pointer(&opts))
+		return opts
+	}
+})
+
+var ffiListOptionsSetRecursive = newFFI(ffiOpts{
+	sym:    "opendal_list_options_set_recursive",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, recursive bool) {
+	return func(opts *opendalListOptions, recursive bool) {
+		var r uint8
+		if recursive {
+			r = 1
+		}
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+			unsafe.Pointer(&r),
+		)
+	}
+})
+
+var ffiListOptionsFree = newFFI(ffiOpts{
+	sym:    "opendal_list_options_free",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions) {
+	return func(opts *opendalListOptions) {
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+		)
+	}
+})
 
 var ffiOperatorListWith = newFFI(ffiOpts{
 	sym:    "opendal_operator_list_with",

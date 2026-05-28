@@ -202,7 +202,9 @@ impl Access for RedbBackend {
                 return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
             }
         };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        let content = bs.slice(args.range().to_range_as_usize());
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((RpRead::new(metadata), content))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -92,11 +92,57 @@ fn build_operator(
 
     let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
 
+    build_blocking_operator(op)
+}
+
+fn build_operator_with_layers(
+    schema: &str,
+    map: HashMap<String, String>,
+    layers: *const opendal_operator_layers,
+) -> core::Result<core::blocking::Operator> {
+    core::init_default_registry();
+
+    let mut op = core::Operator::via_iter(schema, map)?;
+    if !layers.is_null() {
+        op = unsafe { (*layers).apply(op) };
+    }
+
+    build_blocking_operator(op)
+}
+
+fn build_blocking_operator(op: core::Operator) -> core::Result<core::blocking::Operator> {
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
     let _guard = runtime.enter();
     let op = core::blocking::Operator::new(op)?;
     Ok(op)
+}
+
+fn parse_operator_options(options: *const opendal_operator_options) -> HashMap<String, String> {
+    let mut map = HashMap::<String, String>::default();
+    if !options.is_null() {
+        unsafe {
+            for (k, v) in (*options).deref() {
+                map.insert(k.to_string(), v.to_string());
+            }
+        }
+    }
+    map
+}
+
+fn new_operator_result(op: core::Result<core::blocking::Operator>) -> opendal_result_operator_new {
+    match op {
+        Ok(op) => opendal_result_operator_new {
+            op: Box::into_raw(Box::new(opendal_operator {
+                inner: Box::into_raw(Box::new(op)) as _,
+            })),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_new {
+            op: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
 }
 
 /// \brief Construct an operator based on `scheme` and `options`
@@ -146,25 +192,33 @@ pub unsafe extern "C" fn opendal_operator_new(
         .to_str()
         .expect("malformed scheme");
 
-    let mut map = HashMap::<String, String>::default();
-    if !options.is_null() {
-        for (k, v) in (*options).deref() {
-            map.insert(k.to_string(), v.to_string());
-        }
-    }
+    let map = parse_operator_options(options);
 
-    match build_operator(scheme, map) {
-        Ok(op) => opendal_result_operator_new {
-            op: Box::into_raw(Box::new(opendal_operator {
-                inner: Box::into_raw(Box::new(op)) as _,
-            })),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_operator_new {
-            op: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    new_operator_result(build_operator(scheme, map))
+}
+
+/// \brief Construct an operator based on scheme, options, and explicit layers.
+///
+/// Unlike opendal_operator_new, this function will not add any default layer.
+/// Layers will be applied exactly as they were added to opendal_operator_layers.
+///
+/// # Safety
+///
+/// The only unsafe case is passing an invalid c string pointer to the scheme argument.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_new_with_layers(
+    scheme: *const c_char,
+    options: *const opendal_operator_options,
+    layers: *const opendal_operator_layers,
+) -> opendal_result_operator_new {
+    assert!(!scheme.is_null());
+    let scheme = std::ffi::CStr::from_ptr(scheme)
+        .to_str()
+        .expect("malformed scheme");
+
+    let map = parse_operator_options(options);
+
+    new_operator_result(build_operator_with_layers(scheme, map, layers))
 }
 
 /// \brief Blocking write raw bytes to `path`.

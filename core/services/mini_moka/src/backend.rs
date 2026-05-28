@@ -195,10 +195,12 @@ impl Access for MiniMokaBackend {
         match self.core.get(&p) {
             Some(value) => {
                 let range = op.range();
+                let total_size = value.content.len() as u64;
 
                 // If range is full, return the content buffer directly
                 if range.is_full() {
-                    return Ok((RpRead::new(), value.content));
+                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    return Ok((RpRead::new(metadata), value.content));
                 }
 
                 let offset = range.offset() as usize;
@@ -214,8 +216,9 @@ impl Access for MiniMokaBackend {
                     (offset + s).min(value.content.len())
                 });
                 let sliced_content = value.content.slice(offset..end);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
-                Ok((RpRead::new(), sliced_content))
+                Ok((RpRead::new(metadata), sliced_content))
             }
             None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }

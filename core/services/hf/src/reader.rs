@@ -36,7 +36,7 @@ impl HfReader {
     /// Buckets always use XET. For other repo types, a HEAD request
     /// probes for the `X-Xet-Hash` header. Files stored on XET are
     /// downloaded via the CAS protocol; all others fall back to HTTP GET.
-    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
+    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(Metadata, Self)> {
         if let Some(xet_file) = core.maybe_xet_file(path).await? {
             return Self::try_new_xet(core, &xet_file, range).await;
         }
@@ -51,7 +51,11 @@ impl HfReader {
         Self::try_new_http(core, path, range).await
     }
 
-    pub async fn try_new_http(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
+    pub async fn try_new_http(
+        core: &HfCore,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<(Metadata, Self)> {
         let client = core.info.http_client();
         let uri = core.uri(path);
         let url = uri.resolve_url(&core.endpoint);
@@ -68,7 +72,10 @@ impl HfReader {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Self::Http(resp.into_body())),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                parse_into_metadata(path, resp.headers())?,
+                Self::Http(resp.into_body()),
+            )),
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
@@ -81,7 +88,7 @@ impl HfReader {
         core: &HfCore,
         file_info: &XetFileInfo,
         range: BytesRange,
-    ) -> Result<Self> {
+    ) -> Result<(Metadata, Self)> {
         let group = core.xet_download_group().await?;
 
         let xet_range = if range.is_full() {
@@ -103,7 +110,13 @@ impl HfReader {
                 .set_source(err)
             })?;
         stream.start();
-        Ok(Self::Xet(stream))
+
+        let total_size = file_info.file_size.unwrap_or_default();
+        let metadata = Metadata::new(EntryMode::FILE)
+            .with_content_length(total_size)
+            .with_etag(file_info.hash().to_string());
+
+        Ok((metadata, Self::Xet(stream)))
     }
 }
 

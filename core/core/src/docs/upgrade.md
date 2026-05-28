@@ -2,9 +2,23 @@
 
 ## Public API
 
+### Copy APIs return `Metadata`
+
+`Operator::copy`, `copy_options`, `copy_with`, and their blocking equivalents now return `Metadata` instead of `()`, matching write completion behavior.
+
+Out-of-tree raw services and layers that implement copy must migrate to the new copier flow:
+
+- `Access::copy` returns `(RpCopy, Self::Copier)`.
+- `Access` implementations define a `type Copier`.
+- `oio::Copy::close` returns the server-side completion `Metadata`.
+
 ### `RetryInterceptor::intercept` takes `RetryEvent`
 
 `RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
+
+### HTTP metrics include `service_operation`
+
+HTTP metrics emitted by the metrics layers now include a `service_operation` label for backend-specific request names such as `GetObject` or `UploadPart`. Metrics consumers and dashboards that assume the previous HTTP metric label set must be updated.
 
 ### `allow_anonymous` renamed to `skip_signature`
 
@@ -13,6 +27,10 @@ S3-compatible services now use `skip_signature` to describe requests that bypass
 - For S3, OSS, and GCS, `allow_anonymous` is kept as a deprecated compatibility alias. New code should use `skip_signature()` on builders or `skip_signature = true` in config.
 - For TOS, migrate from `allow_anonymous(true)` / `allow_anonymous = true` to `skip_signature()` / `skip_signature = true`.
 - For GCS, the behavior changed from fallback-on-credential-error to an unconditional signing bypass. If requests should be signed, do not set either `skip_signature` or the deprecated `allow_anonymous` alias.
+
+### TOS versioning option removed
+
+`TosBuilder::enable_versioning` and `TosConfig::enable_versioning` have been removed. TOS now declares versioned stat/read/delete capabilities natively.
 
 # Upgrade to v0.56
 

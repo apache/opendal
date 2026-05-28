@@ -194,7 +194,11 @@ impl Builder for TosBuilder {
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
                     write_multi_min_size: Some(5 * 1024 * 1024),
-                    write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
                     delete: true,
                     delete_max_size: Some(1000),
@@ -318,9 +322,10 @@ impl Access for TosBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            )),
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;

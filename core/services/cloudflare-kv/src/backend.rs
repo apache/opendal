@@ -445,6 +445,7 @@ impl Access for CloudflareKvBackend {
         }
 
         let range = args.range();
+        let total_size = resp_body.len() as u64;
         let buffer = if range.is_full() {
             resp_body
         } else {
@@ -455,7 +456,8 @@ impl Access for CloudflareKvBackend {
             };
             resp_body.slice(start..end.min(resp_body.len()))
         };
-        Ok((RpRead::new(), buffer))
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        Ok((RpRead::new(metadata), buffer))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

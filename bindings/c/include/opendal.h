@@ -189,6 +189,19 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
+ * \brief The layers to apply when initializing an opendal_operator.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it.
+ */
+typedef struct opendal_operator_layers {
+  /**
+   * The pointer to the Vec<OperatorLayer> in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_operator_layers;
+
+/**
  * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
@@ -699,6 +712,33 @@ struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *sel
 void opendal_lister_free(struct opendal_lister *ptr);
 
 /**
+ * \brief Construct a heap-allocated opendal_operator_layers.
+ */
+struct opendal_operator_layers *opendal_operator_layers_new(void);
+
+/**
+ * \brief Add a retry layer.
+ */
+void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
+                                       bool jitter,
+                                       float factor,
+                                       uint64_t min_delay_ns,
+                                       uint64_t max_delay_ns,
+                                       uint64_t max_times);
+
+/**
+ * \brief Add a timeout layer.
+ */
+void opendal_operator_layers_add_timeout(struct opendal_operator_layers *self,
+                                         uint64_t timeout_ns,
+                                         uint64_t io_timeout_ns);
+
+/**
+ * \brief Free the allocated memory used by opendal_operator_layers.
+ */
+void opendal_operator_layers_free(struct opendal_operator_layers *ptr);
+
+/**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
 void opendal_metadata_free(struct opendal_metadata *ptr);
@@ -828,6 +868,20 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  */
 struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
+
+/**
+ * \brief Construct an operator based on scheme, options, and explicit layers.
+ *
+ * Unlike opendal_operator_new, this function will not add any default layer.
+ * Layers will be applied exactly as they were added to opendal_operator_layers.
+ *
+ * # Safety
+ *
+ * The only unsafe case is passing an invalid c string pointer to the scheme argument.
+ */
+struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
+                                                                    const struct opendal_operator_options *options,
+                                                                    const struct opendal_operator_layers *layers);
 
 /**
  * \brief Blocking write raw bytes to `path`.

@@ -56,7 +56,6 @@ pub struct Metadata {
     content_disposition: Option<String>,
     content_length: Option<u64>,
     content_md5: Option<String>,
-    content_range: Option<BytesContentRange>,
     content_type: Option<String>,
     content_encoding: Option<String>,
     etag: Option<String>,
@@ -88,9 +87,6 @@ impl fmt::Debug for Metadata {
         }
         if let Some(content_md5) = &self.content_md5 {
             ds.field("content_md5", content_md5);
-        }
-        if let Some(content_range) = self.content_range {
-            ds.field("content_range", &content_range);
         }
         if let Some(content_type) = &self.content_type {
             ds.field("content_type", content_type);
@@ -129,7 +125,6 @@ impl Metadata {
             content_md5: None,
             content_type: None,
             content_encoding: None,
-            content_range: None,
             last_modified: None,
             etag: None,
             content_disposition: None,
@@ -265,6 +260,10 @@ impl Metadata {
     ///
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
     ///
+    /// For file metadata returned by stat, list, or read operations, this value
+    /// represents the full object size, even if the read operation only returns
+    /// a range of the object.
+    ///
     /// # Returns
     ///
     /// Content length of this entry. It will be `0` if the content length is not set by the storage services.
@@ -344,27 +343,6 @@ impl Metadata {
     /// Set Content Encoding of this entry.
     pub fn set_content_encoding(&mut self, v: &str) -> &mut Self {
         self.content_encoding = Some(v.to_string());
-        self
-    }
-
-    /// Content Range of this entry.
-    ///
-    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
-    ///
-    /// Refer to [MDN Content-Range](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range) for more information.
-    pub fn content_range(&self) -> Option<BytesContentRange> {
-        self.content_range
-    }
-
-    /// Set Content Range of this entry.
-    pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
-        self.content_range = Some(v);
-        self
-    }
-
-    /// Set Content Range of this entry.
-    pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
-        self.content_range = Some(v);
         self
     }
 

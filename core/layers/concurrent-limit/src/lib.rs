@@ -613,7 +613,10 @@ mod tests {
                 };
                 let req = http::Request::get("http://fake").body(data).unwrap();
                 let resp = self.info.http_client().fetch(req).await?;
-                Ok((RpRead::default(), resp.into_body()))
+                Ok((
+                    RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                    resp.into_body(),
+                ))
             }
 
             async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {

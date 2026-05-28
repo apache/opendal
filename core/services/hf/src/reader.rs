@@ -29,16 +29,20 @@ pub enum HfReader {
 }
 
 impl HfReader {
-    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
+    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(RpRead, Self)> {
         let resp = core.resolve(path, range, core.download_mode).await?;
         if resp.headers().contains_key("x-xet-hash") {
             let (_, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
             let info: XetFileResponse =
                 serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
-            Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await
+            let metadata = Metadata::new(EntryMode::FILE).with_content_length(info.size);
+            let reader =
+                Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await?;
+            Ok((RpRead::new(metadata), reader))
         } else {
-            Ok(Self::Http(resp.into_body()))
+            let metadata = parse_into_metadata(path, resp.headers())?;
+            Ok((RpRead::new(metadata), Self::Http(resp.into_body())))
         }
     }
 
@@ -92,8 +96,11 @@ impl oio::Read for HfReader {
 #[cfg(test)]
 mod tests {
     use super::super::backend::test_utils::{gpt2_operator, mbpp_operator, testing_dataset_core};
+    use super::super::core::test_utils::create_test_core;
     use super::super::core::{CommitFile, DeletedFile};
+    use super::super::uri::HfRepoType;
     use super::*;
+    use bytes::Bytes;
     use opendal_core::raw::oio::Read;
 
     /// Parquet magic bytes: "PAR1"
@@ -105,6 +112,28 @@ mod tests {
         let data = op.read("config.json").await.expect("read should succeed");
         serde_json::from_slice::<serde_json::Value>(&data.to_vec())
             .expect("config.json should be valid JSON");
+    }
+
+    #[tokio::test]
+    async fn test_http_read_returns_metadata() -> Result<()> {
+        let (core, _) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let (rp, mut reader) = HfReader::try_new(&core, "test.txt", BytesRange::default()).await?;
+        let metadata = rp.metadata().expect("read metadata must be returned");
+
+        assert_eq!(metadata.mode(), EntryMode::FILE);
+        assert_eq!(metadata.content_length(), 5);
+        assert!(matches!(reader, HfReader::Http(_)));
+
+        let chunk = reader.read().await?;
+        assert_eq!(chunk.to_bytes(), Bytes::from_static(b"hello"));
+
+        Ok(())
     }
 
     /// Exercises the XET download code path against a public dataset known to
@@ -150,7 +179,7 @@ mod tests {
         .await
         .expect("commit should succeed");
 
-        let mut reader = HfReader::try_new(&core, path, BytesRange::default())
+        let (_, mut reader) = HfReader::try_new(&core, path, BytesRange::default())
             .await
             .expect("reading non-XET file in Xet mode should succeed via HTTP fallback");
 

@@ -587,25 +587,38 @@ pub(crate) mod test_utils {
             );
 
             // Return a minimal valid JSON response for API requests
-            let body = if req.uri().to_string().contains("/paths-info/")
+            let (body, content_length) = if req.uri().to_string().contains("/paths-info/")
                 || req.uri().to_string().contains("/tree/")
             {
                 let data =
                     Bytes::from(r#"[{"type":"file","oid":"abc123","size":100,"path":"test.txt"}]"#);
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
-                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             } else if req.uri().to_string().contains("/commit/") {
                 let data = Bytes::from(r#"{}"#);
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
-                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             } else {
-                HttpBody::new(futures::stream::empty(), Some(0))
+                let data = Bytes::from_static(b"hello");
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             };
 
             Ok(Response::builder()
                 .status(StatusCode::OK)
+                .header(header::CONTENT_LENGTH, content_length)
                 .body(body)
                 .unwrap())
         }

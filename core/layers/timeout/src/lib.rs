@@ -420,7 +420,10 @@ mod tests {
 
         /// This function will build a reader that always return pending.
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(MockReader)))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(MockReader),
+            ))
         }
 
         /// This function will never return.

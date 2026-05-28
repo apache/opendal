@@ -919,7 +919,7 @@ mod tests {
 
         async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
-                RpRead::new(),
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
                 MockReader {
                     buf: Bytes::from("Hello, World!").into(),
                     range: args.range(),

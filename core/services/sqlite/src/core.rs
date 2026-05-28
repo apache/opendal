@@ -65,13 +65,14 @@ impl SqliteCore {
         path: &str,
         start: isize,
         limit: isize,
-    ) -> Result<Option<Buffer>> {
+    ) -> Result<Option<(Buffer, u64)>> {
         let pool = self.get_client().await?;
-        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            "SELECT SUBSTR(`{}`, {}, {}) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(&format!(
+            "SELECT SUBSTR(`{}`, {}, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
             self.value_field,
             start + 1,
             limit,
+            self.value_field,
             self.table,
             self.key_field
         ))
@@ -80,7 +81,7 @@ impl SqliteCore {
         .await
         .map_err(parse_sqlite_error)?;
 
-        Ok(value.map(Buffer::from))
+        Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {

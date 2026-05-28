@@ -18,10 +18,11 @@
 use std::sync::Arc;
 
 use opendal_core::Buffer;
+use opendal_core::EntryMode;
 use opendal_core::Error;
+use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::Access;
-use opendal_core::raw::BytesContentRange;
 use opendal_core::raw::BytesRange;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
@@ -124,13 +125,10 @@ impl<A: Access> FullReader<A> {
         match result {
             Ok(entry) => {
                 let end = range_end.unwrap_or(entry.len() as u64);
-                let range = BytesContentRange::default()
-                    .with_range(range_start, end - 1)
-                    .with_size(entry.len() as _);
                 let buffer = entry.slice(range_start as usize..end as usize);
-                let rp = RpRead::new()
-                    .with_size(Some(buffer.len() as _))
-                    .with_range(Some(range));
+                let rp = RpRead::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(entry.len() as _),
+                );
                 Ok((rp, buffer))
             }
             Err(e) => match e.downcast_ref::<FetchError>() {

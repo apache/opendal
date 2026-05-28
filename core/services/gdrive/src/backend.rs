@@ -148,15 +148,19 @@ impl Access for GdriveBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            )),
             StatusCode::NOT_FOUND => {
                 self.core.refresh_path(&abs_path).await;
                 let resp = self.core.gdrive_get(path, args.range()).await?;
                 let status = resp.status();
                 match status {
-                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                        Ok((RpRead::new(), resp.into_body()))
-                    }
+                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                        RpRead::new(parse_into_metadata(path, resp.headers())?),
+                        resp.into_body(),
+                    )),
                     _ => {
                         let (part, mut body) = resp.into_parts();
                         let buf = body.to_buffer().await?;

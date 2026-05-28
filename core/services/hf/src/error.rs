@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 
-use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -37,10 +36,8 @@ impl Debug for HfError {
     }
 }
 
-pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, body) = resp.into_parts();
+pub(super) fn parse_error(parts: http::response::Parts, body: Buffer) -> Error {
     let bs = body.to_bytes();
-
     let message = match serde_json::from_slice::<HfError>(&bs) {
         Ok(hf_error) => hf_error.error,
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
@@ -78,6 +75,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod test {
+    use http::Response;
     use http::StatusCode;
 
     use super::*;
@@ -102,12 +100,13 @@ mod test {
         let body = Buffer::from(bytes::Bytes::from(
             r#"{"error":"The branch was updated since you opened this page. Please refresh and try again."}"#,
         ));
-        let resp = Response::builder()
+        let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
-            .body(body)
-            .unwrap();
+            .body(())
+            .unwrap()
+            .into_parts();
 
-        let err = parse_error(resp);
+        let err = parse_error(parts, body);
 
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         assert!(err.is_temporary());
@@ -116,12 +115,13 @@ mod test {
     #[test]
     fn test_parse_error_other_precondition_failed_is_not_temporary() {
         let body = Buffer::from(bytes::Bytes::from(r#"{"error":"etag mismatch"}"#));
-        let resp = Response::builder()
+        let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
-            .body(body)
-            .unwrap();
+            .body(())
+            .unwrap()
+            .into_parts();
 
-        let err = parse_error(resp);
+        let err = parse_error(parts, body);
 
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         assert!(!err.is_temporary());

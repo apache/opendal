@@ -67,9 +67,10 @@ impl Access for OnedriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let response = self.core.onedrive_get_content(path, &args).await?;
         match response.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), response.into_body()))
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            )),
             _ => {
                 let (part, mut body) = response.into_parts();
                 let buf = body.to_buffer().await?;

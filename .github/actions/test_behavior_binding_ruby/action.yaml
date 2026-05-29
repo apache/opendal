@@ -42,7 +42,7 @@ runs:
             shell: bash
             working-directory: bindings/ruby
             run: |
-              bundle exec rake test_service
+              bundle exec rake test:service
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

@@ -29,7 +29,19 @@ module Service
       @op = OpenDal::Operator.new(SERVICE, config)
     end
 
+    test "stat empty path" do
+      skip("Not supported") if !@op.capability.stat
+
+      exception = assert_raises(RuntimeError) do
+        @op.stat("/invalid-path")
+      end
+
+      assert exception.message.start_with?("NotFound")
+    end
+
     test "read and write text" do
+      skip("Not supported") if !(@op.capability.write && @op.capability.read)
+
       @op.write("content", "OpenDAL Ruby is ready.")
 
       content = @op.read("content")
@@ -38,6 +50,8 @@ module Service
     end
 
     test "read and write binary" do
+      skip("Not supported") if !(@op.capability.write && @op.capability.read)
+
       # writes 32-bit signed integers
       @op.write("binary", [67305985, -50462977].pack("l*"))
 
@@ -47,6 +61,8 @@ module Service
     end
 
     test "stat returns file metadata" do
+      skip("Not supported") if !(@op.capability.write && @op.capability.stat)
+
       @op.write("test_stat", "test")
 
       stat = @op.stat("test_stat")
@@ -57,12 +73,16 @@ module Service
     end
 
     test "create_dir creates directory" do
+      skip("Not supported") if !(@op.capability.create_dir && @op.capability.stat)
+
       @op.create_dir("new/directory/")
 
       assert_equal @op.stat("new/directory/").mode, OpenDal::Metadata::DIRECTORY
     end
 
     test "exists returns existence" do
+      skip("Not supported") if !(@op.capability.read && @op.capability.write && @op.capability.create_dir)
+
       @op.write("exist_file", "test")
       @op.create_dir("exist/directory/")
 
@@ -71,6 +91,8 @@ module Service
     end
 
     test "delete removes file" do
+      skip("Not supported") if !(@op.capability.delete && @op.capability.write && @op.capability.stat)
+
       @op.write("deletion_test", "test")
 
       assert @op.exist?("deletion_test"), "expect file to exist before deletion"
@@ -80,6 +102,8 @@ module Service
     end
 
     test "rename renames file" do
+      skip("Not supported") if !(@op.capability.rename && @op.capability.write && @op.capability.stat)
+
       @op.write("rename_test", "test")
 
       @op.rename("rename_test", "new_name")
@@ -88,6 +112,8 @@ module Service
     end
 
     test "remove_all removes files" do
+      skip("Not supported") if !(@op.capability.delete && @op.capability.create_dir)
+
       @op.create_dir("nested/directory/")
       @op.write("nested/directory/text", "content")
 
@@ -96,6 +122,8 @@ module Service
     end
 
     test "copy copies file" do
+      skip("Not supported") if !(@op.capability.write && @op.capability.read && @op.capability.copy)
+
       @op.write("copy_test", "test")
       @op.copy("copy_test", "copy_destination")
 
@@ -104,6 +132,8 @@ module Service
     end
 
     test "opens an IO" do
+      skip("Not supported") if !(@op.capability.write && @op.capability.read)
+
       @op.write("io_test", "test")
 
       io = @op.open("/io_test", "rb")
@@ -122,19 +152,19 @@ module Service
     end
 
     private
-    
+
     def config_from_env(service)
       prefix = "OPENDAL_#{service.upcase}_"
       config = {}
       ENV.each do |key, value|
         if key.start_with?(prefix)
-          config[key[prefix.length..-1].downcase] = value
+          config[key[prefix.length..].downcase] = value
         end
       end
 
       disable_random_root = ENV["OPENDAL_DISABLE_RANDOM_ROOT"] == "true"
       unless disable_random_root
-        root = config.fetch('root', '/')
+        root = config.fetch("root", "/")
         uuid = SecureRandom.uuid
         config["root"] = "#{root}/#{uuid}/"
       end

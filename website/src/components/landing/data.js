@@ -142,17 +142,24 @@ export const valueProps = [
   },
 ];
 
-// Real adopters, drawn from the project vision. Rendered as a wordmark wall.
-export const adopters = [
-  { name: "Databend", href: "https://github.com/databendlabs/databend" },
-  { name: "RisingWave", href: "https://github.com/risingwavelabs/risingwave" },
-  { name: "GreptimeDB", href: "https://github.com/GreptimeTeam/greptimedb" },
-  { name: "Apache Iceberg Rust", href: "https://github.com/apache/iceberg-rust" },
-  { name: "Vector", href: "https://github.com/vectordotdev/vector" },
-  { name: "sccache", href: "https://github.com/mozilla/sccache" },
-  { name: "Pants", href: "https://github.com/pantsbuild/pants" },
-  { name: "Shuttle", href: "https://github.com/shuttle-hq/shuttle" },
+// Real adopters from the project's users lists (core + bindings), ordered by
+// GitHub star count (highest first). Logos are the projects' GitHub org
+// avatars, self-hosted under static/img/users/. Refresh with scripts as the
+// ecosystem grows. The logo wall shows a responsive subset by viewport width.
+export const usedBy = [
+  { name: "Dify", icon: "/img/users/dify.png", href: "https://github.com/langgenius/dify" },
+  { name: "Milvus", icon: "/img/users/milvus.png", href: "https://github.com/milvus-io/milvus" },
+  { name: "Vector", icon: "/img/users/vector.png", href: "https://github.com/vectordotdev/vector" },
+  { name: "QuestDB", icon: "/img/users/questdb.png", href: "https://github.com/questdb/questdb" },
+  { name: "Databend", icon: "/img/users/databend.png", href: "https://github.com/databendlabs/databend" },
+  { name: "RisingWave", icon: "/img/users/risingwave.png", href: "https://github.com/risingwavelabs/risingwave" },
+  { name: "FileCodeBox", icon: "/img/users/filecodebox.png", href: "https://github.com/vastsa/FileCodeBox" },
+  { name: "sccache", icon: "/img/users/sccache.png", href: "https://github.com/mozilla/sccache" },
 ];
+
+// Where people add their own project (PR to the users list).
+export const USERS_LIST_URL =
+  "https://github.com/apache/opendal/blob/main/core/users.md";
 
 // Curated, icon-backed slice of the 50+ supported services, grouped by family.
 export const serviceGroups = [

@@ -277,29 +277,85 @@
   padding-block: clamp(2.25rem, 1.5rem + 3vw, 3.25rem);
   border-top: 1px solid var(--odl-border);
 }
-.usedByLabel {
-  text-align: center;
-  margin-bottom: var(--odl-space-5);
+/* Top row: "Used by" eyebrow (left) + "+ add your logo" (right) over a rule */
+.usedByHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--odl-space-4);
+  padding-bottom: var(--odl-space-4);
+  border-bottom: 1px solid var(--odl-border);
 }
-.usedByTrack {
+.addLogo {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  letter-spacing: 0.04em;
+  color: var(--odl-fg-subtle);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--odl-dur) var(--odl-ease);
+}
+.addLogo:hover {
+  color: var(--odl-accent);
+  text-decoration: none;
+}
+/* Logo wall: grayscale adopter logos that color on hover. Logos are sorted by
+   GitHub stars; the count shown adapts to viewport width via the nth-child
+   rules below (4 → 6 → 8). */
+.logoWall {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: var(--odl-space-4) var(--odl-space-7);
+  justify-content: space-between;
+  gap: var(--odl-space-5) var(--odl-space-6);
+  margin-top: var(--odl-space-6);
 }
-.adopter {
+.logoItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--odl-space-3);
+  text-decoration: none;
+  filter: grayscale(1);
+  opacity: 0.62;
+  transition: opacity var(--odl-dur) var(--odl-ease),
+    filter var(--odl-dur) var(--odl-ease);
+}
+.logoItem:hover {
+  filter: grayscale(0);
+  opacity: 1;
+  text-decoration: none;
+}
+.logoMark {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  border-radius: var(--odl-radius-sm);
+  flex: none;
+}
+.logoName {
   font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-md);
+  font-size: var(--odl-text-sm);
   font-weight: 500;
   color: var(--odl-fg-muted);
-  text-decoration: none;
-  transition: color var(--odl-dur) var(--odl-ease);
   white-space: nowrap;
 }
-.adopter:hover {
-  color: var(--odl-fg-strong);
-  text-decoration: none;
+
+/* Responsive count: 4 on mobile, 6 on tablet, 8 on desktop. */
+.logoItem:nth-child(n + 5) {
+  display: none;
+}
+@media (min-width: 600px) {
+  .logoItem:nth-child(n + 5) {
+    display: inline-flex;
+  }
+  .logoItem:nth-child(n + 7) {
+    display: none;
+  }
+}
+@media (min-width: 980px) {
+  .logoItem:nth-child(n + 7) {
+    display: inline-flex;
+  }
 }
 
 /* ===== Value props ====================================================== */

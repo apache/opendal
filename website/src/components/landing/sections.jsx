@@ -29,7 +29,8 @@ import {
   heroStats,
   codeSamples,
   valueProps,
-  adopters,
+  usedBy,
+  USERS_LIST_URL,
   serviceGroups,
   bindings,
   layers,
@@ -99,16 +100,33 @@ export function Hero() {
 }
 
 export function UsedBy() {
+  const { withBaseUrl } = useBaseUrlUtils();
   return (
     <section className={styles.usedBy}>
       <div className="odl-container">
-        <div className={styles.usedByLabel}>
-          <span className="odl-eyebrow">Trusted in production by</span>
+        <div className={styles.usedByHead}>
+          <span className="odl-eyebrow">Used by</span>
+          <Link className={styles.addLogo} to={USERS_LIST_URL}>
+            + add your logo
+          </Link>
         </div>
-        <div className={styles.usedByTrack}>
-          {adopters.map((a) => (
-            <Link key={a.name} className={styles.adopter} to={a.href}>
-              {a.name}
+        <div className={styles.logoWall}>
+          {usedBy.map((u) => (
+            <Link
+              key={u.name}
+              className={styles.logoItem}
+              to={u.href}
+              title={u.name}
+            >
+              <img
+                className={styles.logoMark}
+                src={withBaseUrl(u.icon)}
+                alt=""
+                width="24"
+                height="24"
+                loading="lazy"
+              />
+              <span className={styles.logoName}>{u.name}</span>
             </Link>
           ))}
         </div>

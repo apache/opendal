@@ -85,6 +85,22 @@ To connect to COS, we need to set:
 - `endpoint`: The endpoint of cos, for example: `https://cos.ap-beijing.myqcloud.com`
 - `bucket`: The bucket name of cos.
 
+### Tigris
+
+[Tigris](https://www.tigrisdata.com/) is a globally distributed S3-compatible object storage service.
+
+To connect to Tigris, we need to set:
+
+- `endpoint`: The endpoint of Tigris, for example: `https://fly.storage.tigris.dev`
+- `region`: The region of Tigris. Please set it to `auto`.
+- `bucket`: The bucket name of Tigris.
+
+```rust,ignore
+builder.endpoint("https://fly.storage.tigris.dev");
+builder.region("auto");
+builder.bucket("<bucket_name>");
+```
+
 ### Wasabi Object Storage
 
 [Wasabi](https://wasabi.com/) is a s3 compatible service.

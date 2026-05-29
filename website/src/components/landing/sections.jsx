@@ -29,6 +29,7 @@ import {
   heroStats,
   codeSamples,
   valueProps,
+  capabilityGroups,
   usedBy,
   USERS_LIST_URL,
   serviceGroups,
@@ -37,16 +38,6 @@ import {
   layeredCode,
   principles,
 } from "./data";
-
-const operatorContract = [
-  {
-    verb: "write · read",
-    text: "Write and read whole objects, or stream byte ranges.",
-  },
-  { verb: "stat", text: "Fetch metadata without transferring the body." },
-  { verb: "list", text: "Walk entries lazily — scoped or fully recursive." },
-  { verb: "delete", text: "Remove single keys or whole batches in one call." },
-];
 
 export function Hero() {
   return (
@@ -163,28 +154,32 @@ export function ValueProps() {
   );
 }
 
-export function OperatorSection() {
+export function Capabilities() {
   return (
     <section className={`${styles.section} ${styles.sectionSubtle}`}>
       <div className="odl-container">
-        <div className={styles.operatorInner}>
-          <div>
-            <span className="odl-eyebrow">The Operator</span>
-            <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
-            <p className={styles.sectionLede}>
-              Every backend is reached through one Operator with the same verbs.
-              Switch storage or switch language — your logic does not change.
-            </p>
-            <div className={styles.operatorContract}>
-              {operatorContract.map((row) => (
-                <div className={styles.contractRow} key={row.verb}>
-                  <span className={styles.contractVerb}>{row.verb}</span>
-                  <span className={styles.contractText}>{row.text}</span>
-                </div>
-              ))}
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Capabilities</span>
+          <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
+          <p className={styles.sectionLede}>
+            One Operator gives you a full toolkit for real-world data —
+            streaming, concurrency, multipart uploads, conditionals and
+            server-side moves — working the same way on every backend.
+          </p>
+        </div>
+        <div className={styles.capabilityGrid}>
+          {capabilityGroups.map((group) => (
+            <div className={styles.capabilityGroup} key={group.title}>
+              <h3 className={styles.capabilityGroupTitle}>{group.title}</h3>
+              <ul className={styles.capabilityList}>
+                {group.items.map((item) => (
+                  <li className={styles.capabilityItem} key={item}>
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-          <CodeTabs samples={codeSamples} title="the same contract, every language" equalize />
+          ))}
         </div>
       </div>
     </section>
@@ -228,9 +223,6 @@ export function Services() {
           ))}
         </div>
         <div className={styles.servicesFoot}>
-          <span className={styles.servicesMore}>
-            …and many more, from HDFS to Hugging Face.
-          </span>
           <Link
             className={`${styles.btn} ${styles.btnSecondary}`}
             to={DOCS_URL}

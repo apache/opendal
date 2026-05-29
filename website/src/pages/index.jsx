@@ -23,7 +23,7 @@ import {
   Hero,
   UsedBy,
   ValueProps,
-  OperatorSection,
+  Capabilities,
   Services,
   Bindings,
   Layers,
@@ -41,7 +41,7 @@ export default function Home() {
         <Hero />
         <UsedBy />
         <ValueProps />
-        <OperatorSection />
+        <Capabilities />
         <Services />
         <Bindings />
         <Layers />

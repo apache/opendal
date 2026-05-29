@@ -142,6 +142,41 @@ export const valueProps = [
   },
 ];
 
+// What OpenDAL can do, grouped for the capabilities section. Grounded in the
+// core read/write/manage features (ranges, concurrency, multipart, listing …).
+export const capabilityGroups = [
+  {
+    title: "Read",
+    items: [
+      "Whole-object or byte-range reads",
+      "Concurrent, chunked fetching",
+      "Auto-merge nearby ranges",
+      "Resume interrupted reads",
+      "Conditional & versioned reads",
+    ],
+  },
+  {
+    title: "Write",
+    items: [
+      "Streaming writes of any size",
+      "Multipart upload",
+      "Concurrent part uploads",
+      "Append to existing objects",
+      "Atomic create & overwrite guards",
+    ],
+  },
+  {
+    title: "Manage",
+    items: [
+      "Stat metadata without the body",
+      "Lazy, recursive, paginated listing",
+      "Batch & recursive delete",
+      "Server-side copy & rename",
+      "Presigned URLs for direct access",
+    ],
+  },
+];
+
 // Real adopters from the project's users lists (core + bindings), ordered by
 // GitHub star count (highest first). Logos are the projects' GitHub org
 // avatars, self-hosted under static/img/users/. Refresh with scripts as the

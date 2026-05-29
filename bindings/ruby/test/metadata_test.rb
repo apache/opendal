@@ -21,7 +21,7 @@ require "test_helper"
 
 class MetadataTest < ActiveSupport::TestCase
   setup do
-    @op = OpenDal::Operator.new("memory", {"root" => "/"})
+    @op = OpenDal::Operator.new("memory", {})
     @op.write("/file", "OpenDAL Ruby is ready.")
   end
 

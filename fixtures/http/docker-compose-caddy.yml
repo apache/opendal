@@ -17,7 +17,7 @@
 
 services:
   caddy:
-    image: sparkcr.net/docker.io/library/caddy:latest
+    image: caddy:latest
     ports:
       - 8080:8080
     volumes:

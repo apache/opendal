@@ -273,61 +273,42 @@
 }
 
 /* ===== Used-by wall ===================================================== */
-.usedBy {
-  padding-block: clamp(2.25rem, 1.5rem + 3vw, 3.25rem);
-  border-top: 1px solid var(--odl-border);
-}
-/* Top row: "Used by" eyebrow (left) + "+ add your logo" (right) over a rule */
-.usedByHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--odl-space-4);
-  padding-bottom: var(--odl-space-4);
-  border-bottom: 1px solid var(--odl-border);
-}
-.addLogo {
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-xs);
-  letter-spacing: 0.04em;
-  color: var(--odl-fg-subtle);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color var(--odl-dur) var(--odl-ease);
-}
-.addLogo:hover {
-  color: var(--odl-accent);
-  text-decoration: none;
-}
-/* Logo wall: grayscale adopter logos that color on hover. Logos are sorted by
-   GitHub stars; the count shown adapts to viewport width via the nth-child
-   rules below (4 → 6 → 8). */
 .logoWall {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: var(--odl-space-3);
+}
+.logoWall > li {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--odl-space-5) var(--odl-space-6);
-  margin-top: var(--odl-space-6);
 }
 .logoItem {
-  display: inline-flex;
+  flex: 1;
+  display: flex;
   align-items: center;
   gap: var(--odl-space-3);
+  padding: var(--odl-space-4);
+  background: var(--odl-surface);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-md);
   text-decoration: none;
   filter: grayscale(1);
-  opacity: 0.62;
+  opacity: 0.72;
   transition: opacity var(--odl-dur) var(--odl-ease),
-    filter var(--odl-dur) var(--odl-ease);
+    filter var(--odl-dur) var(--odl-ease),
+    background-color var(--odl-dur) var(--odl-ease);
 }
 .logoItem:hover {
+  background: var(--odl-surface-2);
   filter: grayscale(0);
   opacity: 1;
   text-decoration: none;
 }
 .logoMark {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   border-radius: var(--odl-radius-sm);
   flex: none;
@@ -338,24 +319,31 @@
   font-weight: 500;
   color: var(--odl-fg-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-/* Responsive count: 4 on mobile, 6 on tablet, 8 on desktop. */
-.logoItem:nth-child(n + 5) {
-  display: none;
+/* "+ add your logo" rendered as the final, dashed tile in the wall. */
+.addLogo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--odl-space-4);
+  border: 1px dashed var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  letter-spacing: 0.04em;
+  color: var(--odl-fg-subtle);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease);
 }
-@media (min-width: 600px) {
-  .logoItem:nth-child(n + 5) {
-    display: inline-flex;
-  }
-  .logoItem:nth-child(n + 7) {
-    display: none;
-  }
-}
-@media (min-width: 980px) {
-  .logoItem:nth-child(n + 7) {
-    display: inline-flex;
-  }
+.addLogo:hover {
+  color: var(--odl-accent);
+  border-color: var(--odl-accent);
+  text-decoration: none;
 }
 
 /* ===== Value props ====================================================== */
@@ -400,63 +388,98 @@
   margin: 0;
 }
 
-/* ===== Capabilities ===================================================== */
-.capabilityGrid {
+/* ===== Capabilities (explorer) ========================================== */
+.capabilityExplorer {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--odl-border);
-  border: 1px solid var(--odl-border);
-  border-radius: var(--odl-radius-lg);
-  overflow: hidden;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
+  align-items: start;
 }
-.capabilityGroup {
-  background: var(--odl-surface);
-  padding: clamp(1.25rem, 1rem + 1.5vw, 2rem);
-}
-.capabilityGroupTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--odl-space-3);
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-xs);
-  font-weight: 500;
-  letter-spacing: var(--odl-tracking-label);
-  text-transform: uppercase;
-  color: var(--odl-fg-subtle);
-  margin: 0 0 var(--odl-space-2);
-}
-.capabilityGroupTitle::before {
-  content: "";
-  width: 0.875rem;
-  height: 0.375rem;
-  background: var(--odl-accent);
-  flex: none;
-}
-.capabilityList {
+.capabilityNav {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--odl-space-2);
 }
 .capabilityItem {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--odl-space-3);
-  padding: var(--odl-space-3) 0;
-  font-size: var(--odl-text-base);
-  color: var(--odl-fg);
-  border-top: 1px solid var(--odl-border);
+  padding: var(--odl-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--odl-radius-md);
+  text-decoration: none;
+  transition: background-color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease);
 }
-.capabilityItem:first-child {
-  border-top: 0;
+.capabilityItem:hover {
+  background: var(--odl-surface);
+  text-decoration: none;
 }
-.capabilityItem::before {
-  content: "";
-  width: 0.6rem;
-  height: 2px;
-  margin-top: 0.6em;
-  background: var(--odl-border-strong);
-  flex: none;
+.capabilityItemActive {
+  background: var(--odl-surface);
+  border-color: var(--odl-border);
+  box-shadow: var(--odl-shadow-sm);
+}
+.capabilityText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.capabilityItemTitle {
+  font-size: var(--odl-text-md);
+  font-weight: 650;
+  letter-spacing: var(--odl-tracking-tight);
+  color: var(--odl-fg-strong);
+}
+.capabilityItemBlurb {
+  font-size: var(--odl-text-sm);
+  line-height: var(--odl-leading-snug);
+  color: var(--odl-fg-muted);
+}
+.capabilityArrow {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  color: var(--odl-accent);
+  opacity: 0;
+  transition: opacity var(--odl-dur) var(--odl-ease);
+}
+.capabilityItem:hover .capabilityArrow,
+.capabilityItemActive .capabilityArrow {
+  opacity: 1;
+}
+
+/* Sticky code preview that tracks the active capability */
+.capabilityPreview {
+  position: sticky;
+  top: 5rem;
+}
+.capabilityCodeBody {
+  height: 18rem;
+  overflow: auto;
+  background: var(--odl-code-bg);
+}
+/* Fade only the code itself; the panel background stays put, so switching
+   snippets never flashes the window surface behind it. */
+.capabilityCodeFade {
+  animation: odlFade var(--odl-dur) var(--odl-ease);
+}
+@keyframes odlFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capabilityCodeFade {
+    animation: none;
+  }
 }
 
 /* ===== Services ========================================================= */
@@ -729,8 +752,16 @@
 @media (max-width: 996px) {
   .heroInner,
   .layersInner,
-  .capabilityGrid {
+  .capabilityExplorer {
     grid-template-columns: 1fr;
+  }
+  .capabilityPreview {
+    display: none;
+  }
+  .capabilityNav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--odl-space-3);
   }
   .serviceGroups {
     grid-template-columns: repeat(2, 1fr);
@@ -742,7 +773,8 @@
 
 @media (max-width: 640px) {
   .valueGrid,
-  .serviceGroups {
+  .serviceGroups,
+  .capabilityNav {
     grid-template-columns: 1fr;
   }
   .heroStats {

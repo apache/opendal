@@ -17,9 +17,10 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "@docusaurus/Link";
 import { useBaseUrlUtils } from "@docusaurus/useBaseUrl";
+import CodeBlock from "@theme/CodeBlock";
 import CodeTabs from "./CodeTabs";
 import styles from "./styles.module.css";
 import {
@@ -29,7 +30,7 @@ import {
   heroStats,
   codeSamples,
   valueProps,
-  capabilityGroups,
+  capabilityThemes,
   usedBy,
   USERS_LIST_URL,
   serviceGroups,
@@ -93,34 +94,40 @@ export function Hero() {
 export function UsedBy() {
   const { withBaseUrl } = useBaseUrlUtils();
   return (
-    <section className={styles.usedBy}>
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
       <div className="odl-container">
-        <div className={styles.usedByHead}>
+        <div className={styles.sectionHead}>
           <span className="odl-eyebrow">Used by</span>
-          <Link className={styles.addLogo} to={USERS_LIST_URL}>
-            + add your logo
-          </Link>
+          <h2 className={styles.sectionTitle}>
+            Powering AI, analytics, and real-time data
+          </h2>
+          <p className={styles.sectionLede}>
+            OpenDAL runs in production across the open-source ecosystem. These
+            are some of the projects that build on it.
+          </p>
         </div>
-        <div className={styles.logoWall}>
+        <ul className={styles.logoWall}>
           {usedBy.map((u) => (
-            <Link
-              key={u.name}
-              className={styles.logoItem}
-              to={u.href}
-              title={u.name}
-            >
-              <img
-                className={styles.logoMark}
-                src={withBaseUrl(u.icon)}
-                alt=""
-                width="24"
-                height="24"
-                loading="lazy"
-              />
-              <span className={styles.logoName}>{u.name}</span>
-            </Link>
+            <li key={u.name}>
+              <Link className={styles.logoItem} to={u.href} title={u.name}>
+                <img
+                  className={styles.logoMark}
+                  src={withBaseUrl(u.icon)}
+                  alt=""
+                  width="28"
+                  height="28"
+                  loading="lazy"
+                />
+                <span className={styles.logoName}>{u.name}</span>
+              </Link>
+            </li>
           ))}
-        </div>
+          <li>
+            <Link className={styles.addLogo} to={USERS_LIST_URL}>
+              + add your logo
+            </Link>
+          </li>
+        </ul>
       </div>
     </section>
   );
@@ -155,6 +162,7 @@ export function ValueProps() {
 }
 
 export function Capabilities() {
+  const [active, setActive] = useState(capabilityThemes[0]);
   return (
     <section className={`${styles.section} ${styles.sectionSubtle}`}>
       <div className="odl-container">
@@ -162,24 +170,61 @@ export function Capabilities() {
           <span className="odl-eyebrow">Capabilities</span>
           <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
           <p className={styles.sectionLede}>
-            One Operator gives you a full toolkit for real-world data —
-            streaming, concurrency, multipart uploads, conditionals and
-            server-side moves — working the same way on every backend.
+            One Operator is a full toolkit for real-world data — read and write
+            at scale, recover from failures, and work with files — the same way
+            on every backend.
           </p>
         </div>
-        <div className={styles.capabilityGrid}>
-          {capabilityGroups.map((group) => (
-            <div className={styles.capabilityGroup} key={group.title}>
-              <h3 className={styles.capabilityGroupTitle}>{group.title}</h3>
-              <ul className={styles.capabilityList}>
-                {group.items.map((item) => (
-                  <li className={styles.capabilityItem} key={item}>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+        <div className={styles.capabilityExplorer}>
+          <ul className={styles.capabilityNav}>
+            {capabilityThemes.map((theme) => {
+              const selected = active.title === theme.title;
+              return (
+                <li key={theme.title}>
+                  <Link
+                    className={`${styles.capabilityItem} ${
+                      selected ? styles.capabilityItemActive : ""
+                    }`}
+                    to={theme.doc}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-current={selected ? "true" : undefined}
+                    onMouseEnter={() => setActive(theme)}
+                    onFocus={() => setActive(theme)}
+                  >
+                    <span className={styles.capabilityText}>
+                      <span className={styles.capabilityItemTitle}>
+                        {theme.title}
+                      </span>
+                      <span className={styles.capabilityItemBlurb}>
+                        {theme.blurb}
+                      </span>
+                    </span>
+                    <span className={styles.capabilityArrow} aria-hidden="true">
+                      ↗
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className={styles.capabilityPreview}>
+            <div className={styles.codeWindow}>
+              <div className={styles.windowBar}>
+                <div className={styles.windowDots} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className={styles.windowTitle}>{active.title}</span>
+              </div>
+              <div className={`${styles.codeBody} ${styles.capabilityCodeBody}`}>
+                <div className={styles.capabilityCodeFade} key={active.title}>
+                  <CodeBlock language="rust">{active.code}</CodeBlock>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>

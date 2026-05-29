@@ -142,38 +142,80 @@ export const valueProps = [
   },
 ];
 
-// What OpenDAL can do, grouped for the capabilities section. Grounded in the
-// core read/write/manage features (ranges, concurrency, multipart, listing …).
-export const capabilityGroups = [
+// What OpenDAL can do — grouped for the capabilities explorer. Each item pairs
+// a minimal, real snippet with its docs.rs reference. Grounded in the core
+// read / write / manage APIs (verified against types/operator + types/options).
+const RS = "https://docs.rs/opendal/latest/opendal";
+const opDoc = (method) => `${RS}/struct.Operator.html#method.${method}`;
+
+export const capabilityThemes = [
   {
-    title: "Read",
-    items: [
-      "Whole-object or byte-range reads",
-      "Concurrent, chunked fetching",
-      "Auto-merge nearby ranges",
-      "Resume interrupted reads",
-      "Conditional & versioned reads",
-    ],
+    title: "Read in parallel",
+    blurb: "Fetch a byte range, or a whole object in concurrent chunks.",
+    doc: opDoc("read_with"),
+    code: `let op = Operator::new(S3::default().bucket("data"))?.finish();
+
+// Read just the bytes you need.
+let head = op.read_with("logs/today").range(0..64 * 1024).await?;
+
+// Or pull a large object in parallel chunks.
+let full = op
+    .read_with("big.parquet")
+    .concurrent(8)
+    .chunk(8 * 1024 * 1024)
+    .await?;`,
   },
   {
-    title: "Write",
-    items: [
-      "Streaming writes of any size",
-      "Multipart upload",
-      "Concurrent part uploads",
-      "Append to existing objects",
-      "Atomic create & overwrite guards",
-    ],
+    title: "Upload in parts",
+    blurb: "Stream writes of any size as concurrent, multipart uploads.",
+    doc: opDoc("writer_with"),
+    code: `let op = Operator::new(S3::default().bucket("data"))?.finish();
+
+// Open a multipart writer with 8 concurrent parts.
+let mut w = op
+    .writer_with("big.bin")
+    .concurrent(8)
+    .chunk(8 * 1024 * 1024)
+    .await?;
+
+// Stream any number of buffers; close flushes the rest.
+w.write(part_one).await?;
+w.write(part_two).await?;
+w.close().await?;`,
   },
   {
-    title: "Manage",
-    items: [
-      "Stat metadata without the body",
-      "Lazy, recursive, paginated listing",
-      "Batch & recursive delete",
-      "Server-side copy & rename",
-      "Presigned URLs for direct access",
-    ],
+    title: "Recover from failure",
+    blurb: "Resume on retry, write atomically, and pin a version.",
+    doc: `${RS}/layers/struct.RetryLayer.html`,
+    code: `// Retries automatically resume interrupted transfers.
+let op = Operator::new(S3::default().bucket("data"))?
+    .layer(RetryLayer::new())
+    .finish();
+
+// Create only if absent.
+op.write_with("once.json", data).if_not_exists(true).await?;
+// Read only if unchanged.
+let doc = op.read_with("doc").if_match(etag).await?;
+// Pin an exact version.
+let pinned = op.read_with("doc").version(version_id).await?;`,
+  },
+  {
+    title: "Work with files",
+    blurb: "Inspect, list, move, and share — without moving bytes.",
+    doc: opDoc("list_with"),
+    code: `// Inspect a file without downloading it.
+let meta = op.stat("report.csv").await?;
+// List a prefix, recursing lazily through the tree.
+let mut entries = op.lister_with("logs/").recursive(true).await?;
+while let Some(entry) = entries.try_next().await? {
+    println!("{}", entry.path());
+}
+// Copy on the server — no download.
+op.copy("draft.md", "final.md").await?;
+// Recursively delete a subtree.
+op.delete_with("tmp/").recursive(true).await?;
+// Presign a temporary, shareable URL.
+let url = op.presign_read("report.csv", Duration::from_secs(3600)).await?;`,
   },
 ];
 
@@ -181,15 +223,43 @@ export const capabilityGroups = [
 // GitHub star count (highest first). Logos are the projects' GitHub org
 // avatars, self-hosted under static/img/users/. Refresh with scripts as the
 // ecosystem grows. The logo wall shows a responsive subset by viewport width.
+// Public projects with 1,000+ GitHub stars that depend on OpenDAL, sorted by
+// stars. Sourced via crates.io reverse deps + GitHub code search; logos are the
+// owner avatars, mirrored locally under static/img/users to avoid runtime calls.
 export const usedBy = [
   { name: "Dify", icon: "/img/users/dify.png", href: "https://github.com/langgenius/dify" },
-  { name: "Milvus", icon: "/img/users/milvus.png", href: "https://github.com/milvus-io/milvus" },
+  { name: "RAGFlow", icon: "/img/users/ragflow.png", href: "https://github.com/infiniflow/ragflow" },
+  { name: "Pathway", icon: "/img/users/pathway.png", href: "https://github.com/pathwaycom/pathway" },
+  { name: "Vaultwarden", icon: "/img/users/vaultwarden.png", href: "https://github.com/dani-garcia/vaultwarden" },
+  { name: "LlamaIndex", icon: "/img/users/llamaindex.png", href: "https://github.com/run-llama/llama_index" },
+  { name: "Hasura", icon: "/img/users/hasura.png", href: "https://github.com/hasura/graphql-engine" },
   { name: "Vector", icon: "/img/users/vector.png", href: "https://github.com/vectordotdev/vector" },
   { name: "QuestDB", icon: "/img/users/questdb.png", href: "https://github.com/questdb/questdb" },
+  { name: "WrenAI", icon: "/img/users/wrenai.png", href: "https://github.com/Canner/WrenAI" },
+  { name: "Quickwit", icon: "/img/users/quickwit.png", href: "https://github.com/quickwit-oss/quickwit" },
+  { name: "SeaTunnel", icon: "/img/users/seatunnel.png", href: "https://github.com/apache/seatunnel" },
   { name: "Databend", icon: "/img/users/databend.png", href: "https://github.com/databendlabs/databend" },
   { name: "RisingWave", icon: "/img/users/risingwave.png", href: "https://github.com/risingwavelabs/risingwave" },
-  { name: "FileCodeBox", icon: "/img/users/filecodebox.png", href: "https://github.com/vastsa/FileCodeBox" },
+  { name: "Loco", icon: "/img/users/loco.png", href: "https://github.com/loco-rs/loco" },
   { name: "sccache", icon: "/img/users/sccache.png", href: "https://github.com/mozilla/sccache" },
+  { name: "Lance", icon: "/img/users/lance.png", href: "https://github.com/lance-format/lance" },
+  { name: "GreptimeDB", icon: "/img/users/greptimedb.png", href: "https://github.com/GreptimeTeam/greptimedb" },
+  { name: "Daft", icon: "/img/users/daft.png", href: "https://github.com/Eventual-Inc/Daft" },
+  { name: "CrateDB", icon: "/img/users/cratedb.png", href: "https://github.com/crate/crate" },
+  { name: "Pants", icon: "/img/users/pants.png", href: "https://github.com/pantsbuild/pants" },
+  { name: "rustic", icon: "/img/users/rustic.png", href: "https://github.com/rustic-rs/rustic" },
+  { name: "SlateDB", icon: "/img/users/slatedb.png", href: "https://github.com/slatedb/slatedb" },
+  { name: "Gravitino", icon: "/img/users/gravitino.png", href: "https://github.com/apache/gravitino" },
+  { name: "Spice.ai", icon: "/img/users/spiceai.png", href: "https://github.com/spiceai/spiceai" },
+  { name: "Kubeflow Trainer", icon: "/img/users/kubeflow-trainer.png", href: "https://github.com/kubeflow/trainer" },
+  { name: "OctoBase", icon: "/img/users/octobase.png", href: "https://github.com/toeverything/OctoBase" },
+  { name: "Openraft", icon: "/img/users/openraft.png", href: "https://github.com/databendlabs/openraft" },
+  { name: "Walrus", icon: "/img/users/walrus.png", href: "https://github.com/nubskr/walrus" },
+  { name: "RobustMQ", icon: "/img/users/robustmq.png", href: "https://github.com/robustmq/robustmq" },
+  { name: "lnx", icon: "/img/users/lnx.png", href: "https://github.com/lnx-search/lnx" },
+  { name: "Iceberg Rust", icon: "/img/users/iceberg-rust.png", href: "https://github.com/apache/iceberg-rust" },
+  { name: "DataFusion Comet", icon: "/img/users/datafusion-comet.png", href: "https://github.com/apache/datafusion-comet" },
+  { name: "zino", icon: "/img/users/zino.png", href: "https://github.com/zino-rs/zino" },
 ];
 
 // Where people add their own project (PR to the users list).

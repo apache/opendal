@@ -73,9 +73,8 @@ data = op.read("hello.txt")`,
 )
 
 // Configure a backend once, then use one Operator.
-op, _ := opendal.NewOperator(s3.Scheme, opendal.OperatorOptions{
-    "bucket": "data",
-})
+opts := opendal.OperatorOptions{"bucket": "data"}
+op, _ := opendal.NewOperator(s3.Scheme, opts)
 
 op.Write("hello.txt", []byte("Hello, World!"))
 data, _ := op.Read("hello.txt")`,
@@ -110,15 +109,6 @@ const data = await op.read("hello.txt");`,
   },
 ];
 
-// Layered example used in the Layers section.
-export const layeredCode = `use opendal::layers::{LoggingLayer, RetryLayer};
-use opendal::Operator;
-
-// Cross-cutting behavior composes onto any operator, in order.
-let op = op
-    .layer(RetryLayer::new())
-    .layer(LoggingLayer::default());`;
-
 export const valueProps = [
   {
     index: "01",
@@ -147,6 +137,7 @@ export const valueProps = [
 // read / write / manage APIs (verified against types/operator + types/options).
 const RS = "https://docs.rs/opendal/latest/opendal";
 const opDoc = (method) => `${RS}/struct.Operator.html#method.${method}`;
+const layerDoc = (name) => `${RS}/layers/struct.${name}.html`;
 
 export const capabilityThemes = [
   {
@@ -215,7 +206,8 @@ op.copy("draft.md", "final.md").await?;
 // Recursively delete a subtree.
 op.delete_with("tmp/").recursive(true).await?;
 // Presign a temporary, shareable URL.
-let url = op.presign_read("report.csv", Duration::from_secs(3600)).await?;`,
+let ttl = Duration::from_secs(3600);
+let url = op.presign_read("report.csv", ttl).await?;`,
   },
 ];
 
@@ -359,65 +351,93 @@ export const bindings = [
 export const layers = [
   {
     name: "RetryLayer",
-    icon: "/img/layers/retry.svg",
     desc: "Recover from transient failures automatically.",
+    doc: layerDoc("RetryLayer"),
+    code: `use opendal::layers::RetryLayer;
+
+// Exponential backoff with jitter; interrupted
+// reads and writes resume where they left off.
+let op = op.layer(
+    RetryLayer::new().with_max_times(5).with_jitter(),
+);`,
   },
   {
     name: "TimeoutLayer",
-    icon: "/img/layers/timeout.svg",
     desc: "Bound slow or hanging operations.",
+    doc: layerDoc("TimeoutLayer"),
+    code: `use opendal::layers::TimeoutLayer;
+use std::time::Duration;
+
+// Abort operations that stall past a deadline.
+let op = op.layer(
+    TimeoutLayer::new()
+        .with_timeout(Duration::from_secs(10)),
+);`,
   },
   {
     name: "LoggingLayer",
-    icon: "/img/layers/logging.svg",
     desc: "Emit structured operation logs.",
+    doc: layerDoc("LoggingLayer"),
+    code: `use opendal::layers::LoggingLayer;
+
+// Structured logs for every operation, via the
+// standard log crate facade.
+let op = op.layer(LoggingLayer::default());`,
   },
   {
     name: "TracingLayer",
-    icon: "/img/layers/tracing.svg",
     desc: "Trace requests across systems.",
+    doc: layerDoc("TracingLayer"),
+    code: `use opendal::layers::TracingLayer;
+
+// One span per operation, into whatever
+// tracing subscriber your app installs.
+let op = op.layer(TracingLayer::new());`,
   },
   {
     name: "MetricsLayer",
-    icon: "/img/layers/metrics.svg",
     desc: "Export operation metrics.",
+    doc: layerDoc("MetricsLayer"),
+    code: `use opendal::layers::MetricsLayer;
+
+// Latency and throughput via the metrics crate
+// facade — plug in any exporter you like.
+let op = op.layer(MetricsLayer::default());`,
   },
   {
     name: "PrometheusLayer",
-    icon: "/img/layers/prometheus.svg",
     desc: "Expose Prometheus metrics.",
-  },
-  {
-    name: "Traffic Control",
-    icon: "/img/layers/traffic-control.svg",
-    desc: "Throttle and cap concurrency.",
-  },
-  {
-    name: "FoyerLayer",
-    icon: "/img/layers/cache.svg",
-    desc: "Add hybrid cache behavior.",
-  },
-];
+    doc: layerDoc("PrometheusLayer"),
+    code: `use opendal::layers::PrometheusLayer;
 
-export const principles = [
-  {
-    title: "Open Community",
-    body: "An ASF project governed by its PMC. Community over code, the Apache Way.",
+// Register operation metrics into a Prometheus
+// registry you already expose.
+let registry = prometheus::default_registry();
+let op = op.layer(
+    PrometheusLayer::builder().register(registry)?,
+);`,
   },
   {
-    title: "Solid Foundation",
-    body: "A dependable base you can trust for real-world storage operations.",
+    name: "ConcurrentLimitLayer",
+    desc: "Cap in-flight concurrency.",
+    doc: layerDoc("ConcurrentLimitLayer"),
+    code: `use opendal::layers::ConcurrentLimitLayer;
+
+// Cap how many operations hit the backend at once —
+// back-pressure for the whole Operator.
+let op = op.layer(ConcurrentLimitLayer::new(1024));`,
   },
   {
-    title: "Fast Access",
-    body: "Zero-overhead access — as fast as, or faster than, each native SDK.",
-  },
-  {
-    title: "Object Storage First",
-    body: "Designed and optimized for modern object storage from the ground up.",
-  },
-  {
-    title: "Extensible Architecture",
-    body: "Independent services, layers and bindings you can stack and extend.",
+    name: "ThrottleLayer",
+    desc: "Throttle I/O bandwidth.",
+    doc: layerDoc("ThrottleLayer"),
+    code: `use opendal::layers::ThrottleLayer;
+
+// Token-bucket bandwidth limit: ~10 MiB/s steady,
+// with headroom to burst for short spikes.
+let op = op.layer(ThrottleLayer::new(
+    10 * 1024 * 1024,
+    32 * 1024 * 1024,
+));`,
   },
 ];

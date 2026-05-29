@@ -27,7 +27,6 @@ import {
   Services,
   Bindings,
   Layers,
-  Community,
   FinalCta,
 } from "../components/landing/sections";
 
@@ -45,7 +44,6 @@ export default function Home() {
         <Services />
         <Bindings />
         <Layers />
-        <Community />
         <FinalCta />
       </main>
     </Layout>

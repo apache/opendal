@@ -36,8 +36,6 @@ import {
   serviceGroups,
   bindings,
   layers,
-  layeredCode,
-  principles,
 } from "./data";
 
 export function Hero() {
@@ -313,79 +311,60 @@ export function Bindings() {
 }
 
 export function Layers() {
-  const { withBaseUrl } = useBaseUrlUtils();
+  const [active, setActive] = useState(layers[0]);
   return (
     <section className={styles.section}>
       <div className="odl-container">
-        <div className={styles.layersInner}>
-          <div>
-            <span className="odl-eyebrow">Layers</span>
-            <h2 className={styles.sectionTitle}>
-              Production behavior, composed — not coded.
-            </h2>
-            <p className={styles.sectionLede}>
-              Stack cross-cutting concerns as reusable layers. The order is
-              explicit and the core stays zero-cost.
-            </p>
-            <div style={{ marginTop: "var(--odl-space-6)" }}>
-              <CodeTabs
-                samples={[
-                  {
-                    id: "layered",
-                    label: "Rust",
-                    language: "rust",
-                    code: layeredCode,
-                  },
-                ]}
-                title="compose layers onto any operator"
-              />
-            </div>
-          </div>
-          <div className={`${styles.layerGrid} ${styles.reveal}`}>
-            {layers.map((l) => (
-              <div className={styles.layerItem} key={l.name}>
-                <img
-                  className={styles.layerIcon}
-                  src={withBaseUrl(l.icon)}
-                  alt=""
-                  width="26"
-                  height="26"
-                  loading="lazy"
-                />
-                <div>
-                  <p className={styles.layerName}>{l.name}</p>
-                  <p className={styles.layerDesc}>{l.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function Community() {
-  return (
-    <section className={`${styles.section} ${styles.sectionSubtle}`}>
-      <div className="odl-container">
         <div className={styles.sectionHead}>
-          <span className="odl-eyebrow">Open the Apache Way</span>
+          <span className="odl-eyebrow">Layers</span>
           <h2 className={styles.sectionTitle}>
-            Built by a community, for the commons.
+            Production behavior, composed — not coded.
           </h2>
           <p className={styles.sectionLede}>
-            Apache OpenDAL™ graduated to a top-level project in 2024. Five
-            principles guide every decision we make.
+            Stack cross-cutting concerns as reusable layers. The order is
+            explicit and the core stays zero-cost.
           </p>
         </div>
-        <div className={styles.principleGrid}>
-          {principles.map((p) => (
-            <div className={styles.principle} key={p.title}>
-              <h3 className={styles.principleTitle}>{p.title}</h3>
-              <p className={styles.principleBody}>{p.body}</p>
+        <div className={styles.layerExplorer}>
+          <div className={styles.layerGrid}>
+            {layers.map((l) => {
+              const selected = active.name === l.name;
+              return (
+                <Link
+                  key={l.name}
+                  className={`${styles.layerItem} ${
+                    selected ? styles.layerItemActive : ""
+                  }`}
+                  to={l.doc}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-current={selected ? "true" : undefined}
+                  onMouseEnter={() => setActive(l)}
+                  onFocus={() => setActive(l)}
+                >
+                  <span className={styles.layerName}>{l.name}</span>
+                  <span className={styles.layerDesc}>{l.desc}</span>
+                </Link>
+              );
+            })}
+          </div>
+          <div className={styles.capabilityPreview}>
+            <div className={styles.codeWindow}>
+              <div className={styles.windowBar}>
+                <div className={styles.windowDots} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className={styles.windowTitle}>{active.name}</span>
+              </div>
+              <div className={`${styles.codeBody} ${styles.layerCodeBody}`}>
+                <div className={styles.capabilityCodeFade} key={active.name}>
+                  <CodeBlock language="rust">{active.code}</CodeBlock>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
@@ -394,10 +373,9 @@ export function Community() {
 
 export function FinalCta() {
   return (
-    <section className={styles.section}>
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
       <div className="odl-container">
         <div className={styles.finalCta}>
-          <div className={styles.finalGrid} aria-hidden="true" />
           <div className={`${styles.finalCtaInner} ${styles.finalCenter}`}>
             <span className={`odl-eyebrow ${styles.finalEyebrow}`}>
               Start building
@@ -411,19 +389,19 @@ export function FinalCta() {
             </p>
             <div className={styles.finalCtaActions}>
               <Link
-                className={`${styles.btn} ${styles.btnOnDark}`}
+                className={`${styles.btn} ${styles.btnPrimary}`}
                 to={DOCS_URL}
               >
                 Get started <span className={styles.btnArrow}>→</span>
               </Link>
               <Link
-                className={`${styles.btn} ${styles.btnOnDarkGhost}`}
+                className={`${styles.btn} ${styles.btnSecondary}`}
                 to={REPO_URL}
               >
                 Star on GitHub
               </Link>
               <Link
-                className={`${styles.btn} ${styles.btnOnDarkGhost}`}
+                className={`${styles.btn} ${styles.btnSecondary}`}
                 to={DISCORD_URL}
               >
                 Join Discord

@@ -83,8 +83,6 @@ pub enum PyScheme {
     Dashmap,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
-    #[cfg(feature = "services-foyer")]
-    Foyer,
     #[cfg(feature = "services-fs")]
     Fs,
     #[cfg(feature = "services-ftp")]
@@ -735,70 +733,6 @@ submit! {
         class Operator:
             @overload
             def __new__(cls,
-                scheme: typing.Literal[opendal.services.Scheme.Foyer, "foyer"],
-                /,
-                *,
-                disk_capacity: builtins.int = ...,
-                disk_file_size: builtins.int = ...,
-                disk_path: builtins.str = ...,
-                memory: builtins.int = ...,
-                name: builtins.str = ...,
-                recover_mode: builtins.str = ...,
-                root: builtins.str = ...,
-                shards: builtins.int = ...,
-            ) -> typing.Self:
-                r"""
-                Create a new `Operator` for `foyer` service.
-
-                Parameters
-                ----------
-                disk_capacity : builtins.int, optional
-                    Disk cache total capacity in bytes.
-                    Only used when `disk_path` is set.
-                disk_file_size : builtins.int, optional
-                    Individual cache file size in bytes.
-                    Default is 1 MiB.
-                    Only used when `disk_path` is set.
-                disk_path : builtins.str, optional
-                    Disk cache directory path.
-                    If set, enables hybrid cache with disk storage.
-                    Data will be persisted to this directory when memory
-                    cache is full.
-                memory : builtins.int, optional
-                    Memory capacity in bytes for the cache.
-                name : builtins.str, optional
-                    Name for this cache instance.
-                recover_mode : builtins.str, optional
-                    Recovery mode when starting the cache.
-                    Valid values: "none" (default), "quiet", "strict".
-                    - "none": Don't recover from disk - "quiet": Recover
-                    and skip errors - "strict": Recover and panic on
-                    errors
-                root : builtins.str, optional
-                    Root path of this backend.
-                shards : builtins.int, optional
-                    Number of shards for concurrent access.
-                    Default is 1.
-                    Higher values improve concurrency but increase
-                    overhead.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `foyer` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import opendal.services
-        class Operator:
-            @overload
-            def __new__(cls,
                 scheme: typing.Literal[opendal.services.Scheme.Fs, "fs"],
                 /,
                 *,
@@ -1194,9 +1128,10 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
                 /,
                 *,
+                download_mode: builtins.str = ...,
                 endpoint: builtins.str = ...,
                 repo_id: builtins.str = ...,
-                repo_type: builtins.str,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -1206,16 +1141,18 @@ submit! {
 
                 Parameters
                 ----------
+                download_mode : builtins.str, optional
+                    Download mode.
+                    Either `xet` (default) or `http`.
                 endpoint : builtins.str, optional
                     Endpoint of the Hugging Face Hub.
                     Default is "https://huggingface.co".
                 repo_id : builtins.str, optional
                     Repo id of this backend.
                     This is required.
-                repo_type : builtins.str
+                repo_type : builtins.str, optional
                     Repo type of this backend.
-                    Default is model.
-                    Default is model
+                    Required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.
@@ -3440,70 +3377,6 @@ submit! {
         class AsyncOperator:
             @overload
             def __new__(cls,
-                scheme: typing.Literal[opendal.services.Scheme.Foyer, "foyer"],
-                /,
-                *,
-                disk_capacity: builtins.int = ...,
-                disk_file_size: builtins.int = ...,
-                disk_path: builtins.str = ...,
-                memory: builtins.int = ...,
-                name: builtins.str = ...,
-                recover_mode: builtins.str = ...,
-                root: builtins.str = ...,
-                shards: builtins.int = ...,
-            ) -> typing.Self:
-                r"""
-                Create a new `AsyncOperator` for `foyer` service.
-
-                Parameters
-                ----------
-                disk_capacity : builtins.int, optional
-                    Disk cache total capacity in bytes.
-                    Only used when `disk_path` is set.
-                disk_file_size : builtins.int, optional
-                    Individual cache file size in bytes.
-                    Default is 1 MiB.
-                    Only used when `disk_path` is set.
-                disk_path : builtins.str, optional
-                    Disk cache directory path.
-                    If set, enables hybrid cache with disk storage.
-                    Data will be persisted to this directory when memory
-                    cache is full.
-                memory : builtins.int, optional
-                    Memory capacity in bytes for the cache.
-                name : builtins.str, optional
-                    Name for this cache instance.
-                recover_mode : builtins.str, optional
-                    Recovery mode when starting the cache.
-                    Valid values: "none" (default), "quiet", "strict".
-                    - "none": Don't recover from disk - "quiet": Recover
-                    and skip errors - "strict": Recover and panic on
-                    errors
-                root : builtins.str, optional
-                    Root path of this backend.
-                shards : builtins.int, optional
-                    Number of shards for concurrent access.
-                    Default is 1.
-                    Higher values improve concurrency but increase
-                    overhead.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `foyer` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import opendal.services
-        class AsyncOperator:
-            @overload
-            def __new__(cls,
                 scheme: typing.Literal[opendal.services.Scheme.Fs, "fs"],
                 /,
                 *,
@@ -3899,9 +3772,10 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
                 /,
                 *,
+                download_mode: builtins.str = ...,
                 endpoint: builtins.str = ...,
                 repo_id: builtins.str = ...,
-                repo_type: builtins.str,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -3911,16 +3785,18 @@ submit! {
 
                 Parameters
                 ----------
+                download_mode : builtins.str, optional
+                    Download mode.
+                    Either `xet` (default) or `http`.
                 endpoint : builtins.str, optional
                     Endpoint of the Hugging Face Hub.
                     Default is "https://huggingface.co".
                 repo_id : builtins.str, optional
                     Repo id of this backend.
                     This is required.
-                repo_type : builtins.str
+                repo_type : builtins.str, optional
                     Repo type of this backend.
-                    Default is model.
-                    Default is model
+                    Required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.
@@ -5622,8 +5498,6 @@ impl_enum_to_str!(
         Dashmap => "dashmap",
         #[cfg(feature = "services-dropbox")]
         Dropbox => "dropbox",
-        #[cfg(feature = "services-foyer")]
-        Foyer => "foyer",
         #[cfg(feature = "services-fs")]
         Fs => "fs",
         #[cfg(feature = "services-ftp")]

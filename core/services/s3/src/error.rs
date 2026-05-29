@@ -131,6 +131,7 @@ pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
         | "ExceedAccountRateLimit"
         | "ExceedBucketQPSLimit"
         | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
+        "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
         _ => None,
     }
 }
@@ -179,5 +180,13 @@ mod tests {
 
         let out: S3Error = de::from_reader(bs.reader()).expect("must success");
         assert_eq!(out, S3Error::default());
+    }
+
+    #[test]
+    fn test_parse_s3_error_code_invalid_range() {
+        assert_eq!(
+            parse_s3_error_code("InvalidRange"),
+            Some((ErrorKind::RangeNotSatisfied, false))
+        );
     }
 }

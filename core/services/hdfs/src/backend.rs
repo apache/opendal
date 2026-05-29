@@ -222,7 +222,7 @@ impl Access for HdfsBackend {
         let f = self.core.hdfs_read(path, &args).await?;
 
         Ok((
-            RpRead::new(),
+            RpRead::default(),
             HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
         ))
     }

@@ -260,10 +260,13 @@ impl Access for SqliteBackend {
         let p = build_abs_path(&self.root, path);
 
         let range = args.range();
-        let buffer = if range.is_full() {
+        let (buffer, content_length) = if range.is_full() {
             // Full read - use GET
             match self.core.get(&p).await? {
-                Some(bs) => bs,
+                Some(bs) => {
+                    let content_length = bs.len() as u64;
+                    (bs, content_length)
+                }
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
             }
         } else {
@@ -275,12 +278,13 @@ impl Access for SqliteBackend {
             };
 
             match self.core.get_range(&p, start, limit).await? {
-                Some(bs) => bs,
+                Some((bs, content_length)) => (bs, content_length),
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
             }
         };
 
-        Ok((RpRead::new(), buffer))
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        Ok((RpRead::new(metadata), buffer))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

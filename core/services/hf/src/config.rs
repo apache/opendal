@@ -16,21 +16,22 @@
 // under the License.
 
 use super::backend::HfBuilder;
-use super::uri::HfRepoType;
+use super::core::HfDownloadMode;
+use super::core::HfRepoType;
 use super::uri::HfUri;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
+
+use super::HUGGINGFACE_SCHEME;
 
 /// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct HfConfig {
-    /// Repo type of this backend. Default is model.
-    ///
-    /// Default is model
-    pub repo_type: HfRepoType,
+    /// Repo type of this backend. Required.
+    pub repo_type: Option<HfRepoType>,
     /// Repo id of this backend.
     ///
     /// This is required.
@@ -51,15 +52,21 @@ pub struct HfConfig {
     ///
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
+    /// Download mode. Either `xet` (default) or `http`.
+    pub download_mode: Option<HfDownloadMode>,
 }
 
 impl Debug for HfConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HfConfig")
-            .field("repo_type", &self.repo_type)
+            .field(
+                "repo_type",
+                &self.repo_type.as_ref().map(HfRepoType::as_str),
+            )
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
             .field("root", &self.root)
+            .field("download_mode", &self.download_mode)
             .finish_non_exhaustive()
     }
 }
@@ -88,32 +95,43 @@ impl opendal_core::Configurator for HfConfig {
             }
         }
 
+        let download_mode = opts
+            .get("download_mode")
+            .map(|s| HfDownloadMode::parse(s))
+            .transpose()?;
+
         if !path.is_empty() {
             // Full URI like "hf://datasets/user/repo@rev/path"
             let parsed = HfUri::parse(&path)?;
             Ok(Self {
-                repo_type: parsed.repo.repo_type,
+                repo_type: Some(parsed.repo.repo_type),
                 repo_id: Some(parsed.repo.repo_id),
                 revision: parsed.repo.revision,
+                root: opts.get("root").cloned(),
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
-                ..Default::default()
+                download_mode,
             })
         } else {
             // Bare scheme from via_iter, all config is in options.
             let repo_type = opts
                 .get("repo_type")
-                .map(|s| HfRepoType::parse(s))
-                .transpose()?
-                .unwrap_or_default();
+                .ok_or_else(|| {
+                    opendal_core::Error::new(
+                        opendal_core::ErrorKind::ConfigInvalid,
+                        "repo_type is required",
+                    )
+                    .with_context("service", HUGGINGFACE_SCHEME)
+                })
+                .and_then(|s| HfRepoType::parse(s))?;
             Ok(Self {
-                repo_type,
+                repo_type: Some(repo_type),
                 repo_id: opts.get("repo_id").cloned(),
                 revision: opts.get("revision").cloned(),
                 root: opts.get("root").cloned(),
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
-                ..Default::default()
+                download_mode,
             })
         }
     }
@@ -138,7 +156,7 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.repo_type, HfRepoType::Dataset);
+        assert_eq!(cfg.repo_type, Some(HfRepoType::Dataset));
         assert_eq!(cfg.repo_id.as_deref(), Some("username/my_dataset"));
         assert_eq!(cfg.revision.as_deref(), Some("dev"));
         assert!(cfg.root.is_none());
@@ -162,9 +180,40 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.repo_type, HfRepoType::Dataset);
+        assert_eq!(cfg.repo_type, Some(HfRepoType::Dataset));
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/huggingface-testdata"));
         assert_eq!(cfg.revision.as_deref(), Some("main"));
         assert_eq!(cfg.root.as_deref(), Some("/testdata/"));
+    }
+
+    #[test]
+    fn from_uri_download_mode_http() {
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "dataset".to_string()),
+                ("repo_id".to_string(), "user/repo".to_string()),
+                ("download_mode".to_string(), "http".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = HfConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.download_mode, Some(HfDownloadMode::Http));
+    }
+
+    #[test]
+    fn from_uri_download_mode_defaults_to_xet() {
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "model".to_string()),
+                ("repo_id".to_string(), "user/repo".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = HfConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.download_mode.unwrap_or_default(), HfDownloadMode::Xet);
     }
 }

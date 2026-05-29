@@ -108,8 +108,7 @@ impl Access for OpfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.core.root, path);
         let handle = get_file_handle(&p, false).await?;
-
-        Ok((RpRead::new(), OpfsReader::new(handle, args.range())))
+        Ok((RpRead::default(), OpfsReader::new(handle, args.range())))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

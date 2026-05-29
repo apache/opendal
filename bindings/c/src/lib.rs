@@ -39,6 +39,9 @@ pub use error::opendal_error;
 mod lister;
 pub use lister::opendal_lister;
 
+mod layer;
+pub use layer::opendal_operator_layers;
+
 mod metadata;
 pub use metadata::opendal_metadata;
 
@@ -67,6 +70,7 @@ pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
+pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
 
 mod entry;

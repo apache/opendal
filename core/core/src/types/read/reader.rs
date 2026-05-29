@@ -105,6 +105,15 @@ impl Reader {
         Reader { ctx: Arc::new(ctx) }
     }
 
+    /// Get complete object metadata observed by this reader.
+    ///
+    /// This method doesn't perform I/O. It returns `None` if no read has
+    /// observed complete object metadata yet, or if the underlying service
+    /// doesn't return metadata while opening read operations.
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.ctx.metadata()
+    }
+
     /// Read give range from reader into [`Buffer`].
     ///
     /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
@@ -453,6 +462,65 @@ mod tests {
         let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_metadata_after_read() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader("test").await?;
+        assert_eq!(reader.metadata(), None);
+
+        let buf = reader.read(4..8).await?;
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let meta = reader.metadata().expect("metadata must be observed");
+        assert_eq!(meta.content_length(), 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_metadata_updates_reader_metadata() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader("test").await?;
+        let mut stream = reader.clone().into_stream(4..8).await?;
+
+        let stream_meta = stream.metadata().await?;
+        assert_eq!(stream_meta.content_length(), 10);
+
+        let bufs: Vec<_> = stream.try_collect().await?;
+        let buf: Buffer = bufs.into_iter().flatten().collect();
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let reader_meta = reader.metadata().expect("reader metadata must be observed");
+        assert_eq!(reader_meta.content_length(), 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_stream_metadata_updates_reader_metadata() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader_with("test").chunk(2).await?;
+        let mut stream = reader.clone().into_stream(4..8).await?;
+
+        let stream_meta = stream.metadata().await?;
+        assert_eq!(stream_meta.content_length(), 10);
+
+        let bufs: Vec<_> = stream.try_collect().await?;
+        let buf: Buffer = bufs.into_iter().flatten().collect();
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let reader_meta = reader.metadata().expect("reader metadata must be observed");
+        assert_eq!(reader_meta.content_length(), 10);
 
         Ok(())
     }

@@ -19,6 +19,7 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use crate::raw::*;
 use crate::*;
@@ -33,6 +34,8 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
+    /// Complete object metadata observed from successful read opens.
+    metadata: OnceLock<Metadata>,
 }
 
 impl ReadContext {
@@ -44,6 +47,7 @@ impl ReadContext {
             path,
             args,
             options,
+            metadata: OnceLock::new(),
         }
     }
 
@@ -69,6 +73,17 @@ impl ReadContext {
     #[inline]
     pub fn options(&self) -> &OpReader {
         &self.options
+    }
+
+    /// Get complete object metadata observed by this reader.
+    #[inline]
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.get()
+    }
+
+    /// Set cached object metadata observed from successful read opens once.
+    pub(crate) fn set_metadata(&self, metadata: Metadata) {
+        let _ = self.metadata.set(metadata);
     }
 
     /// Parse the range bounds into a range.
@@ -179,8 +194,18 @@ impl ReadGenerator {
         };
 
         let args = self.ctx.args.clone().with_range(range);
-        let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
+        let (rp, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
+        if let Some(metadata) = rp.into_metadata() {
+            if self.ctx.metadata().is_none() {
+                self.ctx.set_metadata(metadata);
+            }
+        }
         Ok(Some(r))
+    }
+
+    /// Get metadata observed by generated readers.
+    pub(crate) fn metadata(&self) -> Option<&Metadata> {
+        self.ctx.metadata()
     }
 }
 

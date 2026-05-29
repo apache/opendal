@@ -226,11 +226,17 @@ impl Access for CompfsBackend {
 
         let file = self
             .core
-            .exec(|| async move { compio::fs::OpenOptions::new().read(true).open(&path).await })
+            .exec(|| async move {
+                let file = compio::fs::OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .await?;
+                Ok(file)
+            })
             .await?;
 
         let r = CompfsReader::new(self.core.clone(), file, op.range());
-        Ok((RpRead::new(), r))
+        Ok((RpRead::default(), r))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

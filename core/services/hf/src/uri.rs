@@ -16,57 +16,10 @@
 // under the License.
 
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use serde::Deserialize;
-use serde::Serialize;
 
 use super::HUGGINGFACE_SCHEME;
+pub use super::core::HfRepoType;
 use opendal_core::raw::*;
-
-/// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
-/// [Reference](https://huggingface.co/docs/hub/repositories)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum HfRepoType {
-    #[default]
-    Model,
-    Dataset,
-    Space,
-    Bucket,
-}
-
-impl HfRepoType {
-    pub fn parse(s: &str) -> opendal_core::Result<Self> {
-        match s.to_lowercase().replace(' ', "").as_str() {
-            "model" | "models" => Ok(Self::Model),
-            "dataset" | "datasets" => Ok(Self::Dataset),
-            "space" | "spaces" => Ok(Self::Space),
-            "bucket" | "buckets" => Ok(Self::Bucket),
-            other => Err(opendal_core::Error::new(
-                opendal_core::ErrorKind::ConfigInvalid,
-                format!("unknown repo type: {other}"),
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)),
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Model => "model",
-            Self::Dataset => "dataset",
-            Self::Space => "space",
-            Self::Bucket => "bucket",
-        }
-    }
-
-    pub fn as_plural_str(&self) -> &'static str {
-        match self {
-            Self::Model => "models",
-            Self::Dataset => "datasets",
-            Self::Space => "spaces",
-            Self::Bucket => "buckets",
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HfRepo {
@@ -277,9 +230,12 @@ impl HfUri {
         self.repo.revision()
     }
 
-    /// Build the resolve URL for this URI.
-    pub fn resolve_url(&self, endpoint: &str) -> String {
-        let revision = percent_encode_revision(self.revision());
+    /// Build the resolve URL for this URI using an explicit revision (e.g. a commit OID).
+    ///
+    /// Pinning to a specific commit OID avoids CDN consistency lag that can occur
+    /// when using a branch name like "main" immediately after a commit.
+    pub fn resolve_url(&self, endpoint: &str, revision: &str) -> String {
+        let revision = percent_encode_revision(revision);
         let path = percent_encode_path(&self.path);
         match self.repo.repo_type {
             HfRepoType::Model => {
@@ -559,7 +515,7 @@ mod tests {
     #[test]
     fn test_bucket_resolve_url() {
         let p = resolve("buckets/user/bucket/file.txt");
-        let url = p.resolve_url("https://huggingface.co");
+        let url = p.resolve_url("https://huggingface.co", p.revision());
         assert_eq!(
             url,
             "https://huggingface.co/buckets/user/bucket/resolve/file.txt"

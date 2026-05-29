@@ -189,6 +189,19 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
+ * \brief The layers to apply when initializing an opendal_operator.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it.
+ */
+typedef struct opendal_operator_layers {
+  /**
+   * The pointer to the Vec<OperatorLayer> in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_operator_layers;
+
+/**
  * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
@@ -425,6 +438,25 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief The options for the list operation.
+ *
+ * This struct carries the options for the list operation, including whether to
+ * list recursively. Use `opendal_list_options_new()` to construct and
+ * `opendal_list_options_free()` to free.
+ *
+ * @see opendal_operator_list_with
+ * @see opendal_list_options_new
+ * @see opendal_list_options_free
+ * @see opendal_list_options_set_recursive
+ */
+typedef struct opendal_list_options {
+  /**
+   * Whether to list recursively under the prefix; default false.
+   */
+  bool recursive;
+} opendal_list_options;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -699,6 +731,33 @@ struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *sel
 void opendal_lister_free(struct opendal_lister *ptr);
 
 /**
+ * \brief Construct a heap-allocated opendal_operator_layers.
+ */
+struct opendal_operator_layers *opendal_operator_layers_new(void);
+
+/**
+ * \brief Add a retry layer.
+ */
+void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
+                                       bool jitter,
+                                       float factor,
+                                       uint64_t min_delay_ns,
+                                       uint64_t max_delay_ns,
+                                       uint64_t max_times);
+
+/**
+ * \brief Add a timeout layer.
+ */
+void opendal_operator_layers_add_timeout(struct opendal_operator_layers *self,
+                                         uint64_t timeout_ns,
+                                         uint64_t io_timeout_ns);
+
+/**
+ * \brief Free the allocated memory used by opendal_operator_layers.
+ */
+void opendal_operator_layers_free(struct opendal_operator_layers *ptr);
+
+/**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
 void opendal_metadata_free(struct opendal_metadata *ptr);
@@ -828,6 +887,20 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  */
 struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
+
+/**
+ * \brief Construct an operator based on scheme, options, and explicit layers.
+ *
+ * Unlike opendal_operator_new, this function will not add any default layer.
+ * Layers will be applied exactly as they were added to opendal_operator_layers.
+ *
+ * # Safety
+ *
+ * The only unsafe case is passing an invalid c string pointer to the scheme argument.
+ */
+struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
+                                                                    const struct opendal_operator_options *options,
+                                                                    const struct opendal_operator_layers *layers);
 
 /**
  * \brief Blocking write raw bytes to `path`.
@@ -1228,6 +1301,33 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
                                                  const char *path);
 
 /**
+ * \brief Blocking list the objects in `path` with options.
+ *
+ * List the objects in `path` with the provided `opendal_list_options`. This is
+ * similar to `opendal_operator_list` but allows passing options such as
+ * `recursive` to control the listing behavior.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path you want to list
+ * @param opts The options for the list operation; pass NULL to use defaults
+ * @see opendal_lister
+ * @see opendal_list_options
+ * @return Returns opendal_result_list, containing a lister and an opendal_error.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid null terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_list opendal_operator_list_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_list_options *opts);
+
+/**
  * \brief Blocking create the directory in `path`.
  *
  * Create the directory in `path` blocking by `op_ptr`.
@@ -1482,6 +1582,30 @@ void opendal_string_free(char *ptr);
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
+
+/**
+ * \brief Construct a heap-allocated opendal_list_options with default values.
+ *
+ * @return A new opendal_list_options with all options set to their defaults.
+ *
+ * @see opendal_list_options_free
+ */
+struct opendal_list_options *opendal_list_options_new(void);
+
+/**
+ * \brief Set the recursive option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param recursive Whether to list recursively.
+ */
+void opendal_list_options_set_recursive(struct opendal_list_options *opts, bool recursive);
+
+/**
+ * \brief Free the heap memory used by opendal_list_options.
+ *
+ * @param opts The opendal_list_options to free.
+ */
+void opendal_list_options_free(struct opendal_list_options *opts);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

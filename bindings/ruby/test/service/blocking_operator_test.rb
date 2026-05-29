@@ -24,7 +24,9 @@ SERVICE = ENV["OPENDAL_TEST"]
 module Service
   class BlockingOperatorTest < ActiveSupport::TestCase
     setup do
-      @op = OpenDal::Operator.new(SERVICE, {"root" => "/tmp"})
+      config = config_from_env(SERVICE)
+
+      @op = OpenDal::Operator.new(SERVICE, config)
     end
 
     test "read and write text" do
@@ -117,6 +119,27 @@ module Service
       @op.middleware(OpenDal::Middleware::Retry.new)
 
       assert @op.is_a?(OpenDal::Operator)
+    end
+
+    private
+    
+    def config_from_env(service)
+      prefix = "OPENDAL_#{service.upcase}_"
+      config = {}
+      ENV.each do |key, value|
+        if key.start_with?(prefix)
+          config[key[prefix.length..-1].downcase] = value
+        end
+      end
+
+      disable_random_root = ENV["OPENDAL_DISABLE_RANDOM_ROOT"] == "true"
+      unless disable_random_root
+        root = config.fetch('root', '/')
+        uuid = SecureRandom.uuid
+        config["root"] = "#{root}/#{uuid}/"
+      end
+
+      config
     end
   end
 end

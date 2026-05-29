@@ -258,7 +258,11 @@ async def test_async_read_not_exists(service_name, operator, async_operator):
 
 
 @pytest.mark.need_capability(
-    "read", "read_with_if_modified_since", "read_with_if_unmodified_since"
+    "read",
+    "write",
+    "delete",
+    "read_with_if_modified_since",
+    "read_with_if_unmodified_since",
 )
 def test_sync_conditional_reads(service_name, operator):
     path = f"random_file_{str(uuid4())}"

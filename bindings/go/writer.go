@@ -181,6 +181,12 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 	keepAlive := writeOptionsKeepAlive{}
 	ffiWriteOptionsSetAppend.symbol(ctx)(cOpts, o.append)
 
+	// fail frees the C-allocated options before returning
+	fail := func(err error) (*opendalWriteOptions, writeOptionsKeepAlive, error) {
+		ffiWriteOptionsFree.symbol(ctx)(cOpts)
+		return nil, writeOptionsKeepAlive{}, err
+	}
+
 	setString := func(value string, set func(*opendalWriteOptions, string) (*byte, error)) error {
 		if value == "" {
 			return nil
@@ -194,22 +200,22 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 	}
 
 	if err := setString(o.cacheControl, ffiWriteOptionsSetCacheControl.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 	if err := setString(o.contentType, ffiWriteOptionsSetContentType.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 	if err := setString(o.contentDisposition, ffiWriteOptionsSetContentDisposition.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 	if err := setString(o.contentEncoding, ffiWriteOptionsSetContentEncoding.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 	if err := setString(o.ifMatch, ffiWriteOptionsSetIfMatch.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 	if err := setString(o.ifNoneMatch, ffiWriteOptionsSetIfNoneMatch.symbol(ctx)); err != nil {
-		return nil, writeOptionsKeepAlive{}, err
+		return fail(err)
 	}
 
 	ffiWriteOptionsSetIfNotExists.symbol(ctx)(cOpts, o.ifNotExists)
@@ -224,11 +230,11 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 		for key, value := range o.userMetadata {
 			byteKey, err := BytePtrFromString(key)
 			if err != nil {
-				return nil, writeOptionsKeepAlive{}, err
+				return fail(err)
 			}
 			byteValue, err := BytePtrFromString(value)
 			if err != nil {
-				return nil, writeOptionsKeepAlive{}, err
+				return fail(err)
 			}
 			keepAlive.strings = append(keepAlive.strings, byteKey, byteValue)
 			keepAlive.userMetadata = append(keepAlive.userMetadata, opendalWriteUserMetadataPair{key: byteKey, value: byteValue})

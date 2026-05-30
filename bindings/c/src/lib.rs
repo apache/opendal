@@ -44,6 +44,8 @@ pub use layer::opendal_operator_layers;
 
 mod metadata;
 pub use metadata::opendal_metadata;
+pub use metadata::opendal_metadata_user_metadata;
+pub use metadata::opendal_metadata_user_metadata_pair;
 
 mod operator;
 pub use operator::opendal_operator;

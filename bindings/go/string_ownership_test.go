@@ -171,9 +171,42 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 		}
 		metaFreed++
 	})
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
 	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metaInner, m)
 		return 4096
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
+	contentType := "text/plain"
+	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return &contentType
+	})
+	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+		assertMetadataPointer(t, metaInner, m)
+		return 2
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metaInner, m)
+		return false
 	})
 	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metaInner, m)
@@ -186,6 +219,18 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
 		assertMetadataPointer(t, metaInner, m)
 		return 1700000000000
+	})
+	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+		assertMetadataPointer(t, metaInner, m)
+		return EntryModeFile
+	})
+	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, func(m *opendalMetadata) map[string]string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
 	})
 
 	entry := newEntry(ctx, entryInner)
@@ -217,8 +262,269 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 	if meta.LastModified().UnixMilli() != 1700000000000 {
 		t.Fatalf("Metadata().LastModified().UnixMilli() = %d, want 1700000000000", meta.LastModified().UnixMilli())
 	}
+	if meta.Mode() != EntryModeFile {
+		t.Fatalf("Metadata().Mode() = %d, want %d", meta.Mode(), EntryModeFile)
+	}
+	if contentType, ok := meta.ContentType(); !ok || contentType != "text/plain" {
+		t.Fatalf("Metadata().ContentType() = %q, %v, want text/plain, true", contentType, ok)
+	}
+	if _, ok := meta.CacheControl(); ok {
+		t.Fatal("Metadata().CacheControl() ok = true, want false")
+	}
 	if metaFreed != 1 {
 		t.Fatalf("newEntry() freed metadata %d times, want 1", metaFreed)
+	}
+}
+
+func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
+	var freed []*byte
+	freeCString := func(ptr *byte) {
+		freed = append(freed, ptr)
+	}
+
+	cacheControlPtr := mustBytePtrFromString(t, "max-age=60")
+	contentDispositionPtr := mustBytePtrFromString(t, "attachment")
+	contentEncodingPtr := mustBytePtrFromString(t, "gzip")
+	contentMD5Ptr := mustBytePtrFromString(t, "1B2M2Y8AsgTpgAmY7PhCfg==")
+	contentTypePtr := mustBytePtrFromString(t, "application/json")
+	etagPtr := mustBytePtrFromString(t, `"etag"`)
+	versionPtr := mustBytePtrFromString(t, "v42")
+
+	metadataInner := &opendalMetadata{}
+	userMetadataInner := &opendalMetadataUserMetadata{}
+	pairs := []opendalMetadataUserMetadataPair{
+		{key: mustBytePtrFromString(t, "foo"), value: mustBytePtrFromString(t, "bar")},
+		{key: mustBytePtrFromString(t, "empty"), value: mustBytePtrFromString(t, "")},
+	}
+	metadataFreed := 0
+	userMetadataFreed := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiStringFree.opts.sym, freeCString)
+	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+		assertMetadataPointer(t, metadataInner, m)
+		metadataFreed++
+	})
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, ffiMetaCacheControl.withFunc(ctx, metadataStringFunc(t, metadataInner, cacheControlPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, ffiMetaContentDisposition.withFunc(ctx, metadataStringFunc(t, metadataInner, contentDispositionPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, ffiMetaContentEncoding.withFunc(ctx, metadataStringFunc(t, metadataInner, contentEncodingPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+		assertMetadataPointer(t, metadataInner, m)
+		return 4096
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, ffiMetaContentMD5.withFunc(ctx, metadataStringFunc(t, metadataInner, contentMD5Ptr)))
+	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, ffiMetaContentType.withFunc(ctx, metadataStringFunc(t, metadataInner, contentTypePtr)))
+	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, ffiMetaEtag.withFunc(ctx, metadataStringFunc(t, metadataInner, etagPtr)))
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+		assertMetadataPointer(t, metadataInner, m)
+		return 1
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return true
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return false
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return true
+	})
+	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+		assertMetadataPointer(t, metadataInner, m)
+		return 1700000000000
+	})
+	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+		assertMetadataPointer(t, metadataInner, m)
+		return EntryModeDir
+	})
+	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, ffiMetaVersion.withFunc(ctx, metadataStringFunc(t, metadataInner, versionPtr)))
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataPairs.opts.sym, ffiMetaUserMetadataPairs.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertUserMetadataPointerFromArgs(t, userMetadataInner, aValues...)
+		*(**opendalMetadataUserMetadataPair)(rValue) = &pairs[0]
+	}))
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataLen.opts.sym, ffiMetaUserMetadataLen.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertUserMetadataPointerFromArgs(t, userMetadataInner, aValues...)
+		*(*uint64)(rValue) = uint64(len(pairs))
+	}))
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataFree.opts.sym, func(m *opendalMetadataUserMetadata) {
+		if m != userMetadataInner {
+			t.Fatalf("user metadata freed unexpected pointer: %p", m)
+		}
+		userMetadataFreed++
+	})
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, ffiMetaUserMetadata.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertMetadataPointerFromArgs(t, metadataInner, aValues...)
+		*(**opendalMetadataUserMetadata)(rValue) = userMetadataInner
+	}))
+
+	meta := newMetadata(ctx, metadataInner)
+	assertOptionalString(t, "CacheControl", meta.CacheControl, "max-age=60")
+	assertOptionalString(t, "ContentDisposition", meta.ContentDisposition, "attachment")
+	assertOptionalString(t, "ContentEncoding", meta.ContentEncoding, "gzip")
+	assertOptionalString(t, "ContentMD5", meta.ContentMD5, "1B2M2Y8AsgTpgAmY7PhCfg==")
+	assertOptionalString(t, "ContentType", meta.ContentType, "application/json")
+	assertOptionalString(t, "ETag", meta.ETag, `"etag"`)
+	assertOptionalString(t, "Version", meta.Version, "v42")
+	if meta.ContentLength() != 4096 {
+		t.Fatalf("ContentLength() = %d, want 4096", meta.ContentLength())
+	}
+	current, ok := meta.IsCurrent()
+	if !ok || !current {
+		t.Fatalf("IsCurrent() = %v, %v, want true, true", current, ok)
+	}
+	if !meta.IsDeleted() {
+		t.Fatal("IsDeleted() = false, want true")
+	}
+	if meta.IsFile() {
+		t.Fatal("IsFile() = true, want false")
+	}
+	if !meta.IsDir() {
+		t.Fatal("IsDir() = false, want true")
+	}
+	if meta.LastModified().UnixMilli() != 1700000000000 {
+		t.Fatalf("LastModified().UnixMilli() = %d, want 1700000000000", meta.LastModified().UnixMilli())
+	}
+	if meta.Mode() != EntryModeDir {
+		t.Fatalf("Mode() = %d, want %d", meta.Mode(), EntryModeDir)
+	}
+	assertStringMap(t, meta.UserMetadata(), map[string]string{"foo": "bar", "empty": ""})
+
+	userMetadata := meta.UserMetadata()
+	userMetadata["foo"] = "changed"
+	assertStringMap(t, meta.UserMetadata(), map[string]string{"foo": "bar", "empty": ""})
+
+	if metadataFreed != 1 {
+		t.Fatalf("metadata freed %d times, want 1", metadataFreed)
+	}
+	if userMetadataFreed != 1 {
+		t.Fatalf("user metadata freed %d times, want 1", userMetadataFreed)
+	}
+	assertFreedPointers(t, freed, cacheControlPtr, contentDispositionPtr, contentEncodingPtr, contentMD5Ptr, contentTypePtr, etagPtr, versionPtr)
+}
+
+func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
+	metadataInner := &opendalMetadata{}
+	metadataFreed := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+		assertMetadataPointer(t, metadataInner, m)
+		metadataFreed++
+	})
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+		assertMetadataPointer(t, metadataInner, m)
+		return 0
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+		assertMetadataPointer(t, metadataInner, m)
+		return 2
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return false
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return false
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metadataInner, m)
+		return false
+	})
+	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+		assertMetadataPointer(t, metadataInner, m)
+		return -1
+	})
+	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+		assertMetadataPointer(t, metadataInner, m)
+		return EntryModeUnknown
+	})
+	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, func(m *opendalMetadata) map[string]string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
+
+	meta := newMetadata(ctx, metadataInner)
+	if _, ok := meta.CacheControl(); ok {
+		t.Fatal("CacheControl() ok = true, want false")
+	}
+	if _, ok := meta.ContentDisposition(); ok {
+		t.Fatal("ContentDisposition() ok = true, want false")
+	}
+	if _, ok := meta.ContentEncoding(); ok {
+		t.Fatal("ContentEncoding() ok = true, want false")
+	}
+	if _, ok := meta.ContentMD5(); ok {
+		t.Fatal("ContentMD5() ok = true, want false")
+	}
+	if _, ok := meta.ContentType(); ok {
+		t.Fatal("ContentType() ok = true, want false")
+	}
+	if _, ok := meta.ETag(); ok {
+		t.Fatal("ETag() ok = true, want false")
+	}
+	if _, ok := meta.Version(); ok {
+		t.Fatal("Version() ok = true, want false")
+	}
+	if current, ok := meta.IsCurrent(); ok || current {
+		t.Fatalf("IsCurrent() = %v, %v, want false, false", current, ok)
+	}
+	if !meta.LastModified().IsZero() {
+		t.Fatalf("LastModified() = %v, want zero", meta.LastModified())
+	}
+	if meta.UserMetadata() != nil {
+		t.Fatalf("UserMetadata() = %v, want nil", meta.UserMetadata())
+	}
+	if metadataFreed != 1 {
+		t.Fatalf("metadata freed %d times, want 1", metadataFreed)
+	}
+}
+
+func TestBoolPtrFromOptionalByte(t *testing.T) {
+	if got := boolPtrFromOptionalByte(2); got != nil {
+		t.Fatalf("boolPtrFromOptionalByte(2) = %v, want nil", *got)
+	}
+	for _, tc := range []struct {
+		value uint8
+		want  bool
+	}{
+		{value: 0, want: false},
+		{value: 1, want: true},
+	} {
+		got := boolPtrFromOptionalByte(tc.value)
+		if got == nil || *got != tc.want {
+			t.Fatalf("boolPtrFromOptionalByte(%d) = %v, want %v", tc.value, got, tc.want)
+		}
 	}
 }
 
@@ -230,6 +536,36 @@ func mustBytePtrFromString(t *testing.T, value string) *byte {
 		t.Fatalf("BytePtrFromString(%q) failed: %v", value, err)
 	}
 	return ptr
+}
+
+func metadataStringFunc(t *testing.T, want *opendalMetadata, ptr *byte) func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+	t.Helper()
+	return func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertMetadataPointerFromArgs(t, want, aValues...)
+		*(**byte)(rValue) = ptr
+	}
+}
+
+func assertOptionalString(t *testing.T, name string, fn func() (string, bool), want string) {
+	t.Helper()
+
+	got, ok := fn()
+	if !ok || got != want {
+		t.Fatalf("%s() = %q, %v, want %q, true", name, got, ok, want)
+	}
+}
+
+func assertStringMap(t *testing.T, got, want map[string]string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("map length = %d, want %d: %v", len(got), len(want), got)
+	}
+	for key, wantValue := range want {
+		if gotValue, ok := got[key]; !ok || gotValue != wantValue {
+			t.Fatalf("map[%q] = %q, %v, want %q, true", key, gotValue, ok, wantValue)
+		}
+	}
 }
 
 func assertOperatorInfoPointer(t *testing.T, want *opendalOperatorInfo, aValues ...unsafe.Pointer) {
@@ -261,6 +597,28 @@ func assertMetadataPointer(t *testing.T, want *opendalMetadata, got *opendalMeta
 
 	if got != want {
 		t.Fatalf("metadata getter received %p, want %p", got, want)
+	}
+}
+
+func assertMetadataPointerFromArgs(t *testing.T, want *opendalMetadata, aValues ...unsafe.Pointer) {
+	t.Helper()
+
+	if len(aValues) != 1 {
+		t.Fatalf("metadata getter received %d arguments, want 1", len(aValues))
+	}
+	got := *(**opendalMetadata)(aValues[0])
+	assertMetadataPointer(t, want, got)
+}
+
+func assertUserMetadataPointerFromArgs(t *testing.T, want *opendalMetadataUserMetadata, aValues ...unsafe.Pointer) {
+	t.Helper()
+
+	if len(aValues) != 1 {
+		t.Fatalf("user metadata getter received %d arguments, want 1", len(aValues))
+	}
+	got := *(**opendalMetadataUserMetadata)(aValues[0])
+	if got != want {
+		t.Fatalf("user metadata getter received %p, want %p", got, want)
 	}
 }
 

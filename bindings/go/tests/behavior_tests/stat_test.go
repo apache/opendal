@@ -22,6 +22,7 @@ package opendal_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -40,6 +41,17 @@ func testsStat(cap *opendal.Capability) []behaviorTest {
 		testStatNotCleanedPath,
 		testStatNotExist,
 		testStatRoot,
+		testStatFileMetadata,
+		testStatDirMetadata,
+	}
+}
+
+func assertOptionalMetaString(assert *require.Assertions, name string, accessor func() (string, bool)) {
+	value, ok := accessor()
+	if ok {
+		assert.NotEmpty(value, "%s reported as present must have a non-empty value", name)
+	} else {
+		assert.Empty(value, "%s reported as absent must return an empty value", name)
 	}
 }
 
@@ -140,4 +152,57 @@ func testStatRoot(assert *require.Assertions, op *opendal.Operator, fixture *fix
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 
+}
+
+func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	before := time.Now().Add(-time.Hour)
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+
+	assert.True(meta.IsFile(), "written object must be a file")
+	assert.False(meta.IsDir(), "written object must not be a dir")
+	assert.Equal(opendal.EntryModeFile, meta.Mode(), "mode must report file")
+	assert.False(meta.IsDeleted(), "freshly written object must not be deleted")
+	assert.Equal(uint64(size), meta.ContentLength(), "content length must match written size")
+
+	if lm := meta.LastModified(); !lm.IsZero() {
+		assert.False(lm.Before(before), "last_modified must be recent, got %v", lm)
+		assert.False(lm.After(time.Now().Add(time.Minute)), "last_modified must not be in the future, got %v", lm)
+	}
+
+	assertOptionalMetaString(assert, "cache control", meta.CacheControl)
+	assertOptionalMetaString(assert, "content disposition", meta.ContentDisposition)
+	assertOptionalMetaString(assert, "content encoding", meta.ContentEncoding)
+	assertOptionalMetaString(assert, "content type", meta.ContentType)
+	assertOptionalMetaString(assert, "content md5", meta.ContentMD5)
+	assertOptionalMetaString(assert, "etag", meta.ETag)
+	assertOptionalMetaString(assert, "version", meta.Version)
+
+	if isCurrent, ok := meta.IsCurrent(); ok {
+		assert.True(isCurrent, "a live object must be reported as the current version")
+	}
+	if um := meta.UserMetadata(); um != nil {
+		assert.Equal(um, meta.UserMetadata(), "user metadata accessor must return equal copies")
+	}
+}
+
+func testStatDirMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !op.Info().GetFullCapability().CreateDir() {
+		return
+	}
+
+	path := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(path), "create dir must succeed")
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+
+	assert.True(meta.IsDir(), "created object must be a dir")
+	assert.False(meta.IsFile(), "created object must not be a file")
+	assert.Equal(opendal.EntryModeDir, meta.Mode(), "mode must report dir")
+	assert.False(meta.IsDeleted(), "freshly created dir must not be deleted")
 }

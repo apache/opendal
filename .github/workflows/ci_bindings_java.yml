@@ -50,7 +50,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - ubuntu-24.04-arm
+          # ubuntu-24.04-arm shares the same platform as ubuntu-latest, so we don't need to build cache for it
           - macos-latest
           - windows-latest
 

@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: test_binding_java-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -58,6 +58,8 @@ jobs:
           distribution: zulu
           java-version: 25
           cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
       - name: Build and check
         working-directory: bindings/java
         run: |
@@ -96,6 +98,8 @@ jobs:
           distribution: zulu
           java-version: ${{ matrix.java-version }}
           cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
       - name: Build and test
         working-directory: bindings/java
         # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:

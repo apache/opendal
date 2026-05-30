@@ -62,10 +62,11 @@ jobs:
 
       - name: Test base
         run: |
-          bundle exec rake test:base
+          bundle exec rake testbase
 
   test_service:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
+    needs: test_base
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false

@@ -31,20 +31,21 @@ runs:
         distribution: zulu
         java-version: 11
 
-    - name: Cache hadoop
-      id: cache-hadoop
-      uses: actions/cache@v4
+    - name: Download hadoop
       if: inputs.need-hadoop == 'true'
-      with:
-        path: /home/runner/hadoop-3.3.5
-        key: cache-hadoop-3.3.5
-
-    - name: Build hadoop if not cached
-      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
       shell: bash
       run: |
         set -e
-        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+        curl \
+          --location \
+          --silent \
+          --show-error \
+          --fail \
+          https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar \
+            --gzip \
+            --extract \
+            --file - \
+            --directory /home/runner
 
     - name: Setup hadoop env
       shell: bash

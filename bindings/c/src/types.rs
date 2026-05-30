@@ -16,10 +16,11 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::ffi::{c_void, CString};
+use std::ffi::{CStr, CString, c_void};
 use std::os::raw::c_char;
 
 use opendal::Buffer;
+use opendal::options;
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///
@@ -132,6 +133,263 @@ impl opendal_list_options {
     pub unsafe extern "C" fn opendal_list_options_free(opts: *mut opendal_list_options) {
         if !opts.is_null() {
             drop(Box::from_raw(opts));
+        }
+    }
+}
+
+/// \brief A key-value pair for write user metadata.
+#[repr(C)]
+pub struct opendal_write_user_metadata_pair {
+    /// The metadata key.
+    pub key: *const c_char,
+    /// The metadata value.
+    pub value: *const c_char,
+}
+
+/// \brief The options for write operations.
+///
+/// Use `opendal_write_options_new()` to construct and
+/// `opendal_write_options_free()` to free.
+#[repr(C)]
+pub struct opendal_write_options {
+    /// Append data to the existing file.
+    pub append: bool,
+    /// Cache-Control header value.
+    pub cache_control: *const c_char,
+    /// Content-Type header value.
+    pub content_type: *const c_char,
+    /// Content-Disposition header value.
+    pub content_disposition: *const c_char,
+    /// Content-Encoding header value.
+    pub content_encoding: *const c_char,
+    /// If-Match header value.
+    pub if_match: *const c_char,
+    /// If-None-Match header value.
+    pub if_none_match: *const c_char,
+    /// Only write if target does not exist.
+    pub if_not_exists: bool,
+    /// Concurrent write operations.
+    pub concurrent: usize,
+    /// Whether `chunk` has been set.
+    pub has_chunk: bool,
+    /// Chunk size for buffered writes.
+    pub chunk: usize,
+    /// User metadata pairs.
+    pub user_metadata: *const opendal_write_user_metadata_pair,
+    /// User metadata pairs length.
+    pub user_metadata_len: usize,
+}
+
+impl opendal_write_options {
+    /// \brief Construct a heap-allocated opendal_write_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_write_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_write_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_free(opts: *mut opendal_write_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set append mode.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_append(
+        opts: *mut opendal_write_options,
+        append: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).append = append;
+        }
+    }
+
+    /// \brief Set Cache-Control.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_cache_control(
+        opts: *mut opendal_write_options,
+        cache_control: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).cache_control = cache_control;
+        }
+    }
+
+    /// \brief Set Content-Type.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_content_type(
+        opts: *mut opendal_write_options,
+        content_type: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).content_type = content_type;
+        }
+    }
+
+    /// \brief Set Content-Disposition.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_content_disposition(
+        opts: *mut opendal_write_options,
+        content_disposition: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).content_disposition = content_disposition;
+        }
+    }
+
+    /// \brief Set Content-Encoding.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_content_encoding(
+        opts: *mut opendal_write_options,
+        content_encoding: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).content_encoding = content_encoding;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_if_match(
+        opts: *mut opendal_write_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_if_none_match(
+        opts: *mut opendal_write_options,
+        if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_none_match = if_none_match;
+        }
+    }
+
+    /// \brief Set if_not_exists.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_if_not_exists(
+        opts: *mut opendal_write_options,
+        if_not_exists: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_not_exists = if_not_exists;
+        }
+    }
+
+    /// \brief Set concurrent.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_concurrent(
+        opts: *mut opendal_write_options,
+        concurrent: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).concurrent = concurrent;
+        }
+    }
+
+    /// \brief Set chunk.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_chunk(
+        opts: *mut opendal_write_options,
+        chunk: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_chunk = true;
+            (*opts).chunk = chunk;
+        }
+    }
+
+    /// \brief Set user metadata.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_write_options_set_user_metadata(
+        opts: *mut opendal_write_options,
+        pairs: *const opendal_write_user_metadata_pair,
+        len: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).user_metadata = pairs;
+            (*opts).user_metadata_len = len;
+        }
+    }
+}
+
+impl Default for opendal_write_options {
+    fn default() -> Self {
+        Self {
+            append: false,
+            cache_control: std::ptr::null(),
+            content_type: std::ptr::null(),
+            content_disposition: std::ptr::null(),
+            content_encoding: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            if_not_exists: false,
+            concurrent: 0,
+            has_chunk: false,
+            chunk: 0,
+            user_metadata: std::ptr::null(),
+            user_metadata_len: 0,
+        }
+    }
+}
+
+unsafe fn optional_cstr(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        None
+    } else {
+        Some(
+            CStr::from_ptr(ptr)
+                .to_str()
+                .expect("malformed option")
+                .to_string(),
+        )
+    }
+}
+
+impl From<&opendal_write_options> for options::WriteOptions {
+    fn from(value: &opendal_write_options) -> Self {
+        let user_metadata = if value.user_metadata.is_null() || value.user_metadata_len == 0 {
+            None
+        } else {
+            let pairs =
+                unsafe { std::slice::from_raw_parts(value.user_metadata, value.user_metadata_len) };
+            let mut metadata = HashMap::with_capacity(pairs.len());
+            for pair in pairs {
+                if pair.key.is_null() || pair.value.is_null() {
+                    continue;
+                }
+                let key = unsafe { CStr::from_ptr(pair.key) }
+                    .to_str()
+                    .expect("malformed user metadata key")
+                    .to_string();
+                let value = unsafe { CStr::from_ptr(pair.value) }
+                    .to_str()
+                    .expect("malformed user metadata value")
+                    .to_string();
+                metadata.insert(key, value);
+            }
+            Some(metadata)
+        };
+
+        Self {
+            append: value.append,
+            cache_control: unsafe { optional_cstr(value.cache_control) },
+            content_type: unsafe { optional_cstr(value.content_type) },
+            content_disposition: unsafe { optional_cstr(value.content_disposition) },
+            content_encoding: unsafe { optional_cstr(value.content_encoding) },
+            user_metadata,
+            if_match: unsafe { optional_cstr(value.if_match) },
+            if_none_match: unsafe { optional_cstr(value.if_none_match) },
+            if_not_exists: value.if_not_exists,
+            concurrent: value.concurrent,
+            chunk: value.has_chunk.then_some(value.chunk),
         }
     }
 }

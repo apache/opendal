@@ -108,6 +108,15 @@ var (
 		}[0],
 	}
 
+	typeWriteUserMetadataPair = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultReaderRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -162,7 +171,12 @@ var (
 			&ffi.TypeUint8,   // write_can_append
 			&ffi.TypeUint8,   // write_with_content_type
 			&ffi.TypeUint8,   // write_with_content_disposition
+			&ffi.TypeUint8,   // write_with_content_encoding
 			&ffi.TypeUint8,   // write_with_cache_control
+			&ffi.TypeUint8,   // write_with_if_match
+			&ffi.TypeUint8,   // write_with_if_none_match
+			&ffi.TypeUint8,   // write_with_if_not_exists
+			&ffi.TypeUint8,   // write_with_user_metadata
 			&ffi.TypePointer, // write_multi_max_size
 			&ffi.TypePointer, // write_multi_min_size
 			&ffi.TypePointer, // write_total_max_size
@@ -201,7 +215,12 @@ type opendalCapability struct {
 	writeCanAppend                     uint8
 	writeWithContentType               uint8
 	writeWithContentDisposition        uint8
+	writeWithContentEncoding           uint8
 	writeWithCacheControl              uint8
+	writeWithIfMatch                   uint8
+	writeWithIfNoneMatch               uint8
+	writeWithIfNotExists               uint8
+	writeWithUserMetadata              uint8
 	writeMultiMaxSize                  uint
 	writeMultiMinSize                  uint
 	writeTotalMaxSize                  uint
@@ -314,6 +333,13 @@ type opendalResultList struct {
 type opendalLister struct{}
 
 type opendalListOptions struct{}
+
+type opendalWriteOptions struct{}
+
+type opendalWriteUserMetadataPair struct {
+	key   *byte
+	value *byte
+}
 
 type opendalResultListerNext struct {
 	entry *opendalEntry

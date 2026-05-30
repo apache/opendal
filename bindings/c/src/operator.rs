@@ -281,6 +281,29 @@ pub unsafe extern "C" fn opendal_operator_write(
     }
 }
 
+/// \brief Blocking write raw bytes to `path` with options.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().write_options(path, bytes, opts) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
 /// \brief Blocking read the data from `path`.
 ///
 /// Read the data out from `path` blocking by operator.
@@ -392,7 +415,7 @@ pub unsafe extern "C" fn opendal_operator_reader(
             return opendal_result_operator_reader {
                 reader: std::ptr::null_mut(),
                 error: opendal_error::new(err),
-            }
+            };
         }
     };
 
@@ -459,7 +482,39 @@ pub unsafe extern "C" fn opendal_operator_writer(
             return opendal_result_operator_writer {
                 writer: std::ptr::null_mut(),
                 error: opendal_error::new(err),
-            }
+            };
+        }
+    };
+
+    opendal_result_operator_writer {
+        writer: Box::into_raw(Box::new(opendal_writer::new(writer))),
+        error: std::ptr::null_mut(),
+    }
+}
+
+/// \brief Blocking create a writer for the specified path with options.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_write_options,
+) -> opendal_result_operator_writer {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let writer = match op.deref().writer_options(path, opts) {
+        Ok(writer) => writer,
+        Err(err) => {
+            return opendal_result_operator_writer {
+                writer: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            };
         }
     };
 

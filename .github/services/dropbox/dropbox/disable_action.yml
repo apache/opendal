@@ -22,7 +22,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup credentials
-      uses: 1Password/load-secrets-action@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
+      uses: 1Password/load-secrets-action@92467eb28f72e8255933372f1e0707c567ce2259 # v4.0.0
       with:
         export-env: true
       env:

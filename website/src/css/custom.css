@@ -304,6 +304,12 @@ h4 {
   -webkit-backdrop-filter: saturate(180%) blur(12px);
 }
 
+/* Avoid making the mobile drawer's fixed panel position against the navbar. */
+.navbar.navbar-sidebar--show {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .navbar__logo {
   height: 1.85rem;
 }

@@ -27,6 +27,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: binding_nodejs-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   # Prevent parallel cache building in `test` job by building cache in a separate job
   node-cache:

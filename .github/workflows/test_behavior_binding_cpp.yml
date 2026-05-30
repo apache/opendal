@@ -28,7 +28,7 @@ on:
         type: string
 
 concurrency:
-  group: test_binding_cpp-${{ github.ref }}-${{ github.event_name }}
+  group: binding_cpp-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:

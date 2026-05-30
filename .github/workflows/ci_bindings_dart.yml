@@ -36,7 +36,7 @@ env:
   FLUTTER_VERSION: "3.27.3"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: binding_dart-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:

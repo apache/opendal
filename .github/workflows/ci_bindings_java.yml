@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: test_binding_java-${{ github.ref }}-${{ github.event_name }}
+  group: binding_java-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:

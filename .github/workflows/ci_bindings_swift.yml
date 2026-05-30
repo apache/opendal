@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: binding_swift-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:

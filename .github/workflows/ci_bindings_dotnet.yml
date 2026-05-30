@@ -33,7 +33,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: binding_dotnet-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:

@@ -51,9 +51,6 @@ jobs:
         with:
           # params must be in sync with `test` job
           working-directory: bindings/python
-          cache-dependency-glob: |
-            bindings/python/pyproject.toml
-            bindings/python/uv.lock
 
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
@@ -86,9 +83,6 @@ jobs:
         with:
           # params must be in sync with `python-cache` job
           working-directory: bindings/python
-          cache-dependency-glob: |
-            bindings/python/pyproject.toml
-            bindings/python/uv.lock
 
       - name: Build with maturin
         shell: bash

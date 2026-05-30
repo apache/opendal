@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -45,9 +45,6 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           working-directory: "bindings/python"
-          cache-dependency-glob: |
-            bindings/python/pyproject.toml
-            bindings/python/uv.lock
       - uses: taiki-e/install-action@just
       - name: Run Lints
         working-directory: "bindings/python"

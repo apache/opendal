@@ -21,7 +21,7 @@ description: 'Behavior test for redis tls'
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup Redis with TLS
       shell: bash

@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: binding_python-${{ github.ref }}-${{ github.event_name }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:

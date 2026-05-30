@@ -107,9 +107,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_java:
-    concurrency:
-      group: test_binding_java-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_java / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_java
@@ -124,9 +121,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_python:
-    concurrency:
-      group: test_binding_python-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_python / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_python
@@ -141,9 +135,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
   
   test_binding_ruby:
-    concurrency:
-      group: test_binding_ruby-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_ruby / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_ruby
@@ -158,9 +149,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_nodejs:
-    concurrency:
-      group: test_binding_nodejs-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_nodejs / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
@@ -175,9 +163,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_go:
-    concurrency:
-      group: test_binding_go-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_go / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_go
@@ -192,9 +177,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_c:
-    concurrency:
-      group: test_binding_c-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_c / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_c
@@ -209,9 +191,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_cpp:
-    concurrency:
-      group: test_binding_cpp-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_cpp / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_cpp
@@ -226,9 +205,6 @@ jobs:
       cases: ${{ toJson(matrix.cases) }}
 
   test_binding_dotnet:
-    concurrency:
-      group: test_binding_dotnet-${{ github.ref }}-${{ github.event_name }}
-      cancel-in-progress: true
     name: binding_dotnet / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_dotnet

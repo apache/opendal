@@ -48,6 +48,12 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 	if cap.ListWithRecursive() {
 		tests = append(tests, testListWithRecursive)
 	}
+	if cap.ListWithLimit() {
+		tests = append(tests, testListWithLimit)
+	}
+	if cap.ListWithStartAfter() {
+		tests = append(tests, testListWithStartAfter)
+	}
 	return tests
 }
 
@@ -353,4 +359,59 @@ func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fix
 	assert.Contains(paths, fileTop, "recursive list must include top-level file")
 	assert.Contains(paths, fileMid, "recursive list must include file in sub-directory")
 	assert.Contains(paths, fileDeep, "recursive list must include file in deep directory")
+}
+
+func testListWithLimit(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(parent))
+
+	// Write 5 files.
+	for range 5 {
+		path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+		assert.Nil(op.Write(path, content))
+	}
+
+	// List with limit=2; the operation must succeed without error.
+	obs, err := op.List(parent, opendal.ListWithLimit(2))
+	assert.Nil(err)
+	defer obs.Close()
+
+	var paths []string
+	for obs.Next() {
+		paths = append(paths, obs.Entry().Path())
+	}
+	assert.Nil(obs.Error())
+	// At least one entry must be returned (limit is a hint, not a hard cap for all backends).
+	assert.NotEmpty(paths, "list with limit must return at least one entry")
+}
+
+func testListWithStartAfter(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(parent))
+
+	// Write files with predictable sorted names.
+	var filePaths []string
+	for i := range 5 {
+		name := fmt.Sprintf("%sfile-%02d", parent, i)
+		filePaths = append(filePaths, name)
+		assert.Nil(op.Write(name, []byte("content")))
+	}
+	slices.Sort(filePaths)
+
+	// Start listing from the second file (index 1).
+	pivotName := strings.TrimPrefix(filePaths[1], "/")
+	obs, err := op.List(parent, opendal.ListWithStartAfter(pivotName))
+	assert.Nil(err)
+	defer obs.Close()
+
+	var paths []string
+	for obs.Next() {
+		paths = append(paths, obs.Entry().Path())
+	}
+	assert.Nil(obs.Error())
+
+	// Files after the pivot must appear.
+	for _, p := range filePaths[2:] {
+		assert.Contains(paths, p, "start_after must include entries after pivot")
+	}
 }

@@ -659,6 +659,42 @@ func TestListWithRecursiveFalse(t *testing.T) {
 	}
 }
 
+func TestListWithLimitSetsValue(t *testing.T) {
+	o := &listOptions{}
+	ListWithLimit(100)(o)
+	if o.limit != 100 {
+		t.Fatalf("ListWithLimit(100): limit = %d, want 100", o.limit)
+	}
+}
+
+func TestListWithLimitOverwrite(t *testing.T) {
+	o := &listOptions{}
+	ListWithLimit(50)(o)
+	ListWithLimit(200)(o)
+	if o.limit != 200 {
+		t.Fatalf("ListWithLimit overwrite: limit = %d, want 200", o.limit)
+	}
+}
+
+func TestListWithStartAfterSetsValue(t *testing.T) {
+	o := &listOptions{}
+	ListWithStartAfter("some/key")(o)
+	if o.startAfter == nil {
+		t.Fatal("ListWithStartAfter: startAfter = nil, want non-nil")
+	}
+	if *o.startAfter != "some/key" {
+		t.Fatalf("ListWithStartAfter: startAfter = %q, want some/key", *o.startAfter)
+	}
+}
+
+func TestListWithStartAfterEmptyString(t *testing.T) {
+	o := &listOptions{}
+	ListWithStartAfter("")(o)
+	if o.startAfter == nil {
+		t.Fatal("ListWithStartAfter(empty): startAfter = nil, want non-nil pointer to empty string")
+	}
+}
+
 func TestFfiOperatorListWithReturnType(t *testing.T) {
 	if ffiOperatorListWith.opts.rType != &typeResultList {
 		t.Fatalf("ffiOperatorListWith rType = %v, want typeResultList", ffiOperatorListWith.opts.rType)

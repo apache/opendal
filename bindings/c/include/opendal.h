@@ -468,19 +468,29 @@ typedef struct opendal_result_list {
  * \brief The options for the list operation.
  *
  * This struct carries the options for the list operation, including whether to
- * list recursively. Use `opendal_list_options_new()` to construct and
- * `opendal_list_options_free()` to free.
+ * list recursively, an optional result limit, and an optional start-after key.
+ * Use `opendal_list_options_new()` to construct and `opendal_list_options_free()` to free.
  *
  * @see opendal_operator_list_with
  * @see opendal_list_options_new
  * @see opendal_list_options_free
  * @see opendal_list_options_set_recursive
+ * @see opendal_list_options_set_limit
+ * @see opendal_list_options_set_start_after
  */
 typedef struct opendal_list_options {
   /**
    * Whether to list recursively under the prefix; default false.
    */
   bool recursive;
+  /**
+   * Optional hint for maximum results per request; 0 means unset.
+   */
+  uintptr_t limit;
+  /**
+   * Optional key to start listing from; NULL means unset.
+   */
+  char *start_after;
 } opendal_list_options;
 
 /**
@@ -1677,6 +1687,25 @@ struct opendal_list_options *opendal_list_options_new(void);
  * @param recursive Whether to list recursively.
  */
 void opendal_list_options_set_recursive(struct opendal_list_options *opts, bool recursive);
+
+/**
+ * \brief Set the limit option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param limit Maximum number of results per request; 0 means unset.
+ */
+void opendal_list_options_set_limit(struct opendal_list_options *opts, uintptr_t limit);
+
+/**
+ * \brief Set the start_after option.
+ *
+ * Passes the specified key to the underlying service to start listing from.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param start_after The key to start listing from; NULL to unset.
+ */
+void opendal_list_options_set_start_after(struct opendal_list_options *opts,
+                                          const char *start_after);
 
 /**
  * \brief Free the heap memory used by opendal_list_options.

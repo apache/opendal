@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::ffi::{c_void, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 
 use opendal::Buffer;
@@ -87,17 +87,23 @@ impl opendal_bytes {
 /// \brief The options for the list operation.
 ///
 /// This struct carries the options for the list operation, including whether to
-/// list recursively. Use `opendal_list_options_new()` to construct and
-/// `opendal_list_options_free()` to free.
+/// list recursively, an optional result limit, and an optional start-after key.
+/// Use `opendal_list_options_new()` to construct and `opendal_list_options_free()` to free.
 ///
 /// @see opendal_operator_list_with
 /// @see opendal_list_options_new
 /// @see opendal_list_options_free
 /// @see opendal_list_options_set_recursive
+/// @see opendal_list_options_set_limit
+/// @see opendal_list_options_set_start_after
 #[repr(C)]
 pub struct opendal_list_options {
     /// Whether to list recursively under the prefix; default false.
     pub recursive: bool,
+    /// Optional hint for maximum results per request; 0 means unset.
+    pub limit: usize,
+    /// Optional key to start listing from; NULL means unset.
+    pub start_after: *mut c_char,
 }
 
 impl opendal_list_options {
@@ -108,7 +114,11 @@ impl opendal_list_options {
     /// @see opendal_list_options_free
     #[no_mangle]
     pub extern "C" fn opendal_list_options_new() -> *mut Self {
-        Box::into_raw(Box::new(Self { recursive: false }))
+        Box::into_raw(Box::new(Self {
+            recursive: false,
+            limit: 0,
+            start_after: std::ptr::null_mut(),
+        }))
     }
 
     /// \brief Set the recursive option.
@@ -125,12 +135,59 @@ impl opendal_list_options {
         }
     }
 
+    /// \brief Set the limit option.
+    ///
+    /// @param opts The opendal_list_options to modify.
+    /// @param limit Maximum number of results per request; 0 means unset.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_set_limit(
+        opts: *mut opendal_list_options,
+        limit: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).limit = limit;
+        }
+    }
+
+    /// \brief Set the start_after option.
+    ///
+    /// Passes the specified key to the underlying service to start listing from.
+    ///
+    /// @param opts The opendal_list_options to modify.
+    /// @param start_after The key to start listing from; NULL to unset.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_set_start_after(
+        opts: *mut opendal_list_options,
+        start_after: *const c_char,
+    ) {
+        if !opts.is_null() {
+            let o = &mut *opts;
+            // Free any previous value.
+            if !o.start_after.is_null() {
+                drop(CString::from_raw(o.start_after));
+                o.start_after = std::ptr::null_mut();
+            }
+            if !start_after.is_null() {
+                let s = CStr::from_ptr(start_after)
+                    .to_str()
+                    .expect("malformed start_after")
+                    .to_owned();
+                o.start_after = CString::new(s).unwrap().into_raw();
+            }
+        }
+    }
+
     /// \brief Free the heap memory used by opendal_list_options.
     ///
     /// @param opts The opendal_list_options to free.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_options_free(opts: *mut opendal_list_options) {
         if !opts.is_null() {
+            let o = &mut *opts;
+            if !o.start_after.is_null() {
+                drop(CString::from_raw(o.start_after));
+                o.start_after = std::ptr::null_mut();
+            }
             drop(Box::from_raw(opts));
         }
     }

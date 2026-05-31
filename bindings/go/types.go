@@ -108,15 +108,6 @@ var (
 		}[0],
 	}
 
-	typeWriteUserMetadataPair = ffi.Type{
-		Type: ffi.Struct,
-		Elements: &[]*ffi.Type{
-			&ffi.TypePointer,
-			&ffi.TypePointer,
-			nil,
-		}[0],
-	}
-
 	typeResultReaderRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{

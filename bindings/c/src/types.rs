@@ -16,11 +16,11 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::ffi::{CStr, CString, c_void};
+use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 
-use opendal::Buffer;
 use opendal::options;
+use opendal::Buffer;
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///

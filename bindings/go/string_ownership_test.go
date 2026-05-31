@@ -707,7 +707,7 @@ func TestFfiOperatorWriterWithArgTypes(t *testing.T) {
 }
 
 func TestWriteOptionsSetterArgTypes(t *testing.T) {
-	stringSetters := []*FFI[func(*opendalWriteOptions, string) (*byte, error)]{
+	stringSetters := []*FFI[func(*opendalWriteOptions, string) ([]byte, error)]{
 		ffiWriteOptionsSetCacheControl,
 		ffiWriteOptionsSetContentType,
 		ffiWriteOptionsSetContentDisposition,

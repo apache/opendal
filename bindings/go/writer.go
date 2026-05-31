@@ -21,8 +21,10 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"io"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
@@ -172,7 +174,7 @@ func parseWriteOptions(opts ...WithWriteFn) *writeOptions {
 }
 
 type writeOptionsKeepAlive struct {
-	strings      []*byte
+	strings      [][]byte
 	userMetadata []opendalWriteUserMetadataPair
 }
 
@@ -187,15 +189,15 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 		return nil, writeOptionsKeepAlive{}, err
 	}
 
-	setString := func(value string, set func(*opendalWriteOptions, string) (*byte, error)) error {
+	setString := func(value string, set func(*opendalWriteOptions, string) ([]byte, error)) error {
 		if value == "" {
 			return nil
 		}
-		ptr, err := set(cOpts, value)
+		data, err := set(cOpts, value)
 		if err != nil {
 			return err
 		}
-		keepAlive.strings = append(keepAlive.strings, ptr)
+		keepAlive.strings = append(keepAlive.strings, data)
 		return nil
 	}
 
@@ -228,15 +230,17 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 	if len(o.userMetadata) > 0 {
 		keepAlive.userMetadata = make([]opendalWriteUserMetadataPair, 0, len(o.userMetadata))
 		for key, value := range o.userMetadata {
-			byteKey, err := BytePtrFromString(key)
+			keyData, err := byteSliceFromString(key)
 			if err != nil {
 				return fail(err)
 			}
-			byteValue, err := BytePtrFromString(value)
+			valueData, err := byteSliceFromString(value)
 			if err != nil {
 				return fail(err)
 			}
-			keepAlive.strings = append(keepAlive.strings, byteKey, byteValue)
+			keepAlive.strings = append(keepAlive.strings, keyData, valueData)
+			byteKey := &keyData[0]
+			byteValue := &valueData[0]
 			keepAlive.userMetadata = append(keepAlive.userMetadata, opendalWriteUserMetadataPair{key: byteKey, value: byteValue})
 		}
 		ffiWriteOptionsSetUserMetadata.symbol(ctx)(cOpts, keepAlive.userMetadata)
@@ -539,19 +543,27 @@ var ffiWriteOptionsSetAppend = newFFI(ffiOpts{
 	}
 })
 
-func newWriteOptionsSetStringFFI(sym string) *FFI[func(*opendalWriteOptions, string) (*byte, error)] {
+func byteSliceFromString(value string) ([]byte, error) {
+	if strings.IndexByte(value, 0) >= 0 {
+		return nil, errors.New("string contains nul")
+	}
+	return append([]byte(value), 0), nil
+}
+
+func newWriteOptionsSetStringFFI(sym string) *FFI[func(*opendalWriteOptions, string) ([]byte, error)] {
 	return newFFI(ffiOpts{
 		sym:    contextKey(sym),
 		rType:  &ffi.TypeVoid,
 		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-	}, func(_ context.Context, ffiCall ffiCall) func(*opendalWriteOptions, string) (*byte, error) {
-		return func(opts *opendalWriteOptions, value string) (*byte, error) {
-			byteValue, err := BytePtrFromString(value)
+	}, func(_ context.Context, ffiCall ffiCall) func(*opendalWriteOptions, string) ([]byte, error) {
+		return func(opts *opendalWriteOptions, value string) ([]byte, error) {
+			data, err := byteSliceFromString(value)
 			if err != nil {
 				return nil, err
 			}
+			byteValue := &data[0]
 			ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-			return byteValue, nil
+			return data, nil
 		}
 	})
 }

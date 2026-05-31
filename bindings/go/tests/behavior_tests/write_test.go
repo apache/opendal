@@ -248,7 +248,7 @@ func testWriteWithIfNotExists(assert *require.Assertions, op *opendal.Operator, 
 	assert.Nil(op.WriteWith(path, []byte("hello"), opendal.WriteWithIfNotExists(true)))
 	err := op.WriteWith(path, []byte("world"), opendal.WriteWithIfNotExists(true))
 	assert.NotNil(err)
-	assert.Equal(opendal.CodeAlreadyExists, assertErrorCode(err))
+	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
 	bs, err := op.Read(path)
 	assert.Nil(err, "read must succeed")

@@ -159,23 +159,29 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	cap := op.Info().GetFullCapability()
 
 	writeOpts := make([]opendal.WithWriteFn, 0, 5)
-	if cap.WriteWithCacheControl() {
+	writeWithCacheControl := isCapEnabled(cap.WriteWithCacheControl, "write_with_cache_control")
+	writeWithContentDisposition := isCapEnabled(cap.WriteWithContentDisposition, "write_with_content_disposition")
+	writeWithContentEncoding := isCapEnabled(cap.WriteWithContentEncoding, "write_with_content_encoding")
+	writeWithContentType := isCapEnabled(cap.WriteWithContentType, "write_with_content_type")
+	writeWithUserMetadata := isCapEnabled(cap.WriteWithUserMetadata, "write_with_user_metadata")
+
+	if writeWithCacheControl {
 		writeOpts = append(writeOpts, opendal.WriteWithCacheControl("max-age=60"))
 	}
-	if cap.WriteWithContentDisposition() {
+	if writeWithContentDisposition {
 		writeOpts = append(writeOpts, opendal.WriteWithContentDisposition("attachment; filename=hello.txt"))
 	}
-	if cap.WriteWithContentEncoding() {
+	if writeWithContentEncoding {
 		writeOpts = append(writeOpts, opendal.WriteWithContentEncoding("gzip"))
 	}
-	if cap.WriteWithContentType() {
+	if writeWithContentType {
 		writeOpts = append(writeOpts, opendal.WriteWithContentType("text/plain"))
 	}
 	userMetadata := map[string]string{
 		"language": "go",
 		"project":  "opendal",
 	}
-	if cap.WriteWithUserMetadata() {
+	if writeWithUserMetadata {
 		writeOpts = append(writeOpts, opendal.WriteWithUserMetadata(userMetadata))
 	}
 
@@ -200,28 +206,28 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 		assert.False(lm.After(time.Now().Add(time.Minute)), "last_modified must not be in the future, got %v", lm)
 	}
 
-	if cap.WriteWithCacheControl() {
+	if writeWithCacheControl {
 		cacheControl, ok := meta.CacheControl()
 		assert.True(ok, "cache control must exist")
 		assert.Equal("max-age=60", cacheControl)
 	} else {
 		assertOptionalMetaString(assert, "cache control", meta.CacheControl)
 	}
-	if cap.WriteWithContentDisposition() {
+	if writeWithContentDisposition {
 		contentDisposition, ok := meta.ContentDisposition()
 		assert.True(ok, "content disposition must exist")
 		assert.Equal("attachment; filename=hello.txt", contentDisposition)
 	} else {
 		assertOptionalMetaString(assert, "content disposition", meta.ContentDisposition)
 	}
-	if cap.WriteWithContentEncoding() {
+	if writeWithContentEncoding {
 		contentEncoding, ok := meta.ContentEncoding()
 		assert.True(ok, "content encoding must exist")
 		assert.Equal("gzip", contentEncoding)
 	} else {
 		assertOptionalMetaString(assert, "content encoding", meta.ContentEncoding)
 	}
-	if cap.WriteWithContentType() {
+	if writeWithContentType {
 		contentType, ok := meta.ContentType()
 		assert.True(ok, "content type must exist")
 		assert.Equal("text/plain", contentType)
@@ -235,7 +241,7 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	if isCurrent, ok := meta.IsCurrent(); ok {
 		assert.True(isCurrent, "a live object must be reported as the current version")
 	}
-	if cap.WriteWithUserMetadata() {
+	if writeWithUserMetadata {
 		assert.Equal(userMetadata, meta.UserMetadata())
 	} else if um := meta.UserMetadata(); um != nil {
 		assert.Equal(um, meta.UserMetadata(), "user metadata accessor must return equal copies")

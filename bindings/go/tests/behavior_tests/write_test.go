@@ -20,7 +20,7 @@
 package opendal_test
 
 import (
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -304,9 +304,14 @@ func testWriterWithAppend(assert *require.Assertions, op *opendal.Operator, fixt
 	}
 
 	path := fixture.NewFilePath()
-	assert.Nil(op.Write(path, []byte("hello")))
 
 	w, err := op.WriterWith(path, opendal.WriteWithAppend(true))
+	assert.Nil(err)
+	_, err = w.Write([]byte("hello"))
+	assert.Nil(err)
+	assert.Nil(w.Close())
+
+	w, err = op.WriterWith(path, opendal.WriteWithAppend(true))
 	assert.Nil(err)
 	_, err = w.Write([]byte(" world"))
 	assert.Nil(err)

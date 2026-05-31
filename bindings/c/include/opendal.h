@@ -361,7 +361,8 @@ typedef struct opendal_write_options {
    */
   bool if_not_exists;
   /**
-   * Concurrent write operations.
+   * Concurrent write operations. `0` means sequential writes, so no
+   * separate "has_concurrent" flag is needed (unlike `chunk`).
    */
   uintptr_t concurrent;
   /**

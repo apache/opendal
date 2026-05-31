@@ -168,7 +168,7 @@ pub struct opendal_write_options {
     pub if_none_match: *const c_char,
     /// Only write if target does not exist.
     pub if_not_exists: bool,
-    /// Concurrent write operations.
+    /// Concurrent write operations. `0` means sequential writes
     pub concurrent: usize,
     /// Whether `chunk` has been set.
     pub has_chunk: bool,

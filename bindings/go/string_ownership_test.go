@@ -48,6 +48,31 @@ func TestCopyCStringAndFreeNil(t *testing.T) {
 	}
 }
 
+func TestCopyCStringAndFreeOwnsReturnedString(t *testing.T) {
+	raw := []byte("text/plain\x00")
+	ptr := &raw[0]
+	var freed bool
+
+	got := copyCStringAndFree(ptr, func(ptr *byte) {
+		freed = true
+		buf := unsafe.Slice(ptr, len(raw)-1)
+		for _, b := range buf {
+			if b == 0 {
+				t.Fatal("unexpected nul before terminator")
+			}
+		}
+		for i := range buf {
+			buf[i] = 0
+		}
+	})
+	if !freed {
+		t.Fatal("copyCStringAndFree did not free pointer")
+	}
+	if got != "text/plain" {
+		t.Fatalf("copyCStringAndFree returned %q after free mutation, want text/plain", got)
+	}
+}
+
 func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 	var freed []*byte
 	freeCString := func(ptr *byte) {

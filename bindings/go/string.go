@@ -32,7 +32,12 @@ func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	}
 
 	defer free(ptr)
-	return BytePtrToString(ptr)
+	n := 0
+	for p := unsafe.Pointer(ptr); *(*byte)(p) != 0; n++ {
+		p = unsafe.Pointer(uintptr(p) + 1)
+	}
+	// Copy into Go-owned memory before freeing Rust's CString.
+	return string(append([]byte(nil), unsafe.Slice(ptr, n)...))
 }
 
 var ffiStringFree = newFFI(ffiOpts{

@@ -1,6 +1,7 @@
 # Users
 
 - [apache/iceberg-rust](https://github.com/apache/iceberg-rust/): Native Rust implementation of [Apache Iceberg](https://iceberg.apache.org/), the open table format for analytic datasets.
+- [apache/paimon-rust](https://github.com/apache/paimon-rust): The Rust implementation of [Apache Paimon](https://paimon.apache.org/).
 - [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.

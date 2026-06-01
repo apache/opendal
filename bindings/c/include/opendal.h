@@ -221,6 +221,31 @@ typedef struct opendal_metadata {
 } opendal_metadata;
 
 /**
+ * \brief User metadata associated with a **path**.
+ */
+typedef struct opendal_metadata_user_metadata {
+  /**
+   * The pointer to the user metadata in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_metadata_user_metadata;
+
+/**
+ * \brief A user metadata key-value pair.
+ */
+typedef struct opendal_metadata_user_metadata_pair {
+  /**
+   * The key of the user metadata.
+   */
+  const char *key;
+  /**
+   * The value of the user metadata.
+   */
+  const char *value;
+} opendal_metadata_user_metadata_pair;
+
+/**
  * \brief Used to access almost all OpenDAL APIs. It represents an
  * operator that provides the unified interfaces provided by OpenDAL.
  *
@@ -763,54 +788,92 @@ void opendal_operator_layers_free(struct opendal_operator_layers *ptr);
 void opendal_metadata_free(struct opendal_metadata *ptr);
 
 /**
+ * \brief Return mode of the metadata: 0 for unknown, 1 for file, and 2 for dir.
+ */
+uint8_t opendal_metadata_mode(const struct opendal_metadata *self);
+
+/**
  * \brief Return the content_length of the metadata
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- * assert(opendal_metadata_content_length(meta) == 13);
- * ```
  */
 uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
 
 /**
  * \brief Return whether the path represents a file
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- * assert(opendal_metadata_is_file(meta));
- * ```
  */
 bool opendal_metadata_is_file(const struct opendal_metadata *self);
 
 /**
  * \brief Return whether the path represents a directory
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- *
- * // this is not a directory
- * assert(!opendal_metadata_is_dir(meta));
- * ```
- *
- * \todo This is not a very clear example. A clearer example will be added
- * after we support opendal_operator_mkdir()
  */
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
+
+/**
+ * \brief Return whether this metadata is current.
+ *
+ * Returns 1 for current, 0 for not current, and 2 if unknown.
+ */
+uint8_t opendal_metadata_is_current(const struct opendal_metadata *self);
+
+/**
+ * \brief Return whether this metadata is deleted.
+ */
+bool opendal_metadata_is_deleted(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the cache control of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_cache_control(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content disposition of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_disposition(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content md5 of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_md5(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content type of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_type(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content encoding of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_encoding(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the etag of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_etag(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the version of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_version(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the user metadata of the metadata.
+ *
+ * \note: The returned user metadata is on heap, free it with opendal_metadata_user_metadata_free().
+ */
+struct opendal_metadata_user_metadata *opendal_metadata_get_user_metadata(const struct opendal_metadata *self);
 
 /**
  * \brief Return the last_modified of the metadata, in milliseconds
@@ -826,6 +889,21 @@ bool opendal_metadata_is_dir(const struct opendal_metadata *self);
  * ```
  */
 int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the key-value pairs of the user metadata.
+ */
+const struct opendal_metadata_user_metadata_pair *opendal_metadata_user_metadata_pairs(const struct opendal_metadata_user_metadata *metadata);
+
+/**
+ * \brief Return the number of key-value pairs in the user metadata.
+ */
+uintptr_t opendal_metadata_user_metadata_len(const struct opendal_metadata_user_metadata *metadata);
+
+/**
+ * \brief Free the user metadata returned by opendal_metadata_user_metadata.
+ */
+void opendal_metadata_user_metadata_free(struct opendal_metadata_user_metadata *metadata);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator.

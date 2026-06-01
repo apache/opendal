@@ -251,6 +251,7 @@ export const usedBy = [
   { name: "lnx", icon: "/img/users/lnx.png", href: "https://github.com/lnx-search/lnx" },
   { name: "Iceberg Rust", icon: "/img/users/iceberg-rust.png", href: "https://github.com/apache/iceberg-rust" },
   { name: "DataFusion Comet", icon: "/img/users/datafusion-comet.png", href: "https://github.com/apache/datafusion-comet" },
+  { name: "Paimon Rust", icon: "/img/users/paimon-rust.png", href: "https://github.com/apache/paimon-rust" },
   { name: "zino", icon: "/img/users/zino.png", href: "https://github.com/zino-rs/zino" },
 ];
 

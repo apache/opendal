@@ -286,6 +286,13 @@ type opendalHttpHeaderPair struct {
 
 type opendalMetadata struct{}
 
+type opendalMetadataUserMetadata struct{}
+
+type opendalMetadataUserMetadataPair struct {
+	key   *byte
+	value *byte
+}
+
 type opendalBytes struct {
 	data     *byte
 	len      uintptr

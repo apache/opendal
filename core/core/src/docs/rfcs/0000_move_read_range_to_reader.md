@@ -1,7 +1,7 @@
 - Proposal Name: `move_read_range_to_reader`
 - Start Date: 2026-06-01
-- RFC PR: N/A
-- Tracking Issue: N/A
+- RFC PR: [apache/opendal#7660](https://github.com/apache/opendal/pull/7660)
+- Tracking Issue: [apache/opendal#7661](https://github.com/apache/opendal/issues/7661)
 
 # Summary
 

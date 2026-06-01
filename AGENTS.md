@@ -179,3 +179,10 @@ refactor(core): Simplify error handling
 - Use `just` for common development tasks
 - Check CI workflows for platform-specific requirements
 - Services are tested against real backends (credentials required)
+
+## Security
+
+Security model: [SECURITY.md](./SECURITY.md)
+
+Agents that scan this repository should consult `SECURITY.md` and the
+threat model it links before reporting issues.

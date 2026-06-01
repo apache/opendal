@@ -189,7 +189,7 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	if len(writeOpts) == 0 {
 		assert.Nil(op.Write(path, content), "write must succeed")
 	} else {
-		assert.Nil(op.WriteWith(path, content, writeOpts...), "write with metadata must succeed")
+		assert.Nil(op.Write(path, content, writeOpts...), "write with metadata must succeed")
 	}
 
 	meta, err := op.Stat(path)

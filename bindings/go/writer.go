@@ -32,13 +32,14 @@ import (
 
 // Write writes the given bytes to the specified path.
 //
-// Write is a wrapper around the C-binding function `opendal_operator_write`. It provides a simplified
-// interface for writing data to the storage.
+// Write is a wrapper around the C-binding function `opendal_operator_write`.
+// When options are provided, it uses `opendal_operator_write_with`.
 //
 // # Parameters
 //
 //   - path: The destination path where the bytes will be written.
 //   - data: The byte slice containing the data to be written.
+//   - opts: Optional write options.
 //
 // # Returns
 //
@@ -54,8 +55,20 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Write(path string, data []byte) error {
-	return ffiOperatorWrite.symbol(op.ctx)(op.inner, path, data)
+func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) error {
+	if len(opts) == 0 {
+		return ffiOperatorWrite.symbol(op.ctx)(op.inner, path, data)
+	}
+
+	o := parseWriteOptions(opts...)
+	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
+	if err != nil {
+		return err
+	}
+	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
+	err = ffiOperatorWriteWith.symbol(op.ctx)(op.inner, path, data, cOpts)
+	runtime.KeepAlive(keepAlive)
+	return err
 }
 
 // WithWriteFn is a functional option for write operations.
@@ -150,19 +163,6 @@ type writeOptions struct {
 	ifNotExists        bool
 	concurrent         uint
 	chunk              uint
-}
-
-// WriteWith writes the given bytes to the specified path with options.
-func (op *Operator) WriteWith(path string, data []byte, opts ...WithWriteFn) error {
-	o := parseWriteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
-	if err != nil {
-		return err
-	}
-	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	err = ffiOperatorWriteWith.symbol(op.ctx)(op.inner, path, data, cOpts)
-	runtime.KeepAlive(keepAlive)
-	return err
 }
 
 func parseWriteOptions(opts ...WithWriteFn) *writeOptions {
@@ -290,11 +290,13 @@ func (op *Operator) CreateDir(path string) error {
 // Writer returns a new Writer for the specified path.
 //
 // Writer is a wrapper around the C-binding function `opendal_operator_writer`.
+// When options are provided, it uses `opendal_operator_writer_with`.
 // It provides a way to obtain a writer for writing data to the storage system.
 //
 // # Parameters
 //
 //   - path: The destination path where data will be written.
+//   - opts: Optional write options.
 //
 // # Returns
 //
@@ -315,20 +317,19 @@ func (op *Operator) CreateDir(path string) error {
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Writer(path string) (*Writer, error) {
-	inner, err := ffiOperatorWriter.symbol(op.ctx)(op.inner, path)
-	if err != nil {
-		return nil, err
+func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
+	if len(opts) == 0 {
+		inner, err := ffiOperatorWriter.symbol(op.ctx)(op.inner, path)
+		if err != nil {
+			return nil, err
+		}
+		writer := &Writer{
+			inner: inner,
+			ctx:   op.ctx,
+		}
+		return writer, nil
 	}
-	writer := &Writer{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return writer, nil
-}
 
-// WriterWith returns a new Writer for the specified path with options.
-func (op *Operator) WriterWith(path string, opts ...WithWriteFn) (*Writer, error) {
 	o := parseWriteOptions(opts...)
 	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
 	if err != nil {

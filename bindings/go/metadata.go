@@ -207,12 +207,16 @@ var ffiMetaMode = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) EntryMode {
 	return func(m *opendalMetadata) EntryMode {
-		var mode uint8
+		// libffi may write integer return values using a full register-sized slot
+		// even when the declared C return type is u8/bool. Use word-sized
+		// storage here, then narrow after the call, to avoid overwriting nearby
+		// Go stack memory.
+		var mode uint64
 		ffiCall(
 			unsafe.Pointer(&mode),
 			unsafe.Pointer(&m),
 		)
-		return EntryMode(mode)
+		return EntryMode(uint8(mode))
 	}
 })
 
@@ -251,12 +255,13 @@ var ffiMetaIsFile = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
-		var result uint8
+		// See ffiMetaMode for why this uses word-sized return storage.
+		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result == 1
+		return uint8(result) == 1
 	}
 })
 
@@ -266,12 +271,13 @@ var ffiMetaIsDir = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
-		var result uint8
+		// See ffiMetaMode for why this uses word-sized return storage.
+		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result == 1
+		return uint8(result) == 1
 	}
 })
 
@@ -281,12 +287,13 @@ var ffiMetaIsCurrent = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) uint8 {
 	return func(m *opendalMetadata) uint8 {
-		var result uint8
+		// See ffiMetaMode for why this uses word-sized return storage.
+		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result
+		return uint8(result)
 	}
 })
 
@@ -296,12 +303,13 @@ var ffiMetaIsDeleted = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
-		var result uint8
+		// See ffiMetaMode for why this uses word-sized return storage.
+		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&m),
 		)
-		return result == 1
+		return uint8(result) == 1
 	}
 })
 

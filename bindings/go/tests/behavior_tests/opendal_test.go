@@ -26,6 +26,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -152,6 +153,49 @@ func newOperator(operatorOptions ...opendal.OperatorOption) (op *opendal.Operato
 
 func assertErrorCode(err error) opendal.ErrorCode {
 	return err.(*opendal.Error).Code()
+}
+
+// parsedOverrides is lazily parsed from OPENDAL_TEST_CAPABILITY_OVERRIDES.
+var parsedOverrides map[string]bool
+
+func getCapOverrides() map[string]bool {
+	if parsedOverrides != nil {
+		return parsedOverrides
+	}
+	raw := os.Getenv("OPENDAL_TEST_CAPABILITY_OVERRIDES")
+	parsedOverrides = make(map[string]bool)
+	if raw == "" {
+		return parsedOverrides
+	}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		v, err := strconv.ParseBool(strings.TrimSpace(kv[1]))
+		if err != nil {
+			continue
+		}
+		parsedOverrides[strings.TrimSpace(kv[0])] = v
+	}
+	return parsedOverrides
+}
+
+// isCapEnabled checks both the capability reported by the operator and any
+// test-level overrides set via OPENDAL_TEST_CAPABILITY_OVERRIDES.
+func isCapEnabled(check func() bool, name string) bool {
+	if !check() {
+		return false
+	}
+	overrides := getCapOverrides()
+	if v, ok := overrides[name]; ok {
+		return v
+	}
+	return true
 }
 
 func genBytesWithRange(min, max uint) ([]byte, uint) {

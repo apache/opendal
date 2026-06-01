@@ -635,6 +635,141 @@ func assertFreedPointers(t *testing.T, got []*byte, want ...*byte) {
 	}
 }
 
+func TestWriteWithOptions(t *testing.T) {
+	o := &writeOptions{}
+	WriteWithAppend(true)(o)
+	WriteWithCacheControl("max-age=60")(o)
+	WriteWithContentType("text/plain")(o)
+	WriteWithContentDisposition("attachment")(o)
+	WriteWithContentEncoding("gzip")(o)
+	WriteWithUserMetadata(map[string]string{"foo": "bar"})(o)
+	WriteWithIfMatch("etag-a")(o)
+	WriteWithIfNoneMatch("etag-b")(o)
+	WriteWithIfNotExists(true)(o)
+	WriteWithConcurrent(4)(o)
+	WriteWithChunk(1024)(o)
+
+	if !o.append {
+		t.Fatalf("append = false, want true")
+	}
+	if o.cacheControl != "max-age=60" {
+		t.Fatalf("cacheControl = %q, want max-age=60", o.cacheControl)
+	}
+	if o.contentType != "text/plain" {
+		t.Fatalf("contentType = %q, want text/plain", o.contentType)
+	}
+	if o.contentDisposition != "attachment" {
+		t.Fatalf("contentDisposition = %q, want attachment", o.contentDisposition)
+	}
+	if o.contentEncoding != "gzip" {
+		t.Fatalf("contentEncoding = %q, want gzip", o.contentEncoding)
+	}
+	assertStringMap(t, o.userMetadata, map[string]string{"foo": "bar"})
+	if o.ifMatch != "etag-a" {
+		t.Fatalf("ifMatch = %q, want etag-a", o.ifMatch)
+	}
+	if o.ifNoneMatch != "etag-b" {
+		t.Fatalf("ifNoneMatch = %q, want etag-b", o.ifNoneMatch)
+	}
+	if !o.ifNotExists {
+		t.Fatalf("ifNotExists = false, want true")
+	}
+	if o.concurrent != 4 {
+		t.Fatalf("concurrent = %d, want 4", o.concurrent)
+	}
+	if o.chunk != 1024 {
+		t.Fatalf("chunk = %d, want 1024", o.chunk)
+	}
+}
+
+func TestFfiOperatorWriteWithArgTypes(t *testing.T) {
+	aTypes := ffiOperatorWriteWith.opts.aTypes
+	if len(aTypes) != 4 {
+		t.Fatalf("ffiOperatorWriteWith aTypes len = %d, want 4", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiOperatorWriteWith aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}
+
+func TestFfiOperatorWriterWithArgTypes(t *testing.T) {
+	aTypes := ffiOperatorWriterWith.opts.aTypes
+	if len(aTypes) != 3 {
+		t.Fatalf("ffiOperatorWriterWith aTypes len = %d, want 3", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiOperatorWriterWith aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}
+
+func TestWriteOptionsSetterArgTypes(t *testing.T) {
+	stringSetters := []*FFI[func(*opendalWriteOptions, string) ([]byte, error)]{
+		ffiWriteOptionsSetCacheControl,
+		ffiWriteOptionsSetContentType,
+		ffiWriteOptionsSetContentDisposition,
+		ffiWriteOptionsSetContentEncoding,
+		ffiWriteOptionsSetIfMatch,
+		ffiWriteOptionsSetIfNoneMatch,
+	}
+	for _, setter := range stringSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+
+	boolSetters := []*FFI[func(*opendalWriteOptions, bool)]{
+		ffiWriteOptionsSetAppend,
+		ffiWriteOptionsSetIfNotExists,
+	}
+	for _, setter := range boolSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeUint8 {
+			t.Fatalf("%s aTypes = %v, want TypePointer, TypeUint8", setter.opts.sym, aTypes)
+		}
+	}
+
+	uintSetters := []*FFI[func(*opendalWriteOptions, uint)]{
+		ffiWriteOptionsSetConcurrent,
+		ffiWriteOptionsSetChunk,
+	}
+	for _, setter := range uintSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+}
+
+func TestWriteOptionsSetUserMetadataArgTypes(t *testing.T) {
+	aTypes := ffiWriteOptionsSetUserMetadata.opts.aTypes
+	if len(aTypes) != 3 {
+		t.Fatalf("ffiWriteOptionsSetUserMetadata aTypes len = %d, want 3", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiWriteOptionsSetUserMetadata aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}
+
 func TestListWithRecursiveDefaultNotRecursive(t *testing.T) {
 	o := &listOptions{}
 	if o.recursive {

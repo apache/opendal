@@ -207,6 +207,10 @@ var ffiMetaMode = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) EntryMode {
 	return func(m *opendalMetadata) EntryMode {
+		// libffi may write integer return values using a full register-sized slot
+		// even when the declared C return type is u8/bool. Use word-sized
+		// storage here, then narrow after the call, to avoid overwriting nearby
+		// Go stack memory.
 		var mode uint64
 		ffiCall(
 			unsafe.Pointer(&mode),
@@ -251,6 +255,7 @@ var ffiMetaIsFile = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
+		// See ffiMetaMode for why this uses word-sized return storage.
 		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
@@ -266,6 +271,7 @@ var ffiMetaIsDir = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
+		// See ffiMetaMode for why this uses word-sized return storage.
 		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
@@ -281,6 +287,7 @@ var ffiMetaIsCurrent = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) uint8 {
 	return func(m *opendalMetadata) uint8 {
+		// See ffiMetaMode for why this uses word-sized return storage.
 		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),
@@ -296,6 +303,7 @@ var ffiMetaIsDeleted = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
+		// See ffiMetaMode for why this uses word-sized return storage.
 		var result uint64
 		ffiCall(
 			unsafe.Pointer(&result),

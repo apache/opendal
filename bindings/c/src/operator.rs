@@ -802,8 +802,21 @@ pub unsafe extern "C" fn opendal_operator_list_with(
         core::options::ListOptions::default()
     } else {
         let o = &*opts;
+        let limit = if o.limit == 0 { None } else { Some(o.limit) };
+        let start_after = if o.start_after.is_null() {
+            None
+        } else {
+            Some(
+                std::ffi::CStr::from_ptr(o.start_after)
+                    .to_str()
+                    .expect("malformed start_after")
+                    .to_owned(),
+            )
+        };
         core::options::ListOptions {
             recursive: o.recursive,
+            limit,
+            start_after,
             ..Default::default()
         }
     };

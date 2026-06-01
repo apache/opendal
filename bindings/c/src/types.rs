@@ -160,20 +160,22 @@ impl opendal_list_options {
         opts: *mut opendal_list_options,
         start_after: *const c_char,
     ) {
-        if !opts.is_null() {
-            let o = &mut *opts;
-            // Free any previous value.
-            if !o.start_after.is_null() {
-                drop(CString::from_raw(o.start_after));
-                o.start_after = std::ptr::null_mut();
-            }
-            if !start_after.is_null() {
-                let s = CStr::from_ptr(start_after)
-                    .to_str()
-                    .expect("malformed start_after")
-                    .to_owned();
-                o.start_after = CString::new(s).unwrap().into_raw();
-            }
+        if opts.is_null() {
+            return;
+        }
+
+        let o = &mut *opts;
+        // Free any previous value.
+        if !o.start_after.is_null() {
+            drop(CString::from_raw(o.start_after));
+            o.start_after = std::ptr::null_mut();
+        }
+        if !start_after.is_null() {
+            let s = CStr::from_ptr(start_after)
+                .to_str()
+                .expect("malformed start_after")
+                .to_owned();
+            o.start_after = CString::new(s).unwrap().into_raw();
         }
     }
 

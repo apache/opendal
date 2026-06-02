@@ -364,6 +364,62 @@ pub unsafe extern "C" fn opendal_operator_read(
     }
 }
 
+/// \brief Blocking read the data from `path` with options.
+///
+/// Read the data out from `path` blocking by operator, using the provided
+/// `opendal_read_options` to control the behavior, e.g. range, version, or
+/// conditional headers.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to read the data out
+/// @param opts The options for the read operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_read
+/// @see opendal_read_options
+/// @see opendal_error
+/// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+/// opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+/// the operation failed and the `data` field is a nullptr.
+///
+/// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+/// After your usage of that, please call opendal_bytes_free() to free the space.
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_read_options,
+) -> opendal_result_read {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::ReadOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().read_options(path, opts) {
+        Ok(b) => opendal_result_read {
+            data: opendal_bytes::new(b),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking read the data from `path`.
 ///
 /// Read the data out from `path` blocking by operator, returns

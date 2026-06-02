@@ -162,6 +162,9 @@ var (
 			&ffi.TypeUint8,   // read_with_override_cache_control
 			&ffi.TypeUint8,   // read_with_override_content_disposition
 			&ffi.TypeUint8,   // read_with_override_content_type
+			&ffi.TypeUint8,   // read_with_if_modified_since
+			&ffi.TypeUint8,   // read_with_if_unmodified_since
+			&ffi.TypeUint8,   // read_with_version
 			&ffi.TypeUint8,   // write
 			&ffi.TypeUint8,   // write_can_multi
 			&ffi.TypeUint8,   // write_can_empty
@@ -207,11 +210,14 @@ type opendalCapability struct {
 	statWithOverrideContentType        uint8
 	statWithVersion                    uint8
 	read                               uint8
-	readWithIfmatch                    uint8
-	readWithIfMatchNone                uint8
+	readWithIfMatch                    uint8
+	readWithIfNoneMatch                uint8
 	readWithOverrideCacheControl       uint8
 	readWithOverrideContentDisposition uint8
 	readWithOverrideContentType        uint8
+	readWithIfModifiedSince            uint8
+	readWithIfUnmodifiedSince          uint8
+	readWithVersion                    uint8
 	write                              uint8
 	writeCanMulti                      uint8
 	writeCanEmpty                      uint8
@@ -336,6 +342,8 @@ type opendalResultList struct {
 type opendalLister struct{}
 
 type opendalListOptions struct{}
+
+type opendalReadOptions struct{}
 
 type opendalWriteOptions struct{}
 

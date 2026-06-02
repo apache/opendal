@@ -74,6 +74,12 @@ pub struct opendal_capability {
     pub read_with_override_content_disposition: bool,
     /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
+    /// If operator supports read with if modified since.
+    pub read_with_if_modified_since: bool,
+    /// If operator supports read with if unmodified since.
+    pub read_with_if_unmodified_since: bool,
+    /// If operator supports read with version.
+    pub read_with_version: bool,
 
     /// If operator supports write.
     pub write: bool,
@@ -261,6 +267,9 @@ impl From<core::Capability> for opendal_capability {
             read_with_override_content_type: value.read_with_override_content_type,
             read_with_override_cache_control: value.read_with_override_cache_control,
             read_with_override_content_disposition: value.read_with_override_content_disposition,
+            read_with_if_modified_since: value.read_with_if_modified_since,
+            read_with_if_unmodified_since: value.read_with_if_unmodified_since,
+            read_with_version: value.read_with_version,
             write: value.write,
             write_can_multi: value.write_can_multi,
             write_can_empty: value.write_can_empty,

@@ -402,6 +402,87 @@ typedef struct opendal_result_read {
 } opendal_result_read;
 
 /**
+ * \brief The options for read operations.
+ *
+ * Use `opendal_read_options_new()` to construct and
+ * `opendal_read_options_free()` to free.
+ */
+typedef struct opendal_read_options {
+  /**
+   * The start offset of the range to read; default 0.
+   */
+  uint64_t offset;
+  /**
+   * Whether `length` has been set.
+   */
+  bool has_length;
+  /**
+   * The number of bytes to read starting from `offset`.
+   */
+  uint64_t length;
+  /**
+   * The version of the object to read; NULL means unset.
+   */
+  const char *version;
+  /**
+   * If-Match header value; NULL means unset.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value; NULL means unset.
+   */
+  const char *if_none_match;
+  /**
+   * Whether `if_modified_since` has been set.
+   */
+  bool has_if_modified_since;
+  /**
+   * If-Modified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_modified_since;
+  /**
+   * Whether `if_unmodified_since` has been set.
+   */
+  bool has_if_unmodified_since;
+  /**
+   * If-Unmodified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_unmodified_since;
+  /**
+   * Concurrent read operations. `0` means sequential reads.
+   */
+  uintptr_t concurrent;
+  /**
+   * Whether `chunk` has been set.
+   */
+  bool has_chunk;
+  /**
+   * Chunk size for each read request.
+   */
+  uintptr_t chunk;
+  /**
+   * Whether `gap` has been set.
+   */
+  bool has_gap;
+  /**
+   * Gap size for merging nearby range reads.
+   */
+  uintptr_t gap;
+  /**
+   * Override the response Content-Type header (presign only); NULL means unset.
+   */
+  const char *override_content_type;
+  /**
+   * Override the response Cache-Control header (presign only); NULL means unset.
+   */
+  const char *override_cache_control;
+  /**
+   * Override the response Content-Disposition header (presign only); NULL means unset.
+   */
+  const char *override_content_disposition;
+} opendal_read_options;
+
+/**
  * \brief The result type returned by opendal's reader operation.
  *
  * \note The opendal_reader actually owns a pointer to
@@ -696,6 +777,18 @@ typedef struct opendal_capability {
    * if operator supports read with override content type.
    */
   bool read_with_override_content_type;
+  /**
+   * If operator supports read with if modified since.
+   */
+  bool read_with_if_modified_since;
+  /**
+   * If operator supports read with if unmodified since.
+   */
+  bool read_with_if_unmodified_since;
+  /**
+   * If operator supports read with version.
+   */
+  bool read_with_version;
   /**
    * If operator supports write.
    */
@@ -1261,6 +1354,41 @@ struct opendal_error *opendal_operator_write_with(const struct opendal_operator 
  */
 struct opendal_result_read opendal_operator_read(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blocking read the data from `path` with options.
+ *
+ * Read the data out from `path` blocking by operator, using the provided
+ * `opendal_read_options` to control the behavior, e.g. range, version, or
+ * conditional headers.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to read the data out
+ * @param opts The options for the read operation; pass NULL to use defaults
+ * @see opendal_operator
+ * @see opendal_result_read
+ * @see opendal_read_options
+ * @see opendal_error
+ * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+ * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+ * the operation failed and the `data` field is a nullptr.
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_read opendal_operator_read_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_read_options *opts);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -2054,6 +2182,84 @@ void opendal_stat_options_set_override_cache_control(struct opendal_stat_options
  * \brief Set the override Content-Disposition.
  */
 void opendal_stat_options_set_override_content_disposition(struct opendal_stat_options *opts,
+                                                           const char *override_content_disposition);
+
+/**
+ * \brief Construct a heap-allocated opendal_read_options with default values.
+ */
+struct opendal_read_options *opendal_read_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_read_options.
+ */
+void opendal_read_options_free(struct opendal_read_options *opts);
+
+/**
+ * \brief Set the read range offset and length.
+ */
+void opendal_read_options_set_range(struct opendal_read_options *opts,
+                                    uint64_t offset,
+                                    uint64_t length);
+
+/**
+ * \brief Set the version of the object to read.
+ */
+void opendal_read_options_set_version(struct opendal_read_options *opts, const char *version);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_read_options_set_if_match(struct opendal_read_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_read_options_set_if_none_match(struct opendal_read_options *opts,
+                                            const char *if_none_match);
+
+/**
+ * \brief Set If-Modified-Since, in Unix milliseconds.
+ */
+void opendal_read_options_set_if_modified_since(struct opendal_read_options *opts,
+                                                int64_t if_modified_since);
+
+/**
+ * \brief Set If-Unmodified-Since, in Unix milliseconds.
+ */
+void opendal_read_options_set_if_unmodified_since(struct opendal_read_options *opts,
+                                                  int64_t if_unmodified_since);
+
+/**
+ * \brief Set concurrent read operations.
+ */
+void opendal_read_options_set_concurrent(struct opendal_read_options *opts, uintptr_t concurrent);
+
+/**
+ * \brief Set chunk size.
+ */
+void opendal_read_options_set_chunk(struct opendal_read_options *opts, uintptr_t chunk);
+
+/**
+ * \brief Set gap size.
+ */
+void opendal_read_options_set_gap(struct opendal_read_options *opts, uintptr_t gap);
+
+/**
+ * \brief Set the override Content-Type (presign only).
+ */
+void opendal_read_options_set_override_content_type(struct opendal_read_options *opts,
+                                                    const char *override_content_type);
+
+/**
+ * \brief Set the override Cache-Control (presign only).
+ */
+void opendal_read_options_set_override_cache_control(struct opendal_read_options *opts,
+                                                     const char *override_cache_control);
+
+/**
+ * \brief Set the override Content-Disposition (presign only).
+ */
+void opendal_read_options_set_override_content_disposition(struct opendal_read_options *opts,
                                                            const char *override_content_disposition);
 
 /**

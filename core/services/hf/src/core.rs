@@ -402,14 +402,18 @@ impl HfCore {
             .to_string()
     }
 
-    /// Send a request and return the successful response or a parsed error.
-    async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        let resp = self.info.http_client().send(req).await?;
-        if resp.status().is_success() {
-            Ok(resp)
+    /// Send a request and return the successful streaming response or a parsed error.
+    ///
+    /// Uses `fetch` so error response bodies are never read into memory —
+    /// `parse_error` reads only response headers.
+    async fn send(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        let resp = self.info.http_client().fetch(req).await?;
+        let (parts, body) = resp.into_parts();
+        if parts.status.is_success() {
+            Ok(Response::from_parts(parts, body))
         } else {
-            let (parts, body) = resp.into_parts();
-            Err(parse_error(parts, body))
+            // Drop the streaming body without reading it.
+            Err(parse_error(parts))
         }
     }
 
@@ -421,8 +425,10 @@ impl HfCore {
         &self,
         req: Request<Buffer>,
     ) -> Result<(http::response::Parts, T)> {
-        let (parts, body) = self.send(req).await?.into_parts();
-        let parsed = serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        let (parts, mut body) = self.send(req).await?.into_parts();
+        let buffer = body.to_buffer().await?;
+        let parsed =
+            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
         Ok((parts, parsed))
     }
 
@@ -474,9 +480,11 @@ impl HfCore {
         let resp = self.info.http_client().fetch(req).await?;
 
         if !resp.status().is_success() {
-            let (parts, mut body) = resp.into_parts();
-            let buf = body.to_buffer().await?;
-            return Err(parse_error(parts, buf));
+            // Drop the streaming body without reading it — parse_error reads
+            // only response headers, so there is no need to buffer the body
+            // (which may be a large HTML error page).
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(parts));
         }
 
         Ok(resp)

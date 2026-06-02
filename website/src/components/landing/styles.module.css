@@ -1,0 +1,744 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/* ===== Shared building blocks ============================================ */
+.section {
+  padding-block: clamp(3.5rem, 2rem + 7vw, 7rem);
+  border-top: 1px solid var(--odl-border);
+}
+.sectionSubtle {
+  background: var(--odl-bg-subtle);
+}
+
+.sectionHead {
+  max-width: 46rem;
+  margin-bottom: var(--odl-space-7);
+}
+.sectionTitle {
+  font-size: var(--odl-text-2xl);
+  line-height: var(--odl-leading-snug);
+  font-weight: 650;
+  color: var(--odl-fg-strong);
+  margin: var(--odl-space-4) 0 0;
+}
+.sectionLede {
+  font-size: var(--odl-text-md);
+  line-height: var(--odl-leading-normal);
+  color: var(--odl-fg-muted);
+  margin: var(--odl-space-3) 0 0;
+  max-width: 40rem;
+}
+
+/* Buttons --------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--odl-space-2);
+  height: 2.875rem;
+  padding-inline: var(--odl-space-5);
+  border-radius: var(--odl-radius-md);
+  border: 1px solid transparent;
+  font-size: var(--odl-text-sm);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease),
+    color var(--odl-dur) var(--odl-ease), transform var(--odl-dur-fast)
+      var(--odl-ease);
+}
+.btn:hover {
+  text-decoration: none;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btnPrimary {
+  background: var(--odl-action-bg);
+  color: var(--odl-action-fg);
+}
+.btnPrimary:hover {
+  background: var(--odl-action-bg-hover);
+  color: var(--odl-action-fg);
+}
+.btnSecondary {
+  background: transparent;
+  color: var(--odl-fg-strong);
+  border-color: var(--odl-border-strong);
+}
+.btnSecondary:hover {
+  color: var(--odl-fg-strong);
+  border-color: var(--odl-fg-strong);
+  background: var(--odl-surface-2);
+}
+.btnArrow {
+  transition: transform var(--odl-dur) var(--odl-ease-out);
+}
+.btn:hover .btnArrow {
+  transform: translateX(3px);
+}
+
+/* ===== Hero ============================================================== */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding-top: clamp(1.75rem, 1rem + 2.4vw, 3rem);
+  padding-bottom: clamp(3rem, 2rem + 5vw, 5.5rem);
+}
+.heroGrid {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: radial-gradient(
+    120% 90% at 70% 0%,
+    #000 0%,
+    transparent 72%
+  );
+  mask-image: radial-gradient(120% 90% at 70% 0%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+.heroInner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(2rem, 1rem + 4vw, 4.5rem);
+  /* Column widths are locked by minmax(0, fr), so the left column never
+     reflows; center the columns to balance the fixed-height code window. */
+  align-items: center;
+}
+.heroTitle {
+  font-size: var(--odl-text-display);
+  line-height: var(--odl-leading-tight);
+  font-weight: 700;
+  letter-spacing: var(--odl-tracking-tight);
+  color: var(--odl-fg-strong);
+  margin: var(--odl-space-5) 0 0;
+}
+.heroTitleAccent {
+  color: var(--odl-accent);
+}
+.heroLede {
+  font-size: var(--odl-text-md);
+  line-height: var(--odl-leading-normal);
+  color: var(--odl-fg-muted);
+  margin: var(--odl-space-5) 0 0;
+  max-width: 34rem;
+}
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--odl-space-3);
+  margin-top: var(--odl-space-6);
+}
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--odl-space-4);
+  margin-top: var(--odl-space-8);
+  border-top: 1px solid var(--odl-border);
+  padding-top: var(--odl-space-5);
+}
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.heroStatValue {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xl);
+  font-weight: 600;
+  color: var(--odl-fg-strong);
+  font-variant-numeric: tabular-nums;
+}
+.heroStatLabel {
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-subtle);
+}
+
+/* ===== Code window (shared by Hero & Operator) ========================== */
+.codeWindow {
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  background: var(--odl-surface);
+  box-shadow: var(--odl-shadow-lg);
+  overflow: hidden;
+}
+.windowBar {
+  display: flex;
+  align-items: center;
+  gap: var(--odl-space-3);
+  padding: var(--odl-space-3) var(--odl-space-4);
+  border-bottom: 1px solid var(--odl-border);
+  background: var(--odl-surface-2);
+}
+.windowDots {
+  display: flex;
+  gap: 6px;
+}
+.windowDots span {
+  width: 11px;
+  height: 11px;
+  border-radius: var(--odl-radius-pill);
+  background: var(--odl-border-strong);
+}
+.windowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.codeTabs {
+  display: flex;
+  gap: 2px;
+  padding: var(--odl-space-2) var(--odl-space-3) 0;
+  border-bottom: 1px solid var(--odl-border);
+  background: var(--odl-surface-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.codeTabs::-webkit-scrollbar {
+  display: none;
+}
+.codeTab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: var(--odl-space-2) var(--odl-space-3) var(--odl-space-3);
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-subtle);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease);
+}
+.codeTab:hover {
+  color: var(--odl-fg);
+}
+.codeTabActive {
+  color: var(--odl-fg-strong);
+  border-bottom-color: var(--odl-accent);
+}
+/* The code area animates its height to fit the active snippet: no dead space
+   for short snippets, and switching language glides between sizes. The left
+   hero column never moves (its width is locked and it is the taller column),
+   so only this window resizes. */
+.codeBodyAnimated {
+  overflow: hidden;
+  background: var(--odl-code-bg);
+  transition: height var(--odl-dur-slow) var(--odl-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .codeBodyAnimated {
+    transition: none;
+  }
+}
+
+/* Tighten the embedded Docusaurus CodeBlock to fit the window chrome */
+.codeBody :global(.theme-code-block),
+.codeBody :global(div[class*="codeBlockContainer"]) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.codeBody :global(pre) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin: 0;
+  background: var(--odl-code-bg) !important;
+  font-size: 0.8125rem;
+  /* Wrap long lines so code windows never scroll horizontally. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.codeBody :global(pre code),
+.codeBody :global(.token-line) {
+  white-space: inherit;
+  overflow-wrap: inherit;
+}
+
+/* ===== Used-by wall ===================================================== */
+.logoWall {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: var(--odl-space-3);
+}
+.logoWall > li {
+  display: flex;
+}
+.logoItem {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--odl-space-3);
+  padding: var(--odl-space-4);
+  background: var(--odl-surface);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  text-decoration: none;
+  filter: grayscale(1);
+  opacity: 0.72;
+  transition: opacity var(--odl-dur) var(--odl-ease),
+    filter var(--odl-dur) var(--odl-ease),
+    background-color var(--odl-dur) var(--odl-ease);
+}
+.logoItem:hover {
+  background: var(--odl-surface-2);
+  filter: grayscale(0);
+  opacity: 1;
+  text-decoration: none;
+}
+.logoMark {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--odl-radius-sm);
+  flex: none;
+}
+.logoName {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 500;
+  color: var(--odl-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* "+ add your logo" rendered as the final, dashed tile in the wall. */
+.addLogo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--odl-space-4);
+  border: 1px dashed var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  letter-spacing: 0.04em;
+  color: var(--odl-fg-subtle);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease);
+}
+.addLogo:hover {
+  color: var(--odl-accent);
+  border-color: var(--odl-accent);
+  text-decoration: none;
+}
+
+/* ===== Value props ====================================================== */
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--odl-border);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  overflow: hidden;
+}
+.valueCard {
+  background: var(--odl-surface);
+  padding: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--odl-space-3);
+  transition: background-color var(--odl-dur) var(--odl-ease);
+}
+.valueCard:hover {
+  background: var(--odl-surface-2);
+}
+.valueIndex {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--odl-tracking-label);
+  color: var(--odl-accent);
+}
+.valueCardTitle {
+  font-size: var(--odl-text-lg);
+  font-weight: 650;
+  color: var(--odl-fg-strong);
+  margin: 0;
+  letter-spacing: var(--odl-tracking-tight);
+}
+.valueCardBody {
+  font-size: var(--odl-text-base);
+  line-height: var(--odl-leading-normal);
+  color: var(--odl-fg-muted);
+  margin: 0;
+}
+
+/* ===== Capabilities (explorer) ========================================== */
+.capabilityExplorer {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
+  align-items: start;
+}
+.capabilityNav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--odl-space-2);
+}
+.capabilityItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--odl-space-3);
+  padding: var(--odl-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--odl-radius-md);
+  text-decoration: none;
+  transition: background-color var(--odl-dur) var(--odl-ease),
+    border-color var(--odl-dur) var(--odl-ease);
+}
+.capabilityItem:hover {
+  background: var(--odl-surface);
+  text-decoration: none;
+}
+.capabilityItemActive {
+  background: var(--odl-surface);
+  border-color: var(--odl-border);
+  box-shadow: var(--odl-shadow-sm);
+}
+.capabilityText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.capabilityItemTitle {
+  font-size: var(--odl-text-md);
+  font-weight: 650;
+  letter-spacing: var(--odl-tracking-tight);
+  color: var(--odl-fg-strong);
+}
+.capabilityItemBlurb {
+  font-size: var(--odl-text-sm);
+  line-height: var(--odl-leading-snug);
+  color: var(--odl-fg-muted);
+}
+.capabilityArrow {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  color: var(--odl-accent);
+  opacity: 0;
+  transition: opacity var(--odl-dur) var(--odl-ease);
+}
+.capabilityItem:hover .capabilityArrow,
+.capabilityItemActive .capabilityArrow {
+  opacity: 1;
+}
+
+/* Sticky code preview that tracks the active capability */
+.capabilityPreview {
+  position: sticky;
+  top: 5rem;
+}
+.capabilityCodeBody {
+  height: 19rem;
+  overflow: auto;
+  background: var(--odl-code-bg);
+}
+/* Fade only the code itself; the panel background stays put, so switching
+   snippets never flashes the window surface behind it. */
+.capabilityCodeFade {
+  animation: odlFade var(--odl-dur) var(--odl-ease);
+}
+@keyframes odlFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capabilityCodeFade {
+    animation: none;
+  }
+}
+
+/* ===== Services ========================================================= */
+.serviceGroups {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--odl-border);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  overflow: hidden;
+}
+.serviceGroup {
+  background: var(--odl-surface);
+  padding: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+}
+.serviceGroupTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--odl-space-3);
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--odl-tracking-label);
+  text-transform: uppercase;
+  color: var(--odl-fg-subtle);
+  margin-bottom: var(--odl-space-4);
+}
+.serviceGroupTitle::before {
+  content: "";
+  width: 0.875rem;
+  height: 0.375rem;
+  background: var(--odl-accent);
+  flex: none;
+}
+.serviceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--odl-space-2);
+}
+.serviceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--odl-space-2);
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-sm);
+  background: var(--odl-bg);
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg);
+}
+.serviceChip img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+.servicesFoot {
+  margin-top: var(--odl-space-6);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--odl-space-3);
+}
+
+/* ===== Bindings ========================================================= */
+.bindingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 1px;
+  background: var(--odl-border);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  overflow: hidden;
+}
+.bindingCard {
+  background: var(--odl-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--odl-space-3);
+  padding: var(--odl-space-5) var(--odl-space-3);
+  transition: background-color var(--odl-dur) var(--odl-ease);
+}
+.bindingCard:hover {
+  background: var(--odl-surface-2);
+}
+.bindingCard img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+.bindingName {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-muted);
+}
+
+/* ===== Layers (tile grid left, live code preview right) ================= */
+.layerExplorer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
+  align-items: start;
+}
+.layerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--odl-border);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  overflow: hidden;
+}
+.layerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--odl-space-4);
+  background: var(--odl-surface);
+  text-decoration: none;
+  transition: background-color var(--odl-dur) var(--odl-ease);
+}
+.layerItem:hover {
+  background: var(--odl-surface-2);
+  text-decoration: none;
+}
+.layerItemActive {
+  background: var(--odl-surface-2);
+}
+.layerName {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 600;
+  color: var(--odl-fg-strong);
+  transition: color var(--odl-dur) var(--odl-ease);
+}
+.layerItemActive .layerName {
+  color: var(--odl-accent);
+}
+.layerDesc {
+  font-size: var(--odl-text-xs);
+  line-height: var(--odl-leading-snug);
+  color: var(--odl-fg-muted);
+}
+.layerCodeBody {
+  height: 13rem;
+  overflow: auto;
+  background: var(--odl-code-bg);
+}
+
+/* ===== Final CTA ======================================================== */
+.finalCta {
+  background: var(--odl-surface);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  box-shadow: var(--odl-shadow-sm);
+  padding: clamp(2.5rem, 1.5rem + 5vw, 5rem);
+  text-align: center;
+}
+.finalCtaInner {
+  position: relative;
+}
+.finalCtaTitle {
+  font-size: clamp(2rem, 1.3rem + 3vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: var(--odl-tracking-tight);
+  margin: var(--odl-space-4) 0 0;
+  color: var(--odl-fg-strong);
+}
+.finalCtaLede {
+  font-size: var(--odl-text-md);
+  color: var(--odl-fg-muted);
+  margin: var(--odl-space-4) auto 0;
+  max-width: 34rem;
+}
+.finalCtaActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--odl-space-3);
+  justify-content: center;
+  margin-top: var(--odl-space-6);
+}
+.finalEyebrow {
+  justify-content: center;
+}
+.finalCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ===== Reveal-on-scroll — pure CSS, progressive enhancement ============= */
+/* Content is never hidden without support: browsers lacking scroll-driven
+   animations (or users who prefer reduced motion) simply see it immediately. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: odlReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 2% cover 18%;
+    }
+  }
+}
+@keyframes odlReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== Responsive ======================================================= */
+@media (max-width: 996px) {
+  .heroInner,
+  .capabilityExplorer,
+  .layerExplorer {
+    grid-template-columns: 1fr;
+  }
+  .capabilityPreview {
+    display: none;
+  }
+  .capabilityNav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--odl-space-3);
+  }
+  .serviceGroups {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .heroAside {
+    order: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .valueGrid,
+  .serviceGroups,
+  .capabilityNav {
+    grid-template-columns: 1fr;
+  }
+  .heroStats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--odl-space-5) var(--odl-space-4);
+  }
+  .heroActions .btn {
+    flex: 1 1 auto;
+  }
+}

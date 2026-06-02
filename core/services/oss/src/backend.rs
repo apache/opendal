@@ -578,6 +578,7 @@ impl Builder for OssBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
+                            write_with_content_encoding: true,
                             write_with_if_not_exists: true,
 
                             // The min multipart size of OSS is 100 KiB.

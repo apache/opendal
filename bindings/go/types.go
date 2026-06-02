@@ -156,13 +156,21 @@ var (
 			&ffi.TypeUint8,   // read_with_override_cache_control
 			&ffi.TypeUint8,   // read_with_override_content_disposition
 			&ffi.TypeUint8,   // read_with_override_content_type
+			&ffi.TypeUint8,   // read_with_if_modified_since
+			&ffi.TypeUint8,   // read_with_if_unmodified_since
+			&ffi.TypeUint8,   // read_with_version
 			&ffi.TypeUint8,   // write
 			&ffi.TypeUint8,   // write_can_multi
 			&ffi.TypeUint8,   // write_can_empty
 			&ffi.TypeUint8,   // write_can_append
 			&ffi.TypeUint8,   // write_with_content_type
 			&ffi.TypeUint8,   // write_with_content_disposition
+			&ffi.TypeUint8,   // write_with_content_encoding
 			&ffi.TypeUint8,   // write_with_cache_control
+			&ffi.TypeUint8,   // write_with_if_match
+			&ffi.TypeUint8,   // write_with_if_none_match
+			&ffi.TypeUint8,   // write_with_if_not_exists
+			&ffi.TypeUint8,   // write_with_user_metadata
 			&ffi.TypePointer, // write_multi_max_size
 			&ffi.TypePointer, // write_multi_min_size
 			&ffi.TypePointer, // write_total_max_size
@@ -190,18 +198,26 @@ type opendalCapability struct {
 	statWithIfmatch                    uint8
 	statWithIfNoneMatch                uint8
 	read                               uint8
-	readWithIfmatch                    uint8
-	readWithIfMatchNone                uint8
+	readWithIfMatch                    uint8
+	readWithIfNoneMatch                uint8
 	readWithOverrideCacheControl       uint8
 	readWithOverrideContentDisposition uint8
 	readWithOverrideContentType        uint8
+	readWithIfModifiedSince            uint8
+	readWithIfUnmodifiedSince          uint8
+	readWithVersion                    uint8
 	write                              uint8
 	writeCanMulti                      uint8
 	writeCanEmpty                      uint8
 	writeCanAppend                     uint8
 	writeWithContentType               uint8
 	writeWithContentDisposition        uint8
+	writeWithContentEncoding           uint8
 	writeWithCacheControl              uint8
+	writeWithIfMatch                   uint8
+	writeWithIfNoneMatch               uint8
+	writeWithIfNotExists               uint8
+	writeWithUserMetadata              uint8
 	writeMultiMaxSize                  uint
 	writeMultiMinSize                  uint
 	writeTotalMaxSize                  uint
@@ -286,6 +302,13 @@ type opendalHttpHeaderPair struct {
 
 type opendalMetadata struct{}
 
+type opendalMetadataUserMetadata struct{}
+
+type opendalMetadataUserMetadataPair struct {
+	key   *byte
+	value *byte
+}
+
 type opendalBytes struct {
 	data     *byte
 	len      uintptr
@@ -307,6 +330,15 @@ type opendalResultList struct {
 type opendalLister struct{}
 
 type opendalListOptions struct{}
+
+type opendalReadOptions struct{}
+
+type opendalWriteOptions struct{}
+
+type opendalWriteUserMetadataPair struct {
+	key   *byte
+	value *byte
+}
 
 type opendalResultListerNext struct {
 	entry *opendalEntry

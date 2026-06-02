@@ -86,9 +86,30 @@ func ListWithRecursive(recursive bool) WithListFn {
 	}
 }
 
+// ListWithLimit sets the maximum number of results per request hint for the list operation.
+//
+// This is a hint to the backend; the actual number of results may differ.
+// A value of 0 means no limit is set.
+func ListWithLimit(limit uint) WithListFn {
+	return func(o *listOptions) {
+		o.limit = limit
+	}
+}
+
+// ListWithStartAfter sets the start-after key for the list operation.
+//
+// Passes the specified key to the underlying service to start listing from.
+func ListWithStartAfter(startAfter string) WithListFn {
+	return func(o *listOptions) {
+		o.startAfter = &startAfter
+	}
+}
+
 // listOptions holds the options for a list operation.
 type listOptions struct {
-	recursive bool
+	recursive  bool
+	limit      uint
+	startAfter *string
 }
 
 // List returns a Lister to iterate over entries that start with the given path.
@@ -139,6 +160,12 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 	cOpts := ffiListOptionsNew.symbol(op.ctx)()
 	defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
 	ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
+	if o.limit > 0 {
+		ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
+	}
+	if o.startAfter != nil {
+		ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
+	}
 	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
 	if err != nil {
 		return nil, err
@@ -345,6 +372,39 @@ var ffiListOptionsSetRecursive = newFFI(ffiOpts{
 			nil,
 			unsafe.Pointer(&opts),
 			unsafe.Pointer(&r),
+		)
+	}
+})
+
+var ffiListOptionsSetLimit = newFFI(ffiOpts{
+	sym:    "opendal_list_options_set_limit",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, limit uint) {
+	return func(opts *opendalListOptions, limit uint) {
+		l := uintptr(limit)
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+			unsafe.Pointer(&l),
+		)
+	}
+})
+
+var ffiListOptionsSetStartAfter = newFFI(ffiOpts{
+	sym:    "opendal_list_options_set_start_after",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, startAfter string) {
+	return func(opts *opendalListOptions, startAfter string) {
+		bytePtr, err := BytePtrFromString(startAfter)
+		if err != nil {
+			return
+		}
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+			unsafe.Pointer(&bytePtr),
 		)
 	}
 })

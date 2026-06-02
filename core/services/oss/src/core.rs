@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -164,6 +165,10 @@ impl OssCore {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
         }
 
         if let Some(cache_control) = args.cache_control() {
@@ -616,6 +621,7 @@ impl OssCore {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
+        content_encoding: Option<&str>,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
@@ -630,6 +636,9 @@ impl OssCore {
         }
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control);
+        }
+        if let Some(encoding) = content_encoding {
+            req = req.header(CONTENT_ENCODING, encoding);
         }
         req = self.insert_sse_headers(req);
 

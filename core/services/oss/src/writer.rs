@@ -86,6 +86,7 @@ impl oio::MultipartWrite for OssWriter {
                 self.op.content_type(),
                 self.op.content_disposition(),
                 self.op.cache_control(),
+                self.op.content_encoding(),
                 false,
             )
             .await?;

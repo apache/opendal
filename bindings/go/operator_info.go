@@ -160,6 +160,26 @@ func (c *Capability) WriteWithCacheControl() bool {
 	return c.inner.writeWithCacheControl == 1
 }
 
+func (c *Capability) WriteWithContentEncoding() bool {
+	return c.inner.writeWithContentEncoding == 1
+}
+
+func (c *Capability) WriteWithIfMatch() bool {
+	return c.inner.writeWithIfMatch == 1
+}
+
+func (c *Capability) WriteWithIfNoneMatch() bool {
+	return c.inner.writeWithIfNoneMatch == 1
+}
+
+func (c *Capability) WriteWithIfNotExists() bool {
+	return c.inner.writeWithIfNotExists == 1
+}
+
+func (c *Capability) WriteWithUserMetadata() bool {
+	return c.inner.writeWithUserMetadata == 1
+}
+
 func (c *Capability) WriteMultiMaxSize() uint {
 	return c.inner.writeMultiMaxSize
 }

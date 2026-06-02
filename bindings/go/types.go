@@ -190,6 +190,8 @@ var (
 			&ffi.TypeUint8,   // list_with_limit
 			&ffi.TypeUint8,   // list_with_start_after
 			&ffi.TypeUint8,   // list_with_recursive
+			&ffi.TypeUint8,   // list_with_versions
+			&ffi.TypeUint8,   // list_with_deleted
 			&ffi.TypeUint8,   // presign
 			&ffi.TypeUint8,   // presign_read
 			&ffi.TypeUint8,   // presign_stat
@@ -245,6 +247,8 @@ type opendalCapability struct {
 	listWithLimit                      uint8
 	listWithStartAfter                 uint8
 	listWithRecursive                  uint8
+	listWithVersions                   uint8
+	listWithDeleted                    uint8
 	presign                            uint8
 	presignRead                        uint8
 	presignStat                        uint8

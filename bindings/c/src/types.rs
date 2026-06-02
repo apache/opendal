@@ -98,6 +98,8 @@ impl opendal_bytes {
 /// @see opendal_list_options_set_recursive
 /// @see opendal_list_options_set_limit
 /// @see opendal_list_options_set_start_after
+/// @see opendal_list_options_set_versions
+/// @see opendal_list_options_set_deleted
 #[repr(C)]
 pub struct opendal_list_options {
     /// Whether to list recursively under the prefix; default false.
@@ -106,6 +108,10 @@ pub struct opendal_list_options {
     pub limit: usize,
     /// Optional key to start listing from; NULL means unset.
     pub start_after: *mut c_char,
+    /// Include object versions when supported by version-aware backends; default false.
+    pub versions: bool,
+    /// Include delete markers when supported by version-aware backends; default false.
+    pub deleted: bool,
 }
 
 impl opendal_list_options {
@@ -120,6 +126,8 @@ impl opendal_list_options {
             recursive: false,
             limit: 0,
             start_after: std::ptr::null_mut(),
+            versions: false,
+            deleted: false,
         }))
     }
 
@@ -178,6 +186,34 @@ impl opendal_list_options {
                 .expect("malformed start_after")
                 .to_owned();
             o.start_after = CString::new(s).unwrap().into_raw();
+        }
+    }
+
+    /// \brief Set the versions option.
+    ///
+    /// @param opts The opendal_list_options to modify.
+    /// @param versions Whether to include object versions.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_set_versions(
+        opts: *mut opendal_list_options,
+        versions: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).versions = versions;
+        }
+    }
+
+    /// \brief Set the deleted option.
+    ///
+    /// @param opts The opendal_list_options to modify.
+    /// @param deleted Whether to include delete markers.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_options_set_deleted(
+        opts: *mut opendal_list_options,
+        deleted: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).deleted = deleted;
         }
     }
 

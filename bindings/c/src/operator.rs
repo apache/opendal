@@ -1032,7 +1032,8 @@ pub unsafe extern "C" fn opendal_operator_list_with(
             recursive: o.recursive,
             limit,
             start_after,
-            ..Default::default()
+            versions: o.versions,
+            deleted: o.deleted,
         }
     };
     match op.deref().lister_options(path, list_opts) {

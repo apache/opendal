@@ -54,6 +54,12 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 	if cap.ListWithStartAfter() {
 		tests = append(tests, testListWithStartAfter)
 	}
+	if isCapEnabled(cap.ListWithVersions, "list_with_versions") {
+		tests = append(tests, testListWithVersions)
+	}
+	if isCapEnabled(cap.ListWithDeleted, "list_with_deleted") {
+		tests = append(tests, testListWithDeleted)
+	}
 	return tests
 }
 
@@ -414,4 +420,76 @@ func testListWithStartAfter(assert *require.Assertions, op *opendal.Operator, fi
 	for _, p := range filePaths[2:] {
 		assert.Contains(paths, p, "start_after must include entries after pivot")
 	}
+}
+
+func testListWithVersions(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	path, _, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+
+	assert.Nil(op.Write(path, []byte("version-1")), "first write must succeed")
+	assert.Nil(op.Write(path, []byte("version-2")), "second write must succeed")
+
+	obs, err := op.List(path, opendal.ListWithVersions(true))
+	assert.Nil(err, "list with versions must succeed")
+	defer obs.Close()
+
+	var count int
+	var currentCount int
+	for obs.Next() {
+		entry := obs.Entry()
+		if entry.Path() == path {
+			count++
+			meta := entry.Metadata()
+			version, ok := meta.Version()
+			assert.True(ok, "version metadata must be present for list with versions")
+			assert.NotEmpty(version, "each version entry must have a version ID")
+			if curr, ok := meta.IsCurrent(); ok && curr {
+				currentCount++
+			}
+		}
+	}
+	assert.Nil(obs.Error())
+	assert.GreaterOrEqual(count, 2, "list with versions must return at least 2 entries for the same path")
+	assert.Equal(1, currentCount, "exactly one version entry should be current")
+}
+
+func testListWithDeleted(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	parent := fixture.NewDirPath()
+	path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	obs, err := op.List(path, opendal.ListWithDeleted(true))
+	assert.Nil(err, "list with deleted must succeed before deletion")
+	defer obs.Close()
+	var beforeCount int
+	for obs.Next() {
+		if obs.Entry().Path() == path {
+			beforeCount++
+		}
+	}
+	assert.Nil(obs.Error())
+	assert.Equal(1, beforeCount, "active file must appear exactly once before deletion")
+
+	assert.Nil(op.Delete(path), "delete must succeed")
+
+	obs2, err := op.List(path, opendal.ListWithDeleted(true))
+	assert.Nil(err, "list with deleted must succeed after deletion")
+	defer obs2.Close()
+	var foundDeleteMarker bool
+	for obs2.Next() {
+		entry := obs2.Entry()
+		if entry.Path() == path {
+			meta := entry.Metadata()
+			if meta != nil && meta.IsDeleted() {
+				version, ok := meta.Version()
+				assert.True(ok, "delete marker must have a version ID")
+				assert.NotEmpty(version, "delete marker must have a version ID")
+				foundDeleteMarker = true
+				break
+			}
+		}
+	}
+	assert.Nil(obs2.Error())
+	assert.True(foundDeleteMarker, "delete marker must be found after deletion")
 }

@@ -33,7 +33,7 @@ func testsStat(cap *opendal.Capability) []behaviorTest {
 	if !cap.Write() || !cap.Stat() {
 		return nil
 	}
-	return []behaviorTest{
+	tests := []behaviorTest{
 		testStatFile,
 		testStatDir,
 		testStatNestedParentDir,
@@ -43,11 +43,20 @@ func testsStat(cap *opendal.Capability) []behaviorTest {
 		testStatRoot,
 		testStatFileMetadata,
 		testStatDirMetadata,
-		testStatWithIfMatch,
-		testStatWithIfNoneMatch,
-		testStatWithIfModifiedSince,
-		testStatWithIfUnmodifiedSince,
 	}
+	if isCapEnabled(cap.StatWithIfMatch, "stat_with_if_match") {
+		tests = append(tests, testStatWithIfMatch)
+	}
+	if isCapEnabled(cap.StatWithIfNoneMatch, "stat_with_if_none_match") {
+		tests = append(tests, testStatWithIfNoneMatch)
+	}
+	if isCapEnabled(cap.StatWithIfModifiedSince, "stat_with_if_modified_since") {
+		tests = append(tests, testStatWithIfModifiedSince)
+	}
+	if isCapEnabled(cap.StatWithIfUnmodifiedSince, "stat_with_if_unmodified_since") {
+		tests = append(tests, testStatWithIfUnmodifiedSince)
+	}
+	return tests
 }
 
 func assertOptionalMetaString(assert *require.Assertions, name string, accessor func() (string, bool)) {

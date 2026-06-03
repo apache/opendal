@@ -59,7 +59,7 @@ impl ObjectStoreReader {
 // `&mut self` and `rp()` is stateless.
 unsafe impl Sync for ObjectStoreReader {}
 
-impl oio::Read for ObjectStoreReader {
+impl oio::ReadStream for ObjectStoreReader {
     async fn read(&mut self) -> Result<Buffer> {
         let bs = self.bytes_stream.try_next().await.map_err(parse_error)?;
         Ok(bs.map(Buffer::from).unwrap_or_default())

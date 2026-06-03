@@ -40,7 +40,7 @@ impl OpfsReader {
     }
 }
 
-impl oio::Read for OpfsReader {
+impl oio::ReadStream for OpfsReader {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());

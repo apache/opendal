@@ -105,7 +105,7 @@ impl MonoiofsReader {
     }
 }
 
-impl oio::Read for MonoiofsReader {
+impl oio::ReadStream for MonoiofsReader {
     /// Send read request to worker thread and wait for result. Actual
     /// read happens in [`MonoiofsReader::worker_entrypoint`] running
     /// on worker thread.

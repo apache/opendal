@@ -45,7 +45,7 @@ impl CompfsReader {
     }
 }
 
-impl oio::Read for CompfsReader {
+impl oio::ReadStream for CompfsReader {
     async fn read(&mut self) -> Result<Buffer> {
         let pos = self.offset;
         if let Some(end) = self.end {

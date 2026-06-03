@@ -43,7 +43,7 @@ impl HdfsNativeReader {
     }
 }
 
-impl oio::Read for HdfsNativeReader {
+impl oio::ReadStream for HdfsNativeReader {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size {
             return Ok(Buffer::new());

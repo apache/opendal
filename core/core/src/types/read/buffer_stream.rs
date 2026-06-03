@@ -24,7 +24,7 @@ use std::task::Poll;
 use futures::Stream;
 use futures::ready;
 
-use crate::raw::oio::Read as _;
+use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
 use crate::*;
 
@@ -70,7 +70,7 @@ impl StreamingReader {
     }
 }
 
-impl oio::Read for StreamingReader {
+impl oio::ReadStream for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
@@ -217,7 +217,7 @@ impl ChunkedReader {
     }
 }
 
-impl oio::Read for ChunkedReader {
+impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
             if let Some(input) = self.opened.take() {

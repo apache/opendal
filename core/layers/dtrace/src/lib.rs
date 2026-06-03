@@ -260,7 +260,7 @@ impl<R> DtraceLayerWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());

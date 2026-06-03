@@ -71,7 +71,7 @@ impl FtpReader {
     }
 }
 
-impl oio::Read for FtpReader {
+impl oio::ReadStream for FtpReader {
     async fn read(&mut self) -> Result<Buffer> {
         self.buf.resize(self.chunk, 0);
         let n = self

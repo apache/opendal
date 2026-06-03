@@ -48,7 +48,7 @@ impl SftpReader {
     }
 }
 
-impl oio::Read for SftpReader {
+impl oio::ReadStream for SftpReader {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size.unwrap_or(usize::MAX) {
             return Ok(Buffer::new());

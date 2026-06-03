@@ -1080,7 +1080,7 @@ impl<R, I: MetricsIntercept> MetricsWrapper<R, I> {
     }
 }
 
-impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
+impl<R: oio::ReadStream, I: MetricsIntercept> oio::ReadStream for MetricsWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()

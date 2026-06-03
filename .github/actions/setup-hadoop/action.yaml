@@ -35,17 +35,11 @@ runs:
       if: inputs.need-hadoop == 'true'
       shell: bash
       run: |
-        set -e
-        curl \
-          --location \
-          --silent \
-          --show-error \
-          --fail \
-          https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar \
-            --gzip \
-            --extract \
-            --file - \
-            --directory /home/runner
+        docker pull hadoop:3.3.5
+        rm -rf /home/runner/hadoop-3.3.5
+        # intentionally not remove temp container because
+        # GitHub use one-time virtual machine to run a CI run.
+        docker cp $(docker create hadoop:3.3.5):/opt/hadoop /home/runner/hadoop-3.3.5
 
     - name: Setup hadoop env
       shell: bash

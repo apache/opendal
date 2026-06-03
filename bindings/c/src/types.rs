@@ -197,6 +197,95 @@ impl opendal_list_options {
     }
 }
 
+/// \brief The options for the delete operation.
+///
+/// This struct carries the options for the delete operation, including an optional
+/// version string and whether to delete recursively.
+/// Use `opendal_delete_options_new()` to construct and `opendal_delete_options_free()` to free.
+///
+/// @see opendal_operator_delete_with
+/// @see opendal_delete_options_new
+/// @see opendal_delete_options_free
+/// @see opendal_delete_options_set_version
+/// @see opendal_delete_options_set_recursive
+#[repr(C)]
+pub struct opendal_delete_options {
+    /// Optional version string to delete a specific version; NULL means unset.
+    pub version: *mut c_char,
+    /// Whether to delete recursively; default false.
+    pub recursive: bool,
+}
+
+impl opendal_delete_options {
+    /// \brief Construct a heap-allocated opendal_delete_options with default values.
+    ///
+    /// @return A new opendal_delete_options with all options set to their defaults.
+    ///
+    /// @see opendal_delete_options_free
+    #[no_mangle]
+    pub extern "C" fn opendal_delete_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self {
+            version: std::ptr::null_mut(),
+            recursive: false,
+        }))
+    }
+
+    /// \brief Set the version option.
+    ///
+    /// @param opts The opendal_delete_options to modify.
+    /// @param version The version string to delete; NULL to unset.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_set_version(
+        opts: *mut opendal_delete_options,
+        version: *const c_char,
+    ) {
+        if opts.is_null() {
+            return;
+        }
+        let o = &mut *opts;
+        if !o.version.is_null() {
+            drop(CString::from_raw(o.version));
+            o.version = std::ptr::null_mut();
+        }
+        if !version.is_null() {
+            let s = CStr::from_ptr(version)
+                .to_str()
+                .expect("malformed version")
+                .to_owned();
+            o.version = CString::new(s).unwrap().into_raw();
+        }
+    }
+
+    /// \brief Set the recursive option.
+    ///
+    /// @param opts The opendal_delete_options to modify.
+    /// @param recursive Whether to delete recursively.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_set_recursive(
+        opts: *mut opendal_delete_options,
+        recursive: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).recursive = recursive;
+        }
+    }
+
+    /// \brief Free the heap memory used by opendal_delete_options.
+    ///
+    /// @param opts The opendal_delete_options to free.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_free(opts: *mut opendal_delete_options) {
+        if !opts.is_null() {
+            let o = &mut *opts;
+            if !o.version.is_null() {
+                drop(CString::from_raw(o.version));
+                o.version = std::ptr::null_mut();
+            }
+            drop(Box::from_raw(opts));
+        }
+    }
+}
+
 /// \brief A key-value pair for write user metadata.
 #[repr(C)]
 pub struct opendal_write_user_metadata_pair {

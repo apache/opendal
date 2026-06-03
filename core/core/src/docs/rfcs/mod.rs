@@ -22,8 +22,8 @@
 pub mod rfc_0000_example {}
 
 /// Move Read Range To Reader
-#[doc = include_str!("0000_move_read_range_to_reader.md")]
-pub mod rfc_0000_move_read_range_to_reader {}
+#[doc = include_str!("7660_move_read_range_to_reader.md")]
+pub mod rfc_7660_move_read_range_to_reader {}
 
 /// Object native API
 #[doc = include_str!("0041_object_native_api.md")]

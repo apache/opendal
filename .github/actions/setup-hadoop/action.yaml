@@ -39,7 +39,7 @@ runs:
         rm -rf /home/runner/hadoop-3.3.5
         # intentionally not remove temp container because
         # GitHub use one-time virtual machine to run a CI run.
-        docker cp $(docker create hadoop:3.3.5):/opt/hadoop /home/runner/hadoop-3.3.5
+        docker cp $(docker create apache/hadoop:3.3.5):/opt/hadoop /home/runner/hadoop-3.3.5
 
     - name: Setup hadoop env
       shell: bash

@@ -176,6 +176,8 @@ var (
 			&ffi.TypePointer, // write_total_max_size
 			&ffi.TypeUint8,   // create_dir
 			&ffi.TypeUint8,   // delete
+			&ffi.TypeUint8,   // delete_with_version
+			&ffi.TypeUint8,   // delete_with_recursive
 			&ffi.TypeUint8,   // copy
 			&ffi.TypeUint8,   // rename
 			&ffi.TypeUint8,   // list
@@ -223,6 +225,8 @@ type opendalCapability struct {
 	writeTotalMaxSize                  uint
 	createDir                          uint8
 	delete                             uint8
+	deleteWithVersion                  uint8
+	deleteWithRecursive                uint8
 	copy                               uint8
 	rename                             uint8
 	list                               uint8
@@ -330,6 +334,8 @@ type opendalResultList struct {
 type opendalLister struct{}
 
 type opendalListOptions struct{}
+
+type opendalDeleteOptions struct{}
 
 type opendalReadOptions struct{}
 

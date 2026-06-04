@@ -543,6 +543,30 @@ typedef struct opendal_result_operator_writer {
 } opendal_result_operator_writer;
 
 /**
+ * \brief The options for the delete operation.
+ *
+ * This struct carries the options for the delete operation, including an optional
+ * version string and whether to delete recursively.
+ * Use `opendal_delete_options_new()` to construct and `opendal_delete_options_free()` to free.
+ *
+ * @see opendal_operator_delete_with
+ * @see opendal_delete_options_new
+ * @see opendal_delete_options_free
+ * @see opendal_delete_options_set_version
+ * @see opendal_delete_options_set_recursive
+ */
+typedef struct opendal_delete_options {
+  /**
+   * Optional version string to delete a specific version; NULL means unset.
+   */
+  char *version;
+  /**
+   * Whether to delete recursively; default false.
+   */
+  bool recursive;
+} opendal_delete_options;
+
+/**
  * \brief The result type returned by opendal_operator_is_exist().
  *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
@@ -794,6 +818,14 @@ typedef struct opendal_capability {
    * If operator supports delete.
    */
   bool delete_;
+  /**
+   * If operator supports delete with version.
+   */
+  bool delete_with_version;
+  /**
+   * If operator supports delete with recursive.
+   */
+  bool delete_with_recursive;
   /**
    * If operator supports copy.
    */
@@ -1449,6 +1481,32 @@ struct opendal_result_operator_writer opendal_operator_writer_with(const struct 
 struct opendal_error *opendal_operator_delete(const struct opendal_operator *op, const char *path);
 
 /**
+ * \brief Blocking delete the object in `path` with options.
+ *
+ * Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
+ * This is similar to `opendal_operator_delete` but allows specifying a version or
+ * requesting a recursive delete.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path you want to delete
+ * @param opts The options for the delete operation; pass NULL to use defaults
+ * @see opendal_delete_options
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_delete_with(const struct opendal_operator *op,
+                                                   const char *path,
+                                                   const struct opendal_delete_options *opts);
+
+/**
  * \brief Check whether the path exists.
  *
  * If the operation succeeds, no matter the path exists or not,
@@ -1951,6 +2009,38 @@ void opendal_list_options_set_start_after(struct opendal_list_options *opts,
  * @param opts The opendal_list_options to free.
  */
 void opendal_list_options_free(struct opendal_list_options *opts);
+
+/**
+ * \brief Construct a heap-allocated opendal_delete_options with default values.
+ *
+ * @return A new opendal_delete_options with all options set to their defaults.
+ *
+ * @see opendal_delete_options_free
+ */
+struct opendal_delete_options *opendal_delete_options_new(void);
+
+/**
+ * \brief Set the version option.
+ *
+ * @param opts The opendal_delete_options to modify.
+ * @param version The version string to delete; NULL to unset.
+ */
+void opendal_delete_options_set_version(struct opendal_delete_options *opts, const char *version);
+
+/**
+ * \brief Set the recursive option.
+ *
+ * @param opts The opendal_delete_options to modify.
+ * @param recursive Whether to delete recursively.
+ */
+void opendal_delete_options_set_recursive(struct opendal_delete_options *opts, bool recursive);
+
+/**
+ * \brief Free the heap memory used by opendal_delete_options.
+ *
+ * @param opts The opendal_delete_options to free.
+ */
+void opendal_delete_options_free(struct opendal_delete_options *opts);
 
 /**
  * \brief Construct a heap-allocated opendal_write_options with default values.

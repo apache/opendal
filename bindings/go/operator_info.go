@@ -211,6 +211,14 @@ func (c *Capability) Delete() bool {
 	return c.inner.delete == 1
 }
 
+func (c *Capability) DeleteWithVersion() bool {
+	return c.inner.deleteWithVersion == 1
+}
+
+func (c *Capability) DeleteWithRecursive() bool {
+	return c.inner.deleteWithRecursive == 1
+}
+
 func (c *Capability) Copy() bool {
 	return c.inner.copy == 1
 }

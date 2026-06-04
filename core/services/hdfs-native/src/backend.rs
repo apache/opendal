@@ -29,7 +29,7 @@ use super::core::HdfsNativeCore;
 use super::deleter::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
-use super::reader::HdfsNativeReader;
+use super::reader::HdfsNativeReadStream;
 use super::writer::HdfsNativeWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -169,12 +169,12 @@ pub struct HdfsNativeBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct HdfsNativeReader {
     backend: HdfsNativeBackend,
     path: String,
 }
 
-impl BackendReader {
+impl HdfsNativeReader {
     fn new(backend: HdfsNativeBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -183,15 +183,15 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for HdfsNativeReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HdfsNativeReader)> = async {
+        let result: Result<(RpRead, HdfsNativeReadStream)> = async {
             let (f, offset, size) = backend.core.hdfs_read(path, range).await?;
             let content_length = f.file_length() as u64;
 
-            let r = HdfsNativeReader::new(f, offset as _, size as _);
+            let r = HdfsNativeReadStream::new(f, offset as _, size as _);
 
             Ok((
                 RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
@@ -204,7 +204,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for HdfsNativeBackend {
-    type Reader = BackendReader;
+    type Reader = HdfsNativeReader;
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -226,7 +226,7 @@ impl Access for HdfsNativeBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            HdfsNativeReader::new(self.clone(), path, args),
         ))
     }
 

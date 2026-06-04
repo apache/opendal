@@ -240,12 +240,12 @@ impl FoyerBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct FoyerReader {
     backend: FoyerBackend,
     path: String,
 }
 
-impl BackendReader {
+impl FoyerReader {
     fn new(backend: FoyerBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -254,7 +254,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for FoyerReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -287,7 +287,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for FoyerBackend {
-    type Reader = BackendReader;
+    type Reader = FoyerReader;
     type Writer = FoyerWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
@@ -314,7 +314,7 @@ impl Access for FoyerBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            FoyerReader::new(self.clone(), path, args),
         ))
     }
 

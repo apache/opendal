@@ -236,12 +236,12 @@ impl SurrealdbBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct SurrealdbReader {
     backend: SurrealdbBackend,
     path: String,
 }
 
-impl BackendReader {
+impl SurrealdbReader {
     fn new(backend: SurrealdbBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -250,7 +250,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for SurrealdbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -272,7 +272,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for SurrealdbBackend {
-    type Reader = BackendReader;
+    type Reader = SurrealdbReader;
     type Writer = SurrealdbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SurrealdbDeleter>;
@@ -300,7 +300,7 @@ impl Access for SurrealdbBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            SurrealdbReader::new(self.clone(), path, args),
         ))
     }
 

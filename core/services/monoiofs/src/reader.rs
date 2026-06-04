@@ -38,14 +38,14 @@ enum ReaderRequest {
     },
 }
 
-pub struct MonoiofsReader {
+pub struct MonoiofsReadStream {
     core: Arc<MonoiofsCore>,
     tx: mpsc::UnboundedSender<ReaderRequest>,
     pos: u64,
     end_pos: Option<u64>,
 }
 
-impl MonoiofsReader {
+impl MonoiofsReadStream {
     pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf, range: BytesRange) -> Result<Self> {
         let (open_result_tx, open_result_rx) = oneshot::channel();
         let (tx, rx) = mpsc::unbounded();
@@ -72,13 +72,13 @@ impl MonoiofsReader {
         let file = match result {
             Ok(file) => {
                 let Ok(()) = open_result_tx.send(Ok(())) else {
-                    // MonoiofsReader::new is cancelled, exit worker task
+                    // MonoiofsReadStream::new is cancelled, exit worker task
                     return;
                 };
                 file
             }
             Err(e) => {
-                // discard the result if send failed due to MonoiofsReader::new
+                // discard the result if send failed due to MonoiofsReadStream::new
                 // cancelled since we are going to exit anyway
                 let _ = open_result_tx.send(Err(new_std_io_error(e)));
                 return;
@@ -87,7 +87,7 @@ impl MonoiofsReader {
         // wait for read request and send back result to main thread
         loop {
             let Some(req) = rx.next().await else {
-                // MonoiofsReader is dropped, exit worker task
+                // MonoiofsReadStream is dropped, exit worker task
                 break;
             };
             match req {
@@ -97,7 +97,7 @@ impl MonoiofsReader {
                     // successfully, so n is dropped
                     let result = result.map(move |_| buf).map_err(new_std_io_error);
                     // discard the result if send failed due to
-                    // MonoiofsReader::read cancelled
+                    // MonoiofsReadStream::read cancelled
                     let _ = tx.send(result);
                 }
             }
@@ -105,9 +105,9 @@ impl MonoiofsReader {
     }
 }
 
-impl oio::ReadStream for MonoiofsReader {
+impl oio::ReadStream for MonoiofsReadStream {
     /// Send read request to worker thread and wait for result. Actual
-    /// read happens in [`MonoiofsReader::worker_entrypoint`] running
+    /// read happens in [`MonoiofsReadStream::worker_entrypoint`] running
     /// on worker thread.
     async fn read(&mut self) -> Result<Buffer> {
         if let Some(end_pos) = self.end_pos {

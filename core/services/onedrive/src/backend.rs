@@ -35,13 +35,13 @@ pub struct OnedriveBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct OnedriveReader {
     backend: OnedriveBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl OnedriveReader {
     fn new(backend: OnedriveBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -51,7 +51,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for OnedriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -79,7 +79,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for OnedriveBackend {
-    type Reader = BackendReader;
+    type Reader = OnedriveReader;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
@@ -110,7 +110,7 @@ impl Access for OnedriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            OnedriveReader::new(self.clone(), path, args),
         ))
     }
 

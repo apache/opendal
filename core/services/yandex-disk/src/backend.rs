@@ -137,12 +137,12 @@ pub struct YandexDiskBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct YandexDiskReader {
     backend: YandexDiskBackend,
     path: String,
 }
 
-impl BackendReader {
+impl YandexDiskReader {
     fn new(backend: YandexDiskBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -151,7 +151,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for YandexDiskReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -177,7 +177,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for YandexDiskBackend {
-    type Reader = BackendReader;
+    type Reader = YandexDiskReader;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
@@ -227,7 +227,7 @@ impl Access for YandexDiskBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            YandexDiskReader::new(self.clone(), path, args),
         ))
     }
 

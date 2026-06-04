@@ -372,13 +372,13 @@ pub struct AzdlsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct AzdlsReader {
     backend: AzdlsBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl AzdlsReader {
     fn new(backend: AzdlsBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -388,7 +388,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for AzdlsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -415,7 +415,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for AzdlsBackend {
-    type Reader = BackendReader;
+    type Reader = AzdlsReader;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
@@ -451,7 +451,7 @@ impl Access for AzdlsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            AzdlsReader::new(self.clone(), path, args),
         ))
     }
 

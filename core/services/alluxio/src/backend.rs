@@ -135,12 +135,12 @@ pub struct AlluxioBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct AlluxioReader {
     backend: AlluxioBackend,
     path: String,
 }
 
-impl BackendReader {
+impl AlluxioReader {
     fn new(backend: AlluxioBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -149,7 +149,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for AlluxioReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -173,7 +173,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for AlluxioBackend {
-    type Reader = BackendReader;
+    type Reader = AlluxioReader;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
@@ -196,7 +196,7 @@ impl Access for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            AlluxioReader::new(self.clone(), path, args),
         ))
     }
 

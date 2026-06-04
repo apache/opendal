@@ -26,7 +26,7 @@ use super::core::HfCore;
 use super::core::HfDownloadMode;
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
-use super::reader::HfReader;
+use super::reader::HfReadStream;
 use super::uri::{HfRepo, HfRepoType};
 use super::writer::HfWriter;
 use opendal_core::raw::*;
@@ -258,12 +258,12 @@ pub struct HfBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct HfReader {
     backend: HfBackend,
     path: String,
 }
 
-impl BackendReader {
+impl HfReader {
     fn new(backend: HfBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -272,18 +272,18 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for HfReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HfReader)> =
-            async { HfReader::try_new(&backend.core, path, range).await }.await;
+        let result: Result<(RpRead, HfReadStream)> =
+            async { HfReadStream::try_new(&backend.core, path, range).await }.await;
         result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for HfBackend {
-    type Reader = BackendReader;
+    type Reader = HfReader;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
@@ -308,10 +308,7 @@ impl Access for HfBackend {
         Ok(RpStat::new(info.metadata()?))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), HfReader::new(self.clone(), path, args)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

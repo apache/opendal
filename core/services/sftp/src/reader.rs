@@ -24,7 +24,7 @@ use super::error::parse_sftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct SftpReader {
+pub struct SftpReadStream {
     /// Keep the connection alive while data stream is alive.
     _conn: bounded::Object<Manager>,
 
@@ -35,7 +35,7 @@ pub struct SftpReader {
     buf: BytesMut,
 }
 
-impl SftpReader {
+impl SftpReadStream {
     pub fn new(conn: bounded::Object<Manager>, file: File, size: Option<u64>) -> Self {
         Self {
             _conn: conn,
@@ -48,7 +48,7 @@ impl SftpReader {
     }
 }
 
-impl oio::ReadStream for SftpReader {
+impl oio::ReadStream for SftpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size.unwrap_or(usize::MAX) {
             return Ok(Buffer::new());

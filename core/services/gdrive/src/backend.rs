@@ -43,12 +43,12 @@ pub struct GdriveBackend {
 pub type GdriveListers = TwoWays<oio::PageLister<GdriveLister>, GdriveFlatLister>;
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct GdriveReader {
     backend: GdriveBackend,
     path: String,
 }
 
-impl BackendReader {
+impl GdriveReader {
     fn new(backend: GdriveBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -57,7 +57,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -107,7 +107,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for GdriveBackend {
-    type Reader = BackendReader;
+    type Reader = GdriveReader;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
@@ -201,7 +201,7 @@ impl Access for GdriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            GdriveReader::new(self.clone(), path, args),
         ))
     }
 

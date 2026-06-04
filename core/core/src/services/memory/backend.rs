@@ -100,7 +100,7 @@ impl MemoryBackend {
 }
 
 impl Access for MemoryBackend {
-    type Reader = BackendReader;
+    type Reader = MemoryReader;
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
@@ -129,7 +129,7 @@ impl Access for MemoryBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            MemoryReader::new(self.clone(), path, args),
         ))
     }
 
@@ -159,12 +159,12 @@ impl Access for MemoryBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct MemoryReader {
     backend: MemoryBackend,
     path: String,
 }
 
-impl BackendReader {
+impl MemoryReader {
     fn new(backend: MemoryBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -173,7 +173,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();

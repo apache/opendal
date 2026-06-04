@@ -33,13 +33,13 @@ pub struct VercelArtifactsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct VercelArtifactsReader {
     backend: VercelArtifactsBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl VercelArtifactsReader {
     fn new(backend: VercelArtifactsBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -49,7 +49,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for VercelArtifactsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -80,7 +80,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for VercelArtifactsBackend {
-    type Reader = BackendReader;
+    type Reader = VercelArtifactsReader;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type Deleter = ();
@@ -107,7 +107,7 @@ impl Access for VercelArtifactsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            VercelArtifactsReader::new(self.clone(), path, args),
         ))
     }
 

@@ -204,12 +204,12 @@ impl EtcdBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct EtcdReader {
     backend: EtcdBackend,
     path: String,
 }
 
-impl BackendReader {
+impl EtcdReader {
     fn new(backend: EtcdBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -218,7 +218,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for EtcdReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -261,7 +261,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for EtcdBackend {
-    type Reader = BackendReader;
+    type Reader = EtcdReader;
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
@@ -319,10 +319,7 @@ impl Access for EtcdBackend {
         }
     }
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, op),
-        ))
+        Ok((RpRead::default(), EtcdReader::new(self.clone(), path, op)))
     }
 
     async fn write(&self, path: &str, _op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

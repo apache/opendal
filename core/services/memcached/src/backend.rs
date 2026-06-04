@@ -216,12 +216,12 @@ impl MemcachedBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct MemcachedReader {
     backend: MemcachedBackend,
     path: String,
 }
 
-impl BackendReader {
+impl MemcachedReader {
     fn new(backend: MemcachedBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -230,7 +230,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for MemcachedReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -250,7 +250,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for MemcachedBackend {
-    type Reader = BackendReader;
+    type Reader = MemcachedReader;
     type Writer = MemcachedWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
@@ -278,7 +278,7 @@ impl Access for MemcachedBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            MemcachedReader::new(self.clone(), path, args),
         ))
     }
 

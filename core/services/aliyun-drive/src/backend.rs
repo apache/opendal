@@ -192,12 +192,12 @@ pub struct AliyunDriveBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct AliyunDriveReader {
     backend: AliyunDriveBackend,
     path: String,
 }
 
-impl BackendReader {
+impl AliyunDriveReader {
     fn new(backend: AliyunDriveBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -206,7 +206,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for AliyunDriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -235,7 +235,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for AliyunDriveBackend {
-    type Reader = BackendReader;
+    type Reader = AliyunDriveReader;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
@@ -364,7 +364,7 @@ impl Access for AliyunDriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            AliyunDriveReader::new(self.clone(), path, args),
         ))
     }
 

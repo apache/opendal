@@ -210,12 +210,12 @@ pub struct GhacBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct GhacReader {
     backend: GhacBackend,
     path: String,
 }
 
-impl BackendReader {
+impl GhacReader {
     fn new(backend: GhacBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -224,7 +224,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for GhacReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -250,7 +250,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for GhacBackend {
-    type Reader = BackendReader;
+    type Reader = GhacReader;
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
@@ -278,10 +278,7 @@ impl Access for GhacBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), GhacReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -24,7 +24,7 @@ use super::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct FsReader<F> {
+pub struct FsReadStream<F> {
     core: Arc<FsCore>,
     f: F,
     read: usize,
@@ -32,7 +32,7 @@ pub struct FsReader<F> {
     buf_size: usize,
 }
 
-impl<F> FsReader<F> {
+impl<F> FsReadStream<F> {
     pub fn new(core: Arc<FsCore>, f: F, size: usize) -> Self {
         Self {
             core,
@@ -45,7 +45,7 @@ impl<F> FsReader<F> {
     }
 }
 
-impl oio::ReadStream for FsReader<tokio::fs::File> {
+impl oio::ReadStream for FsReadStream<tokio::fs::File> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size {
             return Ok(Buffer::new());

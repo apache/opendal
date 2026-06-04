@@ -142,12 +142,12 @@ impl SledBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct SledReader {
     backend: SledBackend,
     path: String,
 }
 
-impl BackendReader {
+impl SledReader {
     fn new(backend: SledBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -156,7 +156,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for SledReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -178,7 +178,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for SledBackend {
-    type Reader = BackendReader;
+    type Reader = SledReader;
     type Writer = SledWriter;
     type Lister = oio::HierarchyLister<SledLister>;
     type Deleter = oio::OneShotDeleter<SledDeleter>;
@@ -204,10 +204,7 @@ impl Access for SledBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), SledReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

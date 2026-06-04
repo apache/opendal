@@ -208,12 +208,12 @@ impl SqliteBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct SqliteReader {
     backend: SqliteBackend,
     path: String,
 }
 
-impl BackendReader {
+impl SqliteReader {
     fn new(backend: SqliteBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -222,7 +222,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for SqliteReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -261,7 +261,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for SqliteBackend {
-    type Reader = BackendReader;
+    type Reader = SqliteReader;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
@@ -311,7 +311,7 @@ impl Access for SqliteBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            SqliteReader::new(self.clone(), path, args),
         ))
     }
 

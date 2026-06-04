@@ -199,12 +199,12 @@ pub struct SeafileBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct SeafileReader {
     backend: SeafileBackend,
     path: String,
 }
 
-impl BackendReader {
+impl SeafileReader {
     fn new(backend: SeafileBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -213,7 +213,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for SeafileReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -240,7 +240,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for SeafileBackend {
-    type Reader = BackendReader;
+    type Reader = SeafileReader;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
@@ -274,7 +274,7 @@ impl Access for SeafileBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            SeafileReader::new(self.clone(), path, args),
         ))
     }
 

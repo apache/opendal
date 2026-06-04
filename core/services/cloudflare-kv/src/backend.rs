@@ -191,13 +191,13 @@ pub struct CloudflareKvBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct CloudflareKvReader {
     backend: CloudflareKvBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl CloudflareKvReader {
     fn new(backend: CloudflareKvBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -207,7 +207,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for CloudflareKvReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -312,7 +312,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for CloudflareKvBackend {
-    type Reader = BackendReader;
+    type Reader = CloudflareKvReader;
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
@@ -487,7 +487,7 @@ impl Access for CloudflareKvBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            CloudflareKvReader::new(self.clone(), path, args),
         ))
     }
 

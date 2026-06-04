@@ -28,7 +28,7 @@ use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
-use super::reader::MonoiofsReader;
+use super::reader::MonoiofsReadStream;
 use super::writer::MonoiofsWriter;
 
 /// File system support via [`monoio`].
@@ -93,12 +93,12 @@ pub struct MonoiofsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct MonoiofsReader {
     backend: MonoiofsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl MonoiofsReader {
     fn new(backend: MonoiofsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -107,13 +107,13 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for MonoiofsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, MonoiofsReader)> = async {
+        let result: Result<(RpRead, MonoiofsReadStream)> = async {
             let path = backend.core.prepare_path(path);
-            let reader = MonoiofsReader::new(backend.core.clone(), path, range).await?;
+            let reader = MonoiofsReadStream::new(backend.core.clone(), path, range).await?;
             Ok((RpRead::default(), reader))
         }
         .await;
@@ -122,7 +122,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for MonoiofsBackend {
-    type Reader = BackendReader;
+    type Reader = MonoiofsReader;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -156,7 +156,7 @@ impl Access for MonoiofsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            MonoiofsReader::new(self.clone(), path, args),
         ))
     }
 

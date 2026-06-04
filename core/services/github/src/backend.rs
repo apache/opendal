@@ -161,12 +161,12 @@ pub struct GithubBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct GithubReader {
     backend: GithubBackend,
     path: String,
 }
 
-impl BackendReader {
+impl GithubReader {
     fn new(backend: GithubBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -175,7 +175,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for GithubReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -202,7 +202,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for GithubBackend {
-    type Reader = BackendReader;
+    type Reader = GithubReader;
     type Writer = GithubWriters;
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
@@ -255,7 +255,7 @@ impl Access for GithubBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            GithubReader::new(self.clone(), path, args),
         ))
     }
 

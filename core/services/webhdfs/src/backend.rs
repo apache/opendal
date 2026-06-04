@@ -237,12 +237,12 @@ impl WebhdfsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct WebhdfsReader {
     backend: WebhdfsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl WebhdfsReader {
     fn new(backend: WebhdfsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -251,7 +251,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for WebhdfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -276,7 +276,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for WebhdfsBackend {
-    type Reader = BackendReader;
+    type Reader = WebhdfsReader;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
@@ -350,7 +350,7 @@ impl Access for WebhdfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            WebhdfsReader::new(self.clone(), path, args),
         ))
     }
 

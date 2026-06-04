@@ -118,12 +118,12 @@ impl RocksdbBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct RocksdbReader {
     backend: RocksdbBackend,
     path: String,
 }
 
-impl BackendReader {
+impl RocksdbReader {
     fn new(backend: RocksdbBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -132,7 +132,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for RocksdbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -154,7 +154,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for RocksdbBackend {
-    type Reader = BackendReader;
+    type Reader = RocksdbReader;
     type Writer = RocksdbWriter;
     type Lister = oio::HierarchyLister<RocksdbLister>;
     type Deleter = oio::OneShotDeleter<RocksdbDeleter>;
@@ -182,7 +182,7 @@ impl Access for RocksdbBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            RocksdbReader::new(self.clone(), path, args),
         ))
     }
 

@@ -38,12 +38,12 @@ pub struct IpmfsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct IpmfsReader {
     backend: IpmfsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl IpmfsReader {
     fn new(backend: IpmfsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -52,7 +52,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for IpmfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -78,7 +78,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for IpmfsBackend {
-    type Reader = BackendReader;
+    type Reader = IpmfsReader;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
@@ -133,7 +133,7 @@ impl Access for IpmfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            IpmfsReader::new(self.clone(), path, args),
         ))
     }
 

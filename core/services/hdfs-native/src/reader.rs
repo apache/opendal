@@ -24,18 +24,18 @@ use crate::error::parse_hdfs_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct HdfsNativeReader {
+pub struct HdfsNativeReadStream {
     read: usize,
     size: usize,
     stream: futures::stream::BoxStream<'static, Result<Bytes, HdfsError>>,
 }
 
-unsafe impl Sync for HdfsNativeReader {}
+unsafe impl Sync for HdfsNativeReadStream {}
 
-impl HdfsNativeReader {
+impl HdfsNativeReadStream {
     pub fn new(f: FileReader, offset: usize, size: usize) -> Self {
         let size = size.min(f.file_length() - offset);
-        HdfsNativeReader {
+        HdfsNativeReadStream {
             read: 0,
             size,
             stream: Box::pin(f.read_range_stream(offset, size)),
@@ -43,7 +43,7 @@ impl HdfsNativeReader {
     }
 }
 
-impl oio::ReadStream for HdfsNativeReader {
+impl oio::ReadStream for HdfsNativeReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size {
             return Ok(Buffer::new());

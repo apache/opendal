@@ -25,7 +25,7 @@ use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
 use super::lister::FsLister;
-use super::reader::FsReader;
+use super::reader::FsReadStream;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use opendal_core::raw::*;
@@ -184,12 +184,12 @@ pub struct FsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct FsReader {
     backend: FsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl FsReader {
     fn new(backend: FsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -198,13 +198,13 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for FsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, FsReader<tokio::fs::File>)> = async {
+        let result: Result<(RpRead, FsReadStream<tokio::fs::File>)> = async {
             let f = backend.core.fs_read(path, range).await?;
-            let r = FsReader::new(
+            let r = FsReadStream::new(
                 backend.core.clone(),
                 f,
                 range.size().unwrap_or(u64::MAX) as _,
@@ -217,7 +217,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for FsBackend {
-    type Reader = BackendReader;
+    type Reader = FsReader;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -238,10 +238,7 @@ impl Access for FsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), FsReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

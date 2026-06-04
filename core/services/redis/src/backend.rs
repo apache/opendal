@@ -308,12 +308,12 @@ impl RedisBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct RedisReader {
     backend: RedisBackend,
     path: String,
 }
 
-impl BackendReader {
+impl RedisReader {
     fn new(backend: RedisBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -322,7 +322,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for RedisReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -362,7 +362,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for RedisBackend {
-    type Reader = BackendReader;
+    type Reader = RedisReader;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
@@ -390,7 +390,7 @@ impl Access for RedisBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            RedisReader::new(self.clone(), path, args),
         ))
     }
 

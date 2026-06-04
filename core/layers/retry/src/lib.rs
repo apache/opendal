@@ -1019,23 +1019,23 @@ mod tests {
     }
 
     /// Reader returned by this backend.
-    pub struct BackendReader {
+    pub struct MockReader {
         backend: MockService,
     }
 
-    impl BackendReader {
+    impl MockReader {
         fn new(backend: MockService, _: &str, _: OpRead) -> Self {
             Self { backend }
         }
     }
 
-    impl oio::Read for BackendReader {
+    impl oio::Read for MockReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             let backend = &self.backend;
-            let result: Result<(RpRead, MockReader)> = async {
+            let result: Result<(RpRead, MockReadStream)> = async {
                 Ok((
                     RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                    MockReader {
+                    MockReadStream {
                         buf: Bytes::from("Hello, World!").into(),
                         range,
                         attempt: backend.attempt.clone(),
@@ -1048,7 +1048,7 @@ mod tests {
     }
 
     impl Access for MockService {
-        type Reader = BackendReader;
+        type Reader = MockReader;
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
@@ -1079,10 +1079,7 @@ mod tests {
         }
 
         async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::default(),
-                BackendReader::new(self.clone(), path, args),
-            ))
+            Ok((RpRead::default(), MockReader::new(self.clone(), path, args)))
         }
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -1121,13 +1118,13 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Default)]
-    struct MockReader {
+    struct MockReadStream {
         buf: Buffer,
         range: BytesRange,
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl oio::ReadStream for MockReader {
+    impl oio::ReadStream for MockReadStream {
         async fn read(&mut self) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;

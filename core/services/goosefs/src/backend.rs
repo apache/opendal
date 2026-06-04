@@ -25,7 +25,7 @@ use super::config::GoosefsConfig;
 use super::core::GoosefsCore;
 use super::deleter::GoosefsDeleter;
 use super::lister::GoosefsLister;
-use super::reader::GoosefsReader;
+use super::reader::GoosefsReadStream;
 use super::writer::GoosefsWriter;
 use super::writer::GoosefsWriters;
 use opendal_core::raw::*;
@@ -303,12 +303,12 @@ pub struct GoosefsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct GoosefsReader {
     backend: GoosefsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl GoosefsReader {
     fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -317,11 +317,11 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for GoosefsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, GoosefsReader)> = async {
+        let result: Result<(RpRead, GoosefsReadStream)> = async {
             let content_length = if range.offset() != 0 && range.size().is_none() {
                 let file_info = backend.core.get_status(path).await?;
                 Some(
@@ -333,7 +333,7 @@ impl oio::Read for BackendReader {
             } else {
                 None
             };
-            let reader = GoosefsReader::new(
+            let reader = GoosefsReadStream::new(
                 backend.core.clone(),
                 path.to_string(),
                 range,
@@ -347,7 +347,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for GoosefsBackend {
-    type Reader = BackendReader;
+    type Reader = GoosefsReader;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
@@ -369,7 +369,7 @@ impl Access for GoosefsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            GoosefsReader::new(self.clone(), path, args),
         ))
     }
 

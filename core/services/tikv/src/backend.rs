@@ -144,12 +144,12 @@ impl TikvBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct TikvReader {
     backend: TikvBackend,
     path: String,
 }
 
-impl BackendReader {
+impl TikvReader {
     fn new(backend: TikvBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -158,7 +158,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for TikvReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -178,7 +178,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for TikvBackend {
-    type Reader = BackendReader;
+    type Reader = TikvReader;
     type Writer = TikvWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
@@ -204,10 +204,7 @@ impl Access for TikvBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), TikvReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

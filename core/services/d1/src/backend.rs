@@ -223,12 +223,12 @@ impl D1Backend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct D1Reader {
     backend: D1Backend,
     path: String,
 }
 
-impl BackendReader {
+impl D1Reader {
     fn new(backend: D1Backend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -237,7 +237,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for D1Reader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -259,7 +259,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for D1Backend {
-    type Reader = BackendReader;
+    type Reader = D1Reader;
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
@@ -285,10 +285,7 @@ impl Access for D1Backend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), D1Reader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

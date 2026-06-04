@@ -189,13 +189,13 @@ pub struct LakefsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct LakefsReader {
     backend: LakefsBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl LakefsReader {
     fn new(backend: LakefsBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -205,7 +205,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for LakefsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -233,7 +233,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for LakefsBackend {
-    type Reader = BackendReader;
+    type Reader = LakefsReader;
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
@@ -271,7 +271,7 @@ impl Access for LakefsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            LakefsReader::new(self.clone(), path, args),
         ))
     }
 

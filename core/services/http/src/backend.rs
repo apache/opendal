@@ -170,13 +170,13 @@ pub struct HttpBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct HttpReader {
     backend: HttpBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl HttpReader {
     fn new(backend: HttpBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -186,7 +186,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for HttpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -214,7 +214,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for HttpBackend {
-    type Reader = BackendReader;
+    type Reader = HttpReader;
     type Writer = ();
     type Lister = ();
     type Deleter = ();
@@ -245,10 +245,7 @@ impl Access for HttpBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), HttpReader::new(self.clone(), path, args)))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

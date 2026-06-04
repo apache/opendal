@@ -25,7 +25,7 @@ use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
-use super::reader::HdfsReader;
+use super::reader::HdfsReadStream;
 use super::writer::HdfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -198,12 +198,12 @@ pub struct HdfsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct HdfsReader {
     backend: HdfsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl HdfsReader {
     fn new(backend: HdfsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -212,16 +212,16 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for HdfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HdfsReader<hdrs::AsyncFile>)> = async {
+        let result: Result<(RpRead, HdfsReadStream<hdrs::AsyncFile>)> = async {
             let f = backend.core.hdfs_read(path, range).await?;
 
             Ok((
                 RpRead::default(),
-                HdfsReader::new(f, range.size().unwrap_or(u64::MAX) as _),
+                HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _),
             ))
         }
         .await;
@@ -230,7 +230,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for HdfsBackend {
-    type Reader = BackendReader;
+    type Reader = HdfsReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -250,10 +250,7 @@ impl Access for HdfsBackend {
         Ok(RpStat::new(m))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), HdfsReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

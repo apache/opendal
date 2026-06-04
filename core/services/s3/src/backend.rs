@@ -1042,13 +1042,13 @@ pub struct S3Backend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct S3Reader {
     backend: S3Backend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl S3Reader {
     fn new(backend: S3Backend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -1058,7 +1058,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for S3Reader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -1085,7 +1085,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for S3Backend {
-    type Reader = BackendReader;
+    type Reader = S3Reader;
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
@@ -1120,10 +1120,7 @@ impl Access for S3Backend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), S3Reader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

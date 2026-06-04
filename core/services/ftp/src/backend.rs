@@ -33,7 +33,7 @@ use super::core::Manager;
 use super::deleter::FtpDeleter;
 use super::err::format_ftp_error;
 use super::lister::FtpLister;
-use super::reader::FtpReader;
+use super::reader::FtpReadStream;
 use super::writer::FtpWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -191,12 +191,12 @@ impl Debug for FtpBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct FtpReader {
     backend: FtpBackend,
     path: String,
 }
 
-impl BackendReader {
+impl FtpReader {
     fn new(backend: FtpBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -205,13 +205,13 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for FtpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, FtpReader)> = async {
+        let result: Result<(RpRead, FtpReadStream)> = async {
             let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
-            let reader = FtpReader::new(ftp_stream, path.to_string(), range).await?;
+            let reader = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
             Ok((RpRead::default(), reader))
         }
         .await;
@@ -220,7 +220,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for FtpBackend {
-    type Reader = BackendReader;
+    type Reader = FtpReader;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
@@ -273,10 +273,7 @@ impl Access for FtpBackend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), FtpReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

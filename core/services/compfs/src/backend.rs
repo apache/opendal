@@ -26,7 +26,7 @@ use super::config::CompfsConfig;
 use super::core::CompfsCore;
 use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
-use super::reader::CompfsReader;
+use super::reader::CompfsReadStream;
 use super::writer::CompfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -124,12 +124,12 @@ pub struct CompfsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct CompfsReader {
     backend: CompfsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl CompfsReader {
     fn new(backend: CompfsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -138,11 +138,11 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for CompfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, CompfsReader)> = async {
+        let result: Result<(RpRead, CompfsReadStream)> = async {
             let path = backend.core.prepare_path(path);
 
             let file = backend
@@ -156,7 +156,7 @@ impl oio::Read for BackendReader {
                 })
                 .await?;
 
-            let r = CompfsReader::new(backend.core.clone(), file, range);
+            let r = CompfsReadStream::new(backend.core.clone(), file, range);
             Ok((RpRead::default(), r))
         }
         .await;
@@ -165,7 +165,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for CompfsBackend {
-    type Reader = BackendReader;
+    type Reader = CompfsReader;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
@@ -262,10 +262,7 @@ impl Access for CompfsBackend {
         Ok(RpRename::default())
     }
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, op),
-        ))
+        Ok((RpRead::default(), CompfsReader::new(self.clone(), path, op)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -131,12 +131,12 @@ impl MiniMokaBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct MiniMokaReader {
     backend: MiniMokaBackend,
     path: String,
 }
 
-impl BackendReader {
+impl MiniMokaReader {
     fn new(backend: MiniMokaBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -145,7 +145,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for MiniMokaReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -189,7 +189,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for MiniMokaBackend {
-    type Reader = BackendReader;
+    type Reader = MiniMokaReader;
     type Writer = MiniMokaWriter;
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
@@ -249,7 +249,7 @@ impl Access for MiniMokaBackend {
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, op),
+            MiniMokaReader::new(self.clone(), path, op),
         ))
     }
 

@@ -83,12 +83,12 @@ pub struct CacacheBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct CacacheReader {
     backend: CacacheBackend,
     path: String,
 }
 
-impl BackendReader {
+impl CacacheReader {
     fn new(backend: CacacheBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -97,7 +97,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for CacacheReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -130,7 +130,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for CacacheBackend {
-    type Reader = BackendReader;
+    type Reader = CacacheReader;
     type Writer = CacacheWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
@@ -160,7 +160,7 @@ impl Access for CacacheBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            CacacheReader::new(self.clone(), path, args),
         ))
     }
 

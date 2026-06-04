@@ -33,7 +33,7 @@ use super::error::is_sftp_failure;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::lister::SftpLister;
-use super::reader::SftpReader;
+use super::reader::SftpReadStream;
 use super::utils::to_metadata;
 use super::writer::SftpWriter;
 use opendal_core::raw::*;
@@ -211,12 +211,12 @@ pub struct SftpBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct SftpReader {
     backend: SftpBackend,
     path: String,
 }
 
-impl BackendReader {
+impl SftpReader {
     fn new(backend: SftpBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -225,11 +225,11 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for SftpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, SftpReader)> = async {
+        let result: Result<(RpRead, SftpReadStream)> = async {
             let client = backend.core.connect().await?;
 
             let mut fs = client.fs();
@@ -248,7 +248,10 @@ impl oio::Read for BackendReader {
                     .map_err(new_std_io_error)?;
             }
 
-            Ok((RpRead::default(), SftpReader::new(client, f, range.size())))
+            Ok((
+                RpRead::default(),
+                SftpReadStream::new(client, f, range.size()),
+            ))
         }
         .await;
         result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
@@ -256,7 +259,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for SftpBackend {
-    type Reader = BackendReader;
+    type Reader = SftpReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -299,10 +302,7 @@ impl Access for SftpBackend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), SftpReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

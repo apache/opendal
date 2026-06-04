@@ -205,12 +205,12 @@ impl MongodbBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct MongodbReader {
     backend: MongodbBackend,
     path: String,
 }
 
-impl BackendReader {
+impl MongodbReader {
     fn new(backend: MongodbBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -219,7 +219,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for MongodbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -241,7 +241,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for MongodbBackend {
-    type Reader = BackendReader;
+    type Reader = MongodbReader;
     type Writer = MongodbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MongodbDeleter>;
@@ -269,7 +269,7 @@ impl Access for MongodbBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            MongodbReader::new(self.clone(), path, args),
         ))
     }
 

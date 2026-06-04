@@ -27,14 +27,14 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 #[derive(Debug)]
-pub struct CompfsReader {
+pub struct CompfsReadStream {
     core: Arc<CompfsCore>,
     file: compio::fs::File,
     offset: u64,
     end: Option<u64>,
 }
 
-impl CompfsReader {
+impl CompfsReadStream {
     pub(super) fn new(core: Arc<CompfsCore>, file: compio::fs::File, range: BytesRange) -> Self {
         Self {
             core,
@@ -45,7 +45,7 @@ impl CompfsReader {
     }
 }
 
-impl oio::ReadStream for CompfsReader {
+impl oio::ReadStream for CompfsReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         let pos = self.offset;
         if let Some(end) = self.end {

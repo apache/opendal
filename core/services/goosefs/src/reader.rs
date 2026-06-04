@@ -24,7 +24,7 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `GoosefsReader` implements [`oio::ReadStream`] on top of the goosefs-sdk
+/// `GoosefsReadStream` implements [`oio::ReadStream`] on top of the goosefs-sdk
 /// high-level streaming reader (`GoosefsFileReader`).
 ///
 /// # Streaming semantics
@@ -68,7 +68,7 @@ use opendal_core::*;
 /// rather than a stale SASL credential, and transparent mid-stream
 /// recovery would require replaying `bytes_read` bytes, which is
 /// more complexity than the failure mode warrants.
-pub struct GoosefsReader {
+pub struct GoosefsReadStream {
     core: Arc<GoosefsCore>,
     path: String,
     range: BytesRange,
@@ -82,14 +82,14 @@ pub struct GoosefsReader {
     done: bool,
 }
 
-impl GoosefsReader {
+impl GoosefsReadStream {
     pub fn new(
         core: Arc<GoosefsCore>,
         path: String,
         range: BytesRange,
         content_length: Option<u64>,
     ) -> Self {
-        GoosefsReader {
+        GoosefsReadStream {
             core,
             path,
             range,
@@ -136,7 +136,7 @@ impl GoosefsReader {
     }
 }
 
-impl oio::ReadStream for GoosefsReader {
+impl oio::ReadStream for GoosefsReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());

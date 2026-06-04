@@ -187,12 +187,12 @@ impl GridfsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct GridfsReader {
     backend: GridfsBackend,
     path: String,
 }
 
-impl BackendReader {
+impl GridfsReader {
     fn new(backend: GridfsBackend, path: &str, _: OpRead) -> Self {
         Self {
             backend,
@@ -201,7 +201,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for GridfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -223,7 +223,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for GridfsBackend {
-    type Reader = BackendReader;
+    type Reader = GridfsReader;
     type Writer = GridfsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<GridfsDeleter>;
@@ -251,7 +251,7 @@ impl Access for GridfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            GridfsReader::new(self.clone(), path, args),
         ))
     }
 

@@ -271,13 +271,13 @@ pub struct ObsBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct ObsReader {
     backend: ObsBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl ObsReader {
     fn new(backend: ObsBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -287,7 +287,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for ObsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -315,7 +315,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for ObsBackend {
-    type Reader = BackendReader;
+    type Reader = ObsReader;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
@@ -365,10 +365,7 @@ impl Access for ObsBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
-        ))
+        Ok((RpRead::default(), ObsReader::new(self.clone(), path, args)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

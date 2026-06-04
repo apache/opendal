@@ -465,13 +465,13 @@ pub struct AzblobBackend {
 }
 
 /// Reader returned by this backend.
-pub struct BackendReader {
+pub struct AzblobReader {
     backend: AzblobBackend,
     path: String,
     args: OpRead,
 }
 
-impl BackendReader {
+impl AzblobReader {
     fn new(backend: AzblobBackend, path: &str, args: OpRead) -> Self {
         Self {
             backend,
@@ -481,7 +481,7 @@ impl BackendReader {
     }
 }
 
-impl oio::Read for BackendReader {
+impl oio::Read for AzblobReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -508,7 +508,7 @@ impl oio::Read for BackendReader {
 }
 
 impl Access for AzblobBackend {
-    type Reader = BackendReader;
+    type Reader = AzblobReader;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
@@ -544,7 +544,7 @@ impl Access for AzblobBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            BackendReader::new(self.clone(), path, args),
+            AzblobReader::new(self.clone(), path, args),
         ))
     }
 

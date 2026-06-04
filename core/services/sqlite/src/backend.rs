@@ -241,10 +241,7 @@ impl oio::Read for SqliteReader {
             } else {
                 // Range read - use GETRANGE
                 let start = range.offset() as isize;
-                let limit = match range.size() {
-                    Some(size) => size as isize,
-                    None => -1, // Sqlite uses -1 for end of string
-                };
+                let limit = range.size().map(|size| size as isize);
 
                 match backend.core.get_range(&p, start, limit).await? {
                     Some((bs, content_length)) => (bs, content_length),
@@ -347,6 +344,9 @@ impl Access for SqliteBackend {
 #[cfg(test)]
 mod test {
     use super::*;
+    use opendal_core::raw::oio::Read as _;
+    use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::raw::oio::Write as _;
     use sqlx::SqlitePool;
 
     async fn build_client() -> OnceCell<SqlitePool> {
@@ -390,5 +390,32 @@ mod test {
 
         assert_eq!(accessor.root, "/test/");
         assert_eq!(accessor.info.root(), Arc::from("/test/"));
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_range_from_offset_reads_to_eof() {
+        let core = SqliteCore {
+            pool: build_client().await,
+            config: Default::default(),
+            table: "test".to_string(),
+            key_field: "key".to_string(),
+            value_field: "value".to_string(),
+        };
+        let pool = core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let accessor = SqliteBackend::new(core);
+        let (_, mut writer) = accessor.write("hello", OpWrite::default()).await.unwrap();
+        writer.write(Buffer::from("hello world")).await.unwrap();
+        writer.close().await.unwrap();
+
+        let (_, reader) = accessor.read("hello", OpRead::default()).await.unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(6_u64..)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"world");
     }
 }

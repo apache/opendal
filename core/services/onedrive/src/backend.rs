@@ -59,7 +59,7 @@ impl oio::Read for OnedriveReader {
         let result: Result<(RpRead, HttpBody)> = async {
             let response = backend
                 .core
-                .onedrive_get_content(path, &args, range)
+                .onedrive_get_content(path, range, &args)
                 .await?;
             match response.status() {
                 StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((

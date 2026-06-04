@@ -58,11 +58,69 @@ impl<A: Access> FullReader<A> {
         }
     }
 
+    fn cache_key(&self) -> FoyerKey {
+        FoyerKey {
+            path: self.path.clone(),
+            version: self.args.version().map(|v| v.to_string()),
+        }
+    }
+
+    fn full_object_rp(buffer: &Buffer) -> RpRead {
+        RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as _))
+    }
+
+    fn slice_full_object(buffer: &Buffer, range: BytesRange) -> Buffer {
+        buffer.slice(range.to_range_as_usize())
+    }
+
+    fn is_deleted(&self, key: &FoyerKey) -> bool {
+        self.inner
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .contains(key)
+    }
+
+    async fn get_cached_full_object(&self) -> Result<Option<Buffer>> {
+        let key = self.cache_key();
+
+        if self.is_deleted(&key) {
+            return Ok(None);
+        }
+
+        let entry = self.inner.cache.get(&key).await.map_err(extract_err)?;
+        Ok(entry.map(|entry| entry.0.clone()))
+    }
+
+    async fn fallback_open(
+        &self,
+        range: BytesRange,
+    ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, reader) = self
+            .inner
+            .accessor
+            .read(&self.path, self.args.clone())
+            .await?;
+        let (rp_open, stream) = reader.open(range).await?;
+        let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
+        Ok((rp, stream))
+    }
+
+    async fn fallback_fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        let (rp, reader) = self
+            .inner
+            .accessor
+            .read(&self.path, self.args.clone())
+            .await?;
+        let (rp_fetch, buffers) = reader.fetch(ranges).await?;
+        let rp = rp_fetch.into_metadata().map(RpRead::new).unwrap_or(rp);
+        Ok((rp, buffers))
+    }
+
     /// Read data from cache or underlying storage.
     /// Caches the ENTIRE object, then slices to requested range.
     async fn read_range(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         let path_str = self.path.clone();
-        let version = self.args.version().map(|v| v.to_string());
         let original_args = self.args.clone();
 
         // Extract range bounds before async block to avoid lifetime issues
@@ -79,18 +137,9 @@ impl<A: Access> FullReader<A> {
         // Please note that we only cache the object if it's smaller than size_limit. And we'll
         // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
         // range.
-        let key = FoyerKey {
-            path: path_str.clone(),
-            version: version.clone(),
-        };
+        let key = self.cache_key();
 
-        if self
-            .inner
-            .deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .contains(&key)
-        {
+        if self.is_deleted(&key) {
             let (rp, reader) = self.inner.accessor.read(&self.path, original_args).await?;
             let (rp_open, buffer) = reader.read(range).await?;
             let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
@@ -141,9 +190,7 @@ impl<A: Access> FullReader<A> {
             Ok(entry) => {
                 let end = range_end.unwrap_or(entry.len() as u64);
                 let buffer = entry.slice(range_start as usize..end as usize);
-                let rp = RpRead::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(entry.len() as _),
-                );
+                let rp = Self::full_object_rp(&entry);
                 Ok((rp, buffer))
             }
             Err(e) => match e.downcast_ref::<FetchError>() {
@@ -164,11 +211,31 @@ impl<A: Access> FullReader<A> {
 
 impl<A: Access> oio::Read for FullReader<A> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let (rp, buffer) = self.read_range(range).await?;
-        Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
+        match self.get_cached_full_object().await? {
+            Some(buffer) => {
+                let rp = Self::full_object_rp(&buffer);
+                let buffer = Self::slice_full_object(&buffer, range);
+                Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
+            }
+            None => self.fallback_open(range).await,
+        }
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.read_range(range).await
+    }
+
+    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        match self.get_cached_full_object().await? {
+            Some(buffer) => {
+                let rp = Self::full_object_rp(&buffer);
+                let buffers = ranges
+                    .into_iter()
+                    .map(|range| Self::slice_full_object(&buffer, range))
+                    .collect();
+                Ok((rp, buffers))
+            }
+            None => self.fallback_fetch(ranges).await,
+        }
     }
 }

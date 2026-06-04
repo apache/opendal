@@ -191,7 +191,7 @@ impl oio::Read for HdfsNativeReader {
             let (f, offset, size) = backend.core.hdfs_read(path, range).await?;
             let content_length = f.file_length() as u64;
 
-            let r = HdfsNativeReadStream::new(f, offset as _, size as _);
+            let r = HdfsNativeReadStream::new(f, offset, size);
 
             Ok((
                 RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),

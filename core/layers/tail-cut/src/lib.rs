@@ -501,6 +501,14 @@ impl<R> TailCutWrapper<R> {
         Some(deadline.clamp(self.config.min_deadline, self.config.max_deadline))
     }
 
+    fn aggregate_fetch_size(ranges: &[BytesRange]) -> Option<u64> {
+        let mut size = 0u64;
+        for range in ranges {
+            size = size.checked_add(range.size()?)?;
+        }
+        Some(size)
+    }
+
     #[inline]
     async fn with_io_deadline<F, T>(
         deadline: Option<Duration>,
@@ -594,9 +602,8 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
     }
 
     async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let size = ranges.iter().filter_map(BytesRange::size).sum::<u64>();
-        let size = Some(size);
-        let deadline = self.calculate_deadline(Operation::Read);
+        let size = Self::aggregate_fetch_size(&ranges);
+        let deadline = self.calculate_deadline_for(Operation::Read, size);
         Self::with_io_deadline(
             deadline,
             self.config.percentile,

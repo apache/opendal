@@ -34,7 +34,8 @@ unsafe impl Sync for HdfsNativeReadStream {}
 
 impl HdfsNativeReadStream {
     pub fn new(f: FileReader, offset: usize, size: usize) -> Self {
-        let size = size.min(f.file_length() - offset);
+        let offset = offset.min(f.file_length());
+        let size = size.min(f.file_length().saturating_sub(offset));
         HdfsNativeReadStream {
             read: 0,
             size,

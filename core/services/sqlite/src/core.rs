@@ -64,22 +64,34 @@ impl SqliteCore {
         &self,
         path: &str,
         start: isize,
-        limit: isize,
+        limit: Option<isize>,
     ) -> Result<Option<(Buffer, u64)>> {
         let pool = self.get_client().await?;
-        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(&format!(
-            "SELECT SUBSTR(`{}`, {}, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
-            self.value_field,
-            start + 1,
-            limit,
-            self.value_field,
-            self.table,
-            self.key_field
-        ))
-        .bind(path)
-        .fetch_optional(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
+        let query = match limit {
+            Some(limit) => format!(
+                "SELECT SUBSTR(`{}`, {}, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                self.value_field,
+                start + 1,
+                limit,
+                self.value_field,
+                self.table,
+                self.key_field
+            ),
+            None => format!(
+                "SELECT SUBSTR(`{}`, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                self.value_field,
+                start + 1,
+                self.value_field,
+                self.table,
+                self.key_field
+            ),
+        };
+
+        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(&query)
+            .bind(path)
+            .fetch_optional(pool)
+            .await
+            .map_err(parse_sqlite_error)?;
 
         Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
     }

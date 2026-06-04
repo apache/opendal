@@ -576,59 +576,72 @@ impl<R, I> RetryReadStream<R, I> {
             builder,
         }
     }
-
-    async fn reopen(&mut self) -> Result<()>
-    where
-        R: oio::Read,
-        I: RetryInterceptor,
-    {
-        use backon::Retryable;
-
-        self.range.advance(self.read);
-        self.read = 0;
-
-        let mut attempt: u32 = 0;
-        let (_, stream) = { || self.reader.open(self.range) }
-            .retry(self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                attempt += 1;
-                self.notify.intercept(RetryEvent {
-                    op: Operation::Read,
-                    err,
-                    retry_after: dur,
-                    attempt,
-                })
-            })
-            .await
-            .map_err(|e| e.set_persistent())?;
-        self.stream = Some(stream);
-        Ok(())
-    }
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
-        loop {
-            let Some(mut stream) = self.stream.take() else {
-                self.reopen().await?;
-                continue;
-            };
+        use backon::RetryableWithContext;
 
-            match stream.read().await {
-                Ok(buf) => {
-                    if !buf.is_empty() {
-                        self.read += buf.len() as u64;
-                    }
-                    self.stream = Some(stream);
-                    return Ok(buf);
+        let reader = self.reader.clone();
+        let stream = self.stream.take();
+        let range = self.range;
+        let read = self.read;
+        let mut attempt: u32 = 0;
+
+        let ((stream, range, read), res) = {
+            |(stream, mut range, mut read): (
+                Option<Box<dyn oio::ReadStreamDyn>>,
+                BytesRange,
+                u64,
+            )| {
+                let reader = reader.clone();
+                async move {
+                    let mut stream = match stream {
+                        Some(stream) => stream,
+                        None => {
+                            range.advance(read);
+                            read = 0;
+
+                            match reader.open(range).await {
+                                Ok((_, stream)) => stream,
+                                Err(err) => return ((None, range, read), Err(err)),
+                            }
+                        }
+                    };
+
+                    let res = match stream.read().await {
+                        Ok(buf) => {
+                            if !buf.is_empty() {
+                                read += buf.len() as u64;
+                            }
+                            (Some(stream), Ok(buf))
+                        }
+                        Err(err) => (None, Err(err)),
+                    };
+
+                    ((res.0, range, read), res.1)
                 }
-                Err(err) if err.is_temporary() => {
-                    self.reopen().await?;
-                }
-                Err(err) => return Err(err.set_persistent()),
             }
         }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context((stream, range, read))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Read,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.stream = stream;
+        self.range = range;
+        self.read = read;
+
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -1408,6 +1421,49 @@ mod tests {
         let r = op.reader("retryable_error").await?;
         let mut content = Vec::new();
         let _ = r.read_into(&mut content, ..).await?;
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Read, 1),
+                (Operation::Read, 2),
+                (Operation::Read, 1),
+            ],
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_read_stream_error_enters_retry_budget() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let backend = MockService::default();
+        let reader = RetryReader::new(
+            MockReader::new(backend.clone(), "retryable_error", OpRead::default()),
+            Arc::new(recorder.clone()),
+            ExponentialBuilder::default()
+                .with_min_delay(Duration::from_millis(1))
+                .with_max_delay(Duration::from_millis(1)),
+        );
+
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::default()).await?;
+        let buf = oio::ReadStream::read_all(&mut stream).await?;
+
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"Hello, World!"));
+        assert_eq!(*backend.attempt.lock().unwrap(), 5);
 
         let events = recorder.events.lock().unwrap().clone();
         assert_eq!(

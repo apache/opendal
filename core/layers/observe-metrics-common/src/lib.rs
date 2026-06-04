@@ -716,7 +716,7 @@ impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
 
 impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     type Inner = A;
-    type Reader = MetricsWrapper<A::Reader, I>;
+    type Reader = MetricsReader<A::Reader, I>;
     type Writer = MetricsWrapper<A::Writer, I>;
     type Lister = MetricsWrapper<A::Lister, I>;
     type Deleter = MetricsWrapper<A::Deleter, I>;
@@ -769,14 +769,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         match self.inner.read(path, args).await {
             Ok((rp, reader)) => {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationTtfbSeconds(start.elapsed()),
-                );
-                guard.defuse();
+                guard.complete();
                 Ok((
                     rp,
-                    MetricsWrapper::new(reader, self.interceptor.clone(), labels, start),
+                    MetricsReader::new(reader, self.interceptor.clone(), labels),
                 ))
             }
             Err(err) => {
@@ -1007,6 +1003,98 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 }
 
 #[doc(hidden)]
+pub struct MetricsReader<R, I: MetricsIntercept> {
+    inner: R,
+    interceptor: I,
+    labels: MetricLabels,
+}
+
+impl<R, I: MetricsIntercept> MetricsReader<R, I> {
+    fn new(inner: R, interceptor: I, labels: MetricLabels) -> Self {
+        Self {
+            inner,
+            interceptor,
+            labels,
+        }
+    }
+}
+
+impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsReader<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let labels = self.labels.clone();
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        match self.inner.open(range).await {
+            Ok((rp, stream)) => {
+                self.interceptor.observe(
+                    labels.clone(),
+                    MetricValue::OperationTtfbSeconds(start.elapsed()),
+                );
+                guard.defuse();
+                Ok((
+                    rp,
+                    Box::new(MetricsWrapper::new(
+                        stream,
+                        self.interceptor.clone(),
+                        labels,
+                        start,
+                    )) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let labels = self.labels.clone();
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut metrics = MetricsWrapper::new((), self.interceptor.clone(), labels, start);
+
+        let result = self.inner.read(range).await.inspect_err(|err| {
+            metrics.record_error(err);
+        });
+        if let Ok((_, buffer)) = &result {
+            metrics.size = buffer.len() as u64;
+            metrics.completed = true;
+        }
+        result
+    }
+
+    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        let labels = self.labels.clone();
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut metrics = MetricsWrapper::new((), self.interceptor.clone(), labels, start);
+
+        let result = self.inner.fetch(ranges).await.inspect_err(|err| {
+            metrics.record_error(err);
+        });
+        if let Ok((_, buffers)) = &result {
+            metrics.size = buffers.iter().map(|v| v.len() as u64).sum();
+            metrics.completed = true;
+        }
+        result
+    }
+}
+
+#[doc(hidden)]
 pub struct MetricsWrapper<R, I: MetricsIntercept> {
     inner: R,
     interceptor: I,
@@ -1092,55 +1180,6 @@ impl<R: oio::ReadStream, I: MetricsIntercept> oio::ReadStream for MetricsWrapper
                 self.size += bs.len() as u64;
             })
             .inspect_err(|err| self.record_error(err))
-    }
-}
-
-impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let (rp, stream) = self.inner.open(range).await?;
-        Ok((
-            rp,
-            Box::new(MetricsWrapper::new(
-                stream,
-                self.interceptor.clone(),
-                self.labels.clone(),
-                Instant::now(),
-            )) as Box<dyn oio::ReadStreamDyn>,
-        ))
-    }
-
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let mut metrics = MetricsWrapper::new(
-            &self.inner,
-            self.interceptor.clone(),
-            self.labels.clone(),
-            Instant::now(),
-        );
-        let result = self.inner.read(range).await.inspect_err(|err| {
-            metrics.record_error(err);
-        });
-        if let Ok((_, buffer)) = &result {
-            metrics.size = buffer.len() as u64;
-            metrics.completed = true;
-        }
-        result
-    }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let mut metrics = MetricsWrapper::new(
-            &self.inner,
-            self.interceptor.clone(),
-            self.labels.clone(),
-            Instant::now(),
-        );
-        let result = self.inner.fetch(ranges).await.inspect_err(|err| {
-            metrics.record_error(err);
-        });
-        if let Ok((_, buffers)) = &result {
-            metrics.size = buffers.iter().map(|v| v.len() as u64).sum();
-            metrics.completed = true;
-        }
-        result
     }
 }
 
@@ -1251,6 +1290,7 @@ impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Mutex;
     use std::time::Instant;
 
@@ -1408,6 +1448,94 @@ mod tests {
         *req.uri_mut() = "https://example.com/test".parse().unwrap();
         req.extensions_mut().insert(Operation::Read);
         req
+    }
+
+    struct MockRawReader {
+        open_result: Mutex<Option<Result<Vec<Result<Buffer>>>>>,
+        read_result: Mutex<Option<Result<Buffer>>>,
+        fetch_result: Mutex<Option<Result<Vec<Buffer>>>>,
+    }
+
+    impl MockRawReader {
+        fn with_open(chunks: Vec<Result<Buffer>>) -> Self {
+            Self {
+                open_result: Mutex::new(Some(Ok(chunks))),
+                read_result: Mutex::new(None),
+                fetch_result: Mutex::new(None),
+            }
+        }
+
+        fn with_read(buffer: Buffer) -> Self {
+            Self {
+                open_result: Mutex::new(None),
+                read_result: Mutex::new(Some(Ok(buffer))),
+                fetch_result: Mutex::new(None),
+            }
+        }
+
+        fn with_fetch(buffers: Vec<Buffer>) -> Self {
+            Self {
+                open_result: Mutex::new(None),
+                read_result: Mutex::new(None),
+                fetch_result: Mutex::new(Some(Ok(buffers))),
+            }
+        }
+    }
+
+    impl oio::Read for MockRawReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            match self
+                .open_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "open not configured")))
+            {
+                Ok(chunks) => Ok((
+                    RpRead::default(),
+                    Box::new(MockReadStream {
+                        chunks: chunks.into_iter().collect(),
+                    }) as Box<dyn oio::ReadStreamDyn>,
+                )),
+                Err(err) => Err(err),
+            }
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            match self
+                .read_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "read not configured")))
+            {
+                Ok(buffer) => Ok((RpRead::default(), buffer)),
+                Err(err) => Err(err),
+            }
+        }
+
+        async fn fetch(&self, _: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+            match self
+                .fetch_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "fetch not configured")))
+            {
+                Ok(buffers) => Ok((RpRead::default(), buffers)),
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    struct MockReadStream {
+        chunks: VecDeque<Result<Buffer>>,
+    }
+
+    impl oio::ReadStream for MockReadStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            self.chunks.pop_front().unwrap_or_else(|| Ok(Buffer::new()))
+        }
     }
 
     #[tokio::test]
@@ -1665,6 +1793,96 @@ mod tests {
         drop(guard);
 
         assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[test]
+    fn test_reader_drop_records_no_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+
+        let reader = MetricsReader::new(
+            MockRawReader::with_read(Buffer::new()),
+            mock.clone(),
+            labels,
+        );
+        drop(reader);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), None);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reader_open_stream_records_operation_metrics_on_stream_drop() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        let reader = MetricsReader::new(
+            MockRawReader::with_open(vec![Ok(Buffer::from("hello"))]),
+            mock.clone(),
+            labels,
+        );
+
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::from(0_u64..5))
+            .await
+            .unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        let chunk = oio::ReadStreamDyn::read_dyn(&mut *stream).await.unwrap();
+        assert_eq!(chunk.len(), 5);
+        let chunk = oio::ReadStreamDyn::read_dyn(&mut *stream).await.unwrap();
+        assert!(chunk.is_empty());
+        drop(stream);
+        drop(reader);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert!(mock.has_metric("opendal_operation_ttfb_seconds"));
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(5));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_records_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        let reader = MetricsReader::new(
+            MockRawReader::with_read(Buffer::from("hello")),
+            mock.clone(),
+            labels,
+        );
+
+        let (_, buffer) = oio::Read::read(&reader, BytesRange::from(0_u64..5))
+            .await
+            .unwrap();
+        drop(reader);
+
+        assert_eq!(buffer.len(), 5);
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(5));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reader_fetch_records_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        let reader = MetricsReader::new(
+            MockRawReader::with_fetch(vec![Buffer::from("hello"), Buffer::from(" world")]),
+            mock.clone(),
+            labels,
+        );
+
+        let (_, buffers) = oio::Read::fetch(
+            &reader,
+            vec![BytesRange::from(0_u64..5), BytesRange::from(5_u64..11)],
+        )
+        .await
+        .unwrap();
+        drop(reader);
+
+        assert_eq!(buffers.len(), 2);
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(11));
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
     }
 

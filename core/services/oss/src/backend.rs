@@ -663,7 +663,7 @@ impl oio::Read for OssReader {
         let path = self.path.as_str();
         let args = self.args.clone();
         let result: Result<(RpRead, HttpBody)> = async {
-            let resp = backend.core.oss_get_object(path, &args, range).await?;
+            let resp = backend.core.oss_get_object(path, range, &args).await?;
 
             let status = resp.status();
 
@@ -785,7 +785,7 @@ impl Access for OssBackend {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
             PresignOperation::Read(range, v) => {
-                self.core.oss_get_object_request(path, true, v, *range)
+                self.core.oss_get_object_request(path, true, *range, v)
             }
             PresignOperation::Write(v) => {
                 self.core

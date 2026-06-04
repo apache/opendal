@@ -253,11 +253,18 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 mod tests {
     use foyer::{
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
-        FsDeviceBuilder, HybridCacheBuilder, RecoverMode,
+        FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::{Operator, services::Memory};
+    use opendal_core::raw::Access;
+    use opendal_core::raw::Layer as _;
+    use opendal_core::raw::LayeredAccess;
+    use opendal_core::raw::oio::Read as _;
+    use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::{Buffer, Operator, services::Memory};
     use size::consts::MiB;
     use std::io::Cursor;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
     use crate::error::extract_err;
@@ -269,6 +276,207 @@ mod tests {
     fn value(i: u8) -> Vec<u8> {
         // ~ 64KiB with metadata
         vec![i; 63 * 1024]
+    }
+
+    async fn memory_cache() -> HybridCache<FoyerKey, FoyerValue> {
+        HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage()
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[derive(Debug)]
+    struct MockReadState {
+        data: Buffer,
+        stat_calls: AtomicUsize,
+        open_calls: AtomicUsize,
+        read_calls: AtomicUsize,
+        fetch_calls: AtomicUsize,
+    }
+
+    impl MockReadState {
+        fn new(data: Buffer) -> Self {
+            Self {
+                data,
+                stat_calls: AtomicUsize::new(0),
+                open_calls: AtomicUsize::new(0),
+                read_calls: AtomicUsize::new(0),
+                fetch_calls: AtomicUsize::new(0),
+            }
+        }
+
+        fn metadata(&self) -> Metadata {
+            Metadata::new(EntryMode::FILE).with_content_length(self.data.len() as _)
+        }
+
+        fn rp_read(&self) -> RpRead {
+            RpRead::new(self.metadata())
+        }
+
+        fn read_range(&self, range: BytesRange) -> Buffer {
+            self.data.slice(range.to_range_as_usize())
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockReadAccessor {
+        state: Arc<MockReadState>,
+    }
+
+    impl MockReadAccessor {
+        fn new(data: impl Into<Buffer>) -> Self {
+            Self {
+                state: Arc::new(MockReadState::new(data.into())),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockReadReader {
+        state: Arc<MockReadState>,
+    }
+
+    impl oio::Read for MockReadReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.state.open_calls.fetch_add(1, Ordering::Relaxed);
+            let buffer = self.state.read_range(range);
+            Ok((
+                self.state.rp_read(),
+                Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.state.read_calls.fetch_add(1, Ordering::Relaxed);
+            if range.size().is_none() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "mock reader requires a bounded read range",
+                ));
+            }
+
+            Ok((self.state.rp_read(), self.state.read_range(range)))
+        }
+
+        async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+            self.state.fetch_calls.fetch_add(1, Ordering::Relaxed);
+            let buffers = ranges
+                .into_iter()
+                .map(|range| self.state.read_range(range))
+                .collect();
+            Ok((self.state.rp_read(), buffers))
+        }
+    }
+
+    impl Access for MockReadAccessor {
+        type Reader = MockReadReader;
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let am = AccessorInfo::default();
+            am.set_scheme("mock").set_native_capability(Capability {
+                read: true,
+                stat: true,
+                ..Default::default()
+            });
+
+            am.into()
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(RpStat::new(self.state.metadata()))
+        }
+
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+            Ok((
+                self.state.rp_read(),
+                MockReadReader {
+                    state: self.state.clone(),
+                },
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_open_fallback_preserves_stream() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..1)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"0123456789");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_fetch_fallback_preserves_inner_fetch() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..1)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, buffers) = reader
+            .fetch(vec![BytesRange::from(0_u64..2), BytesRange::from(4_u64..7)])
+            .await
+            .unwrap();
+
+        assert_eq!(buffers[0].to_vec(), b"01");
+        assert_eq!(buffers[1].to_vec(), b"456");
+        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_fetch_cache_hit_slices_full_object() {
+        let cache = memory_cache().await;
+        cache.insert(
+            FoyerKey {
+                path: "test".to_string(),
+                version: None,
+            },
+            FoyerValue(Buffer::from("0123456789")),
+        );
+        let accessor = FoyerLayer::new(cache).layer(MockReadAccessor::new("abcdefghij"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, buffers) = reader
+            .fetch(vec![BytesRange::from(0_u64..2), BytesRange::from(4_u64..7)])
+            .await
+            .unwrap();
+
+        assert_eq!(buffers[0].to_vec(), b"01");
+        assert_eq!(buffers[1].to_vec(), b"456");
+        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]

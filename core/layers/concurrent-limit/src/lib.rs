@@ -245,7 +245,7 @@ where
     S::Permit: Unpin,
 {
     type Inner = A;
-    type Reader = ConcurrentLimitWrapper<A::Reader, S::Permit>;
+    type Reader = ConcurrentLimitReader<A::Reader, S>;
     type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
     type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
     type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
@@ -262,12 +262,10 @@ where
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let permit = self.semaphore.acquire().await;
-
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
+            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, self.semaphore.clone())))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -322,6 +320,42 @@ where
             .list(path, args)
             .await
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+    }
+}
+
+#[doc(hidden)]
+pub struct ConcurrentLimitReader<R, S> {
+    inner: R,
+    semaphore: S,
+}
+
+impl<R, S> ConcurrentLimitReader<R, S> {
+    fn new(inner: R, semaphore: S) -> Self {
+        Self { inner, semaphore }
+    }
+}
+
+impl<R: oio::Read, S: ConcurrentLimitSemaphore> oio::Read for ConcurrentLimitReader<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let permit = self.semaphore.acquire().await;
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(ConcurrentLimitWrapper::new(stream, permit)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.read(range).await
+    }
+
+    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.fetch(ranges).await
     }
 }
 

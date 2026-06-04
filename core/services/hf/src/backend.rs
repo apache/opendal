@@ -257,21 +257,33 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
-impl oio::RangeRead for HfBackend {
-    type RangeReader = HfReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: HfBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        HfReader::try_new(&self.core, path, range).await
+impl BackendReader {
+    fn new(backend: HfBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HfReader)> =
+            async { HfReader::try_new(&backend.core, path, range).await }.await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for HfBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
@@ -298,7 +310,7 @@ impl Access for HfBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

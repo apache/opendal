@@ -143,28 +143,42 @@ impl TikvBackend {
     }
 }
 
-impl oio::RangeRead for TikvBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: TikvBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
-        };
-        let content = bs.slice(range.to_range_as_usize());
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((RpRead::new(metadata), content))
+impl BackendReader {
+    fn new(backend: TikvBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, Buffer)> = async {
+            let p = build_abs_path(&backend.root, path);
+            let bs = match backend.core.get(&p).await? {
+                Some(bs) => bs,
+                None => return Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
+            };
+            let content = bs.slice(range.to_range_as_usize());
+            let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+            Ok((RpRead::new(metadata), content))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for TikvBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = TikvWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
@@ -192,7 +206,7 @@ impl Access for TikvBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

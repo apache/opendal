@@ -82,40 +82,55 @@ pub struct CacacheBackend {
     info: Arc<AccessorInfo>,
 }
 
-impl oio::RangeRead for CacacheBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: CacacheBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let data = self.core.get(path).await?;
-
-        match data {
-            Some(bytes) => {
-                let content_length = bytes.len() as u64;
-                let buffer = if range.is_full() {
-                    Buffer::from(bytes)
-                } else {
-                    let start = range.offset() as usize;
-                    let end = match range.size() {
-                        Some(size) => (range.offset() + size) as usize,
-                        None => bytes.len(),
-                    };
-                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
-                };
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-                Ok((RpRead::new(metadata), buffer))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+impl BackendReader {
+    fn new(backend: CacacheBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, Buffer)> = async {
+            let data = backend.core.get(path).await?;
+
+            match data {
+                Some(bytes) => {
+                    let content_length = bytes.len() as u64;
+                    let buffer = if range.is_full() {
+                        Buffer::from(bytes)
+                    } else {
+                        let start = range.offset() as usize;
+                        let end = match range.size() {
+                            Some(size) => (range.offset() + size) as usize,
+                            None => bytes.len(),
+                        };
+                        Buffer::from(bytes.slice(start..end.min(bytes.len())))
+                    };
+                    let metadata =
+                        Metadata::new(EntryMode::FILE).with_content_length(content_length);
+                    Ok((RpRead::new(metadata), buffer))
+                }
+                None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for CacacheBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = CacacheWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
@@ -145,7 +160,7 @@ impl Access for CacacheBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

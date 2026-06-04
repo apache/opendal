@@ -178,37 +178,51 @@ pub struct PcloudBackend {
     core: Arc<PcloudCore>,
 }
 
-impl oio::RangeRead for PcloudBackend {
-    type RangeReader = HttpBody;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: PcloudBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let link = self.core.get_file_link(path).await?;
-
-        let resp = self.core.download(&link, range).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
+impl BackendReader {
+    fn new(backend: PcloudBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HttpBody)> = async {
+            let link = backend.core.get_file_link(path).await?;
+
+            let resp = backend.core.download(&link, range).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                    RpRead::new(parse_into_metadata(path, resp.headers())?),
+                    resp.into_body(),
+                )),
+                _ => {
+                    let (part, mut body) = resp.into_parts();
+                    let buf = body.to_buffer().await?;
+                    Err(parse_error(Response::from_parts(part, buf)))
+                }
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for PcloudBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
@@ -254,7 +268,7 @@ impl Access for PcloudBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

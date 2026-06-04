@@ -183,23 +183,41 @@ pub struct FsBackend {
     core: Arc<FsCore>,
 }
 
-impl oio::RangeRead for FsBackend {
-    type RangeReader = FsReader<tokio::fs::File>;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: FsBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let f = self.core.fs_read(path, range).await?;
-        let r = FsReader::new(self.core.clone(), f, range.size().unwrap_or(u64::MAX) as _);
-        Ok((RpRead::default(), r))
+impl BackendReader {
+    fn new(backend: FsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, FsReader<tokio::fs::File>)> = async {
+            let f = backend.core.fs_read(path, range).await?;
+            let r = FsReader::new(
+                backend.core.clone(),
+                f,
+                range.size().unwrap_or(u64::MAX) as _,
+            );
+            Ok((RpRead::default(), r))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for FsBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -222,7 +240,7 @@ impl Access for FsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

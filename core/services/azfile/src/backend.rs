@@ -271,34 +271,48 @@ pub struct AzfileBackend {
     core: Arc<AzfileCore>,
 }
 
-impl oio::RangeRead for AzfileBackend {
-    type RangeReader = HttpBody;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: AzfileBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let resp = self.core.azfile_read(path, range).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
+impl BackendReader {
+    fn new(backend: AzfileBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HttpBody)> = async {
+            let resp = backend.core.azfile_read(path, range).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                    RpRead::new(parse_into_metadata(path, resp.headers())?),
+                    resp.into_body(),
+                )),
+                _ => {
+                    let (part, mut body) = resp.into_parts();
+                    let buf = body.to_buffer().await?;
+                    Err(parse_error(Response::from_parts(part, buf)))
+                }
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzfileBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
@@ -360,7 +374,7 @@ impl Access for AzfileBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

@@ -190,112 +190,129 @@ pub struct CloudflareKvBackend {
     core: Arc<CloudflareKvCore>,
 }
 
-impl oio::RangeRead for CloudflareKvBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: CloudflareKvBackend,
+    path: String,
+    args: OpRead,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let path = build_abs_path(&self.core.info.root(), path);
-        let resp = self.core.get(&path).await?;
-
-        let status = resp.status();
-
-        if status != StatusCode::OK {
-            return Err(parse_error(resp));
+impl BackendReader {
+    fn new(backend: CloudflareKvBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
         }
+    }
+}
 
-        let resp_body = resp.into_body();
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let result: Result<(RpRead, Buffer)> = async {
+            let path = build_abs_path(&backend.core.info.root(), path);
+            let resp = backend.core.get(&path).await?;
 
-        if args.if_match().is_some()
-            || args.if_none_match().is_some()
-            || args.if_modified_since().is_some()
-            || args.if_unmodified_since().is_some()
-        {
-            let meta_resp = self.core.metadata(&path).await?;
+            let status = resp.status();
 
-            if meta_resp.status() != StatusCode::OK {
-                return Err(parse_error(meta_resp));
+            if status != StatusCode::OK {
+                return Err(parse_error(resp));
             }
 
-            let cf_response: CfKvStatResponse =
-                serde_json::from_reader(meta_resp.into_body().reader())
-                    .map_err(new_json_deserialize_error)?;
+            let resp_body = resp.into_body();
 
-            if !cf_response.success && cf_response.result.is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "cloudflare_kv read this key failed for reason we don't know",
-                ));
-            }
+            if args.if_match().is_some()
+                || args.if_none_match().is_some()
+                || args.if_modified_since().is_some()
+                || args.if_unmodified_since().is_some()
+            {
+                let meta_resp = backend.core.metadata(&path).await?;
 
-            let metadata = cf_response.result.unwrap();
-
-            // Check if_match condition
-            if let Some(if_match) = &args.if_match() {
-                if if_match != &metadata.etag {
-                    return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+                if meta_resp.status() != StatusCode::OK {
+                    return Err(parse_error(meta_resp));
                 }
-            }
 
-            // Check if_none_match condition
-            if let Some(if_none_match) = &args.if_none_match() {
-                if if_none_match == &metadata.etag {
+                let cf_response: CfKvStatResponse =
+                    serde_json::from_reader(meta_resp.into_body().reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                if !cf_response.success && cf_response.result.is_some() {
                     return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "etag match when expected none match",
+                        ErrorKind::Unexpected,
+                        "cloudflare_kv read this key failed for reason we don't know",
                     ));
                 }
-            }
 
-            // Parse since time once for both time-based conditions
-            let last_modified = metadata
-                .last_modified
-                .parse::<Timestamp>()
-                .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+                let metadata = cf_response.result.unwrap();
 
-            // Check modified_since condition
-            if let Some(modified_since) = &args.if_modified_since() {
-                if !last_modified.gt(modified_since) {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "not modified since specified time",
-                    ));
+                // Check if_match condition
+                if let Some(if_match) = &args.if_match() {
+                    if if_match != &metadata.etag {
+                        return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+                    }
+                }
+
+                // Check if_none_match condition
+                if let Some(if_none_match) = &args.if_none_match() {
+                    if if_none_match == &metadata.etag {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "etag match when expected none match",
+                        ));
+                    }
+                }
+
+                // Parse since time once for both time-based conditions
+                let last_modified = metadata
+                    .last_modified
+                    .parse::<Timestamp>()
+                    .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+
+                // Check modified_since condition
+                if let Some(modified_since) = &args.if_modified_since() {
+                    if !last_modified.gt(modified_since) {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "not modified since specified time",
+                        ));
+                    }
+                }
+
+                // Check unmodified_since condition
+                if let Some(unmodified_since) = &args.if_unmodified_since() {
+                    if !last_modified.le(unmodified_since) {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "modified since specified time",
+                        ));
+                    }
                 }
             }
 
-            // Check unmodified_since condition
-            if let Some(unmodified_since) = &args.if_unmodified_since() {
-                if !last_modified.le(unmodified_since) {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "modified since specified time",
-                    ));
-                }
-            }
-        }
-
-        let total_size = resp_body.len() as u64;
-        let buffer = if range.is_full() {
-            resp_body
-        } else {
-            let start = range.offset() as usize;
-            let end = match range.size() {
-                Some(size) => (range.offset() + size) as usize,
-                None => resp_body.len(),
+            let total_size = resp_body.len() as u64;
+            let buffer = if range.is_full() {
+                resp_body
+            } else {
+                let start = range.offset() as usize;
+                let end = match range.size() {
+                    Some(size) => (range.offset() + size) as usize,
+                    None => resp_body.len(),
+                };
+                resp_body.slice(start..end.min(resp_body.len()))
             };
-            resp_body.slice(start..end.min(resp_body.len()))
-        };
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-        Ok((RpRead::new(metadata), buffer))
+            let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+            Ok((RpRead::new(metadata), buffer))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for CloudflareKvBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
@@ -470,7 +487,7 @@ impl Access for CloudflareKvBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

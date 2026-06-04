@@ -222,40 +222,54 @@ impl MokaBackend {
     }
 }
 
-impl oio::RangeRead for MokaBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: MokaBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let p = build_abs_path(&self.root, path);
-
-        match self.core.get(&p).await? {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let buffer = if range.is_full() {
-                    value.content
-                } else {
-                    let start = range.offset() as usize;
-                    let end = match range.size() {
-                        Some(size) => (range.offset() + size) as usize,
-                        None => value.content.len(),
-                    };
-                    value.content.slice(start..end.min(value.content.len()))
-                };
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                Ok((RpRead::new(metadata), buffer))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
+impl BackendReader {
+    fn new(backend: MokaBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, Buffer)> = async {
+            let p = build_abs_path(&backend.root, path);
+
+            match backend.core.get(&p).await? {
+                Some(value) => {
+                    let total_size = value.content.len() as u64;
+                    let buffer = if range.is_full() {
+                        value.content
+                    } else {
+                        let start = range.offset() as usize;
+                        let end = match range.size() {
+                            Some(size) => (range.offset() + size) as usize,
+                            None => value.content.len(),
+                        };
+                        value.content.slice(start..end.min(value.content.len()))
+                    };
+                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    Ok((RpRead::new(metadata), buffer))
+                }
+                None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for MokaBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = MokaWriter;
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
@@ -307,7 +321,7 @@ impl Access for MokaBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

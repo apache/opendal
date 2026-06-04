@@ -307,48 +307,62 @@ impl RedisBackend {
     }
 }
 
-impl oio::RangeRead for RedisBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: RedisBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let p = build_abs_path(&self.root, path);
+impl BackendReader {
+    fn new(backend: RedisBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
 
-        let (buffer, metadata) = if range.is_full() {
-            // Full read - use GET
-            match self.core.get(&p).await? {
-                Some(bs) => {
-                    let metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-                    (bs, Some(metadata))
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, Buffer)> = async {
+            let p = build_abs_path(&backend.root, path);
+
+            let (buffer, metadata) = if range.is_full() {
+                // Full read - use GET
+                match backend.core.get(&p).await? {
+                    Some(bs) => {
+                        let metadata =
+                            Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+                        (bs, Some(metadata))
+                    }
+                    None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
                 }
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let start = range.offset() as isize;
-            let end = match range.size() {
-                Some(size) => (range.offset() + size - 1) as isize,
-                None => -1, // Redis uses -1 for end of string
+            } else {
+                // Range read - use GETRANGE
+                let start = range.offset() as isize;
+                let end = match range.size() {
+                    Some(size) => (range.offset() + size - 1) as isize,
+                    None => -1, // Redis uses -1 for end of string
+                };
+
+                match backend.core.get_range(&p, start, end).await? {
+                    Some(bs) => (bs, None),
+                    None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+                }
             };
 
-            match self.core.get_range(&p, start, end).await? {
-                Some(bs) => (bs, None),
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        };
-
-        let rp = metadata.map_or_else(RpRead::default, RpRead::new);
-        Ok((rp, buffer))
+            let rp = metadata.map_or_else(RpRead::default, RpRead::new);
+            Ok((rp, buffer))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for RedisBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
@@ -376,7 +390,7 @@ impl Access for RedisBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

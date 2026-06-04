@@ -210,39 +210,53 @@ pub struct SftpBackend {
     pub core: Arc<SftpCore>,
 }
 
-impl oio::RangeRead for SftpBackend {
-    type RangeReader = SftpReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: SftpBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        if range.offset() != 0 {
-            f.seek(SeekFrom::Start(range.offset()))
-                .await
-                .map_err(new_std_io_error)?;
+impl BackendReader {
+    fn new(backend: SftpBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
+    }
+}
 
-        Ok((RpRead::default(), SftpReader::new(client, f, range.size())))
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, SftpReader)> = async {
+            let client = backend.core.connect().await?;
+
+            let mut fs = client.fs();
+            fs.set_cwd(&backend.core.root);
+
+            let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+            let mut f = client
+                .open(path.as_path())
+                .await
+                .map_err(parse_sftp_error)?;
+
+            if range.offset() != 0 {
+                f.seek(SeekFrom::Start(range.offset()))
+                    .await
+                    .map_err(new_std_io_error)?;
+            }
+
+            Ok((RpRead::default(), SftpReader::new(client, f, range.size())))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for SftpBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -287,7 +301,7 @@ impl Access for SftpBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

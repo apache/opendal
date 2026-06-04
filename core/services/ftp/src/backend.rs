@@ -190,23 +190,37 @@ impl Debug for FtpBackend {
     }
 }
 
-impl oio::RangeRead for FtpBackend {
-    type RangeReader = FtpReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: FtpBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-        let reader = FtpReader::new(ftp_stream, path.to_string(), range).await?;
-        Ok((RpRead::default(), reader))
+impl BackendReader {
+    fn new(backend: FtpBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, FtpReader)> = async {
+            let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
+            let reader = FtpReader::new(ftp_stream, path.to_string(), range).await?;
+            Ok((RpRead::default(), reader))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for FtpBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
@@ -261,7 +275,7 @@ impl Access for FtpBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

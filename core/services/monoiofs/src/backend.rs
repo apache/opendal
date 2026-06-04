@@ -92,23 +92,37 @@ pub struct MonoiofsBackend {
     core: Arc<MonoiofsCore>,
 }
 
-impl oio::RangeRead for MonoiofsBackend {
-    type RangeReader = MonoiofsReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: MonoiofsBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let path = self.core.prepare_path(path);
-        let reader = MonoiofsReader::new(self.core.clone(), path, range).await?;
-        Ok((RpRead::default(), reader))
+impl BackendReader {
+    fn new(backend: MonoiofsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, MonoiofsReader)> = async {
+            let path = backend.core.prepare_path(path);
+            let reader = MonoiofsReader::new(backend.core.clone(), path, range).await?;
+            Ok((RpRead::default(), reader))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for MonoiofsBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -142,7 +156,7 @@ impl Access for MonoiofsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

@@ -1018,28 +1018,37 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl oio::RangeRead for MockService {
-        type RangeReader = MockReader;
+    /// Reader returned by this backend.
+    pub struct BackendReader {
+        backend: MockService,
+    }
 
-        async fn open_range(
-            &self,
-            _: &str,
-            _: OpRead,
-            range: BytesRange,
-        ) -> Result<(RpRead, Self::RangeReader)> {
-            Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                MockReader {
-                    buf: Bytes::from("Hello, World!").into(),
-                    range,
-                    attempt: self.attempt.clone(),
-                },
-            ))
+    impl BackendReader {
+        fn new(backend: MockService, _: &str, _: OpRead) -> Self {
+            Self { backend }
+        }
+    }
+
+    impl oio::Read for BackendReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let backend = &self.backend;
+            let result: Result<(RpRead, MockReader)> = async {
+                Ok((
+                    RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                    MockReader {
+                        buf: Bytes::from("Hello, World!").into(),
+                        range,
+                        attempt: backend.attempt.clone(),
+                    },
+                ))
+            }
+            .await;
+            result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
         }
     }
 
     impl Access for MockService {
-        type Reader = oio::RangeReader<Self>;
+        type Reader = BackendReader;
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
@@ -1072,7 +1081,7 @@ mod tests {
         async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
                 RpRead::default(),
-                oio::RangeReader::new(self.clone(), path, args),
+                BackendReader::new(self.clone(), path, args),
             ))
         }
 

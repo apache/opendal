@@ -135,48 +135,6 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
     }
 }
 
-/// RangeRead is a compatibility helper for backends whose first implementation
-/// still opens independent range streams.
-pub trait RangeRead: Clone + Unpin + Send + Sync + 'static {
-    /// RangeReader is the range stream returned by this backend.
-    type RangeReader: ReadStream;
-
-    /// Open a range-scoped stream.
-    fn open_range(
-        &self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> impl Future<Output = Result<(RpRead, Self::RangeReader)>> + MaybeSend;
-}
-
-/// RangeReader turns a range-scoped backend implementation into reusable raw [`Read`].
-pub struct RangeReader<R> {
-    inner: R,
-    path: String,
-    args: OpRead,
-}
-
-impl<R> RangeReader<R> {
-    /// Create a new [`RangeReader`].
-    pub fn new(inner: R, path: &str, args: OpRead) -> Self {
-        Self {
-            inner,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl<R: RangeRead> Read for RangeReader<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
-        self.inner
-            .open_range(&self.path, self.args.clone(), range)
-            .await
-            .map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn ReadStreamDyn>))
-    }
-}
-
 /// ReadStream is the internal trait used by OpenDAL to stream data from storage.
 ///
 /// Users should not use or import this trait unless they are implementing an `Accessor`.

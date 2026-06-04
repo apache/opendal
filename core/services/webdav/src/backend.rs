@@ -249,35 +249,52 @@ pub struct WebdavBackend {
     core: Arc<WebdavCore>,
 }
 
-impl oio::RangeRead for WebdavBackend {
-    type RangeReader = HttpBody;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: WebdavBackend,
+    path: String,
+    args: OpRead,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let resp = self.core.webdav_get(path, range, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
+impl BackendReader {
+    fn new(backend: WebdavBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let result: Result<(RpRead, HttpBody)> = async {
+            let resp = backend.core.webdav_get(path, range, &args).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                    RpRead::new(parse_into_metadata(path, resp.headers())?),
+                    resp.into_body(),
+                )),
+                _ => {
+                    let (part, mut body) = resp.into_parts();
+                    let buf = body.to_buffer().await?;
+                    Err(parse_error(Response::from_parts(part, buf)))
+                }
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for WebdavBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
@@ -299,7 +316,7 @@ impl Access for WebdavBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

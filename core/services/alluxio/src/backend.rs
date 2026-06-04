@@ -134,32 +134,46 @@ pub struct AlluxioBackend {
     core: Arc<AlluxioCore>,
 }
 
-impl oio::RangeRead for AlluxioBackend {
-    type RangeReader = HttpBody;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: AlluxioBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let stream_id = self.core.open_file(path).await?;
-
-        let resp = self.core.read(stream_id, range).await?;
-        if !resp.status().is_success() {
-            let (part, mut body) = resp.into_parts();
-            let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)));
+impl BackendReader {
+    fn new(backend: AlluxioBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
         }
-        Ok((
-            RpRead::new(parse_into_metadata(path, resp.headers())?),
-            resp.into_body(),
-        ))
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HttpBody)> = async {
+            let stream_id = backend.core.open_file(path).await?;
+
+            let resp = backend.core.read(stream_id, range).await?;
+            if !resp.status().is_success() {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+            Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for AlluxioBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
@@ -182,7 +196,7 @@ impl Access for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

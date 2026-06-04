@@ -123,35 +123,49 @@ pub struct CompfsBackend {
     core: Arc<CompfsCore>,
 }
 
-impl oio::RangeRead for CompfsBackend {
-    type RangeReader = CompfsReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: CompfsBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _op: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let path = self.core.prepare_path(path);
+impl BackendReader {
+    fn new(backend: CompfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
 
-        let file = self
-            .core
-            .exec(|| async move {
-                let file = compio::fs::OpenOptions::new()
-                    .read(true)
-                    .open(&path)
-                    .await?;
-                Ok(file)
-            })
-            .await?;
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, CompfsReader)> = async {
+            let path = backend.core.prepare_path(path);
 
-        let r = CompfsReader::new(self.core.clone(), file, range);
-        Ok((RpRead::default(), r))
+            let file = backend
+                .core
+                .exec(|| async move {
+                    let file = compio::fs::OpenOptions::new()
+                        .read(true)
+                        .open(&path)
+                        .await?;
+                    Ok(file)
+                })
+                .await?;
+
+            let r = CompfsReader::new(backend.core.clone(), file, range);
+            Ok((RpRead::default(), r))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for CompfsBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
@@ -250,7 +264,7 @@ impl Access for CompfsBackend {
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, op),
+            BackendReader::new(self.clone(), path, op),
         ))
     }
 

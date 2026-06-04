@@ -197,26 +197,40 @@ pub struct HdfsBackend {
     core: Arc<HdfsCore>,
 }
 
-impl oio::RangeRead for HdfsBackend {
-    type RangeReader = HdfsReader<hdrs::AsyncFile>;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: HdfsBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let f = self.core.hdfs_read(path, range).await?;
+impl BackendReader {
+    fn new(backend: HdfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
 
-        Ok((
-            RpRead::default(),
-            HdfsReader::new(f, range.size().unwrap_or(u64::MAX) as _),
-        ))
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HdfsReader<hdrs::AsyncFile>)> = async {
+            let f = backend.core.hdfs_read(path, range).await?;
+
+            Ok((
+                RpRead::default(),
+                HdfsReader::new(f, range.size().unwrap_or(u64::MAX) as _),
+            ))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for HdfsBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -238,7 +252,7 @@ impl Access for HdfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

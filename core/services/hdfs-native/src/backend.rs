@@ -168,29 +168,43 @@ pub struct HdfsNativeBackend {
     core: Arc<HdfsNativeCore>,
 }
 
-impl oio::RangeRead for HdfsNativeBackend {
-    type RangeReader = HdfsNativeReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: HdfsNativeBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let (f, offset, size) = self.core.hdfs_read(path, range).await?;
-        let content_length = f.file_length() as u64;
+impl BackendReader {
+    fn new(backend: HdfsNativeBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
 
-        let r = HdfsNativeReader::new(f, offset as _, size as _);
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, HdfsNativeReader)> = async {
+            let (f, offset, size) = backend.core.hdfs_read(path, range).await?;
+            let content_length = f.file_length() as u64;
 
-        Ok((
-            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
-            r,
-        ))
+            let r = HdfsNativeReader::new(f, offset as _, size as _);
+
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
+                r,
+            ))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for HdfsNativeBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -212,7 +226,7 @@ impl Access for HdfsNativeBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

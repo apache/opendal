@@ -640,35 +640,52 @@ pub struct OssBackend {
     core: Arc<OssCore>,
 }
 
-impl oio::RangeRead for OssBackend {
-    type RangeReader = HttpBody;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: OssBackend,
+    path: String,
+    args: OpRead,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let resp = self.core.oss_get_object(path, &args, range).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
+impl BackendReader {
+    fn new(backend: OssBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
         }
     }
 }
 
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let result: Result<(RpRead, HttpBody)> = async {
+            let resp = backend.core.oss_get_object(path, &args, range).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                    RpRead::new(parse_into_metadata(path, resp.headers())?),
+                    resp.into_body(),
+                )),
+                _ => {
+                    let (part, mut body) = resp.into_parts();
+                    let buf = body.to_buffer().await?;
+                    Err(parse_error(Response::from_parts(part, buf)))
+                }
+            }
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for OssBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
@@ -700,7 +717,7 @@ impl Access for OssBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

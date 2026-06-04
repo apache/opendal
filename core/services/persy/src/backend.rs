@@ -149,30 +149,44 @@ impl PersyBackend {
     }
 }
 
-impl oio::RangeRead for PersyBackend {
-    type RangeReader = Buffer;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: PersyBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _args: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in persy"));
-            }
-        };
-        let content = bs.slice(range.to_range_as_usize());
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((RpRead::new(metadata), content))
+impl BackendReader {
+    fn new(backend: PersyBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, Buffer)> = async {
+            let p = build_abs_path(&backend.root, path);
+            let bs = match backend.core.get(&p)? {
+                Some(bs) => bs,
+                None => {
+                    return Err(Error::new(ErrorKind::NotFound, "kv not found in persy"));
+                }
+            };
+            let content = bs.slice(range.to_range_as_usize());
+            let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+            Ok((RpRead::new(metadata), content))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for PersyBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = PersyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PersyDeleter>;
@@ -200,7 +214,7 @@ impl Access for PersyBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

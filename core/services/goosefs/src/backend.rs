@@ -302,28 +302,52 @@ pub struct GoosefsBackend {
     core: Arc<GoosefsCore>,
 }
 
-impl oio::RangeRead for GoosefsBackend {
-    type RangeReader = GoosefsReader;
+/// Reader returned by this backend.
+pub struct BackendReader {
+    backend: GoosefsBackend,
+    path: String,
+}
 
-    async fn open_range(
-        &self,
-        path: &str,
-        _: OpRead,
-        range: BytesRange,
-    ) -> Result<(RpRead, Self::RangeReader)> {
-        let content_length = if range.offset() != 0 && range.size().is_none() {
-            let file_info = self.core.get_status(path).await?;
-            Some(self.core.file_info_to_metadata(&file_info).content_length())
-        } else {
-            None
-        };
-        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), range, content_length);
-        Ok((RpRead::default(), reader))
+impl BackendReader {
+    fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::Read for BackendReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let result: Result<(RpRead, GoosefsReader)> = async {
+            let content_length = if range.offset() != 0 && range.size().is_none() {
+                let file_info = backend.core.get_status(path).await?;
+                Some(
+                    backend
+                        .core
+                        .file_info_to_metadata(&file_info)
+                        .content_length(),
+                )
+            } else {
+                None
+            };
+            let reader = GoosefsReader::new(
+                backend.core.clone(),
+                path.to_string(),
+                range,
+                content_length,
+            );
+            Ok((RpRead::default(), reader))
+        }
+        .await;
+        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
 impl Access for GoosefsBackend {
-    type Reader = oio::RangeReader<Self>;
+    type Reader = BackendReader;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
@@ -345,7 +369,7 @@ impl Access for GoosefsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            oio::RangeReader::new(self.clone(), path, args),
+            BackendReader::new(self.clone(), path, args),
         ))
     }
 

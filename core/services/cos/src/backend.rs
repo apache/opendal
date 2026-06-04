@@ -459,7 +459,7 @@ impl Access for CosBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v),
-            PresignOperation::Read(v, range) => self.core.cos_get_object_request(path, *range, v),
+            PresignOperation::Read(range, v) => self.core.cos_get_object_request(path, *range, v),
             PresignOperation::Write(v) => {
                 self.core
                     .cos_put_object_request(path, None, v, Buffer::new())

@@ -598,7 +598,7 @@ impl Access for AzblobBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
-            PresignOperation::Read(v, range) => self.core.azblob_get_blob_request(path, *range, v),
+            PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
             PresignOperation::Write(_) => {
                 self.core
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())

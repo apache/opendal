@@ -258,7 +258,7 @@ impl Access for HttpBackend {
 
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.http_head_request(path, v)?,
-            PresignOperation::Read(v, range) => self.core.http_get_request(path, *range, v)?,
+            PresignOperation::Read(range, v) => self.core.http_get_request(path, *range, v)?,
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

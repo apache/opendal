@@ -544,7 +544,7 @@ impl Access for GcsBackend {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
-            PresignOperation::Read(v, range) => {
+            PresignOperation::Read(range, v) => {
                 self.core.gcs_get_object_xml_request(path, *range, v)
             }
             PresignOperation::Write(v) => {

@@ -416,7 +416,7 @@ impl Access for ObsBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v),
-            PresignOperation::Read(v, range) => self.core.obs_get_object_request(path, *range, v),
+            PresignOperation::Read(range, v) => self.core.obs_get_object_request(path, *range, v),
             PresignOperation::Write(v) => {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())

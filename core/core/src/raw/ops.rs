@@ -271,7 +271,7 @@ pub enum PresignOperation {
     /// Presign a stat(head) operation.
     Stat(OpStat),
     /// Presign a read operation.
-    Read(OpRead, BytesRange),
+    Read(BytesRange, OpRead),
     /// Presign a write operation.
     Write(OpWrite),
     /// Presign a delete operation.
@@ -286,7 +286,7 @@ impl From<OpStat> for PresignOperation {
 
 impl From<OpRead> for PresignOperation {
     fn from(v: OpRead) -> Self {
-        Self::Read(v, BytesRange::default())
+        Self::Read(BytesRange::default(), v)
     }
 }
 
@@ -500,9 +500,10 @@ impl OpReader {
     }
 }
 
-impl From<options::ReadOptions> for (OpRead, BytesRange, OpReader) {
+impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
     fn from(value: options::ReadOptions) -> Self {
         (
+            value.range,
             OpRead {
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
@@ -513,7 +514,6 @@ impl From<options::ReadOptions> for (OpRead, BytesRange, OpReader) {
                 override_content_disposition: value.override_content_disposition,
                 version: value.version,
             },
-            value.range,
             OpReader {
                 // Ensure concurrent is at least 1
                 concurrent: value.concurrent.max(1),

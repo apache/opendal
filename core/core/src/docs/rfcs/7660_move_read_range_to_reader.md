@@ -144,7 +144,7 @@ contract.
 `ReadOptions` and `ReaderOptions` should be converted differently:
 
 ```rust,ignore
-impl From<options::ReadOptions> for (OpRead, BytesRange, OpReader);
+impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader);
 impl From<options::ReaderOptions> for (OpRead, OpReader);
 ```
 
@@ -309,7 +309,7 @@ range, and execution policy:
 
 ```rust,ignore
 async fn read_inner(acc: Accessor, path: String, opts: ReadOptions) -> Result<Buffer> {
-    let (op_read, range, op_reader) = opts.into();
+    let (range, op_read, op_reader) = opts.into();
     let (rp, raw_reader) = acc.read(&path, op_read).await?;
     let reader = Reader::new(acc, path, raw_reader, op_reader, rp);
     reader.read(range.to_range()).await
@@ -436,14 +436,14 @@ This range should not move back into `OpRead`. Instead,
 ```rust,ignore
 pub enum PresignOperation {
     Read {
-        args: OpRead,
         range: BytesRange,
+        args: OpRead,
     },
     // ...
 }
 ```
 
-`presign_read_options` converts `ReadOptions` into `(OpRead, BytesRange,
+`presign_read_options` converts `ReadOptions` into `(BytesRange, OpRead,
 OpReader)` and discards `OpReader`.
 
 ## Backend implementation model

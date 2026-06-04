@@ -784,7 +784,7 @@ impl Access for OssBackend {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
-            PresignOperation::Read(v, range) => {
+            PresignOperation::Read(range, v) => {
                 self.core.oss_get_object_request(path, true, v, *range)
             }
             PresignOperation::Write(v) => {

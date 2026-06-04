@@ -1189,7 +1189,7 @@ impl Access for S3Backend {
         // We will not send this request out, just for signing.
         let req = match op {
             PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
-            PresignOperation::Read(v, range) => self.core.s3_get_object_request(path, range, &v),
+            PresignOperation::Read(range, v) => self.core.s3_get_object_request(path, range, &v),
             PresignOperation::Write(v) => {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())

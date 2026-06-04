@@ -527,8 +527,8 @@ impl Operator {
         }
 
         let (range, args, opts) = opts.into();
-        let (rp, reader) = acc.read(&path, args.clone()).await?;
-        let context = ReadContext::new(acc, path, args, opts, rp, reader);
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         let r = Reader::new(context);
         let buf = r.read(range.to_range()).await?;
         Ok(buf)
@@ -636,8 +636,8 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
-        let (rp, reader) = acc.read(&path, args.clone()).await?;
-        let context = ReadContext::new(acc, path, args, opts, rp, reader);
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         Ok(Reader::new(context))
     }
 

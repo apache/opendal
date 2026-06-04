@@ -49,19 +49,16 @@ impl ReadContext {
         path: String,
         args: OpRead,
         options: OpReader,
-        rp: RpRead,
         reader: oio::Reader,
     ) -> Self {
-        let ctx = Self {
+        Self {
             acc,
             path,
             args,
             options,
             reader,
             metadata: OnceLock::new(),
-        };
-        ctx.observe_read_response(rp);
-        ctx
+        }
     }
 
     /// Get the accessor.
@@ -244,13 +241,12 @@ mod tests {
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (rp, reader) = acc.read(path, args.clone()).await?;
+        let (_, reader) = acc.read(path, args.clone()).await?;
         Ok(ReadContext::new(
             acc,
             path.to_string(),
             args,
             options,
-            rp,
             reader,
         ))
     }

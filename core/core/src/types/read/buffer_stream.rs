@@ -383,13 +383,12 @@ mod tests {
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (rp, reader) = acc.read(path, args.clone()).await?;
+        let (_, reader) = acc.read(path, args.clone()).await?;
         Ok(ReadContext::new(
             acc,
             path.to_string(),
             args,
             options,
-            rp,
             reader,
         ))
     }

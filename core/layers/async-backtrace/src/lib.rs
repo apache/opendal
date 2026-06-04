@@ -152,7 +152,7 @@ impl<R> AsyncBacktraceWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await

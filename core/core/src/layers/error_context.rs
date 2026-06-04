@@ -228,7 +228,7 @@ impl<T> ErrorContextWrapper<T> {
     }
 }
 
-impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
+impl<T: oio::ReadStream> oio::ReadStream for ErrorContextWrapper<T> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()

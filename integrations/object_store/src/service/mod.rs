@@ -159,7 +159,7 @@ mod tests {
     use super::*;
     use object_store::memory::InMemory;
     use opendal::Buffer;
-    use opendal::raw::oio::{Delete, List, Read, Write};
+    use opendal::raw::oio::{Delete, List, ReadStream, Write};
 
     #[tokio::test]
     async fn test_object_store_backend_builder() {

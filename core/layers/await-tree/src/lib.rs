@@ -164,7 +164,7 @@ impl<R> AwaitTreeWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()

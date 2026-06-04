@@ -576,7 +576,7 @@ impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
     }
 }
 
-impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
+impl<R: oio::ReadStream, I: LoggingInterceptor> oio::ReadStream for LoggingReader<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         match self.inner.read().await {
             Ok(bs) if bs.is_empty() => {

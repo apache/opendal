@@ -177,7 +177,7 @@ impl<R> ThrottleWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for ThrottleWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
     }

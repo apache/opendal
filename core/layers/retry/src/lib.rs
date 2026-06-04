@@ -480,7 +480,7 @@ impl<A, R> RetryReader<A, R> {
     }
 }
 
-impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
+impl<A: Access> oio::ReadStream for RetryReader<A, A::Reader> {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             match self.reader.take() {
@@ -527,7 +527,7 @@ impl<R, I> RetryWrapper<R, I> {
     }
 }
 
-impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
+impl<R: oio::ReadStream, I: RetryInterceptor> oio::ReadStream for RetryWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         use backon::RetryableWithContext;
 
@@ -970,7 +970,7 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl oio::Read for MockReader {
+    impl oio::ReadStream for MockReader {
         async fn read(&mut self) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;

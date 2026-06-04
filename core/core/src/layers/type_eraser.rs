@@ -23,7 +23,7 @@ use crate::*;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///
-/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::Read>`).
+/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::ReadStream>`).
 ///
 /// # Notes
 ///

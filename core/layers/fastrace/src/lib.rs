@@ -252,7 +252,7 @@ impl<R> FastraceWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for FastraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await

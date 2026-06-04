@@ -44,7 +44,7 @@ impl<F> HdfsReader<F> {
     }
 }
 
-impl oio::Read for HdfsReader<AsyncFile> {
+impl oio::ReadStream for HdfsReader<AsyncFile> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size {
             return Ok(Buffer::new());

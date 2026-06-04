@@ -24,7 +24,7 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `GoosefsReader` implements [`oio::Read`] on top of the goosefs-sdk
+/// `GoosefsReader` implements [`oio::ReadStream`] on top of the goosefs-sdk
 /// high-level streaming reader (`GoosefsFileReader`).
 ///
 /// # Streaming semantics
@@ -42,7 +42,7 @@ use opendal_core::*;
 ///     first block lands, rather than stalling until the whole range
 ///     is materialised.
 ///   - When `read_next_block` returns `None` the reader returns an
-///     empty `Buffer`, which is OpenDAL's `oio::Read` EOF signal.
+///     empty `Buffer`, which is OpenDAL's `oio::ReadStream` EOF signal.
 ///
 /// # Range handling
 ///
@@ -137,7 +137,7 @@ impl GoosefsReader {
     }
 }
 
-impl oio::Read for GoosefsReader {
+impl oio::ReadStream for GoosefsReader {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());

@@ -342,7 +342,9 @@ impl<R, P> ConcurrentLimitWrapper<R, P> {
     }
 }
 
-impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
+    for ConcurrentLimitWrapper<R, P>
+{
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
     }

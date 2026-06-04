@@ -176,7 +176,7 @@ impl<R> ChaosReader<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for ChaosReader<R> {
+impl<R: oio::ReadStream> oio::ReadStream for ChaosReader<R> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
             self.inner.read().await

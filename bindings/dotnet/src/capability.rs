@@ -70,6 +70,7 @@ pub struct Capability {
 
     pub copy: bool,
     pub copy_with_if_not_exists: bool,
+    pub copy_with_source_version: bool,
     pub rename: bool,
 
     pub list: bool,
@@ -132,6 +133,7 @@ impl Capability {
             delete_max_size: cap.delete_max_size.unwrap_or(usize::MIN),
             copy: cap.copy,
             copy_with_if_not_exists: cap.copy_with_if_not_exists,
+            copy_with_source_version: cap.copy_with_source_version,
             rename: cap.rename,
             list: cap.list,
             list_with_limit: cap.list_with_limit,

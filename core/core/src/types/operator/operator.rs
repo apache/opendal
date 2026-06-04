@@ -1181,7 +1181,7 @@ impl Operator {
             );
         }
 
-        if from == to {
+        if from == to && opts.source_version.is_none() {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copier")

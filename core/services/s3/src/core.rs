@@ -111,6 +111,7 @@ pub struct S3Core {
 pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) from: &'a str,
     pub(crate) to: &'a str,
+    pub(crate) source_version: Option<&'a str>,
     pub(crate) upload_id: &'a str,
     pub(crate) part_number: usize,
     pub(crate) range: BytesRange,
@@ -663,6 +664,16 @@ impl S3Core {
         let to = build_abs_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let source = if let Some(version) = args.source_version() {
+            QueryPairsWriter::new(&source)
+                .push(
+                    constants::S3_QUERY_VERSION_ID,
+                    &percent_encode_path(version),
+                )
+                .finish()
+        } else {
+            source
+        };
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
         let mut req = Request::put(&target);
@@ -930,6 +941,16 @@ impl S3Core {
         let to = build_abs_path(&self.root, input.to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let source = if let Some(version) = input.source_version {
+            QueryPairsWriter::new(&source)
+                .push(
+                    constants::S3_QUERY_VERSION_ID,
+                    &percent_encode_path(version),
+                )
+                .finish()
+        } else {
+            source
+        };
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",

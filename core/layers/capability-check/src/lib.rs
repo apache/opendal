@@ -169,6 +169,13 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
                 "if_match",
             ));
         }
+        if args.source_version().is_some() && !capability.copy_with_source_version {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Copy,
+                "source_version",
+            ));
+        }
 
         self.inner.copy(from, to, args, opts).await
     }

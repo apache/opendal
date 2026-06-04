@@ -31,25 +31,19 @@ runs:
         distribution: zulu
         java-version: 11
 
-    - name: Download hadoop
+    - name: Cache hadoop
+      id: cache-hadoop
+      uses: actions/cache@v4
       if: inputs.need-hadoop == 'true'
+      with:
+        path: /home/runner/hadoop-3.3.5
+        key: cache-hadoop-3.3.5
+
+    - name: Build hadoop if not cached
+      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
       shell: bash
       run: |
-        docker pull apache/hadoop:3.3.5
-        rm -rf /home/runner/hadoop-3.3.5
-        # intentionally not remove temp container because
-        # GitHub use one-time virtual machine to run a CI run.
-        docker cp $(docker create apache/hadoop:3.3.5):/opt/hadoop /home/runner/hadoop-3.3.5
-
-    - name: Setup hadoop env
-      shell: bash
-      run: |
-        export HADOOP_HOME=/home/runner/hadoop-3.3.5
-        echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
-        echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${HADOOP_HOME}/lib/native" >> $GITHUB_ENV
-        cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
-
-
-
-
+        set -e
+        curl --location --silent --show-error --fail \
+          https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz \
+          | tar --gzip --extract --file=- --directory=/home/runner

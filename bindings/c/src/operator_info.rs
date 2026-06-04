@@ -117,6 +117,10 @@ pub struct opendal_capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// If operator supports delete with version.
+    pub delete_with_version: bool,
+    /// If operator supports delete with recursive.
+    pub delete_with_recursive: bool,
 
     /// If operator supports copy.
     pub copy: bool,
@@ -269,6 +273,8 @@ impl From<core::Capability> for opendal_capability {
             write_total_max_size: value.write_total_max_size.unwrap_or(0),
             create_dir: value.create_dir,
             delete: value.delete,
+            delete_with_version: value.delete_with_version,
+            delete_with_recursive: value.delete_with_recursive,
             copy: value.copy,
             rename: value.rename,
             list: value.list,

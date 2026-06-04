@@ -213,7 +213,7 @@ impl<R> CompleteReader<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for CompleteReader<R> {
+impl<R: oio::ReadStream> oio::ReadStream for CompleteReader<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buf = self.inner.read().await?;
 

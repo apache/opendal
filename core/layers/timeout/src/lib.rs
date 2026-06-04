@@ -327,7 +327,7 @@ impl<R> TimeoutWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
         Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
@@ -451,7 +451,7 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockReader;
 
-    impl oio::Read for MockReader {
+    impl oio::ReadStream for MockReader {
         fn read(&mut self) -> impl Future<Output = Result<Buffer>> {
             pending()
         }

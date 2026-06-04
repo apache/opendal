@@ -27,7 +27,7 @@ use opendal_core::raw::BytesRange;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
-use opendal_core::raw::oio::Read;
+use opendal_core::raw::oio::ReadStream;
 
 use crate::FoyerKey;
 use crate::FoyerValue;

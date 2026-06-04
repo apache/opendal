@@ -16,6 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::Read;
-pub use api::ReadDyn;
+pub use api::ReadStream;
+pub use api::ReadStreamDyn;
 pub use api::Reader;

@@ -288,7 +288,7 @@ impl<R> TracingWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TracingWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TracingWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().instrument(self.span.clone()).await
     }

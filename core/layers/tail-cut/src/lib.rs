@@ -536,7 +536,7 @@ impl<R> TailCutWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let deadline = self.calculate_deadline(Operation::Read);
         Self::with_io_deadline(

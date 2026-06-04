@@ -80,7 +80,7 @@ fn map_session_error(e: SessionError) -> Error {
     Error::new(ErrorKind::Unexpected, "xet read error").set_source(e)
 }
 
-impl oio::Read for HfReader {
+impl oio::ReadStream for HfReader {
     async fn read(&mut self) -> Result<Buffer> {
         match self {
             Self::Http(body) => body.read().await,
@@ -101,7 +101,7 @@ mod tests {
     use super::super::uri::HfRepoType;
     use super::*;
     use bytes::Bytes;
-    use opendal_core::raw::oio::Read;
+    use opendal_core::raw::oio::ReadStream;
 
     /// Parquet magic bytes: "PAR1"
     const PARQUET_MAGIC: &[u8] = b"PAR1";

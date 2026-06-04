@@ -201,7 +201,7 @@ impl<R> OtelTraceWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for OtelTraceWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
     }

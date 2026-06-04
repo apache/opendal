@@ -22,6 +22,7 @@ package opendal
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -79,6 +80,11 @@ func (f *FFI[T]) withFFI(ctx context.Context, lib uintptr) (context.Context, err
 	}
 	val := f.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
 		ffi.Call(&cif, fn, rValue, aValues...)
+		// ffi.Call passes pointers through uintptr internally, so keep the Go
+		// objects alive until the native call has returned.
+		runtime.KeepAlive(&cif)
+		runtime.KeepAlive(rValue)
+		runtime.KeepAlive(aValues)
 	})
 	return context.WithValue(ctx, f.opts.sym, val), nil
 }

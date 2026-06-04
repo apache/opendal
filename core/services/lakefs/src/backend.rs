@@ -205,7 +205,7 @@ impl LakefsReader {
     }
 }
 
-impl oio::Read for LakefsReader {
+impl oio::StreamRead for LakefsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -233,7 +233,7 @@ impl oio::Read for LakefsReader {
 }
 
 impl Access for LakefsBackend {
-    type Reader = LakefsReader;
+    type Reader = oio::StreamReader<LakefsReader>;
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
@@ -271,7 +271,7 @@ impl Access for LakefsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            LakefsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(LakefsReader::new(self.clone(), path, args)),
         ))
     }
 

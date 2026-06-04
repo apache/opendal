@@ -240,7 +240,7 @@ impl B2Reader {
     }
 }
 
-impl oio::Read for B2Reader {
+impl oio::StreamRead for B2Reader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -270,7 +270,7 @@ impl oio::Read for B2Reader {
 }
 
 impl Access for B2Backend {
-    type Reader = B2Reader;
+    type Reader = oio::StreamReader<B2Reader>;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
@@ -295,7 +295,10 @@ impl Access for B2Backend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), B2Reader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(B2Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

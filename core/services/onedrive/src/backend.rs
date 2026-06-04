@@ -51,7 +51,7 @@ impl OnedriveReader {
     }
 }
 
-impl oio::Read for OnedriveReader {
+impl oio::StreamRead for OnedriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -79,7 +79,7 @@ impl oio::Read for OnedriveReader {
 }
 
 impl Access for OnedriveBackend {
-    type Reader = OnedriveReader;
+    type Reader = oio::StreamReader<OnedriveReader>;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
@@ -110,7 +110,7 @@ impl Access for OnedriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            OnedriveReader::new(self.clone(), path, args),
+            oio::StreamReader::new(OnedriveReader::new(self.clone(), path, args)),
         ))
     }
 

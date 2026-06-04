@@ -149,7 +149,7 @@ impl AlluxioReader {
     }
 }
 
-impl oio::Read for AlluxioReader {
+impl oio::StreamRead for AlluxioReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -173,7 +173,7 @@ impl oio::Read for AlluxioReader {
 }
 
 impl Access for AlluxioBackend {
-    type Reader = AlluxioReader;
+    type Reader = oio::StreamReader<AlluxioReader>;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
@@ -196,7 +196,7 @@ impl Access for AlluxioBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            AlluxioReader::new(self.clone(), path, args),
+            oio::StreamReader::new(AlluxioReader::new(self.clone(), path, args)),
         ))
     }
 

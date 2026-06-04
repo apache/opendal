@@ -18,15 +18,19 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
+use compio::buf::IntoInner;
+use compio::buf::IoBuf;
+use compio::buf::buf_try;
 use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
+use compio::io::AsyncReadAt;
 
 use super::COMPFS_SCHEME;
 use super::config::CompfsConfig;
+use super::core::CompfsBuffer;
 use super::core::CompfsCore;
 use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
-use super::reader::CompfsReadStream;
 use super::writer::CompfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -125,47 +129,43 @@ pub struct CompfsBackend {
 
 /// Reader returned by this backend.
 pub struct CompfsReader {
-    backend: CompfsBackend,
-    path: String,
+    core: Arc<CompfsCore>,
+    file: compio::fs::File,
 }
 
 impl CompfsReader {
-    fn new(backend: CompfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
+    fn new(core: Arc<CompfsCore>, file: compio::fs::File) -> Self {
+        Self { core, file }
     }
 }
 
-impl oio::Read for CompfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let result: Result<(RpRead, CompfsReadStream)> = async {
-            let path = backend.core.prepare_path(path);
-
-            let file = backend
-                .core
-                .exec(|| async move {
-                    let file = compio::fs::OpenOptions::new()
-                        .read(true)
-                        .open(&path)
-                        .await?;
-                    Ok(file)
-                })
-                .await?;
-
-            let r = CompfsReadStream::new(backend.core.clone(), file, range);
-            Ok((RpRead::default(), r))
+impl oio::PositionRead for CompfsReader {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let mut bs = self.core.buf_pool.get();
+        bs.reserve(size);
+
+        let file = self.file.clone();
+        let (n, mut bs) = self
+            .core
+            .exec(move || async move {
+                let (n, bs) = buf_try!(@try file.read_at(bs.slice(..size), offset).await);
+                Ok((n, bs.into_inner()))
+            })
+            .await?;
+
+        let frozen = bs.split_to(n).freeze();
+        self.core.buf_pool.put(bs);
+
+        Ok(CompfsBuffer::from(Buffer::from(frozen)).into())
     }
 }
 
 impl Access for CompfsBackend {
-    type Reader = CompfsReader;
+    type Reader = oio::PositionReader<CompfsReader>;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
@@ -261,8 +261,23 @@ impl Access for CompfsBackend {
 
         Ok(RpRename::default())
     }
-    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), CompfsReader::new(self.clone(), path, op)))
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = self.core.prepare_path(path);
+        let file = self
+            .core
+            .exec(move || async move {
+                let file = compio::fs::OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .await?;
+                Ok(file)
+            })
+            .await?;
+
+        Ok((
+            RpRead::default(),
+            oio::PositionReader::new(CompfsReader::new(self.core.clone(), file)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

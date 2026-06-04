@@ -175,7 +175,7 @@ impl GithubReader {
     }
 }
 
-impl oio::Read for GithubReader {
+impl oio::StreamRead for GithubReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -202,7 +202,7 @@ impl oio::Read for GithubReader {
 }
 
 impl Access for GithubBackend {
-    type Reader = GithubReader;
+    type Reader = oio::StreamReader<GithubReader>;
     type Writer = GithubWriters;
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
@@ -255,7 +255,7 @@ impl Access for GithubBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            GithubReader::new(self.clone(), path, args),
+            oio::StreamReader::new(GithubReader::new(self.clone(), path, args)),
         ))
     }
 

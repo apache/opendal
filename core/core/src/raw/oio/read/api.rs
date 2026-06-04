@@ -39,23 +39,8 @@ pub trait Read: Unpin + Send + Sync {
     ) -> impl Future<Output = Result<(RpRead, Box<dyn ReadStreamDyn>)>> + MaybeSend;
 
     /// Read an exact bounded range into [`Buffer`].
-    fn read(
-        &self,
-        range: BytesRange,
-    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
-        async move {
-            if range.size().is_none() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "read requires a bounded range",
-                ));
-            }
-
-            let (rp, mut stream) = self.open(range).await?;
-            let buffer = stream.read_all().await?;
-            Ok((rp, buffer))
-        }
-    }
+    fn read(&self, range: BytesRange)
+    -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend;
 }
 
 impl Read for () {
@@ -63,6 +48,13 @@ impl Read for () {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support open",
+        ))
+    }
+
+    async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support read",
         ))
     }
 }

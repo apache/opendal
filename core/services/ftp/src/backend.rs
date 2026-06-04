@@ -205,7 +205,7 @@ impl FtpReader {
     }
 }
 
-impl oio::Read for FtpReader {
+impl oio::StreamRead for FtpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -220,7 +220,7 @@ impl oio::Read for FtpReader {
 }
 
 impl Access for FtpBackend {
-    type Reader = FtpReader;
+    type Reader = oio::StreamReader<FtpReader>;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
@@ -273,7 +273,10 @@ impl Access for FtpBackend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), FtpReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(FtpReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

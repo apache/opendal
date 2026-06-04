@@ -237,7 +237,7 @@ impl D1Reader {
     }
 }
 
-impl oio::Read for D1Reader {
+impl oio::StreamRead for D1Reader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -249,7 +249,7 @@ impl oio::Read for D1Reader {
                     return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -259,7 +259,7 @@ impl oio::Read for D1Reader {
 }
 
 impl Access for D1Backend {
-    type Reader = D1Reader;
+    type Reader = oio::StreamReader<D1Reader>;
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
@@ -285,7 +285,10 @@ impl Access for D1Backend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), D1Reader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(D1Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

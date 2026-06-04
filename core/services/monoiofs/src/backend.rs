@@ -28,7 +28,7 @@ use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
-use super::reader::MonoiofsReadStream;
+use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 
 /// File system support via [`monoio`].
@@ -92,37 +92,8 @@ pub struct MonoiofsBackend {
     core: Arc<MonoiofsCore>,
 }
 
-/// Reader returned by this backend.
-pub struct MonoiofsReader {
-    backend: MonoiofsBackend,
-    path: String,
-}
-
-impl MonoiofsReader {
-    fn new(backend: MonoiofsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::Read for MonoiofsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let result: Result<(RpRead, MonoiofsReadStream)> = async {
-            let path = backend.core.prepare_path(path);
-            let reader = MonoiofsReadStream::new(backend.core.clone(), path, range).await?;
-            Ok((RpRead::default(), reader))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
 impl Access for MonoiofsBackend {
-    type Reader = MonoiofsReader;
+    type Reader = oio::PositionReader<MonoiofsReader>;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -153,11 +124,10 @@ impl Access for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            MonoiofsReader::new(self.clone(), path, args),
-        ))
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = self.core.prepare_path(path);
+        let reader = MonoiofsReader::new(self.core.clone(), path).await?;
+        Ok((RpRead::default(), oio::PositionReader::new(reader)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

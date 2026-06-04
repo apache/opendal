@@ -154,7 +154,7 @@ impl VercelBlobReader {
     }
 }
 
-impl oio::Read for VercelBlobReader {
+impl oio::StreamRead for VercelBlobReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -182,7 +182,7 @@ impl oio::Read for VercelBlobReader {
 }
 
 impl Access for VercelBlobBackend {
-    type Reader = VercelBlobReader;
+    type Reader = oio::StreamReader<VercelBlobReader>;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
     type Deleter = oio::OneShotDeleter<VercelBlobDeleter>;
@@ -212,7 +212,7 @@ impl Access for VercelBlobBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            VercelBlobReader::new(self.clone(), path, args),
+            oio::StreamReader::new(VercelBlobReader::new(self.clone(), path, args)),
         ))
     }
 

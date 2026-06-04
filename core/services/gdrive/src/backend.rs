@@ -57,7 +57,7 @@ impl GdriveReader {
     }
 }
 
-impl oio::Read for GdriveReader {
+impl oio::StreamRead for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -107,7 +107,7 @@ impl oio::Read for GdriveReader {
 }
 
 impl Access for GdriveBackend {
-    type Reader = GdriveReader;
+    type Reader = oio::StreamReader<GdriveReader>;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
@@ -201,7 +201,7 @@ impl Access for GdriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            GdriveReader::new(self.clone(), path, args),
+            oio::StreamReader::new(GdriveReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -49,7 +49,7 @@ impl VercelArtifactsReader {
     }
 }
 
-impl oio::Read for VercelArtifactsReader {
+impl oio::StreamRead for VercelArtifactsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -80,7 +80,7 @@ impl oio::Read for VercelArtifactsReader {
 }
 
 impl Access for VercelArtifactsBackend {
-    type Reader = VercelArtifactsReader;
+    type Reader = oio::StreamReader<VercelArtifactsReader>;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type Deleter = ();
@@ -107,7 +107,7 @@ impl Access for VercelArtifactsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            VercelArtifactsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(VercelArtifactsReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -219,7 +219,7 @@ impl MongodbReader {
     }
 }
 
-impl oio::Read for MongodbReader {
+impl oio::StreamRead for MongodbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -231,7 +231,7 @@ impl oio::Read for MongodbReader {
                     return Err(Error::new(ErrorKind::NotFound, "kv not found in mongodb"));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -241,7 +241,7 @@ impl oio::Read for MongodbReader {
 }
 
 impl Access for MongodbBackend {
-    type Reader = MongodbReader;
+    type Reader = oio::StreamReader<MongodbReader>;
     type Writer = MongodbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MongodbDeleter>;
@@ -269,7 +269,7 @@ impl Access for MongodbBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            MongodbReader::new(self.clone(), path, args),
+            oio::StreamReader::new(MongodbReader::new(self.clone(), path, args)),
         ))
     }
 

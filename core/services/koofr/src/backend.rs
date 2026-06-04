@@ -204,7 +204,7 @@ impl KoofrReader {
     }
 }
 
-impl oio::Read for KoofrReader {
+impl oio::StreamRead for KoofrReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -230,7 +230,7 @@ impl oio::Read for KoofrReader {
 }
 
 impl Access for KoofrBackend {
-    type Reader = KoofrReader;
+    type Reader = oio::StreamReader<KoofrReader>;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type Deleter = oio::OneShotDeleter<KoofrDeleter>;
@@ -281,7 +281,7 @@ impl Access for KoofrBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            KoofrReader::new(self.clone(), path, args),
+            oio::StreamReader::new(KoofrReader::new(self.clone(), path, args)),
         ))
     }
 

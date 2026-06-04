@@ -151,7 +151,7 @@ impl YandexDiskReader {
     }
 }
 
-impl oio::Read for YandexDiskReader {
+impl oio::StreamRead for YandexDiskReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -177,7 +177,7 @@ impl oio::Read for YandexDiskReader {
 }
 
 impl Access for YandexDiskBackend {
-    type Reader = YandexDiskReader;
+    type Reader = oio::StreamReader<YandexDiskReader>;
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
@@ -227,7 +227,7 @@ impl Access for YandexDiskBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            YandexDiskReader::new(self.clone(), path, args),
+            oio::StreamReader::new(YandexDiskReader::new(self.clone(), path, args)),
         ))
     }
 

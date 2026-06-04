@@ -203,7 +203,7 @@ impl UpyunReader {
     }
 }
 
-impl oio::Read for UpyunReader {
+impl oio::StreamRead for UpyunReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -230,7 +230,7 @@ impl oio::Read for UpyunReader {
 }
 
 impl Access for UpyunBackend {
-    type Reader = UpyunReader;
+    type Reader = oio::StreamReader<UpyunReader>;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
@@ -264,7 +264,7 @@ impl Access for UpyunBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            UpyunReader::new(self.clone(), path, args),
+            oio::StreamReader::new(UpyunReader::new(self.clone(), path, args)),
         ))
     }
 

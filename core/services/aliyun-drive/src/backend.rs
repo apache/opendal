@@ -206,7 +206,7 @@ impl AliyunDriveReader {
     }
 }
 
-impl oio::Read for AliyunDriveReader {
+impl oio::StreamRead for AliyunDriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -235,7 +235,7 @@ impl oio::Read for AliyunDriveReader {
 }
 
 impl Access for AliyunDriveBackend {
-    type Reader = AliyunDriveReader;
+    type Reader = oio::StreamReader<AliyunDriveReader>;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
@@ -364,7 +364,7 @@ impl Access for AliyunDriveBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            AliyunDriveReader::new(self.clone(), path, args),
+            oio::StreamReader::new(AliyunDriveReader::new(self.clone(), path, args)),
         ))
     }
 

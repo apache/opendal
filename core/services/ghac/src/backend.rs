@@ -224,7 +224,7 @@ impl GhacReader {
     }
 }
 
-impl oio::Read for GhacReader {
+impl oio::StreamRead for GhacReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -250,7 +250,7 @@ impl oio::Read for GhacReader {
 }
 
 impl Access for GhacBackend {
-    type Reader = GhacReader;
+    type Reader = oio::StreamReader<GhacReader>;
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
@@ -278,7 +278,10 @@ impl Access for GhacBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), GhacReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(GhacReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

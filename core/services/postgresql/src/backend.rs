@@ -196,7 +196,7 @@ impl PostgresqlReader {
     }
 }
 
-impl oio::Read for PostgresqlReader {
+impl oio::StreamRead for PostgresqlReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -211,7 +211,7 @@ impl oio::Read for PostgresqlReader {
                     ));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -221,7 +221,7 @@ impl oio::Read for PostgresqlReader {
 }
 
 impl Access for PostgresqlBackend {
-    type Reader = PostgresqlReader;
+    type Reader = oio::StreamReader<PostgresqlReader>;
     type Writer = PostgresqlWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
@@ -252,7 +252,7 @@ impl Access for PostgresqlBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            PostgresqlReader::new(self.clone(), path, args),
+            oio::StreamReader::new(PostgresqlReader::new(self.clone(), path, args)),
         ))
     }
 

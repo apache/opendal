@@ -193,7 +193,7 @@ impl PcloudReader {
     }
 }
 
-impl oio::Read for PcloudReader {
+impl oio::StreamRead for PcloudReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -222,7 +222,7 @@ impl oio::Read for PcloudReader {
 }
 
 impl Access for PcloudBackend {
-    type Reader = PcloudReader;
+    type Reader = oio::StreamReader<PcloudReader>;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
@@ -268,7 +268,7 @@ impl Access for PcloudBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            PcloudReader::new(self.clone(), path, args),
+            oio::StreamReader::new(PcloudReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -158,7 +158,7 @@ impl TikvReader {
     }
 }
 
-impl oio::Read for TikvReader {
+impl oio::StreamRead for TikvReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -168,7 +168,7 @@ impl oio::Read for TikvReader {
                 Some(bs) => bs,
                 None => return Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -178,7 +178,7 @@ impl oio::Read for TikvReader {
 }
 
 impl Access for TikvBackend {
-    type Reader = TikvReader;
+    type Reader = oio::StreamReader<TikvReader>;
     type Writer = TikvWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
@@ -204,7 +204,10 @@ impl Access for TikvBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), TikvReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(TikvReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

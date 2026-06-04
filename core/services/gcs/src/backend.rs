@@ -445,7 +445,7 @@ impl GcsReader {
     }
 }
 
-impl oio::Read for GcsReader {
+impl oio::StreamRead for GcsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -473,7 +473,7 @@ impl oio::Read for GcsReader {
 }
 
 impl Access for GcsBackend {
-    type Reader = GcsReader;
+    type Reader = oio::StreamReader<GcsReader>;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
@@ -496,7 +496,10 @@ impl Access for GcsBackend {
         Ok(RpStat::new(m))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), GcsReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(GcsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

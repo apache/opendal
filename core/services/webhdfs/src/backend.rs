@@ -251,7 +251,7 @@ impl WebhdfsReader {
     }
 }
 
-impl oio::Read for WebhdfsReader {
+impl oio::StreamRead for WebhdfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -276,7 +276,7 @@ impl oio::Read for WebhdfsReader {
 }
 
 impl Access for WebhdfsBackend {
-    type Reader = WebhdfsReader;
+    type Reader = oio::StreamReader<WebhdfsReader>;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
@@ -350,7 +350,7 @@ impl Access for WebhdfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            WebhdfsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(WebhdfsReader::new(self.clone(), path, args)),
         ))
     }
 

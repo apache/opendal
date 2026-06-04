@@ -225,7 +225,7 @@ impl SftpReader {
     }
 }
 
-impl oio::Read for SftpReader {
+impl oio::StreamRead for SftpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -259,7 +259,7 @@ impl oio::Read for SftpReader {
 }
 
 impl Access for SftpBackend {
-    type Reader = SftpReader;
+    type Reader = oio::StreamReader<SftpReader>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -302,7 +302,10 @@ impl Access for SftpBackend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), SftpReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(SftpReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

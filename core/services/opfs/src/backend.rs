@@ -82,7 +82,7 @@ impl OpfsReader {
     }
 }
 
-impl oio::Read for OpfsReader {
+impl oio::StreamRead for OpfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -97,7 +97,7 @@ impl oio::Read for OpfsReader {
 }
 
 impl Access for OpfsBackend {
-    type Reader = OpfsReader;
+    type Reader = oio::StreamReader<OpfsReader>;
 
     type Writer = OpfsWriter;
 
@@ -134,7 +134,10 @@ impl Access for OpfsBackend {
         Ok(RpStat::new(meta))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), OpfsReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OpfsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

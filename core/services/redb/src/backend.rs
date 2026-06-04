@@ -182,7 +182,7 @@ impl RedbReader {
     }
 }
 
-impl oio::Read for RedbReader {
+impl oio::StreamRead for RedbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -194,7 +194,7 @@ impl oio::Read for RedbReader {
                     return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -204,7 +204,7 @@ impl oio::Read for RedbReader {
 }
 
 impl Access for RedbBackend {
-    type Reader = RedbReader;
+    type Reader = oio::StreamReader<RedbReader>;
     type Writer = RedbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
@@ -230,7 +230,10 @@ impl Access for RedbBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), RedbReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(RedbReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

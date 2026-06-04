@@ -657,7 +657,7 @@ impl OssReader {
     }
 }
 
-impl oio::Read for OssReader {
+impl oio::StreamRead for OssReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -685,7 +685,7 @@ impl oio::Read for OssReader {
 }
 
 impl Access for OssBackend {
-    type Reader = OssReader;
+    type Reader = oio::StreamReader<OssReader>;
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
@@ -715,7 +715,10 @@ impl Access for OssBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), OssReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OssReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

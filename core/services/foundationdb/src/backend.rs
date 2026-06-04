@@ -135,7 +135,7 @@ impl FoundationdbReader {
     }
 }
 
-impl oio::Read for FoundationdbReader {
+impl oio::StreamRead for FoundationdbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -150,7 +150,7 @@ impl oio::Read for FoundationdbReader {
                     ));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -160,7 +160,7 @@ impl oio::Read for FoundationdbReader {
 }
 
 impl Access for FoundationdbBackend {
-    type Reader = FoundationdbReader;
+    type Reader = oio::StreamReader<FoundationdbReader>;
     type Writer = FoundationdbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoundationdbDeleter>;
@@ -191,7 +191,7 @@ impl Access for FoundationdbBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            FoundationdbReader::new(self.clone(), path, args),
+            oio::StreamReader::new(FoundationdbReader::new(self.clone(), path, args)),
         ))
     }
 

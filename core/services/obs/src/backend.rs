@@ -287,7 +287,7 @@ impl ObsReader {
     }
 }
 
-impl oio::Read for ObsReader {
+impl oio::StreamRead for ObsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -315,7 +315,7 @@ impl oio::Read for ObsReader {
 }
 
 impl Access for ObsBackend {
-    type Reader = ObsReader;
+    type Reader = oio::StreamReader<ObsReader>;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
@@ -365,7 +365,10 @@ impl Access for ObsBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), ObsReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(ObsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

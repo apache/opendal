@@ -1022,7 +1022,7 @@ mod tests {
         }
     }
 
-    impl oio::Read for MockReader {
+    impl oio::StreamRead for MockReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             let backend = &self.backend;
             let result: Result<(RpRead, MockReadStream)> = async {
@@ -1041,7 +1041,7 @@ mod tests {
     }
 
     impl Access for MockService {
-        type Reader = MockReader;
+        type Reader = oio::StreamReader<MockReader>;
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
@@ -1072,7 +1072,10 @@ mod tests {
         }
 
         async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::default(), MockReader::new(self.clone(), path, args)))
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(MockReader::new(self.clone(), path, args)),
+            ))
         }
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -1432,7 +1435,11 @@ mod tests {
         let recorder = Recorder::default();
         let backend = MockService::default();
         let reader = RetryReader::new(
-            MockReader::new(backend.clone(), "retryable_error", OpRead::default()),
+            oio::StreamReader::new(MockReader::new(
+                backend.clone(),
+                "retryable_error",
+                OpRead::default(),
+            )),
             Arc::new(recorder.clone()),
             ExponentialBuilder::default()
                 .with_min_delay(Duration::from_millis(1))

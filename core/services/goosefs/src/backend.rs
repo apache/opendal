@@ -317,7 +317,7 @@ impl GoosefsReader {
     }
 }
 
-impl oio::Read for GoosefsReader {
+impl oio::StreamRead for GoosefsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -347,7 +347,7 @@ impl oio::Read for GoosefsReader {
 }
 
 impl Access for GoosefsBackend {
-    type Reader = GoosefsReader;
+    type Reader = oio::StreamReader<GoosefsReader>;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
@@ -369,7 +369,7 @@ impl Access for GoosefsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            GoosefsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(GoosefsReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -282,7 +282,7 @@ impl TosReader {
     }
 }
 
-impl oio::Read for TosReader {
+impl oio::StreamRead for TosReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -309,7 +309,7 @@ impl oio::Read for TosReader {
 }
 
 impl Access for TosBackend {
-    type Reader = TosReader;
+    type Reader = oio::StreamReader<TosReader>;
     type Writer = oio::MultipartWriter<TosWriter>;
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
@@ -360,7 +360,10 @@ impl Access for TosBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), TosReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(TosReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

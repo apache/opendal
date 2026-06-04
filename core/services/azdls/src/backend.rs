@@ -388,7 +388,7 @@ impl AzdlsReader {
     }
 }
 
-impl oio::Read for AzdlsReader {
+impl oio::StreamRead for AzdlsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -415,7 +415,7 @@ impl oio::Read for AzdlsReader {
 }
 
 impl Access for AzdlsBackend {
-    type Reader = AzdlsReader;
+    type Reader = oio::StreamReader<AzdlsReader>;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
@@ -451,7 +451,7 @@ impl Access for AzdlsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            AzdlsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(AzdlsReader::new(self.clone(), path, args)),
         ))
     }
 

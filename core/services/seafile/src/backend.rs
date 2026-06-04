@@ -213,7 +213,7 @@ impl SeafileReader {
     }
 }
 
-impl oio::Read for SeafileReader {
+impl oio::StreamRead for SeafileReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -240,7 +240,7 @@ impl oio::Read for SeafileReader {
 }
 
 impl Access for SeafileBackend {
-    type Reader = SeafileReader;
+    type Reader = oio::StreamReader<SeafileReader>;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
@@ -274,7 +274,7 @@ impl Access for SeafileBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            SeafileReader::new(self.clone(), path, args),
+            oio::StreamReader::new(SeafileReader::new(self.clone(), path, args)),
         ))
     }
 

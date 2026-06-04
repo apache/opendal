@@ -1058,7 +1058,7 @@ impl S3Reader {
     }
 }
 
-impl oio::Read for S3Reader {
+impl oio::StreamRead for S3Reader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -1085,7 +1085,7 @@ impl oio::Read for S3Reader {
 }
 
 impl Access for S3Backend {
-    type Reader = S3Reader;
+    type Reader = oio::StreamReader<S3Reader>;
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
@@ -1120,7 +1120,10 @@ impl Access for S3Backend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), S3Reader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(S3Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

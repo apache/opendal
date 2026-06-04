@@ -253,7 +253,7 @@ impl SwiftReader {
     }
 }
 
-impl oio::Read for SwiftReader {
+impl oio::StreamRead for SwiftReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -281,7 +281,7 @@ impl oio::Read for SwiftReader {
 }
 
 impl Access for SwiftBackend {
-    type Reader = SwiftReader;
+    type Reader = oio::StreamReader<SwiftReader>;
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
@@ -311,7 +311,7 @@ impl Access for SwiftBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            SwiftReader::new(self.clone(), path, args),
+            oio::StreamReader::new(SwiftReader::new(self.clone(), path, args)),
         ))
     }
 

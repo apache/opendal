@@ -207,7 +207,7 @@ impl CloudflareKvReader {
     }
 }
 
-impl oio::Read for CloudflareKvReader {
+impl oio::StreamRead for CloudflareKvReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -293,16 +293,7 @@ impl oio::Read for CloudflareKvReader {
             }
 
             let total_size = resp_body.len() as u64;
-            let buffer = if range.is_full() {
-                resp_body
-            } else {
-                let start = range.offset() as usize;
-                let end = match range.size() {
-                    Some(size) => (range.offset() + size) as usize,
-                    None => resp_body.len(),
-                };
-                resp_body.slice(start..end.min(resp_body.len()))
-            };
+            let buffer = resp_body.slice(range.to_content_range(resp_body.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
             Ok((RpRead::new(metadata), buffer))
         }
@@ -312,7 +303,7 @@ impl oio::Read for CloudflareKvReader {
 }
 
 impl Access for CloudflareKvBackend {
-    type Reader = CloudflareKvReader;
+    type Reader = oio::StreamReader<CloudflareKvReader>;
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
@@ -487,7 +478,7 @@ impl Access for CloudflareKvBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            CloudflareKvReader::new(self.clone(), path, args),
+            oio::StreamReader::new(CloudflareKvReader::new(self.clone(), path, args)),
         ))
     }
 

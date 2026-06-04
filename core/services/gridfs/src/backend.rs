@@ -201,7 +201,7 @@ impl GridfsReader {
     }
 }
 
-impl oio::Read for GridfsReader {
+impl oio::StreamRead for GridfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -213,7 +213,7 @@ impl oio::Read for GridfsReader {
                     return Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs"));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -223,7 +223,7 @@ impl oio::Read for GridfsReader {
 }
 
 impl Access for GridfsBackend {
-    type Reader = GridfsReader;
+    type Reader = oio::StreamReader<GridfsReader>;
     type Writer = GridfsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<GridfsDeleter>;
@@ -251,7 +251,7 @@ impl Access for GridfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            GridfsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(GridfsReader::new(self.clone(), path, args)),
         ))
     }
 

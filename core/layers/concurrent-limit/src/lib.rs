@@ -645,7 +645,7 @@ mod tests {
             }
         }
 
-        impl oio::Read for HttpReader {
+        impl oio::StreamRead for HttpReader {
             async fn open(
                 &self,
                 range: BytesRange,
@@ -670,7 +670,7 @@ mod tests {
         }
 
         impl Access for HttpBackend {
-            type Reader = HttpReader;
+            type Reader = oio::StreamReader<HttpReader>;
             type Writer = ();
             type Lister = ();
             type Deleter = ();
@@ -681,7 +681,10 @@ mod tests {
             }
 
             async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-                Ok((RpRead::default(), HttpReader::new(self.clone(), path, args)))
+                Ok((
+                    RpRead::default(),
+                    oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
+                ))
             }
 
             async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {

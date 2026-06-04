@@ -481,7 +481,7 @@ impl AzblobReader {
     }
 }
 
-impl oio::Read for AzblobReader {
+impl oio::StreamRead for AzblobReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -508,7 +508,7 @@ impl oio::Read for AzblobReader {
 }
 
 impl Access for AzblobBackend {
-    type Reader = AzblobReader;
+    type Reader = oio::StreamReader<AzblobReader>;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
@@ -544,7 +544,7 @@ impl Access for AzblobBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            AzblobReader::new(self.clone(), path, args),
+            oio::StreamReader::new(AzblobReader::new(self.clone(), path, args)),
         ))
     }
 

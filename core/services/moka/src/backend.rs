@@ -237,7 +237,7 @@ impl MokaReader {
     }
 }
 
-impl oio::Read for MokaReader {
+impl oio::StreamRead for MokaReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -247,16 +247,9 @@ impl oio::Read for MokaReader {
             match backend.core.get(&p).await? {
                 Some(value) => {
                     let total_size = value.content.len() as u64;
-                    let buffer = if range.is_full() {
-                        value.content
-                    } else {
-                        let start = range.offset() as usize;
-                        let end = match range.size() {
-                            Some(size) => (range.offset() + size) as usize,
-                            None => value.content.len(),
-                        };
-                        value.content.slice(start..end.min(value.content.len()))
-                    };
+                    let buffer = value
+                        .content
+                        .slice(range.to_content_range(value.content.len())?);
                     let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
                     Ok((RpRead::new(metadata), buffer))
                 }
@@ -269,7 +262,7 @@ impl oio::Read for MokaReader {
 }
 
 impl Access for MokaBackend {
-    type Reader = MokaReader;
+    type Reader = oio::StreamReader<MokaReader>;
     type Writer = MokaWriter;
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
@@ -319,7 +312,10 @@ impl Access for MokaBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), MokaReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(MokaReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

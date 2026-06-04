@@ -286,7 +286,7 @@ impl AzfileReader {
     }
 }
 
-impl oio::Read for AzfileReader {
+impl oio::StreamRead for AzfileReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -312,7 +312,7 @@ impl oio::Read for AzfileReader {
 }
 
 impl Access for AzfileBackend {
-    type Reader = AzfileReader;
+    type Reader = oio::StreamReader<AzfileReader>;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
@@ -374,7 +374,7 @@ impl Access for AzfileBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            AzfileReader::new(self.clone(), path, args),
+            oio::StreamReader::new(AzfileReader::new(self.clone(), path, args)),
         ))
     }
 

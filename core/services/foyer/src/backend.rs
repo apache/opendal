@@ -254,7 +254,7 @@ impl FoyerReader {
     }
 }
 
-impl oio::Read for FoyerReader {
+impl oio::StreamRead for FoyerReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -267,16 +267,7 @@ impl oio::Read for FoyerReader {
             };
             let content_length = buffer.len() as u64;
 
-            let buffer = if range.is_full() {
-                buffer
-            } else {
-                let start = range.offset() as usize;
-                let end = match range.size() {
-                    Some(size) => (range.offset() + size) as usize,
-                    None => buffer.len(),
-                };
-                buffer.slice(start..end.min(buffer.len()))
-            };
+            let buffer = buffer.slice(range.to_content_range(buffer.len())?);
 
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
             Ok((RpRead::new(metadata), buffer))
@@ -287,7 +278,7 @@ impl oio::Read for FoyerReader {
 }
 
 impl Access for FoyerBackend {
-    type Reader = FoyerReader;
+    type Reader = oio::StreamReader<FoyerReader>;
     type Writer = FoyerWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
@@ -314,7 +305,7 @@ impl Access for FoyerBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            FoyerReader::new(self.clone(), path, args),
+            oio::StreamReader::new(FoyerReader::new(self.clone(), path, args)),
         ))
     }
 

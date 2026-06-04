@@ -329,7 +329,7 @@ impl CosReader {
     }
 }
 
-impl oio::Read for CosReader {
+impl oio::StreamRead for CosReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -357,7 +357,7 @@ impl oio::Read for CosReader {
 }
 
 impl Access for CosBackend {
-    type Reader = CosReader;
+    type Reader = oio::StreamReader<CosReader>;
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
@@ -394,7 +394,10 @@ impl Access for CosBackend {
         }
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), CosReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(CosReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

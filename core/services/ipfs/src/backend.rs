@@ -157,7 +157,7 @@ impl IpfsReader {
     }
 }
 
-impl oio::Read for IpfsReader {
+impl oio::StreamRead for IpfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -184,7 +184,7 @@ impl oio::Read for IpfsReader {
 }
 
 impl Access for IpfsBackend {
-    type Reader = IpfsReader;
+    type Reader = oio::StreamReader<IpfsReader>;
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
     type Deleter = ();
@@ -199,7 +199,10 @@ impl Access for IpfsBackend {
         Ok(RpStat::new(metadata))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), IpfsReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(IpfsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

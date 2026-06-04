@@ -164,7 +164,7 @@ impl PersyReader {
     }
 }
 
-impl oio::Read for PersyReader {
+impl oio::StreamRead for PersyReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -176,7 +176,7 @@ impl oio::Read for PersyReader {
                     return Err(Error::new(ErrorKind::NotFound, "kv not found in persy"));
                 }
             };
-            let content = bs.slice(range.to_range_as_usize());
+            let content = bs.slice(range.to_content_range(bs.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
             Ok((RpRead::new(metadata), content))
         }
@@ -186,7 +186,7 @@ impl oio::Read for PersyReader {
 }
 
 impl Access for PersyBackend {
-    type Reader = PersyReader;
+    type Reader = oio::StreamReader<PersyReader>;
     type Writer = PersyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PersyDeleter>;
@@ -214,7 +214,7 @@ impl Access for PersyBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            PersyReader::new(self.clone(), path, args),
+            oio::StreamReader::new(PersyReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -47,7 +47,7 @@ impl ObjectStoreReader {
     }
 }
 
-impl oio::Read for ObjectStoreReader {
+impl oio::StreamRead for ObjectStoreReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let path = ObjectStorePath::from(self.path.as_str());
         let opts = parse_op_read(&self.args, range)?;

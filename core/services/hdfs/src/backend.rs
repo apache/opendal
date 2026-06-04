@@ -212,7 +212,7 @@ impl HdfsReader {
     }
 }
 
-impl oio::Read for HdfsReader {
+impl oio::StreamRead for HdfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -230,7 +230,7 @@ impl oio::Read for HdfsReader {
 }
 
 impl Access for HdfsBackend {
-    type Reader = HdfsReader;
+    type Reader = oio::StreamReader<HdfsReader>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -250,7 +250,10 @@ impl Access for HdfsBackend {
         Ok(RpStat::new(m))
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), HdfsReader::new(self.clone(), path, args)))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(HdfsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

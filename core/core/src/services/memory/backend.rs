@@ -100,7 +100,7 @@ impl MemoryBackend {
 }
 
 impl Access for MemoryBackend {
-    type Reader = MemoryReader;
+    type Reader = oio::StreamReader<MemoryReader>;
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
@@ -129,7 +129,7 @@ impl Access for MemoryBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            MemoryReader::new(self.clone(), path, args),
+            oio::StreamReader::new(MemoryReader::new(self.clone(), path, args)),
         ))
     }
 
@@ -173,7 +173,7 @@ impl MemoryReader {
     }
 }
 
-impl oio::Read for MemoryReader {
+impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -191,12 +191,9 @@ impl oio::Read for MemoryReader {
             };
 
             let total_size = value.content.len() as u64;
-            let start = range.offset().min(total_size) as usize;
-            let end = match range.size() {
-                Some(size) => range.offset().saturating_add(size).min(total_size),
-                None => total_size,
-            } as usize;
-            let content = value.content.slice(start..end);
+            let content = value
+                .content
+                .slice(range.to_content_range(value.content.len())?);
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
             Ok((RpRead::new(metadata), content))

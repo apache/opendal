@@ -145,7 +145,7 @@ impl MiniMokaReader {
     }
 }
 
-impl oio::Read for MiniMokaReader {
+impl oio::StreamRead for MiniMokaReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -155,27 +155,9 @@ impl oio::Read for MiniMokaReader {
             match backend.core.get(&p) {
                 Some(value) => {
                     let total_size = value.content.len() as u64;
-
-                    // If range is full, return the content buffer directly
-                    if range.is_full() {
-                        let metadata =
-                            Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                        return Ok((RpRead::new(metadata), value.content));
-                    }
-
-                    let offset = range.offset() as usize;
-                    if offset >= value.content.len() {
-                        return Err(Error::new(
-                            ErrorKind::RangeNotSatisfied,
-                            "range start offset exceeds content length",
-                        ));
-                    }
-
-                    let size = range.size().map(|s| s as usize);
-                    let end = size.map_or(value.content.len(), |s| {
-                        (offset + s).min(value.content.len())
-                    });
-                    let sliced_content = value.content.slice(offset..end);
+                    let sliced_content = value
+                        .content
+                        .slice(range.to_content_range(value.content.len())?);
                     let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
                     Ok((RpRead::new(metadata), sliced_content))
@@ -189,7 +171,7 @@ impl oio::Read for MiniMokaReader {
 }
 
 impl Access for MiniMokaBackend {
-    type Reader = MiniMokaReader;
+    type Reader = oio::StreamReader<MiniMokaReader>;
     type Writer = MiniMokaWriter;
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
@@ -249,7 +231,7 @@ impl Access for MiniMokaBackend {
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            MiniMokaReader::new(self.clone(), path, op),
+            oio::StreamReader::new(MiniMokaReader::new(self.clone(), path, op)),
         ))
     }
 

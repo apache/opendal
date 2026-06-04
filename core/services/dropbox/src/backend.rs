@@ -51,7 +51,7 @@ impl DropboxReader {
     }
 }
 
-impl oio::Read for DropboxReader {
+impl oio::StreamRead for DropboxReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -78,7 +78,7 @@ impl oio::Read for DropboxReader {
 }
 
 impl Access for DropboxBackend {
-    type Reader = DropboxReader;
+    type Reader = oio::StreamReader<DropboxReader>;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
@@ -150,7 +150,7 @@ impl Access for DropboxBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            DropboxReader::new(self.clone(), path, args),
+            oio::StreamReader::new(DropboxReader::new(self.clone(), path, args)),
         ))
     }
 

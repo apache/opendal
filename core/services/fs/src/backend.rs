@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -25,7 +26,6 @@ use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
 use super::lister::FsLister;
-use super::reader::FsReadStream;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use opendal_core::raw::*;
@@ -185,39 +185,45 @@ pub struct FsBackend {
 
 /// Reader returned by this backend.
 pub struct FsReader {
-    backend: FsBackend,
-    path: String,
+    core: Arc<FsCore>,
+    file: Arc<File>,
 }
 
 impl FsReader {
-    fn new(backend: FsBackend, path: &str, _: OpRead) -> Self {
+    fn new(core: Arc<FsCore>, file: File) -> Self {
         Self {
-            backend,
-            path: path.to_string(),
+            core,
+            file: file.into(),
         }
     }
 }
 
-impl oio::Read for FsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let result: Result<(RpRead, FsReadStream<tokio::fs::File>)> = async {
-            let f = backend.core.fs_read(path, range).await?;
-            let r = FsReadStream::new(
-                backend.core.clone(),
-                f,
-                range.size().unwrap_or(u64::MAX) as _,
-            );
-            Ok((RpRead::default(), r))
+impl oio::PositionRead for FsReader {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let mut bs = self.core.buf_pool.get();
+        bs.resize(size, 0);
+
+        let f = self.file.clone();
+        let (n, mut bs) = tokio::task::spawn_blocking(move || {
+            let n = read_at(&f, &mut bs, offset)?;
+            Ok::<_, Error>((n, bs))
+        })
+        .await
+        .map_err(new_task_join_error)??;
+
+        let frozen = bs.split_to(n).freeze();
+        self.core.buf_pool.put(bs);
+
+        Ok(Buffer::from(frozen))
     }
 }
 
 impl Access for FsBackend {
-    type Reader = FsReader;
+    type Reader = oio::PositionReader<FsReader>;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -237,8 +243,12 @@ impl Access for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((RpRead::default(), FsReader::new(self.clone(), path, args)))
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let file = self.core.fs_open(path).await?;
+        Ok((
+            RpRead::default(),
+            oio::PositionReader::new(FsReader::new(self.core.clone(), file)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -292,4 +302,16 @@ impl Access for FsBackend {
         self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
     }
+}
+
+#[cfg(windows)]
+fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+    use std::os::windows::fs::FileExt;
+    f.seek_read(buf, offset).map_err(new_std_io_error)
+}
+
+#[cfg(unix)]
+fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+    use std::os::unix::fs::FileExt;
+    f.read_at(buf, offset).map_err(new_std_io_error)
 }

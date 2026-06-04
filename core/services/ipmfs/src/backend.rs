@@ -52,7 +52,7 @@ impl IpmfsReader {
     }
 }
 
-impl oio::Read for IpmfsReader {
+impl oio::StreamRead for IpmfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -78,7 +78,7 @@ impl oio::Read for IpmfsReader {
 }
 
 impl Access for IpmfsBackend {
-    type Reader = IpmfsReader;
+    type Reader = oio::StreamReader<IpmfsReader>;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
@@ -133,7 +133,7 @@ impl Access for IpmfsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            IpmfsReader::new(self.clone(), path, args),
+            oio::StreamReader::new(IpmfsReader::new(self.clone(), path, args)),
         ))
     }
 

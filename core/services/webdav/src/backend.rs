@@ -266,7 +266,7 @@ impl WebdavReader {
     }
 }
 
-impl oio::Read for WebdavReader {
+impl oio::StreamRead for WebdavReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -294,7 +294,7 @@ impl oio::Read for WebdavReader {
 }
 
 impl Access for WebdavBackend {
-    type Reader = WebdavReader;
+    type Reader = oio::StreamReader<WebdavReader>;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
@@ -316,7 +316,7 @@ impl Access for WebdavBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            WebdavReader::new(self.clone(), path, args),
+            oio::StreamReader::new(WebdavReader::new(self.clone(), path, args)),
         ))
     }
 

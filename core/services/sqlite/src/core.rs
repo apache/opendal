@@ -60,6 +60,28 @@ impl SqliteCore {
         Ok(value.map(Buffer::from))
     }
 
+    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
+        let pool = self.get_client().await?;
+
+        let value: Option<i64> = sqlx::query_scalar(&format!(
+            "SELECT LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+            self.value_field, self.table, self.key_field
+        ))
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_sqlite_error)?;
+
+        value
+            .map(|v| {
+                v.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
+                        .set_source(err)
+                })
+            })
+            .transpose()
+    }
+
     pub async fn get_range(
         &self,
         path: &str,

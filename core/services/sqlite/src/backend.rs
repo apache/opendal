@@ -222,7 +222,7 @@ impl SqliteReader {
     }
 }
 
-impl oio::Read for SqliteReader {
+impl oio::StreamRead for SqliteReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
@@ -240,13 +240,31 @@ impl oio::Read for SqliteReader {
                 }
             } else {
                 // Range read - use GETRANGE
-                let start = range.offset() as isize;
-                let limit = range.size().map(|size| size as isize);
-
-                match backend.core.get_range(&p, start, limit).await? {
-                    Some((bs, content_length)) => (bs, content_length),
+                let content_length = match backend.core.get_length(&p).await? {
+                    Some(v) => v,
                     None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-                }
+                };
+                let content_range = range.to_content_range(content_length)?;
+
+                let buffer = if content_range.is_empty() {
+                    Buffer::new()
+                } else {
+                    let start: isize = content_range.start.try_into().map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
+                            .set_source(err)
+                    })?;
+                    let limit: isize = content_range.len().try_into().map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "range size exceeds isize::MAX")
+                            .set_source(err)
+                    })?;
+                    match backend.core.get_range(&p, start, Some(limit)).await? {
+                        Some((bs, _)) => bs,
+                        None => {
+                            return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
+                        }
+                    }
+                };
+                (buffer, content_length as u64)
             };
 
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
@@ -258,7 +276,7 @@ impl oio::Read for SqliteReader {
 }
 
 impl Access for SqliteBackend {
-    type Reader = SqliteReader;
+    type Reader = oio::StreamReader<SqliteReader>;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
@@ -308,7 +326,7 @@ impl Access for SqliteBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            SqliteReader::new(self.clone(), path, args),
+            oio::StreamReader::new(SqliteReader::new(self.clone(), path, args)),
         ))
     }
 

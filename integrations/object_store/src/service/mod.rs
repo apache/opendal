@@ -91,7 +91,7 @@ impl Debug for ObjectStoreService {
 }
 
 impl Access for ObjectStoreService {
-    type Reader = ObjectStoreReader;
+    type Reader = oio::StreamReader<ObjectStoreReader>;
     type Writer = MultipartWriter<ObjectStoreWriter>;
     type Lister = ObjectStoreLister;
     type Deleter = BatchDeleter<ObjectStoreDeleter>;
@@ -133,7 +133,7 @@ impl Access for ObjectStoreService {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         Ok((
             RpRead::default(),
-            ObjectStoreReader::new(self.store.clone(), path, args),
+            oio::StreamReader::new(ObjectStoreReader::new(self.store.clone(), path, args)),
         ))
     }
 

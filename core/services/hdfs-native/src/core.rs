@@ -78,18 +78,10 @@ impl HdfsNativeCore {
         Ok(metadata)
     }
 
-    pub async fn hdfs_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<(hdfs_native::file::FileReader, usize, usize)> {
+    pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
-
-        let (offset, size) = build_hdfs_read_range(f.file_length(), range);
-
-        Ok((f, offset, size))
+        self.client.read(&p).await.map_err(parse_hdfs_error)
     }
 
     pub async fn hdfs_write(
@@ -205,46 +197,5 @@ impl HdfsNativeCore {
             .map_err(parse_hdfs_error)?;
 
         Ok(())
-    }
-}
-
-fn build_hdfs_read_range(file_length: usize, range: BytesRange) -> (usize, usize) {
-    let file_length_u64 = file_length as u64;
-    let offset = if range.offset() >= file_length_u64 {
-        file_length
-    } else {
-        range.offset() as usize
-    };
-    let available = file_length.saturating_sub(offset);
-    let size = match range.size() {
-        Some(size) => usize::try_from(size).unwrap_or(usize::MAX).min(available),
-        None => available,
-    };
-
-    (offset, size)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_hdfs_read_range() {
-        assert_eq!(
-            build_hdfs_read_range(100, BytesRange::from(10_u64..20)),
-            (10, 10)
-        );
-        assert_eq!(
-            build_hdfs_read_range(100, BytesRange::from(90_u64..)),
-            (90, 10)
-        );
-        assert_eq!(
-            build_hdfs_read_range(100, BytesRange::from(100_u64..)),
-            (100, 0)
-        );
-        assert_eq!(
-            build_hdfs_read_range(100, BytesRange::from(120_u64..130)),
-            (100, 0)
-        );
     }
 }

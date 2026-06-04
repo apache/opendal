@@ -270,7 +270,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
     fn open(
         &self,
         range: BytesRange,
-    ) -> impl Future<Output = Result<(RpRead, oio::ReadStreamBox)>> + MaybeSend {
+    ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> + MaybeSend {
         let _g = self.span.set_local_parent();
         let span = self.span.clone();
         let fut = self.inner.open(range);
@@ -278,7 +278,7 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
             let (rp, stream) = fut.await?;
             Ok((
                 rp,
-                Box::new(FastraceWrapper::with_span(span, stream)) as oio::ReadStreamBox,
+                Box::new(FastraceWrapper::with_span(span, stream)) as Box<dyn oio::ReadStreamDyn>,
             ))
         }
     }

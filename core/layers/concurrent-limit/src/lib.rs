@@ -351,7 +351,7 @@ impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
 }
 
 impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         self.inner.open(range).await
     }
 

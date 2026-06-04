@@ -335,7 +335,7 @@ impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, stream) = Self::io_timeout(
             self.timeout,
             Operation::Read.into_static(),
@@ -344,7 +344,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
         .await?;
         Ok((
             rp,
-            Box::new(TimeoutWrapper::new(stream, self.timeout)) as oio::ReadStreamBox,
+            Box::new(TimeoutWrapper::new(stream, self.timeout)) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 
@@ -488,7 +488,7 @@ mod tests {
         fn open(
             &self,
             _: BytesRange,
-        ) -> impl Future<Output = Result<(RpRead, oio::ReadStreamBox)>> {
+        ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> {
             pending()
         }
 

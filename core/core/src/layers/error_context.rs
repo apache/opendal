@@ -234,7 +234,7 @@ impl<T> ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         self.inner
             .open(range)
             .await
@@ -244,7 +244,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
                     Box::new(
                         ErrorContextWrapper::new(self.scheme, self.path.clone(), stream)
                             .with_range(range),
-                    ) as oio::ReadStreamBox,
+                    ) as Box<dyn oio::ReadStreamDyn>,
                 )
             })
             .map_err(|err| {

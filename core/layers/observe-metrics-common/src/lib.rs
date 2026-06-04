@@ -1096,7 +1096,7 @@ impl<R: oio::ReadStream, I: MetricsIntercept> oio::ReadStream for MetricsWrapper
 }
 
 impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, stream) = self.inner.open(range).await?;
         Ok((
             rp,
@@ -1105,7 +1105,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
                 self.interceptor.clone(),
                 self.labels.clone(),
                 Instant::now(),
-            )) as oio::ReadStreamBox,
+            )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 

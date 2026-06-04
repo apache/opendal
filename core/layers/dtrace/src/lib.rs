@@ -278,7 +278,7 @@ impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
         match self.inner.open(range).await {
@@ -286,7 +286,8 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), 0);
                 Ok((
                     rp,
-                    Box::new(DtraceLayerWrapper::new(stream, &self.path)) as oio::ReadStreamBox,
+                    Box::new(DtraceLayerWrapper::new(stream, &self.path))
+                        as Box<dyn oio::ReadStreamDyn>,
                 ))
             }
             Err(e) => {

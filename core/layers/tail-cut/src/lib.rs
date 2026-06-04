@@ -555,7 +555,7 @@ impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let size = range.size();
         let deadline = self.calculate_deadline_for(Operation::Read, size);
         let (rp, stream) = Self::with_io_deadline(
@@ -575,7 +575,7 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
                 size,
                 self.config.clone(),
                 self.stats.clone(),
-            )) as oio::ReadStreamBox,
+            )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 

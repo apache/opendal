@@ -28,9 +28,6 @@ use crate::*;
 /// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn ReadDyn>;
 
-/// ReadStreamBox is a type erased [`ReadStream`].
-pub type ReadStreamBox = Box<dyn ReadStreamDyn>;
-
 /// Read is the internal trait used by OpenDAL to read ranges from storage.
 ///
 /// Users should not use or import this trait unless they are implementing an `Accessor`.
@@ -39,7 +36,7 @@ pub trait Read: Unpin + Send + Sync {
     fn open(
         &self,
         range: BytesRange,
-    ) -> impl Future<Output = Result<(RpRead, ReadStreamBox)>> + MaybeSend;
+    ) -> impl Future<Output = Result<(RpRead, Box<dyn ReadStreamDyn>)>> + MaybeSend;
 
     /// Read an exact bounded range into [`Buffer`].
     fn read(
@@ -83,7 +80,7 @@ pub trait Read: Unpin + Send + Sync {
 }
 
 impl Read for () {
-    async fn open(&self, _: BytesRange) -> Result<(RpRead, ReadStreamBox)> {
+    async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support open",
@@ -95,7 +92,10 @@ impl Read for () {
 /// `Box<dyn ReadDyn>`.
 pub trait ReadDyn: Unpin + Send + Sync {
     /// The dyn version of [`Read::open`].
-    fn open_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, ReadStreamBox)>>;
+    fn open_dyn(
+        &self,
+        range: BytesRange,
+    ) -> BoxedFuture<'_, Result<(RpRead, Box<dyn ReadStreamDyn>)>>;
 
     /// The dyn version of [`Read::read`].
     fn read_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, Buffer)>>;
@@ -105,7 +105,10 @@ pub trait ReadDyn: Unpin + Send + Sync {
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn open_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, ReadStreamBox)>> {
+    fn open_dyn(
+        &self,
+        range: BytesRange,
+    ) -> BoxedFuture<'_, Result<(RpRead, Box<dyn ReadStreamDyn>)>> {
         Box::pin(self.open(range))
     }
 
@@ -119,7 +122,7 @@ impl<T: Read + ?Sized> ReadDyn for T {
 }
 
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
         self.deref().open_dyn(range).await
     }
 
@@ -166,11 +169,11 @@ impl<R> RangeReader<R> {
 }
 
 impl<R: RangeRead> Read for RangeReader<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
         self.inner
             .open_range(&self.path, self.args.clone(), range)
             .await
-            .map(|(rp, stream)| (rp, Box::new(stream) as ReadStreamBox))
+            .map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn ReadStreamDyn>))
     }
 }
 

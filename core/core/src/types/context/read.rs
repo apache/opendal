@@ -216,7 +216,7 @@ impl ReadGenerator {
     }
 
     /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<oio::ReadStreamBox>> {
+    pub async fn next_reader(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
         let Some(range) = self.next_range() else {
             return Ok(None);
         };

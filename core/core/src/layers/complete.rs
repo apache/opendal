@@ -187,12 +187,12 @@ impl<R> CompleteReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let size = range.size();
         self.inner.open(range).await.map(|(rp, stream)| {
             (
                 rp,
-                Box::new(CompleteReadStream::new(stream, size)) as oio::ReadStreamBox,
+                Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
             )
         })
     }

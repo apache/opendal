@@ -612,7 +612,7 @@ impl<R: oio::ReadStream, I: LoggingInterceptor> oio::ReadStream for LoggingReade
 }
 
 impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         match self.inner.open(range).await {
             Ok((rp, stream)) => Ok((
                 rp,
@@ -621,7 +621,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
                     self.logger.clone(),
                     &self.path,
                     stream,
-                )) as oio::ReadStreamBox,
+                )) as Box<dyn oio::ReadStreamDyn>,
             )),
             Err(err) => {
                 self.logger.log(

@@ -477,7 +477,7 @@ impl<R, I> RetryReader<R, I> {
 }
 
 impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         use backon::Retryable;
 
         let mut attempt: u32 = 0;
@@ -504,7 +504,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
                 range,
                 self.notify.clone(),
                 self.builder,
-            )) as oio::ReadStreamBox,
+            )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 
@@ -552,7 +552,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
 #[doc(hidden)]
 pub struct RetryReadStream<R, I> {
     reader: Arc<R>,
-    stream: Option<oio::ReadStreamBox>,
+    stream: Option<Box<dyn oio::ReadStreamDyn>>,
     range: BytesRange,
     read: u64,
     notify: Arc<I>,
@@ -562,7 +562,7 @@ pub struct RetryReadStream<R, I> {
 impl<R, I> RetryReadStream<R, I> {
     fn new(
         reader: Arc<R>,
-        stream: oio::ReadStreamBox,
+        stream: Box<dyn oio::ReadStreamDyn>,
         range: BytesRange,
         notify: Arc<I>,
         builder: ExponentialBuilder,

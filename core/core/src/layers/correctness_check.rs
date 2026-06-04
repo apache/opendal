@@ -347,7 +347,7 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        async fn open(&self, _: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             Ok((RpRead::default(), Box::new(Buffer::new())))
         }
 

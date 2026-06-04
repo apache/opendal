@@ -215,11 +215,12 @@ impl<R: oio::ReadStream> oio::ReadStream for OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, stream) = self.inner.open(range).await?;
         Ok((
             rp,
-            Box::new(OtelTraceWrapper::with_span(self.span.clone(), stream)) as oio::ReadStreamBox,
+            Box::new(OtelTraceWrapper::with_span(self.span.clone(), stream))
+                as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 

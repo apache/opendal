@@ -163,9 +163,9 @@ impl<A: Access> FullReader<A> {
 }
 
 impl<A: Access> oio::Read for FullReader<A> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, buffer) = self.read_range(range).await?;
-        Ok((rp, Box::new(buffer) as oio::ReadStreamBox))
+        Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {

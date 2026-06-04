@@ -174,7 +174,7 @@ impl<R: oio::ReadStream> oio::ReadStream for AwaitTreeWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, stream) = self
             .inner
             .open(range)
@@ -182,7 +182,7 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
             .await?;
         Ok((
             rp,
-            Box::new(AwaitTreeWrapper::new(stream)) as oio::ReadStreamBox,
+            Box::new(AwaitTreeWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 

@@ -187,13 +187,13 @@ impl<R: oio::ReadStream> oio::ReadStream for ChaosReader<R> {
 }
 
 impl<R: oio::Read> oio::Read for ChaosReader<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         if self.i_feel_lucky() {
             let (rp, stream) = self.inner.open(range).await?;
             Ok((
                 rp,
                 Box::new(ChaosReader::new(stream, self.rng.clone(), self.error_ratio))
-                    as oio::ReadStreamBox,
+                    as Box<dyn oio::ReadStreamDyn>,
             ))
         } else {
             Err(Self::unexpected_eof())

@@ -35,7 +35,7 @@ use crate::*;
 /// StreamingReader is good for small memory footprint and optimized for latency.
 pub struct StreamingReader {
     generator: ReadGenerator,
-    reader: Option<oio::ReadStreamBox>,
+    reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
 impl StreamingReader {
@@ -97,7 +97,7 @@ impl oio::ReadStream for StreamingReader {
 struct ChunkedReadInput {
     ctx: Arc<ReadContext>,
     range: BytesRange,
-    reader: Option<oio::ReadStreamBox>,
+    reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
 /// ChunkedReader will read the file in chunks.

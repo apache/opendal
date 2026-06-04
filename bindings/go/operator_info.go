@@ -112,12 +112,12 @@ func (c *Capability) Read() bool {
 	return c.inner.read == 1
 }
 
-func (c *Capability) ReadWithIfmatch() bool {
-	return c.inner.readWithIfmatch == 1
+func (c *Capability) ReadWithIfMatch() bool {
+	return c.inner.readWithIfMatch == 1
 }
 
-func (c *Capability) ReadWithIfMatchNone() bool {
-	return c.inner.readWithIfMatchNone == 1
+func (c *Capability) ReadWithIfNoneMatch() bool {
+	return c.inner.readWithIfNoneMatch == 1
 }
 
 func (c *Capability) ReadWithOverrideCacheControl() bool {
@@ -130,6 +130,18 @@ func (c *Capability) ReadWithOverrideContentDisposition() bool {
 
 func (c *Capability) ReadWithOverrideContentType() bool {
 	return c.inner.readWithOverrideContentType == 1
+}
+
+func (c *Capability) ReadWithIfModifiedSince() bool {
+	return c.inner.readWithIfModifiedSince == 1
+}
+
+func (c *Capability) ReadWithIfUnmodifiedSince() bool {
+	return c.inner.readWithIfUnmodifiedSince == 1
+}
+
+func (c *Capability) ReadWithVersion() bool {
+	return c.inner.readWithVersion == 1
 }
 
 func (c *Capability) Write() bool {

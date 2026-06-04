@@ -327,6 +327,10 @@ impl Builder for AzdlsBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_append: true,
@@ -403,7 +407,7 @@ impl Access for AzdlsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range()).await?;
+        let resp = self.core.azdls_read(path, args.range(), &args).await?;
 
         let status = resp.status();
         match status {

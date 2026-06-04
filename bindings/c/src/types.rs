@@ -893,15 +893,6 @@ impl From<&opendal_read_options> for options::ReadOptions {
     }
 }
 
-impl Drop for opendal_bytes {
-    fn drop(&mut self) {
-        unsafe {
-            // Safety: the pointer is always valid
-            Self::opendal_bytes_free(self);
-        }
-    }
-}
-
 impl From<&opendal_bytes> for Buffer {
     fn from(v: &opendal_bytes) -> Self {
         let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };

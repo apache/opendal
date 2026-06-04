@@ -543,6 +543,182 @@ impl From<&opendal_write_options> for options::WriteOptions {
     }
 }
 
+/// \brief The options for stat operations.
+///
+/// Use `opendal_stat_options_new()` to construct and
+/// `opendal_stat_options_free()` to free.
+///
+/// @see opendal_operator_stat_with
+#[repr(C)]
+pub struct opendal_stat_options {
+    /// The version of the object to stat; NULL means unset.
+    pub version: *const c_char,
+    /// If-Match header value; NULL means unset.
+    pub if_match: *const c_char,
+    /// If-None-Match header value; NULL means unset.
+    pub if_none_match: *const c_char,
+    /// Whether `if_modified_since` has been set.
+    pub has_if_modified_since: bool,
+    /// If-Modified-Since timestamp in milliseconds since the Unix epoch.
+    pub if_modified_since: i64,
+    /// Whether `if_unmodified_since` has been set.
+    pub has_if_unmodified_since: bool,
+    /// If-Unmodified-Since timestamp in milliseconds since the Unix epoch.
+    pub if_unmodified_since: i64,
+    /// Override the response Content-Type header; NULL means unset.
+    pub override_content_type: *const c_char,
+    /// Override the response Cache-Control header; NULL means unset.
+    pub override_cache_control: *const c_char,
+    /// Override the response Content-Disposition header; NULL means unset.
+    pub override_content_disposition: *const c_char,
+}
+
+impl opendal_stat_options {
+    /// \brief Construct a heap-allocated opendal_stat_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_stat_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_stat_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_free(opts: *mut opendal_stat_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set the version.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_version(
+        opts: *mut opendal_stat_options,
+        version: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).version = version;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_match(
+        opts: *mut opendal_stat_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_none_match(
+        opts: *mut opendal_stat_options,
+        if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_none_match = if_none_match;
+        }
+    }
+
+    /// \brief Set If-Modified-Since in milliseconds since the Unix epoch.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_modified_since(
+        opts: *mut opendal_stat_options,
+        if_modified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_modified_since = true;
+            (*opts).if_modified_since = if_modified_since;
+        }
+    }
+
+    /// \brief Set If-Unmodified-Since in milliseconds since the Unix epoch.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_unmodified_since(
+        opts: *mut opendal_stat_options,
+        if_unmodified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_unmodified_since = true;
+            (*opts).if_unmodified_since = if_unmodified_since;
+        }
+    }
+
+    /// \brief Set the override Content-Type.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_content_type(
+        opts: *mut opendal_stat_options,
+        override_content_type: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_type = override_content_type;
+        }
+    }
+
+    /// \brief Set the override Cache-Control.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_cache_control(
+        opts: *mut opendal_stat_options,
+        override_cache_control: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_cache_control = override_cache_control;
+        }
+    }
+
+    /// \brief Set the override Content-Disposition.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_content_disposition(
+        opts: *mut opendal_stat_options,
+        override_content_disposition: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_disposition = override_content_disposition;
+        }
+    }
+}
+
+impl Default for opendal_stat_options {
+    fn default() -> Self {
+        Self {
+            version: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            has_if_modified_since: false,
+            if_modified_since: 0,
+            has_if_unmodified_since: false,
+            if_unmodified_since: 0,
+            override_content_type: std::ptr::null(),
+            override_cache_control: std::ptr::null(),
+            override_content_disposition: std::ptr::null(),
+        }
+    }
+}
+
+impl From<&opendal_stat_options> for options::StatOptions {
+    fn from(value: &opendal_stat_options) -> Self {
+        Self {
+            version: unsafe { optional_cstr(value.version) },
+            if_match: unsafe { optional_cstr(value.if_match) },
+            if_none_match: unsafe { optional_cstr(value.if_none_match) },
+            if_modified_since: value
+                .has_if_modified_since
+                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
+                .flatten(),
+            if_unmodified_since: value
+                .has_if_unmodified_since
+                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
+                .flatten(),
+            override_content_type: unsafe { optional_cstr(value.override_content_type) },
+            override_cache_control: unsafe { optional_cstr(value.override_cache_control) },
+            override_content_disposition: unsafe {
+                optional_cstr(value.override_content_disposition)
+            },
+        }
+    }
+}
+
 /// \brief The options for read operations.
 ///
 /// Use `opendal_read_options_new()` to construct and
@@ -802,15 +978,6 @@ impl From<&opendal_read_options> for options::ReadOptions {
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
-        }
-    }
-}
-
-impl Drop for opendal_bytes {
-    fn drop(&mut self) {
-        unsafe {
-            // Safety: the pointer is always valid
-            Self::opendal_bytes_free(self);
         }
     }
 }

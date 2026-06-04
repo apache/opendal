@@ -627,6 +627,57 @@ typedef struct opendal_result_stat {
 } opendal_result_stat;
 
 /**
+ * \brief The options for stat operations.
+ *
+ * Use `opendal_stat_options_new()` to construct and
+ * `opendal_stat_options_free()` to free.
+ *
+ * @see opendal_operator_stat_with
+ */
+typedef struct opendal_stat_options {
+  /**
+   * The version of the object to stat; NULL means unset.
+   */
+  const char *version;
+  /**
+   * If-Match header value; NULL means unset.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value; NULL means unset.
+   */
+  const char *if_none_match;
+  /**
+   * Whether `if_modified_since` has been set.
+   */
+  bool has_if_modified_since;
+  /**
+   * If-Modified-Since timestamp in milliseconds since the Unix epoch.
+   */
+  int64_t if_modified_since;
+  /**
+   * Whether `if_unmodified_since` has been set.
+   */
+  bool has_if_unmodified_since;
+  /**
+   * If-Unmodified-Since timestamp in milliseconds since the Unix epoch.
+   */
+  int64_t if_unmodified_since;
+  /**
+   * Override the response Content-Type header; NULL means unset.
+   */
+  const char *override_content_type;
+  /**
+   * Override the response Cache-Control header; NULL means unset.
+   */
+  const char *override_cache_control;
+  /**
+   * Override the response Content-Disposition header; NULL means unset.
+   */
+  const char *override_content_disposition;
+} opendal_stat_options;
+
+/**
  * \brief The result type returned by opendal_operator_list().
  *
  * The result type for opendal_operator_list(), the field `lister` contains the lister
@@ -702,6 +753,30 @@ typedef struct opendal_capability {
    * If operator supports stat with if none match.
    */
   bool stat_with_if_none_match;
+  /**
+   * If operator supports stat with if modified since.
+   */
+  bool stat_with_if_modified_since;
+  /**
+   * If operator supports stat with if unmodified since.
+   */
+  bool stat_with_if_unmodified_since;
+  /**
+   * if operator supports stat with override cache control.
+   */
+  bool stat_with_override_cache_control;
+  /**
+   * if operator supports stat with override content disposition.
+   */
+  bool stat_with_override_content_disposition;
+  /**
+   * if operator supports stat with override content type.
+   */
+  bool stat_with_override_content_type;
+  /**
+   * If operator supports stat with version.
+   */
+  bool stat_with_version;
   /**
    * If operator supports read.
    */
@@ -1632,6 +1707,34 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
                                                  const char *path);
 
 /**
+ * \brief Blocking stat the object in `path` with options.
+ *
+ * Stat the object in `path` with the provided `opendal_stat_options`. This is
+ * similar to `opendal_operator_stat` but allows passing options such as
+ * `version`, `if_match`, `if_none_match`, or response header overrides.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to stat
+ * @param opts The options for the stat operation; pass NULL to use defaults
+ * @see opendal_operator
+ * @see opendal_result_stat
+ * @see opendal_stat_options
+ * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_stat opendal_operator_stat_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_stat_options *opts);
+
+/**
  * \brief Blocking list the objects in `path`.
  *
  * List the object in `path` blocking by `op_ptr`, return a result with an
@@ -2114,6 +2217,62 @@ void opendal_write_options_set_chunk(struct opendal_write_options *opts, uintptr
 void opendal_write_options_set_user_metadata(struct opendal_write_options *opts,
                                              const struct opendal_write_user_metadata_pair *pairs,
                                              uintptr_t len);
+
+/**
+ * \brief Construct a heap-allocated opendal_stat_options with default values.
+ */
+struct opendal_stat_options *opendal_stat_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_stat_options.
+ */
+void opendal_stat_options_free(struct opendal_stat_options *opts);
+
+/**
+ * \brief Set the version.
+ */
+void opendal_stat_options_set_version(struct opendal_stat_options *opts, const char *version);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_stat_options_set_if_match(struct opendal_stat_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_stat_options_set_if_none_match(struct opendal_stat_options *opts,
+                                            const char *if_none_match);
+
+/**
+ * \brief Set If-Modified-Since in milliseconds since the Unix epoch.
+ */
+void opendal_stat_options_set_if_modified_since(struct opendal_stat_options *opts,
+                                                int64_t if_modified_since);
+
+/**
+ * \brief Set If-Unmodified-Since in milliseconds since the Unix epoch.
+ */
+void opendal_stat_options_set_if_unmodified_since(struct opendal_stat_options *opts,
+                                                  int64_t if_unmodified_since);
+
+/**
+ * \brief Set the override Content-Type.
+ */
+void opendal_stat_options_set_override_content_type(struct opendal_stat_options *opts,
+                                                    const char *override_content_type);
+
+/**
+ * \brief Set the override Cache-Control.
+ */
+void opendal_stat_options_set_override_cache_control(struct opendal_stat_options *opts,
+                                                     const char *override_cache_control);
+
+/**
+ * \brief Set the override Content-Disposition.
+ */
+void opendal_stat_options_set_override_content_disposition(struct opendal_stat_options *opts,
+                                                           const char *override_content_disposition);
 
 /**
  * \brief Construct a heap-allocated opendal_read_options with default values.

@@ -864,6 +864,55 @@ pub unsafe extern "C" fn opendal_operator_stat(
     }
 }
 
+/// \brief Blocking stat the object in `path` with options.
+///
+/// Stat the object in `path` with the provided `opendal_stat_options`. This is
+/// similar to `opendal_operator_stat` but allows passing options such as
+/// `version`, `if_match`, `if_none_match`, or response header overrides.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to stat
+/// @param opts The options for the stat operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_stat
+/// @see opendal_stat_options
+/// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_stat_options,
+) -> opendal_result_stat {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::StatOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().stat_options(path, opts) {
+        Ok(m) => opendal_result_stat {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking list the objects in `path`.
 ///
 /// List the object in `path` blocking by `op_ptr`, return a result with an

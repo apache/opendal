@@ -306,10 +306,6 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.inner.read(range).instrument(self.span.clone()).await
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        self.inner.fetch(ranges).instrument(self.span.clone()).await
-    }
 }
 
 impl<R: oio::Write> oio::Write for TracingWrapper<R> {

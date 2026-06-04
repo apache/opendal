@@ -203,16 +203,6 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
         check_complete(size, buffer.len() as u64)?;
         Ok((rp, buffer))
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let sizes = ranges.iter().map(|v| v.size()).collect::<Vec<_>>();
-        let (rp, buffers) = self.inner.fetch(ranges).await?;
-        check_complete_count(sizes.len(), buffers.len())?;
-        for (size, buffer) in sizes.into_iter().zip(buffers.iter()) {
-            check_complete(size, buffer.len() as u64)?;
-        }
-        Ok((rp, buffers))
-    }
 }
 
 pub struct CompleteReadStream<R> {
@@ -267,19 +257,6 @@ fn check_complete(size: Option<u64>, actual: u64) -> Result<()> {
                 .with_context("actual", actual),
         ),
     }
-}
-
-fn check_complete_count(expect: usize, actual: usize) -> Result<()> {
-    if expect == actual {
-        return Ok(());
-    }
-
-    Err(Error::new(
-        ErrorKind::Unexpected,
-        "reader got unexpected number of buffers",
-    )
-    .with_context("expect", expect)
-    .with_context("actual", actual))
 }
 
 /// Tracks the state of the Write operation.
@@ -424,45 +401,42 @@ where
 mod tests {
     use super::*;
 
-    struct MockFetchReader {
-        buffers: Vec<Buffer>,
+    struct MockReadReader {
+        buffer: Buffer,
     }
 
-    impl oio::Read for MockFetchReader {
+    impl oio::Read for MockReadReader {
         async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             Err(Error::new(ErrorKind::Unsupported, "open is not supported"))
         }
 
-        async fn fetch(&self, _: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-            Ok((RpRead::default(), self.buffers.clone()))
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Ok((RpRead::default(), self.buffer.clone()))
         }
     }
 
     #[tokio::test]
-    async fn test_fetch_rejects_missing_buffer() {
-        let reader = CompleteReader::new(MockFetchReader {
-            buffers: vec![Buffer::from("a")],
+    async fn test_read_rejects_short_buffer() {
+        let reader = CompleteReader::new(MockReadReader {
+            buffer: Buffer::from("a"),
         });
 
-        let err = oio::Read::fetch(
-            &reader,
-            vec![BytesRange::from(0_u64..1), BytesRange::from(1_u64..2)],
-        )
-        .await
-        .expect_err("fetch should reject missing buffer");
+        let err = oio::Read::read(&reader, BytesRange::from(0_u64..2))
+            .await
+            .expect_err("read should reject short buffer");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 
     #[tokio::test]
-    async fn test_fetch_rejects_extra_buffer() {
-        let reader = CompleteReader::new(MockFetchReader {
-            buffers: vec![Buffer::from("a"), Buffer::from("b")],
+    async fn test_read_rejects_extra_buffer() {
+        let reader = CompleteReader::new(MockReadReader {
+            buffer: Buffer::from("ab"),
         });
 
-        let err = oio::Read::fetch(&reader, vec![BytesRange::from(0_u64..1)])
+        let err = oio::Read::read(&reader, BytesRange::from(0_u64..1))
             .await
-            .expect_err("fetch should reject extra buffer");
+            .expect_err("read should reject extra buffer");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }

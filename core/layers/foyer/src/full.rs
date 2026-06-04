@@ -81,17 +81,6 @@ impl<A: Access> FullReader<A> {
             .contains(key)
     }
 
-    async fn get_cached_full_object(&self) -> Result<Option<Buffer>> {
-        let key = self.cache_key();
-
-        if self.is_deleted(&key) {
-            return Ok(None);
-        }
-
-        let entry = self.inner.cache.get(&key).await.map_err(extract_err)?;
-        Ok(entry.map(|entry| entry.0.clone()))
-    }
-
     async fn fallback_open(
         &self,
         range: BytesRange,
@@ -106,29 +95,19 @@ impl<A: Access> FullReader<A> {
         Ok((rp, stream))
     }
 
-    async fn fallback_fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+    async fn fallback_read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         let (rp, reader) = self
             .inner
             .accessor
             .read(&self.path, self.args.clone())
             .await?;
-        let (rp_fetch, buffers) = reader.fetch(ranges).await?;
-        let rp = rp_fetch.into_metadata().map(RpRead::new).unwrap_or(rp);
-        Ok((rp, buffers))
+        let (rp_read, buffer) = reader.read(range).await?;
+        let rp = rp_read.into_metadata().map(RpRead::new).unwrap_or(rp);
+        Ok((rp, buffer))
     }
 
-    /// Read data from cache or underlying storage.
-    /// Caches the ENTIRE object, then slices to requested range.
-    async fn read_range(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+    async fn read_full_object(&self) -> Result<Option<Buffer>> {
         let path_str = self.path.clone();
-        let original_args = self.args.clone();
-
-        // Extract range bounds before async block to avoid lifetime issues
-        let (range_start, range_end) = {
-            let start = range.offset();
-            let end = range.size().map(|size| start + size);
-            (start, end)
-        };
 
         // Use get_or_fetch to read data from cache or fallback to remote. It can automatically
         // handle the thundering herd problem by ensuring only one request is made for a given
@@ -140,10 +119,7 @@ impl<A: Access> FullReader<A> {
         let key = self.cache_key();
 
         if self.is_deleted(&key) {
-            let (rp, reader) = self.inner.accessor.read(&self.path, original_args).await?;
-            let (rp_open, buffer) = reader.read(range).await?;
-            let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
-            return Ok((rp, buffer));
+            return Ok(None);
         }
 
         let result = self
@@ -184,22 +160,10 @@ impl<A: Access> FullReader<A> {
             })
             .await;
 
-        // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
-        // we'll simply forward the request to the underlying accessor with user's given range.
         match result {
-            Ok(entry) => {
-                let end = range_end.unwrap_or(entry.len() as u64);
-                let buffer = entry.slice(range_start as usize..end as usize);
-                let rp = Self::full_object_rp(&entry);
-                Ok((rp, buffer))
-            }
+            Ok(entry) => Ok(Some(entry.0.clone())),
             Err(e) => match e.downcast_ref::<FetchError>() {
-                Some(FetchError::SizeTooLarge) => {
-                    let (rp, reader) = self.inner.accessor.read(&self.path, original_args).await?;
-                    let (rp_read, buffer) = reader.read(range).await?;
-                    let rp = rp_read.into_metadata().map(RpRead::new).unwrap_or(rp);
-                    Ok((rp, buffer))
-                }
+                Some(FetchError::SizeTooLarge) => Ok(None),
                 Some(FetchError::Source { kind, message }) => {
                     Err(Error::new(*kind, message.clone()))
                 }
@@ -207,11 +171,24 @@ impl<A: Access> FullReader<A> {
             },
         }
     }
+
+    /// Read data from cache or underlying storage.
+    /// Caches the ENTIRE object, then slices to requested range.
+    async fn read_range(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        match self.read_full_object().await? {
+            Some(buffer) => {
+                let rp = Self::full_object_rp(&buffer);
+                let buffer = Self::slice_full_object(&buffer, range);
+                Ok((rp, buffer))
+            }
+            None => self.fallback_read(range).await,
+        }
+    }
 }
 
 impl<A: Access> oio::Read for FullReader<A> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        match self.get_cached_full_object().await? {
+        match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
                 let buffer = Self::slice_full_object(&buffer, range);
@@ -223,19 +200,5 @@ impl<A: Access> oio::Read for FullReader<A> {
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.read_range(range).await
-    }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        match self.get_cached_full_object().await? {
-            Some(buffer) => {
-                let rp = Self::full_object_rp(&buffer);
-                let buffers = ranges
-                    .into_iter()
-                    .map(|range| Self::slice_full_object(&buffer, range))
-                    .collect();
-                Ok((rp, buffers))
-            }
-            None => self.fallback_fetch(ranges).await,
-        }
     }
 }

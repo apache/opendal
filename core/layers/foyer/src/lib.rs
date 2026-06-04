@@ -295,7 +295,6 @@ mod tests {
         stat_calls: AtomicUsize,
         open_calls: AtomicUsize,
         read_calls: AtomicUsize,
-        fetch_calls: AtomicUsize,
     }
 
     impl MockReadState {
@@ -305,7 +304,6 @@ mod tests {
                 stat_calls: AtomicUsize::new(0),
                 open_calls: AtomicUsize::new(0),
                 read_calls: AtomicUsize::new(0),
-                fetch_calls: AtomicUsize::new(0),
             }
         }
 
@@ -361,15 +359,6 @@ mod tests {
 
             Ok((self.state.rp_read(), self.state.read_range(range)))
         }
-
-        async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-            self.state.fetch_calls.fetch_add(1, Ordering::Relaxed);
-            let buffers = ranges
-                .into_iter()
-                .map(|range| self.state.read_range(range))
-                .collect();
-            Ok((self.state.rp_read(), buffers))
-        }
     }
 
     impl Access for MockReadAccessor {
@@ -422,61 +411,38 @@ mod tests {
         assert_eq!(buffer.to_vec(), b"0123456789");
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
-        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 0);
-        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
     }
 
     #[tokio::test]
-    async fn test_full_reader_fetch_fallback_preserves_inner_fetch() {
+    async fn test_full_reader_open_fills_cache() {
         let cache = memory_cache().await;
         let accessor = FoyerLayer::new(cache)
-            .with_size_limit(0..1)
+            .with_size_limit(0..100)
             .layer(MockReadAccessor::new("0123456789"));
         let state = accessor.inner.accessor.state.clone();
 
         let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
             .await
             .unwrap();
-        let (_, buffers) = reader
-            .fetch(vec![BytesRange::from(0_u64..2), BytesRange::from(4_u64..7)])
-            .await
-            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
 
-        assert_eq!(buffers[0].to_vec(), b"01");
-        assert_eq!(buffers[1].to_vec(), b"456");
-        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 1);
-        assert_eq!(state.open_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
-        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
-    }
-
-    #[tokio::test]
-    async fn test_full_reader_fetch_cache_hit_slices_full_object() {
-        let cache = memory_cache().await;
-        cache.insert(
-            FoyerKey {
-                path: "test".to_string(),
-                version: None,
-            },
-            FoyerValue(Buffer::from("0123456789")),
-        );
-        let accessor = FoyerLayer::new(cache).layer(MockReadAccessor::new("abcdefghij"));
-        let state = accessor.inner.accessor.state.clone();
 
         let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
             .await
             .unwrap();
-        let (_, buffers) = reader
-            .fetch(vec![BytesRange::from(0_u64..2), BytesRange::from(4_u64..7)])
-            .await
-            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
 
-        assert_eq!(buffers[0].to_vec(), b"01");
-        assert_eq!(buffers[1].to_vec(), b"456");
-        assert_eq!(state.fetch_calls.load(Ordering::Relaxed), 0);
-        assert_eq!(state.open_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(buffer.to_vec(), b"456");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
-        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]

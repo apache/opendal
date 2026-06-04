@@ -356,15 +356,6 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
         )
         .await
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        Self::io_timeout(
-            self.timeout,
-            Operation::Read.into_static(),
-            self.inner.fetch(ranges),
-        )
-        .await
-    }
 }
 
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {

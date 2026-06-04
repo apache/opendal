@@ -263,22 +263,6 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
                 .with_context("range", range.to_string())
         })
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        self.inner.fetch(ranges.clone()).await.map_err(|err| {
-            err.with_operation(Operation::Read)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-                .with_context(
-                    "range",
-                    ranges
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join(","),
-                )
-        })
-    }
 }
 
 impl<T: oio::ReadStream> oio::ReadStream for ErrorContextWrapper<T> {

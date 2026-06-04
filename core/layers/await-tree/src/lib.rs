@@ -194,15 +194,6 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
             .read(range)
             .instrument_await(format!("opendal::{}", Operation::Read))
     }
-
-    fn fetch(
-        &self,
-        ranges: Vec<BytesRange>,
-    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
-        self.inner
-            .fetch(ranges)
-            .instrument_await(format!("opendal::{}", Operation::Read))
-    }
 }
 
 impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {

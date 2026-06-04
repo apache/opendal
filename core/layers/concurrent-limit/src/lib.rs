@@ -352,11 +352,6 @@ where
         let _permit = self.semaphore.acquire().await;
         self.inner.read(range).await
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let _permit = self.semaphore.acquire().await;
-        self.inner.fetch(ranges).await
-    }
 }
 
 #[doc(hidden)]
@@ -391,10 +386,6 @@ impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLim
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.inner.read(range).await
-    }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        self.inner.fetch(ranges).await
     }
 }
 

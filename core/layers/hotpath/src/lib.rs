@@ -202,10 +202,6 @@ impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         hotpath::measure_async(LABEL_READER_READ, self.inner.read(range)).await
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        hotpath::measure_async(LABEL_READER_READ, self.inner.fetch(ranges)).await
-    }
 }
 
 impl<R: oio::Write> oio::Write for HotpathWrapper<R> {

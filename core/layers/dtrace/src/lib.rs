@@ -311,22 +311,6 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
             }
         }
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.fetch(ranges).await {
-            Ok((rp, buffers)) => {
-                let size = buffers.iter().map(Buffer::len).sum::<usize>();
-                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), size);
-                Ok((rp, buffers))
-            }
-            Err(e) => {
-                probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
-                Err(e)
-            }
-        }
-    }
 }
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {

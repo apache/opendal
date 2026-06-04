@@ -54,7 +54,7 @@ pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
 }
 
 /// Parse OpRead arguments to object_store GetOptions
-pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
+pub fn parse_op_read(args: &OpRead, range: BytesRange) -> Result<GetOptions> {
     let mut options = GetOptions::default();
 
     if let Some(version) = args.version() {
@@ -77,8 +77,7 @@ pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
         options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
-    if !args.range().is_full() {
-        let range = args.range();
+    if !range.is_full() {
         match range.size() {
             Some(size) => {
                 options.range = Some(GetRange::Bounded(range.offset()..range.offset() + size));

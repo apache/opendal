@@ -173,11 +173,6 @@ impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.inner.read(range).await
     }
-
-    #[async_backtrace::framed]
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        self.inner.fetch(ranges).await
-    }
 }
 
 impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {

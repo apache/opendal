@@ -230,13 +230,6 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
     ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
         self.inner.read(range)
     }
-
-    fn fetch(
-        &self,
-        ranges: Vec<BytesRange>,
-    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
-        self.inner.fetch(ranges)
-    }
 }
 
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {

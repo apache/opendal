@@ -131,8 +131,10 @@ impl Access for ObjectStoreService {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let reader = ObjectStoreReader::new(self.store.clone(), path, args).await?;
-        Ok((reader.rp(), reader))
+        Ok((
+            RpRead::default(),
+            ObjectStoreReader::new(self.store.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -159,7 +161,7 @@ mod tests {
     use super::*;
     use object_store::memory::InMemory;
     use opendal::Buffer;
-    use opendal::raw::oio::{Delete, List, ReadStream, Write};
+    use opendal::raw::oio::{Delete, List, Read, ReadStream, Write};
 
     #[tokio::test]
     async fn test_object_store_backend_builder() {
@@ -224,12 +226,16 @@ mod tests {
         );
 
         // Test read
-        let (_, mut reader) = backend
+        let (_, reader) = backend
             .read(path, OpRead::default())
             .await
             .expect("read should succeed");
 
-        let buf = reader.read().await.expect("read should succeed");
+        let (_, mut stream) = reader
+            .open(BytesRange::default())
+            .await
+            .expect("open should succeed");
+        let buf = stream.read().await.expect("read should succeed");
         assert_eq!(buf.to_vec(), content);
     }
 
@@ -274,12 +280,16 @@ mod tests {
         );
 
         // Read back and verify content
-        let (_, mut reader) = backend
+        let (_, reader) = backend
             .read(path, OpRead::default())
             .await
             .expect("read should succeed");
 
-        let buf = reader.read().await.expect("read should succeed");
+        let (_, mut stream) = reader
+            .open(BytesRange::default())
+            .await
+            .expect("open should succeed");
+        let buf = stream.read_all().await.expect("read should succeed");
         assert_eq!(buf.to_vec(), content);
     }
 
@@ -377,7 +387,11 @@ mod tests {
         assert!(result.is_err());
 
         // Test read on non-existent file
-        let result = backend.read("non_existent.txt", OpRead::default()).await;
+        let (_, reader) = backend
+            .read("non_existent.txt", OpRead::default())
+            .await
+            .expect("read should create reader");
+        let result = reader.read(BytesRange::from(0..1)).await;
         assert!(result.is_err());
 
         // Test list on non-existent directory

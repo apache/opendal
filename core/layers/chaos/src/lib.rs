@@ -207,12 +207,4 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
             Err(Self::unexpected_eof())
         }
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        if self.i_feel_lucky() {
-            self.inner.fetch(ranges).await
-        } else {
-            Err(Self::unexpected_eof())
-        }
-    }
 }

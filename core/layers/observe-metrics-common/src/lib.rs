@@ -1074,24 +1074,6 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsReader<R, I> {
         }
         result
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        let labels = self.labels.clone();
-        let start = Instant::now();
-
-        self.interceptor
-            .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let mut metrics = MetricsWrapper::new((), self.interceptor.clone(), labels, start);
-
-        let result = self.inner.fetch(ranges).await.inspect_err(|err| {
-            metrics.record_error(err);
-        });
-        if let Ok((_, buffers)) = &result {
-            metrics.size = buffers.iter().map(|v| v.len() as u64).sum();
-            metrics.completed = true;
-        }
-        result
-    }
 }
 
 #[doc(hidden)]
@@ -1453,7 +1435,6 @@ mod tests {
     struct MockRawReader {
         open_result: Mutex<Option<Result<Vec<Result<Buffer>>>>>,
         read_result: Mutex<Option<Result<Buffer>>>,
-        fetch_result: Mutex<Option<Result<Vec<Buffer>>>>,
     }
 
     impl MockRawReader {
@@ -1461,7 +1442,6 @@ mod tests {
             Self {
                 open_result: Mutex::new(Some(Ok(chunks))),
                 read_result: Mutex::new(None),
-                fetch_result: Mutex::new(None),
             }
         }
 
@@ -1469,15 +1449,6 @@ mod tests {
             Self {
                 open_result: Mutex::new(None),
                 read_result: Mutex::new(Some(Ok(buffer))),
-                fetch_result: Mutex::new(None),
-            }
-        }
-
-        fn with_fetch(buffers: Vec<Buffer>) -> Self {
-            Self {
-                open_result: Mutex::new(None),
-                read_result: Mutex::new(None),
-                fetch_result: Mutex::new(Some(Ok(buffers))),
             }
         }
     }
@@ -1510,19 +1481,6 @@ mod tests {
                 .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "read not configured")))
             {
                 Ok(buffer) => Ok((RpRead::default(), buffer)),
-                Err(err) => Err(err),
-            }
-        }
-
-        async fn fetch(&self, _: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-            match self
-                .fetch_result
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "fetch not configured")))
-            {
-                Ok(buffers) => Ok((RpRead::default(), buffers)),
                 Err(err) => Err(err),
             }
         }
@@ -1859,30 +1817,6 @@ mod tests {
         assert_eq!(buffer.len(), 5);
         assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
         assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(5));
-        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
-    }
-
-    #[tokio::test]
-    async fn test_reader_fetch_records_operation_metrics() {
-        let mock = MockInterceptor::default();
-        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
-        let reader = MetricsReader::new(
-            MockRawReader::with_fetch(vec![Buffer::from("hello"), Buffer::from(" world")]),
-            mock.clone(),
-            labels,
-        );
-
-        let (_, buffers) = oio::Read::fetch(
-            &reader,
-            vec![BytesRange::from(0_u64..5), BytesRange::from(5_u64..11)],
-        )
-        .await
-        .unwrap();
-        drop(reader);
-
-        assert_eq!(buffers.len(), 2);
-        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
-        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(11));
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
     }
 

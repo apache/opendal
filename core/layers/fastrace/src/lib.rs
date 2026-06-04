@@ -291,15 +291,6 @@ impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
         let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
         self.inner.read(range)
     }
-
-    fn fetch(
-        &self,
-        ranges: Vec<BytesRange>,
-    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
-        self.inner.fetch(ranges)
-    }
 }
 
 impl<R: oio::Write> oio::Write for FastraceWrapper<R> {

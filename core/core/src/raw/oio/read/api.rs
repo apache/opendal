@@ -56,27 +56,6 @@ pub trait Read: Unpin + Send + Sync {
             Ok((rp, buffer))
         }
     }
-
-    /// Read multiple exact bounded ranges into [`Buffer`].
-    fn fetch(
-        &self,
-        ranges: Vec<BytesRange>,
-    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
-        async move {
-            let mut metadata = None;
-            let mut buffers = Vec::with_capacity(ranges.len());
-
-            for range in ranges {
-                let (rp, buffer) = self.read(range).await?;
-                if metadata.is_none() {
-                    metadata = rp.into_metadata();
-                }
-                buffers.push(buffer);
-            }
-
-            Ok((metadata.map(RpRead::new).unwrap_or_default(), buffers))
-        }
-    }
 }
 
 impl Read for () {
@@ -99,9 +78,6 @@ pub trait ReadDyn: Unpin + Send + Sync {
 
     /// The dyn version of [`Read::read`].
     fn read_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, Buffer)>>;
-
-    /// The dyn version of [`Read::fetch`].
-    fn fetch_dyn(&self, ranges: Vec<BytesRange>) -> BoxedFuture<'_, Result<(RpRead, Vec<Buffer>)>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
@@ -115,10 +91,6 @@ impl<T: Read + ?Sized> ReadDyn for T {
     fn read_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, Buffer)>> {
         Box::pin(self.read(range))
     }
-
-    fn fetch_dyn(&self, ranges: Vec<BytesRange>) -> BoxedFuture<'_, Result<(RpRead, Vec<Buffer>)>> {
-        Box::pin(self.fetch(ranges))
-    }
 }
 
 impl<T: ReadDyn + ?Sized> Read for Box<T> {
@@ -128,10 +100,6 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.deref().read_dyn(range).await
-    }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        self.deref().fetch_dyn(ranges).await
     }
 }
 

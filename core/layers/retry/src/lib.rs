@@ -527,26 +527,6 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             .await
             .map_err(|e| e.set_persistent())
     }
-
-    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
-        use backon::Retryable;
-
-        let mut attempt: u32 = 0;
-        { || self.inner.fetch(ranges.clone()) }
-            .retry(self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                attempt += 1;
-                self.notify.intercept(RetryEvent {
-                    op: Operation::Read,
-                    err,
-                    retry_after: dur,
-                    attempt,
-                })
-            })
-            .await
-            .map_err(|e| e.set_persistent())
-    }
 }
 
 #[doc(hidden)]

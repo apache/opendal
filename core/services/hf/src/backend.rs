@@ -257,8 +257,21 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
+impl oio::RangeRead for HfBackend {
+    type RangeReader = HfReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        HfReader::try_new(&self.core, path, range).await
+    }
+}
+
 impl Access for HfBackend {
-    type Reader = HfReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
@@ -282,9 +295,11 @@ impl Access for HfBackend {
         let info = self.core.path_info(path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        HfReader::try_new(&self.core, path, args.range()).await
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

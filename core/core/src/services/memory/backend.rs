@@ -100,7 +100,7 @@ impl MemoryBackend {
 }
 
 impl Access for MemoryBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
@@ -127,29 +127,10 @@ impl Access for MemoryBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let value = match self.core.get(&p)? {
-            Some(value) => value,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "memory doesn't have this path",
-                ));
-            }
-        };
-
-        let total_size = value.content.len() as u64;
-        let range = args.range();
-        let start = range.offset().min(total_size) as usize;
-        let end = match range.size() {
-            Some(size) => range.offset().saturating_add(size).min(total_size),
-            None => total_size,
-        } as usize;
-        let content = value.content.slice(start..end);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-        Ok((RpRead::new(metadata), content))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -174,5 +155,39 @@ impl Access for MemoryBackend {
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
+    }
+}
+
+impl oio::RangeRead for MemoryBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+
+        let value = match self.core.get(&p)? {
+            Some(value) => value,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                ));
+            }
+        };
+
+        let total_size = value.content.len() as u64;
+        let start = range.offset().min(total_size) as usize;
+        let end = match range.size() {
+            Some(size) => range.offset().saturating_add(size).min(total_size),
+            None => total_size,
+        } as usize;
+        let content = value.content.slice(start..end);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+
+        Ok((RpRead::new(metadata), content))
     }
 }

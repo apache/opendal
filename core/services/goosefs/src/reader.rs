@@ -52,7 +52,7 @@ use opendal_core::*;
 ///   - [`SdkReader::open_range_with_context`] for a bounded
 ///     `[offset, offset+length)` stream.
 ///
-/// We pick between them based on the incoming [`OpRead`] range. When
+/// We pick between them based on the incoming [`BytesRange`]. When
 /// only `offset` is specified (unbounded tail read), we resolve the
 /// actual tail length via `get_status` and fall through to the
 /// range-based opener, so the SDK can still use its efficient
@@ -71,7 +71,7 @@ use opendal_core::*;
 pub struct GoosefsReader {
     core: Arc<GoosefsCore>,
     path: String,
-    args: OpRead,
+    range: BytesRange,
     content_length: Option<u64>,
     /// Lazily-opened SDK reader. `None` until the first `read()` call.
     inner: Option<SdkReader>,
@@ -86,13 +86,13 @@ impl GoosefsReader {
     pub fn new(
         core: Arc<GoosefsCore>,
         path: String,
-        args: OpRead,
+        range: BytesRange,
         content_length: Option<u64>,
     ) -> Self {
         GoosefsReader {
             core,
             path,
-            args,
+            range,
             content_length,
             inner: None,
             done: false,
@@ -100,11 +100,10 @@ impl GoosefsReader {
     }
 
     /// Open the underlying SDK reader, picking between the full-file
-    /// and ranged variants based on `self.args`.
+    /// and ranged variants based on `self.range`.
     async fn open(&self) -> Result<SdkReader> {
-        let range = self.args.range();
-        let offset = range.offset();
-        let size = range.size();
+        let offset = self.range.offset();
+        let size = self.range.size();
 
         // Three cases:
         //   1. No offset and no size      → full-file stream.

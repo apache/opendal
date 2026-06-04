@@ -203,8 +203,50 @@ impl EtcdBackend {
     }
 }
 
+impl oio::RangeRead for EtcdBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _op: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let abs_path = build_abs_path(&self.info.root(), path);
+
+        match self.core.get(&abs_path).await? {
+            Some(buffer) => {
+                let total_size = buffer.len() as u64;
+
+                // If range is full, return the buffer directly
+                if range.is_full() {
+                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    return Ok((RpRead::new(metadata), buffer));
+                }
+
+                // Handle range requests
+                let offset = range.offset() as usize;
+                if offset >= buffer.len() {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range start offset exceeds content length",
+                    ));
+                }
+
+                let size = range.size().map(|s| s as usize);
+                let end = size.map_or(buffer.len(), |s| (offset + s).min(buffer.len()));
+                let sliced_buffer = buffer.slice(offset..end);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+
+                Ok((RpRead::new(metadata), sliced_buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
+        }
+    }
+}
+
 impl Access for EtcdBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
@@ -261,39 +303,11 @@ impl Access for EtcdBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let abs_path = build_abs_path(&self.info.root(), path);
-
-        match self.core.get(&abs_path).await? {
-            Some(buffer) => {
-                let range = op.range();
-                let total_size = buffer.len() as u64;
-
-                // If range is full, return the buffer directly
-                if range.is_full() {
-                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                    return Ok((RpRead::new(metadata), buffer));
-                }
-
-                // Handle range requests
-                let offset = range.offset() as usize;
-                if offset >= buffer.len() {
-                    return Err(Error::new(
-                        ErrorKind::RangeNotSatisfied,
-                        "range start offset exceeds content length",
-                    ));
-                }
-
-                let size = range.size().map(|s| s as usize);
-                let end = size.map_or(buffer.len(), |s| (offset + s).min(buffer.len()));
-                let sliced_buffer = buffer.slice(offset..end);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-                Ok((RpRead::new(metadata), sliced_buffer))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, op),
+        ))
     }
 
     async fn write(&self, path: &str, _op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -118,7 +118,7 @@ impl Builder for MiniMokaBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MiniMokaBackend {
     core: Arc<MiniMokaCore>,
     root: String,
@@ -130,8 +130,51 @@ impl MiniMokaBackend {
     }
 }
 
+impl oio::RangeRead for MiniMokaBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _op: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+
+        match self.core.get(&p) {
+            Some(value) => {
+                let total_size = value.content.len() as u64;
+
+                // If range is full, return the content buffer directly
+                if range.is_full() {
+                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    return Ok((RpRead::new(metadata), value.content));
+                }
+
+                let offset = range.offset() as usize;
+                if offset >= value.content.len() {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range start offset exceeds content length",
+                    ));
+                }
+
+                let size = range.size().map(|s| s as usize);
+                let end = size.map_or(value.content.len(), |s| {
+                    (offset + s).min(value.content.len())
+                });
+                let sliced_content = value.content.slice(offset..end);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+
+                Ok((RpRead::new(metadata), sliced_content))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
+        }
+    }
+}
+
 impl Access for MiniMokaBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = MiniMokaWriter;
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
@@ -188,40 +231,11 @@ impl Access for MiniMokaBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        match self.core.get(&p) {
-            Some(value) => {
-                let range = op.range();
-                let total_size = value.content.len() as u64;
-
-                // If range is full, return the content buffer directly
-                if range.is_full() {
-                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                    return Ok((RpRead::new(metadata), value.content));
-                }
-
-                let offset = range.offset() as usize;
-                if offset >= value.content.len() {
-                    return Err(Error::new(
-                        ErrorKind::RangeNotSatisfied,
-                        "range start offset exceeds content length",
-                    ));
-                }
-
-                let size = range.size().map(|s| s as usize);
-                let end = size.map_or(value.content.len(), |s| {
-                    (offset + s).min(value.content.len())
-                });
-                let sliced_content = value.content.slice(offset..end);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-                Ok((RpRead::new(metadata), sliced_content))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, op),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

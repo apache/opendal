@@ -207,8 +207,47 @@ impl SqliteBackend {
     }
 }
 
+impl oio::RangeRead for SqliteBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+
+        let (buffer, content_length) = if range.is_full() {
+            // Full read - use GET
+            match self.core.get(&p).await? {
+                Some(bs) => {
+                    let content_length = bs.len() as u64;
+                    (bs, content_length)
+                }
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let start = range.offset() as isize;
+            let limit = match range.size() {
+                Some(size) => size as isize,
+                None => -1, // Sqlite uses -1 for end of string
+            };
+
+            match self.core.get_range(&p, start, limit).await? {
+                Some((bs, content_length)) => (bs, content_length),
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            }
+        };
+
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        Ok((RpRead::new(metadata), buffer))
+    }
+}
+
 impl Access for SqliteBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
@@ -255,36 +294,11 @@ impl Access for SqliteBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let range = args.range();
-        let (buffer, content_length) = if range.is_full() {
-            // Full read - use GET
-            match self.core.get(&p).await? {
-                Some(bs) => {
-                    let content_length = bs.len() as u64;
-                    (bs, content_length)
-                }
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let start = range.offset() as isize;
-            let limit = match range.size() {
-                Some(size) => size as isize,
-                None => -1, // Sqlite uses -1 for end of string
-            };
-
-            match self.core.get_range(&p, start, limit).await? {
-                Some((bs, content_length)) => (bs, content_length),
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        };
-
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-        Ok((RpRead::new(metadata), buffer))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

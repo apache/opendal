@@ -190,8 +190,23 @@ impl Debug for FtpBackend {
     }
 }
 
+impl oio::RangeRead for FtpBackend {
+    type RangeReader = FtpReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
+        let reader = FtpReader::new(ftp_stream, path.to_string(), range).await?;
+        Ok((RpRead::default(), reader))
+    }
+}
+
 impl Access for FtpBackend {
-    type Reader = FtpReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
@@ -243,11 +258,11 @@ impl Access for FtpBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-        let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
-        Ok((RpRead::default(), reader))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

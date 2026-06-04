@@ -169,8 +169,35 @@ pub struct HttpBackend {
     core: Arc<HttpCore>,
 }
 
+impl oio::RangeRead for HttpBackend {
+    type RangeReader = HttpBody;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let resp = self.core.http_get(path, range, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            )),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+}
+
 impl Access for HttpBackend {
-    type Reader = HttpBody;
+    type Reader = oio::RangeReader<Self>;
     type Writer = ();
     type Lister = ();
     type Deleter = ();
@@ -200,23 +227,11 @@ impl Access for HttpBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.http_get(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -229,9 +244,7 @@ impl Access for HttpBackend {
 
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.http_head_request(path, v)?,
-            PresignOperation::Read(v) => {
-                self.core.http_get_request(path, BytesRange::default(), v)?
-            }
+            PresignOperation::Read(v, range) => self.core.http_get_request(path, *range, v)?,
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

@@ -210,8 +210,39 @@ pub struct SftpBackend {
     pub core: Arc<SftpCore>,
 }
 
+impl oio::RangeRead for SftpBackend {
+    type RangeReader = SftpReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let client = self.core.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.core.root);
+
+        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+        let mut f = client
+            .open(path.as_path())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if range.offset() != 0 {
+            f.seek(SeekFrom::Start(range.offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
+
+        Ok((RpRead::default(), SftpReader::new(client, f, range.size())))
+    }
+}
+
 impl Access for SftpBackend {
-    type Reader = SftpReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -253,29 +284,10 @@ impl Access for SftpBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        if args.range().offset() != 0 {
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
-
         Ok((
             RpRead::default(),
-            SftpReader::new(client, f, args.range().size()),
+            oio::RangeReader::new(self.clone(), path, args),
         ))
     }
 

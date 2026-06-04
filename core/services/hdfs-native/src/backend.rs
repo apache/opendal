@@ -168,8 +168,29 @@ pub struct HdfsNativeBackend {
     core: Arc<HdfsNativeCore>,
 }
 
+impl oio::RangeRead for HdfsNativeBackend {
+    type RangeReader = HdfsNativeReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let (f, offset, size) = self.core.hdfs_read(path, range).await?;
+        let content_length = f.file_length() as u64;
+
+        let r = HdfsNativeReader::new(f, offset as _, size as _);
+
+        Ok((
+            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
+            r,
+        ))
+    }
+}
+
 impl Access for HdfsNativeBackend {
-    type Reader = HdfsNativeReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -188,16 +209,10 @@ impl Access for HdfsNativeBackend {
         let m = self.core.hdfs_stat(path).await?;
         Ok(RpStat::new(m))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let (f, offset, size) = self.core.hdfs_read(path, &args).await?;
-        let content_length = f.file_length() as u64;
-
-        let r = HdfsNativeReader::new(f, offset as _, size as _);
-
         Ok((
-            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
-            r,
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
         ))
     }
 

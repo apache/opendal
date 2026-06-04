@@ -239,8 +239,41 @@ impl FoyerBackend {
     }
 }
 
+impl oio::RangeRead for FoyerBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+
+        let buffer = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),
+        };
+        let content_length = buffer.len() as u64;
+
+        let buffer = if range.is_full() {
+            buffer
+        } else {
+            let start = range.offset() as usize;
+            let end = match range.size() {
+                Some(size) => (range.offset() + size) as usize,
+                None => buffer.len(),
+            };
+            buffer.slice(start..end.min(buffer.len()))
+        };
+
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        Ok((RpRead::new(metadata), buffer))
+    }
+}
+
 impl Access for FoyerBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = FoyerWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
@@ -264,30 +297,11 @@ impl Access for FoyerBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let buffer = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),
-        };
-        let content_length = buffer.len() as u64;
-
-        let buffer = if args.range().is_full() {
-            buffer
-        } else {
-            let range = args.range();
-            let start = range.offset() as usize;
-            let end = match range.size() {
-                Some(size) => (range.offset() + size) as usize,
-                None => buffer.len(),
-            };
-            buffer.slice(start..end.min(buffer.len()))
-        };
-
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-        Ok((RpRead::new(metadata), buffer))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -236,8 +236,35 @@ pub struct SwiftBackend {
     core: Arc<SwiftCore>,
 }
 
+impl oio::RangeRead for SwiftBackend {
+    type RangeReader = HttpBody;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let resp = self.core.swift_read(path, range, &args).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            )),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+}
+
 impl Access for SwiftBackend {
-    type Reader = HttpBody;
+    type Reader = oio::RangeReader<Self>;
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
@@ -264,23 +291,11 @@ impl Access for SwiftBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.swift_read(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -317,7 +332,7 @@ impl Access for SwiftBackend {
 
         let method = match &op {
             PresignOperation::Stat(_) => http::Method::HEAD,
-            PresignOperation::Read(_) => http::Method::GET,
+            PresignOperation::Read(_, _) => http::Method::GET,
             PresignOperation::Write(_) => http::Method::PUT,
             _ => {
                 return Err(Error::new(

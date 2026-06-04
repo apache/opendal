@@ -167,8 +167,30 @@ impl RedbBackend {
     }
 }
 
+impl oio::RangeRead for RedbBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p)? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
+            }
+        };
+        let content = bs.slice(range.to_range_as_usize());
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((RpRead::new(metadata), content))
+    }
+}
+
 impl Access for RedbBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = RedbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
@@ -193,18 +215,11 @@ impl Access for RedbBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
-            }
-        };
-        let content = bs.slice(args.range().to_range_as_usize());
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((RpRead::new(metadata), content))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

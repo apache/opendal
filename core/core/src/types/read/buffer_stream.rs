@@ -24,6 +24,7 @@ use std::task::Poll;
 use futures::Stream;
 use futures::ready;
 
+use crate::raw::oio::Read as _;
 use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
 use crate::*;
@@ -34,7 +35,7 @@ use crate::*;
 /// StreamingReader is good for small memory footprint and optimized for latency.
 pub struct StreamingReader {
     generator: ReadGenerator,
-    reader: Option<oio::Reader>,
+    reader: Option<oio::ReadStreamBox>,
 }
 
 impl StreamingReader {
@@ -96,7 +97,7 @@ impl oio::ReadStream for StreamingReader {
 struct ChunkedReadInput {
     ctx: Arc<ReadContext>,
     range: BytesRange,
-    reader: Option<oio::Reader>,
+    reader: Option<oio::ReadStreamBox>,
 }
 
 /// ChunkedReader will read the file in chunks.
@@ -129,14 +130,9 @@ impl ChunkedReader {
                             return reader.read_all().await;
                         }
 
-                        let args = input.ctx.args().clone().with_range(input.range);
-                        let (rp, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
-                        if let Some(metadata) = rp.into_metadata() {
-                            if input.ctx.metadata().is_none() {
-                                input.ctx.set_metadata(metadata);
-                            }
-                        }
-                        r.read_all().await
+                        let (rp, buffer) = input.ctx.reader().read(input.range).await?;
+                        input.ctx.observe_read_response(rp);
+                        Ok(buffer)
                     }
                     .await;
                     (input, result)
@@ -160,13 +156,8 @@ impl ChunkedReader {
 
         if self.opened.is_none() {
             if let Some(range) = self.next_range() {
-                let args = self.ctx.args().clone().with_range(range);
-                let (rp, reader) = self.ctx.accessor().read(self.ctx.path(), args).await?;
-                if let Some(metadata) = rp.into_metadata() {
-                    if self.ctx.metadata().is_none() {
-                        self.ctx.set_metadata(metadata);
-                    }
-                }
+                let (rp, reader) = self.ctx.reader().open(range).await?;
+                self.ctx.observe_read_response(rp);
                 self.opened = Some(ChunkedReadInput {
                     ctx: self.ctx.clone(),
                     range,
@@ -386,15 +377,27 @@ mod tests {
 
     use super::*;
 
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (rp, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            rp,
+            reader,
+        ))
+    }
+
     #[tokio::test]
     async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
         let v = BufferStream::create(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
@@ -412,12 +415,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         let s = BufferStream::create(ctx, 4..8).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();

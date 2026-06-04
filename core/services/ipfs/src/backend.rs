@@ -142,24 +142,16 @@ pub struct IpfsBackend {
     core: Arc<IpfsCore>,
 }
 
-impl Access for IpfsBackend {
-    type Reader = HttpBody;
-    type Writer = ();
-    type Lister = oio::PageLister<DirStream>;
-    type Deleter = ();
-    type Copier = ();
+impl oio::RangeRead for IpfsBackend {
+    type RangeReader = HttpBody;
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.core.info.clone()
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let metadata = self.core.ipfs_stat(path).await?;
-        Ok(RpStat::new(metadata))
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.ipfs_get(path, args.range()).await?;
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let resp = self.core.ipfs_get(path, range).await?;
 
         let status = resp.status();
 
@@ -174,6 +166,29 @@ impl Access for IpfsBackend {
                 Err(parse_error(Response::from_parts(part, buf)))
             }
         }
+    }
+}
+
+impl Access for IpfsBackend {
+    type Reader = oio::RangeReader<Self>;
+    type Writer = ();
+    type Lister = oio::PageLister<DirStream>;
+    type Deleter = ();
+    type Copier = ();
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.core.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let metadata = self.core.ipfs_stat(path).await?;
+        Ok(RpStat::new(metadata))
+    }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {

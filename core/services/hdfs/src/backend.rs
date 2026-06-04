@@ -197,8 +197,26 @@ pub struct HdfsBackend {
     core: Arc<HdfsCore>,
 }
 
+impl oio::RangeRead for HdfsBackend {
+    type RangeReader = HdfsReader<hdrs::AsyncFile>;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let f = self.core.hdfs_read(path, range).await?;
+
+        Ok((
+            RpRead::default(),
+            HdfsReader::new(f, range.size().unwrap_or(u64::MAX) as _),
+        ))
+    }
+}
+
 impl Access for HdfsBackend {
-    type Reader = HdfsReader<hdrs::AsyncFile>;
+    type Reader = oio::RangeReader<Self>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -217,13 +235,10 @@ impl Access for HdfsBackend {
         let m = self.core.hdfs_stat(path)?;
         Ok(RpStat::new(m))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let f = self.core.hdfs_read(path, &args).await?;
-
         Ok((
             RpRead::default(),
-            HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
+            oio::RangeReader::new(self.clone(), path, args),
         ))
     }
 

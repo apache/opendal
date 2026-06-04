@@ -307,37 +307,17 @@ impl RedisBackend {
     }
 }
 
-impl Access for RedisBackend {
-    type Reader = Buffer;
-    type Writer = RedisWriter;
-    type Lister = ();
-    type Deleter = oio::OneShotDeleter<RedisDeleter>;
-    type Copier = ();
+impl oio::RangeRead for RedisBackend {
+    type RangeReader = Buffer;
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
         let p = build_abs_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-        } else {
-            let bs = self.core.get(&p).await?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
-                )),
-                None => Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let range = args.range();
         let (buffer, metadata) = if range.is_full() {
             // Full read - use GET
             match self.core.get(&p).await? {
@@ -364,6 +344,40 @@ impl Access for RedisBackend {
 
         let rp = metadata.map_or_else(RpRead::default, RpRead::new);
         Ok((rp, buffer))
+    }
+}
+
+impl Access for RedisBackend {
+    type Reader = oio::RangeReader<Self>;
+    type Writer = RedisWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<RedisDeleter>;
+    type Copier = ();
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
+        }
+    }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

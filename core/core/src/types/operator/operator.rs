@@ -526,9 +526,9 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-        let range = args.range();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (args, range, opts) = opts.into();
+        let (rp, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, rp, reader);
         let r = Reader::new(context);
         let buf = r.read(range.to_range()).await?;
         Ok(buf)
@@ -636,7 +636,8 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (rp, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, rp, reader);
         Ok(Reader::new(context))
     }
 
@@ -2001,8 +2002,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_read, _) = opts.into();
-        let op = OpPresign::new(op_read, expire);
+        let (op_read, range, _) = opts.into();
+        let op = OpPresign::new(PresignOperation::Read(op_read, range), expire);
         let rp = acc.presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }

@@ -184,7 +184,7 @@ pub struct FoyerAccessor<A: Access> {
 
 impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     type Inner = A;
-    type Reader = Buffer;
+    type Reader = full::FullReader<A>;
     type Writer = Writer<A>;
     type Lister = A::Lister;
     type Deleter = Deleter<A>;
@@ -199,9 +199,15 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        full::FullReader::new(self.inner.clone(), self.inner.size_limit.clone())
-            .read(path, args)
-            .await
+        Ok((
+            RpRead::default(),
+            full::FullReader::new(
+                self.inner.clone(),
+                self.inner.size_limit.clone(),
+                path.to_string(),
+                args,
+            ),
+        ))
     }
 
     fn write(

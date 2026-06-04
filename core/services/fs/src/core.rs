@@ -98,7 +98,7 @@ impl FsCore {
         Ok(m)
     }
 
-    pub async fn fs_read(&self, path: &str, args: &OpRead) -> Result<tokio::fs::File> {
+    pub async fn fs_read(&self, path: &str, range: BytesRange) -> Result<tokio::fs::File> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let mut f = tokio::fs::OpenOptions::new()
@@ -107,9 +107,9 @@ impl FsCore {
             .await
             .map_err(new_std_io_error)?;
 
-        if args.range().offset() != 0 {
+        if range.offset() != 0 {
             use tokio::io::AsyncSeekExt;
-            f.seek(SeekFrom::Start(args.range().offset()))
+            f.seek(SeekFrom::Start(range.offset()))
                 .await
                 .map_err(new_std_io_error)?;
         }

@@ -134,8 +134,32 @@ pub struct AlluxioBackend {
     core: Arc<AlluxioCore>,
 }
 
+impl oio::RangeRead for AlluxioBackend {
+    type RangeReader = HttpBody;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let stream_id = self.core.open_file(path).await?;
+
+        let resp = self.core.read(stream_id, range).await?;
+        if !resp.status().is_success() {
+            let (part, mut body) = resp.into_parts();
+            let buf = body.to_buffer().await?;
+            return Err(parse_error(Response::from_parts(part, buf)));
+        }
+        Ok((
+            RpRead::new(parse_into_metadata(path, resp.headers())?),
+            resp.into_body(),
+        ))
+    }
+}
+
 impl Access for AlluxioBackend {
-    type Reader = HttpBody;
+    type Reader = oio::RangeReader<Self>;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
@@ -155,19 +179,10 @@ impl Access for AlluxioBackend {
 
         Ok(RpStat::new(file_info.try_into()?))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let stream_id = self.core.open_file(path).await?;
-
-        let resp = self.core.read(stream_id, args.range()).await?;
-        if !resp.status().is_success() {
-            let (part, mut body) = resp.into_parts();
-            let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)));
-        }
         Ok((
-            RpRead::new(parse_into_metadata(path, resp.headers())?),
-            resp.into_body(),
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
         ))
     }
 

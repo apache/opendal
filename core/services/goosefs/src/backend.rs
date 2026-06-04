@@ -302,8 +302,28 @@ pub struct GoosefsBackend {
     core: Arc<GoosefsCore>,
 }
 
+impl oio::RangeRead for GoosefsBackend {
+    type RangeReader = GoosefsReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let content_length = if range.offset() != 0 && range.size().is_none() {
+            let file_info = self.core.get_status(path).await?;
+            Some(self.core.file_info_to_metadata(&file_info).content_length())
+        } else {
+            None
+        };
+        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), range, content_length);
+        Ok((RpRead::default(), reader))
+    }
+}
+
 impl Access for GoosefsBackend {
-    type Reader = GoosefsReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
@@ -322,16 +342,11 @@ impl Access for GoosefsBackend {
         let file_info = self.core.get_status(path).await?;
         Ok(RpStat::new(self.core.file_info_to_metadata(&file_info)))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let content_length = if args.range().offset() != 0 && args.range().size().is_none() {
-            let file_info = self.core.get_status(path).await?;
-            Some(self.core.file_info_to_metadata(&file_info).content_length())
-        } else {
-            None
-        };
-        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args, content_length);
-        Ok((RpRead::default(), reader))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

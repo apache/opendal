@@ -27,6 +27,8 @@ use opendal_core::raw::BytesRange;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
+use opendal_core::raw::oio;
+use opendal_core::raw::oio::Read as _;
 use opendal_core::raw::oio::ReadStream;
 
 use crate::FoyerKey;
@@ -37,25 +39,36 @@ use crate::error::{FetchError, extract_err};
 pub struct FullReader<A: Access> {
     inner: Arc<Inner<A>>,
     size_limit: std::ops::Range<usize>,
+    path: String,
+    args: OpRead,
 }
 
 impl<A: Access> FullReader<A> {
-    pub fn new(inner: Arc<Inner<A>>, size_limit: std::ops::Range<usize>) -> Self {
-        Self { inner, size_limit }
+    pub(crate) fn new(
+        inner: Arc<Inner<A>>,
+        size_limit: std::ops::Range<usize>,
+        path: String,
+        args: OpRead,
+    ) -> Self {
+        Self {
+            inner,
+            size_limit,
+            path,
+            args,
+        }
     }
 
     /// Read data from cache or underlying storage.
     /// Caches the ENTIRE object, then slices to requested range.
-    pub async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Buffer)> {
-        let path_str = path.to_string();
-        let version = args.version().map(|v| v.to_string());
-        let original_args = args.clone();
+    async fn read_range(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let path_str = self.path.clone();
+        let version = self.args.version().map(|v| v.to_string());
+        let original_args = self.args.clone();
 
         // Extract range bounds before async block to avoid lifetime issues
         let (range_start, range_end) = {
-            let r = args.range();
-            let start = r.offset();
-            let end = r.size().map(|size| start + size);
+            let start = range.offset();
+            let end = range.size().map(|size| start + size);
             (start, end)
         };
 
@@ -78,8 +91,9 @@ impl<A: Access> FullReader<A> {
             .expect("deleted keys lock poisoned")
             .contains(&key)
         {
-            let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
-            let buffer = reader.read_all().await?;
+            let (rp, reader) = self.inner.accessor.read(&self.path, original_args).await?;
+            let (rp_open, buffer) = reader.read(range).await?;
+            let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
             return Ok((rp, buffer));
         }
 
@@ -105,15 +119,16 @@ impl<A: Access> FullReader<A> {
                     }
 
                     // fetch the ENTIRE object from remote.
-                    let (_, mut reader) = inner
+                    let (_, reader) = inner
                         .accessor
-                        .read(
-                            &path_clone,
-                            OpRead::default().with_range(BytesRange::new(0, None)),
-                        )
+                        .read(&path_clone, OpRead::default())
                         .await
                         .map_err(FetchError::from_error)?;
-                    let buffer = reader.read_all().await.map_err(FetchError::from_error)?;
+                    let (_, mut stream) = reader
+                        .open(BytesRange::new(0, None))
+                        .await
+                        .map_err(FetchError::from_error)?;
+                    let buffer = stream.read_all().await.map_err(FetchError::from_error)?;
 
                     Ok(FoyerValue(buffer))
                 }
@@ -133,8 +148,9 @@ impl<A: Access> FullReader<A> {
             }
             Err(e) => match e.downcast_ref::<FetchError>() {
                 Some(FetchError::SizeTooLarge) => {
-                    let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
-                    let buffer = reader.read_all().await?;
+                    let (rp, reader) = self.inner.accessor.read(&self.path, original_args).await?;
+                    let (rp_read, buffer) = reader.read(range).await?;
+                    let rp = rp_read.into_metadata().map(RpRead::new).unwrap_or(rp);
                     Ok((rp, buffer))
                 }
                 Some(FetchError::Source { kind, message }) => {
@@ -143,5 +159,16 @@ impl<A: Access> FullReader<A> {
                 None => Err(extract_err(e)),
             },
         }
+    }
+}
+
+impl<A: Access> oio::Read for FullReader<A> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        let (rp, buffer) = self.read_range(range).await?;
+        Ok((rp, Box::new(buffer) as oio::ReadStreamBox))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.read_range(range).await
     }
 }

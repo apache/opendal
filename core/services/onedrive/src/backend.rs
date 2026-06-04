@@ -34,8 +34,32 @@ pub struct OnedriveBackend {
     pub core: Arc<OneDriveCore>,
 }
 
+impl oio::RangeRead for OnedriveBackend {
+    type RangeReader = HttpBody;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let response = self.core.onedrive_get_content(path, &args, range).await?;
+        match response.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            )),
+            _ => {
+                let (part, mut body) = response.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+}
+
 impl Access for OnedriveBackend {
-    type Reader = HttpBody;
+    type Reader = oio::RangeReader<Self>;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
@@ -63,20 +87,11 @@ impl Access for OnedriveBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let response = self.core.onedrive_get_content(path, &args).await?;
-        match response.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, response.headers())?),
-                response.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = response.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

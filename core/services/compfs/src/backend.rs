@@ -123,8 +123,35 @@ pub struct CompfsBackend {
     core: Arc<CompfsCore>,
 }
 
+impl oio::RangeRead for CompfsBackend {
+    type RangeReader = CompfsReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _op: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let path = self.core.prepare_path(path);
+
+        let file = self
+            .core
+            .exec(|| async move {
+                let file = compio::fs::OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .await?;
+                Ok(file)
+            })
+            .await?;
+
+        let r = CompfsReader::new(self.core.clone(), file, range);
+        Ok((RpRead::default(), r))
+    }
+}
+
 impl Access for CompfsBackend {
-    type Reader = CompfsReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
@@ -220,23 +247,11 @@ impl Access for CompfsBackend {
 
         Ok(RpRename::default())
     }
-
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path);
-
-        let file = self
-            .core
-            .exec(|| async move {
-                let file = compio::fs::OpenOptions::new()
-                    .read(true)
-                    .open(&path)
-                    .await?;
-                Ok(file)
-            })
-            .await?;
-
-        let r = CompfsReader::new(self.core.clone(), file, op.range());
-        Ok((RpRead::default(), r))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, op),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

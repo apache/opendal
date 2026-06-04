@@ -191,8 +191,37 @@ pub struct AliyunDriveBackend {
     core: Arc<AliyunDriveCore>,
 }
 
+impl oio::RangeRead for AliyunDriveBackend {
+    type RangeReader = HttpBody;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let res = self.core.get_by_path(path).await?;
+        let file: AliyunDriveFile =
+            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+        let resp = self.core.download(&file.file_id, range).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            )),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                Err(parse_error(Response::from_parts(part, buf)))
+            }
+        }
+    }
+}
+
 impl Access for AliyunDriveBackend {
-    type Reader = HttpBody;
+    type Reader = oio::RangeReader<Self>;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
@@ -318,25 +347,11 @@ impl Access for AliyunDriveBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let res = self.core.get_by_path(path).await?;
-        let file: AliyunDriveFile =
-            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        let resp = self.core.download(&file.file_id, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

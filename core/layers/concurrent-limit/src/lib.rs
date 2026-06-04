@@ -350,6 +350,20 @@ impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
     }
 }
 
+impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        self.inner.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
+    }
+
+    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        self.inner.fetch(ranges).await
+    }
+}
+
 impl<R: oio::Write, P: Send + Sync + 'static + Unpin> oio::Write for ConcurrentLimitWrapper<R, P> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).await
@@ -595,19 +609,15 @@ mod tests {
             content: Buffer,
         }
 
-        impl Access for HttpBackend {
-            type Reader = HttpBody;
-            type Writer = ();
-            type Lister = ();
-            type Deleter = ();
-            type Copier = oio::Copier;
+        impl oio::RangeRead for HttpBackend {
+            type RangeReader = HttpBody;
 
-            fn info(&self) -> Arc<AccessorInfo> {
-                self.info.clone()
-            }
-
-            async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-                let range = args.range();
+            async fn open_range(
+                &self,
+                _: &str,
+                _: OpRead,
+                range: BytesRange,
+            ) -> Result<(RpRead, Self::RangeReader)> {
                 let start = range.offset() as usize;
                 let data = match range.size() {
                     Some(sz) => self.content.slice(start..start + sz as usize),
@@ -618,6 +628,25 @@ mod tests {
                 Ok((
                     RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
                     resp.into_body(),
+                ))
+            }
+        }
+
+        impl Access for HttpBackend {
+            type Reader = oio::RangeReader<Self>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = oio::Copier;
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+                Ok((
+                    RpRead::default(),
+                    oio::RangeReader::new(self.clone(), path, args),
                 ))
             }
 

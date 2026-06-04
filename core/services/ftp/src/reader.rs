@@ -43,12 +43,9 @@ impl FtpReader {
     pub async fn new(
         mut ftp_stream: bounded::Object<Manager>,
         path: String,
-        args: OpRead,
+        range: BytesRange,
     ) -> Result<Self> {
-        let (offset, size) = (
-            args.range().offset(),
-            args.range().size().unwrap_or(u64::MAX),
-        );
+        let (offset, size) = (range.offset(), range.size().unwrap_or(u64::MAX));
         if offset != 0 {
             ftp_stream
                 .resume_transfer(offset as usize)

@@ -1095,6 +1095,55 @@ impl<R: oio::ReadStream, I: MetricsIntercept> oio::ReadStream for MetricsWrapper
     }
 }
 
+impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(MetricsWrapper::new(
+                stream,
+                self.interceptor.clone(),
+                self.labels.clone(),
+                Instant::now(),
+            )) as oio::ReadStreamBox,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let mut metrics = MetricsWrapper::new(
+            &self.inner,
+            self.interceptor.clone(),
+            self.labels.clone(),
+            Instant::now(),
+        );
+        let result = self.inner.read(range).await.inspect_err(|err| {
+            metrics.record_error(err);
+        });
+        if let Ok((_, buffer)) = &result {
+            metrics.size = buffer.len() as u64;
+            metrics.completed = true;
+        }
+        result
+    }
+
+    async fn fetch(&self, ranges: Vec<BytesRange>) -> Result<(RpRead, Vec<Buffer>)> {
+        let mut metrics = MetricsWrapper::new(
+            &self.inner,
+            self.interceptor.clone(),
+            self.labels.clone(),
+            Instant::now(),
+        );
+        let result = self.inner.fetch(ranges).await.inspect_err(|err| {
+            metrics.record_error(err);
+        });
+        if let Ok((_, buffers)) = &result {
+            metrics.size = buffers.iter().map(|v| v.len() as u64).sum();
+            metrics.completed = true;
+        }
+        result
+    }
+}
+
 impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();

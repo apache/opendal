@@ -183,8 +183,23 @@ pub struct FsBackend {
     core: Arc<FsCore>,
 }
 
+impl oio::RangeRead for FsBackend {
+    type RangeReader = FsReader<tokio::fs::File>;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let f = self.core.fs_read(path, range).await?;
+        let r = FsReader::new(self.core.clone(), f, range.size().unwrap_or(u64::MAX) as _);
+        Ok((RpRead::default(), r))
+    }
+}
+
 impl Access for FsBackend {
-    type Reader = FsReader<tokio::fs::File>;
+    type Reader = oio::RangeReader<Self>;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -205,13 +220,10 @@ impl Access for FsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let f = self.core.fs_read(path, &args).await?;
-        let r = FsReader::new(
-            self.core.clone(),
-            f,
-            args.range().size().unwrap_or(u64::MAX) as _,
-        );
-        Ok((RpRead::default(), r))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

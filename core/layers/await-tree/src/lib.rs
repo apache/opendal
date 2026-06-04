@@ -173,6 +173,38 @@ impl<R: oio::ReadStream> oio::ReadStream for AwaitTreeWrapper<R> {
     }
 }
 
+impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        let (rp, stream) = self
+            .inner
+            .open(range)
+            .instrument_await(format!("opendal::{}", Operation::Read))
+            .await?;
+        Ok((
+            rp,
+            Box::new(AwaitTreeWrapper::new(stream)) as oio::ReadStreamBox,
+        ))
+    }
+
+    fn read(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+        self.inner
+            .read(range)
+            .instrument_await(format!("opendal::{}", Operation::Read))
+    }
+
+    fn fetch(
+        &self,
+        ranges: Vec<BytesRange>,
+    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
+        self.inner
+            .fetch(ranges)
+            .instrument_await(format!("opendal::{}", Operation::Read))
+    }
+}
+
 impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
         self.inner

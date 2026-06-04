@@ -82,8 +82,40 @@ pub struct CacacheBackend {
     info: Arc<AccessorInfo>,
 }
 
+impl oio::RangeRead for CacacheBackend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let data = self.core.get(path).await?;
+
+        match data {
+            Some(bytes) => {
+                let content_length = bytes.len() as u64;
+                let buffer = if range.is_full() {
+                    Buffer::from(bytes)
+                } else {
+                    let start = range.offset() as usize;
+                    let end = match range.size() {
+                        Some(size) => (range.offset() + size) as usize,
+                        None => bytes.len(),
+                    };
+                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
+                };
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+                Ok((RpRead::new(metadata), buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+        }
+    }
+}
+
 impl Access for CacacheBackend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = CacacheWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
@@ -110,29 +142,11 @@ impl Access for CacacheBackend {
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let data = self.core.get(path).await?;
-
-        match data {
-            Some(bytes) => {
-                let range = args.range();
-                let content_length = bytes.len() as u64;
-                let buffer = if range.is_full() {
-                    Buffer::from(bytes)
-                } else {
-                    let start = range.offset() as usize;
-                    let end = match range.size() {
-                        Some(size) => (range.offset() + size) as usize,
-                        None => bytes.len(),
-                    };
-                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
-                };
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-                Ok((RpRead::new(metadata), buffer))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
-        }
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

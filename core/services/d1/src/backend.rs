@@ -222,8 +222,30 @@ impl D1Backend {
     }
 }
 
+impl oio::RangeRead for D1Backend {
+    type RangeReader = Buffer;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
+            }
+        };
+        let content = bs.slice(range.to_range_as_usize());
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((RpRead::new(metadata), content))
+    }
+}
+
 impl Access for D1Backend {
-    type Reader = Buffer;
+    type Reader = oio::RangeReader<Self>;
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
@@ -248,18 +270,11 @@ impl Access for D1Backend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
-            }
-        };
-        let content = bs.slice(args.range().to_range_as_usize());
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((RpRead::new(metadata), content))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

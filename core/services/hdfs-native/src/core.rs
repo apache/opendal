@@ -81,14 +81,14 @@ impl HdfsNativeCore {
     pub async fn hdfs_read(
         &self,
         path: &str,
-        args: &OpRead,
+        range: BytesRange,
     ) -> Result<(hdfs_native::file::FileReader, u64, u64)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
 
-        let offset = args.range().offset();
-        let size = args.range().size().unwrap_or(u64::MAX);
+        let offset = range.offset();
+        let size = range.size().unwrap_or(u64::MAX);
 
         Ok((f, offset, size))
     }

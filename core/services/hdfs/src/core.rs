@@ -66,7 +66,7 @@ impl HdfsCore {
         Ok(m)
     }
 
-    pub async fn hdfs_read(&self, path: &str, args: &OpRead) -> Result<hdrs::AsyncFile> {
+    pub async fn hdfs_read(&self, path: &str, range: BytesRange) -> Result<hdrs::AsyncFile> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let client = self.client.clone();
@@ -77,10 +77,10 @@ impl HdfsCore {
             .await
             .map_err(new_std_io_error)?;
 
-        if args.range().offset() != 0 {
+        if range.offset() != 0 {
             use futures::AsyncSeekExt;
 
-            f.seek(SeekFrom::Start(args.range().offset()))
+            f.seek(SeekFrom::Start(range.offset()))
                 .await
                 .map_err(new_std_io_error)?;
         }

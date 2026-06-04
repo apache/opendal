@@ -92,8 +92,23 @@ pub struct MonoiofsBackend {
     core: Arc<MonoiofsCore>,
 }
 
+impl oio::RangeRead for MonoiofsBackend {
+    type RangeReader = MonoiofsReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let path = self.core.prepare_path(path);
+        let reader = MonoiofsReader::new(self.core.clone(), path, range).await?;
+        Ok((RpRead::default(), reader))
+    }
+}
+
 impl Access for MonoiofsBackend {
-    type Reader = MonoiofsReader;
+    type Reader = oio::RangeReader<Self>;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -124,11 +139,11 @@ impl Access for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path);
-        let reader = MonoiofsReader::new(self.core.clone(), path, args.range()).await?;
-        Ok((RpRead::default(), reader))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

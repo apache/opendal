@@ -67,8 +67,23 @@ pub struct OpfsBackend {
     core: Arc<OpfsCore>,
 }
 
+impl oio::RangeRead for OpfsBackend {
+    type RangeReader = OpfsReader;
+
+    async fn open_range(
+        &self,
+        path: &str,
+        _args: OpRead,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self::RangeReader)> {
+        let p = build_abs_path(&self.core.root, path);
+        let handle = get_file_handle(&p, false).await?;
+        Ok((RpRead::default(), OpfsReader::new(handle, range)))
+    }
+}
+
 impl Access for OpfsBackend {
-    type Reader = OpfsReader;
+    type Reader = oio::RangeReader<Self>;
 
     type Writer = OpfsWriter;
 
@@ -104,11 +119,11 @@ impl Access for OpfsBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.core.root, path);
-        let handle = get_file_handle(&p, false).await?;
-        Ok((RpRead::default(), OpfsReader::new(handle, args.range())))
+        Ok((
+            RpRead::default(),
+            oio::RangeReader::new(self.clone(), path, args),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

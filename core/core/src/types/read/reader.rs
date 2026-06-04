@@ -22,8 +22,8 @@ use std::sync::Arc;
 use bytes::BufMut;
 use futures::TryStreamExt;
 
-use crate::raw::Access;
-use crate::raw::ConcurrentTasks;
+use crate::raw::BytesRange;
+use crate::raw::oio::Read as _;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -159,33 +159,12 @@ impl Reader {
 
         let merged_ranges = self.merge_ranges(ranges.clone());
 
-        #[derive(Clone)]
-        struct FetchInput {
-            reader: Reader,
-            range: Range<u64>,
-        }
-
-        let mut tasks = ConcurrentTasks::new(
-            self.ctx.accessor().info().executor(),
-            self.ctx.options().concurrent(),
-            self.ctx.options().prefetch(),
-            |input: FetchInput| {
-                Box::pin(async move {
-                    let FetchInput { range, reader } = input.clone();
-                    (input, reader.read(range).await)
-                })
-            },
-        );
-
-        for range in merged_ranges.clone() {
-            let reader = self.clone();
-            tasks.execute(FetchInput { reader, range }).await?;
-        }
-
-        let mut merged_bufs = vec![];
-        while let Some(b) = tasks.next().await {
-            merged_bufs.push(b?);
-        }
+        let raw_ranges = merged_ranges
+            .iter()
+            .map(|range| BytesRange::new(range.start, Some(range.end - range.start)))
+            .collect();
+        let (rp, merged_bufs) = self.ctx.reader().fetch(raw_ranges).await?;
+        self.ctx.observe_read_response(rp);
 
         let mut bufs = Vec::with_capacity(ranges.len());
         for range in ranges {
@@ -449,6 +428,23 @@ mod tests {
     use crate::raw::*;
     use crate::services;
 
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (rp, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            rp,
+            reader,
+        ))
+    }
+
     #[tokio::test]
     async fn test_trait() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
@@ -459,7 +455,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
 

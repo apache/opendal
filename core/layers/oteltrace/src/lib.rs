@@ -191,19 +191,50 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
 
 #[doc(hidden)]
 pub struct OtelTraceWrapper<R> {
-    _span: BoxedSpan,
+    span: Arc<BoxedSpan>,
     inner: R,
 }
 
 impl<R> OtelTraceWrapper<R> {
-    fn new(_span: BoxedSpan, inner: R) -> Self {
-        Self { _span, inner }
+    fn new(span: BoxedSpan, inner: R) -> Self {
+        Self {
+            span: Arc::new(span),
+            inner,
+        }
+    }
+
+    fn with_span(span: Arc<BoxedSpan>, inner: R) -> Self {
+        Self { span, inner }
     }
 }
 
 impl<R: oio::ReadStream> oio::ReadStream for OtelTraceWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, oio::ReadStreamBox)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(OtelTraceWrapper::with_span(self.span.clone(), stream)) as oio::ReadStreamBox,
+        ))
+    }
+
+    fn read(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+        self.inner.read(range)
+    }
+
+    fn fetch(
+        &self,
+        ranges: Vec<BytesRange>,
+    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
+        self.inner.fetch(ranges)
     }
 }
 

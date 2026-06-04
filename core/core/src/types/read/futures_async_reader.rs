@@ -190,15 +190,27 @@ mod tests {
 
     use super::*;
 
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (rp, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            rp,
+            reader,
+        ))
+    }
+
     #[tokio::test]
     async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         let v = FuturesAsyncReader::new(ctx, 4..8);
 
@@ -216,12 +228,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let mut bs = vec![];
@@ -247,12 +254,14 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_concurrent(3).with_chunk(1),
-        ));
+        let ctx = Arc::new(
+            new_read_context(
+                acc,
+                "test",
+                OpReader::new().with_concurrent(3).with_chunk(1),
+            )
+            .await?,
+        );
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let mut bs = vec![];
@@ -278,12 +287,14 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_concurrent(3).with_chunk(1),
-        ));
+        let ctx = Arc::new(
+            new_read_context(
+                acc,
+                "test",
+                OpReader::new().with_concurrent(3).with_chunk(1),
+            )
+            .await?,
+        );
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let chunk = fr.fill_buf().await.unwrap();
@@ -306,12 +317,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         // Range 4..8, in total 4 bytes of logical data.
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);

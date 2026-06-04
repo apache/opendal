@@ -35,7 +35,7 @@ runs:
       if: inputs.need-hadoop == 'true'
       shell: bash
       run: |
-        docker pull hadoop:3.3.5
+        docker pull apache/hadoop:3.3.5
         rm -rf /home/runner/hadoop-3.3.5
         # intentionally not remove temp container because
         # GitHub use one-time virtual machine to run a CI run.

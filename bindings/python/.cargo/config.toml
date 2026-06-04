@@ -1,0 +1,3 @@
+[env]
+# Keep io-uring bindgen independent from manylinux/musllinux kernel headers.
+BUILD_IO_URING_INCLUDE_FILE = { value = "uapi/io_uring_bindgen.h", relative = true }

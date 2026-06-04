@@ -27,7 +27,7 @@ fn enabled_service(srv: &str) -> bool {
         // not enabled in bindings/python/Cargo.toml
         "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
         | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
-        | "vercel_blob" | "foyer" => false,
+        | "vercel_blob" => false,
         _ => true,
     }
 }
@@ -44,8 +44,16 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     env.add_function("make_pydoc_param", make_pydoc_param);
     let tmpl = env.get_template("python")?;
 
+    let mut rendered = tmpl.render(context! { srvs => srvs })?;
+    while rendered.contains("\n\n\nsubmit!") {
+        rendered = rendered.replace("\n\n\nsubmit!", "\n\nsubmit!");
+    }
+    if !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+
     let output = workspace_dir.join("bindings/python/src/services.rs");
-    fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
+    fs::write(output, rendered)?;
     Ok(())
 }
 

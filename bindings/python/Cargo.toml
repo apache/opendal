@@ -45,9 +45,9 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: this is the feature we used to build pypi wheels.
-# When enable or disable some features,
-# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
+# NOTE: this is the feature we use to build PyPI wheels.
+# When enabling or disabling services here, also update `enabled_service` in
+# dev/src/generate/python.rs to match it.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -57,6 +57,7 @@ services-all = [
   'services-cacache',
   'services-dashmap',
   'services-dropbox',
+  'services-foyer',
   'services-ftp',
   'services-gdrive',
   'services-goosefs',
@@ -216,6 +217,11 @@ pyo3 = { version = "0.27.2", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.27.0", features = ["tokio-runtime"] }
 pyo3-stub-gen = { version = "0.17" }
 tokio = "1"
+
+# Python armv7 release wheels include foyer, which pulls io-uring on Linux.
+# io-uring has no prebuilt arm bindings, so generate them only for arm targets.
+[target.'cfg(target_arch = "arm")'.dependencies]
+io-uring = { version = "0.7", features = ["bindgen"] }
 
 [profile.release]
 codegen-units = 1

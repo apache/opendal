@@ -22,6 +22,7 @@ package opendal_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -40,6 +41,17 @@ func testsStat(cap *opendal.Capability) []behaviorTest {
 		testStatNotCleanedPath,
 		testStatNotExist,
 		testStatRoot,
+		testStatFileMetadata,
+		testStatDirMetadata,
+	}
+}
+
+func assertOptionalMetaString(assert *require.Assertions, name string, accessor func() (string, bool)) {
+	value, ok := accessor()
+	if ok {
+		assert.NotEmpty(value, "%s reported as present must have a non-empty value", name)
+	} else {
+		assert.Empty(value, "%s reported as absent must return an empty value", name)
 	}
 }
 
@@ -140,4 +152,115 @@ func testStatRoot(assert *require.Assertions, op *opendal.Operator, fixture *fix
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 
+}
+
+func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+	cap := op.Info().GetFullCapability()
+
+	writeOpts := make([]opendal.WithWriteFn, 0, 5)
+	writeWithCacheControl := isCapEnabled(cap.WriteWithCacheControl, "write_with_cache_control")
+	writeWithContentDisposition := isCapEnabled(cap.WriteWithContentDisposition, "write_with_content_disposition")
+	writeWithContentEncoding := isCapEnabled(cap.WriteWithContentEncoding, "write_with_content_encoding")
+	writeWithContentType := isCapEnabled(cap.WriteWithContentType, "write_with_content_type")
+	writeWithUserMetadata := isCapEnabled(cap.WriteWithUserMetadata, "write_with_user_metadata")
+
+	if writeWithCacheControl {
+		writeOpts = append(writeOpts, opendal.WriteWithCacheControl("max-age=60"))
+	}
+	if writeWithContentDisposition {
+		writeOpts = append(writeOpts, opendal.WriteWithContentDisposition("attachment; filename=hello.txt"))
+	}
+	if writeWithContentEncoding {
+		writeOpts = append(writeOpts, opendal.WriteWithContentEncoding("gzip"))
+	}
+	if writeWithContentType {
+		writeOpts = append(writeOpts, opendal.WriteWithContentType("text/plain"))
+	}
+	userMetadata := map[string]string{
+		"language": "go",
+		"project":  "opendal",
+	}
+	if writeWithUserMetadata {
+		writeOpts = append(writeOpts, opendal.WriteWithUserMetadata(userMetadata))
+	}
+
+	before := time.Now().Add(-time.Hour)
+	if len(writeOpts) == 0 {
+		assert.Nil(op.Write(path, content), "write must succeed")
+	} else {
+		assert.Nil(op.Write(path, content, writeOpts...), "write with metadata must succeed")
+	}
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+
+	assert.True(meta.IsFile(), "written object must be a file")
+	assert.False(meta.IsDir(), "written object must not be a dir")
+	assert.Equal(opendal.EntryModeFile, meta.Mode(), "mode must report file")
+	assert.False(meta.IsDeleted(), "freshly written object must not be deleted")
+	assert.Equal(uint64(size), meta.ContentLength(), "content length must match written size")
+
+	if lm := meta.LastModified(); !lm.IsZero() {
+		assert.False(lm.Before(before), "last_modified must be recent, got %v", lm)
+		assert.False(lm.After(time.Now().Add(time.Minute)), "last_modified must not be in the future, got %v", lm)
+	}
+
+	if writeWithCacheControl {
+		cacheControl, ok := meta.CacheControl()
+		assert.True(ok, "cache control must exist")
+		assert.Equal("max-age=60", cacheControl)
+	} else {
+		assertOptionalMetaString(assert, "cache control", meta.CacheControl)
+	}
+	if writeWithContentDisposition {
+		contentDisposition, ok := meta.ContentDisposition()
+		assert.True(ok, "content disposition must exist")
+		assert.Equal("attachment; filename=hello.txt", contentDisposition)
+	} else {
+		assertOptionalMetaString(assert, "content disposition", meta.ContentDisposition)
+	}
+	if writeWithContentEncoding {
+		contentEncoding, ok := meta.ContentEncoding()
+		assert.True(ok, "content encoding must exist")
+		assert.Equal("gzip", contentEncoding)
+	} else {
+		assertOptionalMetaString(assert, "content encoding", meta.ContentEncoding)
+	}
+	if writeWithContentType {
+		contentType, ok := meta.ContentType()
+		assert.True(ok, "content type must exist")
+		assert.Equal("text/plain", contentType)
+	} else {
+		assertOptionalMetaString(assert, "content type", meta.ContentType)
+	}
+	assertOptionalMetaString(assert, "content md5", meta.ContentMD5)
+	assertOptionalMetaString(assert, "etag", meta.ETag)
+	assertOptionalMetaString(assert, "version", meta.Version)
+
+	if isCurrent, ok := meta.IsCurrent(); ok {
+		assert.True(isCurrent, "a live object must be reported as the current version")
+	}
+	if writeWithUserMetadata {
+		assert.Equal(userMetadata, meta.UserMetadata())
+	} else if um := meta.UserMetadata(); um != nil {
+		assert.Equal(um, meta.UserMetadata(), "user metadata accessor must return equal copies")
+	}
+}
+
+func testStatDirMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !op.Info().GetFullCapability().CreateDir() {
+		return
+	}
+
+	path := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(path), "create dir must succeed")
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+
+	assert.True(meta.IsDir(), "created object must be a dir")
+	assert.False(meta.IsFile(), "created object must not be a file")
+	assert.Equal(opendal.EntryModeDir, meta.Mode(), "mode must report dir")
+	assert.False(meta.IsDeleted(), "freshly created dir must not be deleted")
 }

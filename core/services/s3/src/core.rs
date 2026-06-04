@@ -24,6 +24,8 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use constants::X_AMZ_META_PREFIX;
+use crc_fast::CrcAlgorithm;
+use crc_fast::Digest as CrcDigest;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -112,6 +114,14 @@ pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) upload_id: &'a str,
     pub(crate) part_number: usize,
     pub(crate) range: BytesRange,
+}
+
+fn format_crc32c_iter(body: Buffer) -> String {
+    let mut digest = CrcDigest::new(CrcAlgorithm::Crc32Iscsi);
+    body.for_each(|b| digest.update(&b));
+
+    let crc = digest.finalize() as u32;
+    BASE64_STANDARD.encode(crc.to_be_bytes())
 }
 
 impl Debug for S3Core {
@@ -264,12 +274,7 @@ impl S3Core {
     pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
         match self.checksum_algorithm {
             None => None,
-            Some(ChecksumAlgorithm::Crc32c) => {
-                let mut crc = 0u32;
-                body.clone()
-                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
-                Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
-            }
+            Some(ChecksumAlgorithm::Crc32c) => Some(format_crc32c_iter(body.clone())),
             Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }

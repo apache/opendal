@@ -155,7 +155,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: production
 
     steps:
       - name: Setup dotnet toolchain

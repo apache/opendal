@@ -62,6 +62,12 @@ pub struct opendal_capability {
     pub read_with_override_content_disposition: bool,
     /// if operator supports read with override content type.
     pub read_with_override_content_type: bool,
+    /// If operator supports read with if modified since.
+    pub read_with_if_modified_since: bool,
+    /// If operator supports read with if unmodified since.
+    pub read_with_if_unmodified_since: bool,
+    /// If operator supports read with version.
+    pub read_with_version: bool,
 
     /// If operator supports write.
     pub write: bool,
@@ -75,8 +81,18 @@ pub struct opendal_capability {
     pub write_with_content_type: bool,
     /// If operator supports write with content disposition.
     pub write_with_content_disposition: bool,
+    /// If operator supports write with content encoding.
+    pub write_with_content_encoding: bool,
     /// If operator supports write with cache control.
     pub write_with_cache_control: bool,
+    /// If operator supports write with if match.
+    pub write_with_if_match: bool,
+    /// If operator supports write with if none match.
+    pub write_with_if_none_match: bool,
+    /// If operator supports write with if not exists.
+    pub write_with_if_not_exists: bool,
+    /// If operator supports write with user metadata.
+    pub write_with_user_metadata: bool,
     /// write_multi_max_size is the max size that services support in write_multi.
     ///
     /// For example, AWS S3 supports 5GiB as max in write_multi.
@@ -233,13 +249,21 @@ impl From<core::Capability> for opendal_capability {
             read_with_override_content_type: value.read_with_override_content_type,
             read_with_override_cache_control: value.read_with_override_cache_control,
             read_with_override_content_disposition: value.read_with_override_content_disposition,
+            read_with_if_modified_since: value.read_with_if_modified_since,
+            read_with_if_unmodified_since: value.read_with_if_unmodified_since,
+            read_with_version: value.read_with_version,
             write: value.write,
             write_can_multi: value.write_can_multi,
             write_can_empty: value.write_can_empty,
             write_can_append: value.write_can_append,
             write_with_content_type: value.write_with_content_type,
             write_with_content_disposition: value.write_with_content_disposition,
+            write_with_content_encoding: value.write_with_content_encoding,
             write_with_cache_control: value.write_with_cache_control,
+            write_with_if_match: value.write_with_if_match,
+            write_with_if_none_match: value.write_with_if_none_match,
+            write_with_if_not_exists: value.write_with_if_not_exists,
+            write_with_user_metadata: value.write_with_user_metadata,
             write_multi_max_size: value.write_multi_max_size.unwrap_or(0),
             write_multi_min_size: value.write_multi_min_size.unwrap_or(0),
             write_total_max_size: value.write_total_max_size.unwrap_or(0),

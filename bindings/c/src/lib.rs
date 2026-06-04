@@ -44,6 +44,8 @@ pub use layer::opendal_operator_layers;
 
 mod metadata;
 pub use metadata::opendal_metadata;
+pub use metadata::opendal_metadata_user_metadata;
+pub use metadata::opendal_metadata_user_metadata_pair;
 
 mod operator;
 pub use operator::opendal_operator;
@@ -70,7 +72,11 @@ pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
+pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
+pub use types::opendal_read_options;
+pub use types::opendal_write_options;
+pub use types::opendal_write_user_metadata_pair;
 
 mod entry;
 pub use entry::opendal_entry;

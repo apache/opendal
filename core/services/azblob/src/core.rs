@@ -524,10 +524,18 @@ impl AzblobCore {
         &self,
         from: &str,
         to: &str,
+        source_version: Option<&str>,
         block_id: Uuid,
         range: BytesRange,
     ) -> Result<Response<Buffer>> {
-        let source = Request::get(self.build_path_url(from))
+        let mut source_url = self.build_path_url(from);
+        if let Some(version) = source_version {
+            source_url = QueryPairsWriter::new(&source_url)
+                .push("versionid", &percent_encode_path(version))
+                .finish();
+        }
+
+        let source = Request::get(source_url)
             .extension(Operation::Copy)
             .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
@@ -634,7 +642,14 @@ impl AzblobCore {
     }
 
     pub fn azblob_head_blob_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let mut req = Request::head(self.build_path_url(path));
+        let mut url = self.build_path_url(path);
+        if let Some(version) = args.version() {
+            url = QueryPairsWriter::new(&url)
+                .push("versionid", &percent_encode_path(version))
+                .finish();
+        }
+
+        let mut req = Request::head(url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req);
@@ -687,7 +702,12 @@ impl AzblobCore {
         to: &str,
         args: OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = self.build_path_url(from);
+        let mut source = self.build_path_url(from);
+        if let Some(version) = args.source_version() {
+            source = QueryPairsWriter::new(&source)
+                .push("versionid", &percent_encode_path(version))
+                .finish();
+        }
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)

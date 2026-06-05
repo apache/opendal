@@ -34,9 +34,40 @@ pub struct FsCore {
 }
 
 impl FsCore {
+    /// Join a caller-supplied key onto a base directory while keeping the result
+    /// confined to that base.
+    ///
+    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
+    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
+    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
+    /// configured `root` at syscall time. The fs backend documents that "all
+    /// operations will happen under this root", so we reject any key whose
+    /// components include a `..` (parent-dir) traversal.
+    pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
+        use std::path::Component;
+        let trimmed = path.trim_end_matches('/');
+        if Path::new(trimmed)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir))
+        {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "path escapes the configured root via `..`",
+            )
+            .with_context("path", path));
+        }
+        Ok(base.join(trimmed))
+    }
+
+    /// Join a caller-supplied key onto `self.root`, rejecting `..` traversal.
+    #[inline]
+    pub fn root_join(&self, path: &str) -> Result<PathBuf> {
+        Self::confined_join(&self.root, path)
+    }
+
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = parent.join(path);
+        let p = Self::confined_join(parent, path)?;
 
         // Create dir before write path.
         //
@@ -63,7 +94,7 @@ impl FsCore {
     }
 
     pub async fn fs_create_dir(&self, path: &str) -> Result<()> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
         tokio::fs::create_dir_all(&p)
             .await
             .map_err(new_std_io_error)?;
@@ -71,7 +102,7 @@ impl FsCore {
     }
 
     pub async fn fs_stat(&self, path: &str) -> Result<Metadata> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -99,7 +130,7 @@ impl FsCore {
     }
 
     pub async fn fs_read(&self, path: &str, args: &OpRead) -> Result<tokio::fs::File> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
 
         let mut f = tokio::fs::OpenOptions::new()
             .read(true)
@@ -169,7 +200,7 @@ impl FsCore {
     }
 
     pub async fn fs_list(&self, path: &str) -> Result<Option<tokio::fs::ReadDir>> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
 
         match tokio::fs::read_dir(&p).await {
             Ok(rd) => Ok(Some(rd)),
@@ -191,7 +222,7 @@ impl FsCore {
     }
 
     pub async fn fs_copy(&self, from: &str, to: &str) -> Result<()> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.root_join(from)?;
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
@@ -204,7 +235,7 @@ impl FsCore {
     }
 
     pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.root_join(from)?;
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
         let to = self

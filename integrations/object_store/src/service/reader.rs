@@ -51,7 +51,11 @@ impl oio::StreamRead for ObjectStoreReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let path = ObjectStorePath::from(self.path.as_str());
         let opts = parse_op_read(&self.args, range)?;
-        let result = self.store.get_opts(&path, opts).await.map_err(parse_error)?;
+        let result = self
+            .store
+            .get_opts(&path, opts)
+            .await
+            .map_err(parse_error)?;
         let rp = RpRead::new(format_metadata(&result.meta));
         let stream = ObjectStoreReadStream::new(result.into_stream());
 

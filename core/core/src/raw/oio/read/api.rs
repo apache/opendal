@@ -16,6 +16,7 @@
 // under the License.
 
 use std::mem;
+use std::ops::Deref;
 use std::ops::DerefMut;
 
 use bytes::Bytes;
@@ -24,8 +25,75 @@ use futures::Future;
 use crate::raw::*;
 use crate::*;
 
-/// Reader is a type erased [`ReadStream`].
-pub type Reader = Box<dyn ReadStreamDyn>;
+/// Reader is a type erased [`Read`].
+pub type Reader = Box<dyn ReadDyn>;
+
+/// Read is the internal trait used by OpenDAL to read ranges from storage.
+///
+/// Users should not use or import this trait unless they are implementing an `Accessor`.
+pub trait Read: Unpin + Send + Sync {
+    /// Open a range stream for the given range.
+    fn open(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Box<dyn ReadStreamDyn>)>> + MaybeSend;
+
+    /// Read an exact bounded range into [`Buffer`].
+    fn read(&self, range: BytesRange)
+    -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend;
+}
+
+impl Read for () {
+    async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support open",
+        ))
+    }
+
+    async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support read",
+        ))
+    }
+}
+
+/// ReadDyn is the dyn version of [`Read`] make it possible to use as
+/// `Box<dyn ReadDyn>`.
+pub trait ReadDyn: Unpin + Send + Sync {
+    /// The dyn version of [`Read::open`].
+    fn open_dyn(
+        &self,
+        range: BytesRange,
+    ) -> BoxedFuture<'_, Result<(RpRead, Box<dyn ReadStreamDyn>)>>;
+
+    /// The dyn version of [`Read::read`].
+    fn read_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, Buffer)>>;
+}
+
+impl<T: Read + ?Sized> ReadDyn for T {
+    fn open_dyn(
+        &self,
+        range: BytesRange,
+    ) -> BoxedFuture<'_, Result<(RpRead, Box<dyn ReadStreamDyn>)>> {
+        Box::pin(self.open(range))
+    }
+
+    fn read_dyn(&self, range: BytesRange) -> BoxedFuture<'_, Result<(RpRead, Buffer)>> {
+        Box::pin(self.read(range))
+    }
+}
+
+impl<T: ReadDyn + ?Sized> Read for Box<T> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn ReadStreamDyn>)> {
+        self.deref().open_dyn(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.deref().read_dyn(range).await
+    }
+}
 
 /// ReadStream is the internal trait used by OpenDAL to stream data from storage.
 ///

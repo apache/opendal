@@ -23,12 +23,12 @@ use super::core::{HfCore, XetFileResponse};
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub enum HfReader {
+pub enum HfReadStream {
     Http(HttpBody),
     Xet(XetDownloadStream),
 }
 
-impl HfReader {
+impl HfReadStream {
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(RpRead, Self)> {
         let resp = core.resolve(path, range, core.download_mode).await?;
         if resp.headers().contains_key("x-xet-hash") {
@@ -80,7 +80,7 @@ fn map_session_error(e: SessionError) -> Error {
     Error::new(ErrorKind::Unexpected, "xet read error").set_source(e)
 }
 
-impl oio::ReadStream for HfReader {
+impl oio::ReadStream for HfReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         match self {
             Self::Http(body) => body.read().await,
@@ -123,12 +123,13 @@ mod tests {
             "https://huggingface.co",
         );
 
-        let (rp, mut reader) = HfReader::try_new(&core, "test.txt", BytesRange::default()).await?;
+        let (rp, mut reader) =
+            HfReadStream::try_new(&core, "test.txt", BytesRange::default()).await?;
         let metadata = rp.metadata().expect("read metadata must be returned");
 
         assert_eq!(metadata.mode(), EntryMode::FILE);
         assert_eq!(metadata.content_length(), 5);
-        assert!(matches!(reader, HfReader::Http(_)));
+        assert!(matches!(reader, HfReadStream::Http(_)));
 
         let chunk = reader.read().await?;
         assert_eq!(chunk.to_bytes(), Bytes::from_static(b"hello"));
@@ -179,12 +180,12 @@ mod tests {
         .await
         .expect("commit should succeed");
 
-        let (_, mut reader) = HfReader::try_new(&core, path, BytesRange::default())
+        let (_, mut reader) = HfReadStream::try_new(&core, path, BytesRange::default())
             .await
             .expect("reading non-XET file in Xet mode should succeed via HTTP fallback");
 
         assert!(
-            matches!(reader, HfReader::Http(_)),
+            matches!(reader, HfReadStream::Http(_)),
             "expected HTTP reader for non-XET file"
         );
 

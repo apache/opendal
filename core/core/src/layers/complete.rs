@@ -22,9 +22,9 @@ use std::sync::Arc;
 
 use crate::raw::oio;
 use crate::raw::{
-    Access, AccessorInfo, Layer, LayeredAccess, OpCopier, OpCopy, OpCreateDir, OpList, OpPresign,
-    OpRead, OpStat, OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpStat,
-    RpWrite,
+    Access, AccessorInfo, BytesRange, Layer, LayeredAccess, OpCopier, OpCopy, OpCreateDir, OpList,
+    OpPresign, OpRead, OpStat, OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead,
+    RpStat, RpWrite,
 };
 use crate::*;
 
@@ -75,11 +75,10 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let size = args.range().size();
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, CompleteReader::new(r, size)))
+            .map(|(rp, r)| (rp, CompleteReader::new(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -179,11 +178,40 @@ impl<A: Access> oio::List for CompleteLister<A> {
 
 pub struct CompleteReader<R> {
     inner: R,
+}
+
+impl<R> CompleteReader<R> {
+    pub fn new(inner: R) -> Self {
+        Self { inner }
+    }
+}
+
+impl<R: oio::Read> oio::Read for CompleteReader<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let size = range.size();
+        self.inner.open(range).await.map(|(rp, stream)| {
+            (
+                rp,
+                Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
+            )
+        })
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let size = range.size();
+        let (rp, buffer) = self.inner.read(range).await?;
+        check_complete(size, buffer.len() as u64)?;
+        Ok((rp, buffer))
+    }
+}
+
+pub struct CompleteReadStream<R> {
+    inner: R,
     size: Option<u64>,
     read: u64,
 }
 
-impl<R> CompleteReader<R> {
+impl<R> CompleteReadStream<R> {
     pub fn new(inner: R, size: Option<u64>) -> Self {
         Self {
             inner,
@@ -193,27 +221,11 @@ impl<R> CompleteReader<R> {
     }
 
     pub fn check(&self) -> Result<()> {
-        let Some(size) = self.size else {
-            return Ok(());
-        };
-
-        match self.read.cmp(&size) {
-            Ordering::Equal => Ok(()),
-            Ordering::Less => Err(
-                Error::new(ErrorKind::Unexpected, "reader got too little data")
-                    .with_context("expect", size)
-                    .with_context("actual", self.read),
-            ),
-            Ordering::Greater => Err(
-                Error::new(ErrorKind::Unexpected, "reader got too much data")
-                    .with_context("expect", size)
-                    .with_context("actual", self.read),
-            ),
-        }
+        check_complete(self.size, self.read)
     }
 }
 
-impl<R: oio::ReadStream> oio::ReadStream for CompleteReader<R> {
+impl<R: oio::ReadStream> oio::ReadStream for CompleteReadStream<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buf = self.inner.read().await?;
 
@@ -224,6 +236,26 @@ impl<R: oio::ReadStream> oio::ReadStream for CompleteReader<R> {
         }
 
         Ok(buf)
+    }
+}
+
+fn check_complete(size: Option<u64>, actual: u64) -> Result<()> {
+    let Some(size) = size else {
+        return Ok(());
+    };
+
+    match actual.cmp(&size) {
+        Ordering::Equal => Ok(()),
+        Ordering::Less => Err(
+            Error::new(ErrorKind::Unexpected, "reader got too little data")
+                .with_context("expect", size)
+                .with_context("actual", actual),
+        ),
+        Ordering::Greater => Err(
+            Error::new(ErrorKind::Unexpected, "reader got too much data")
+                .with_context("expect", size)
+                .with_context("actual", actual),
+        ),
     }
 }
 
@@ -362,5 +394,50 @@ where
         self.state.transition(CompleteState::Closed);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockReadReader {
+        buffer: Buffer,
+    }
+
+    impl oio::Read for MockReadReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            Err(Error::new(ErrorKind::Unsupported, "open is not supported"))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Ok((RpRead::default(), self.buffer.clone()))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_rejects_short_buffer() {
+        let reader = CompleteReader::new(MockReadReader {
+            buffer: Buffer::from("a"),
+        });
+
+        let err = oio::Read::read(&reader, BytesRange::from(0_u64..2))
+            .await
+            .expect_err("read should reject short buffer");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_read_rejects_extra_buffer() {
+        let reader = CompleteReader::new(MockReadReader {
+            buffer: Buffer::from("ab"),
+        });
+
+        let err = oio::Read::read(&reader, BytesRange::from(0_u64..1))
+            .await
+            .expect_err("read should reject extra buffer");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 }

@@ -100,7 +100,7 @@ impl MemoryBackend {
 }
 
 impl Access for MemoryBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<MemoryReader>;
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
@@ -127,29 +127,10 @@ impl Access for MemoryBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let value = match self.core.get(&p)? {
-            Some(value) => value,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "memory doesn't have this path",
-                ));
-            }
-        };
-
-        let total_size = value.content.len() as u64;
-        let range = args.range();
-        let start = range.offset().min(total_size) as usize;
-        let end = match range.size() {
-            Some(size) => range.offset().saturating_add(size).min(total_size),
-            None => total_size,
-        } as usize;
-        let content = value.content.slice(start..end);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-        Ok((RpRead::new(metadata), content))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(MemoryReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -174,5 +155,48 @@ impl Access for MemoryBackend {
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
+    }
+}
+
+/// Reader returned by this backend.
+pub struct MemoryReader {
+    backend: MemoryBackend,
+    path: String,
+}
+
+impl MemoryReader {
+    fn new(backend: MemoryBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for MemoryReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+
+        let value = match backend.core.get(&p)? {
+            Some(value) => value,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                ));
+            }
+        };
+
+        let total_size = value.content.len() as u64;
+        let content = value
+            .content
+            .slice(range.to_content_range(value.content.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 }

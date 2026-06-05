@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::io::SeekFrom;
+use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -129,21 +129,16 @@ impl FsCore {
         Ok(m)
     }
 
-    pub async fn fs_read(&self, path: &str, args: &OpRead) -> Result<tokio::fs::File> {
+    pub async fn fs_open(&self, path: &str) -> Result<File> {
         let p = self.root_join(path)?;
 
-        let mut f = tokio::fs::OpenOptions::new()
+        let f = tokio::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .await
-            .map_err(new_std_io_error)?;
-
-        if args.range().offset() != 0 {
-            use tokio::io::AsyncSeekExt;
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
+            .map_err(new_std_io_error)?
+            .into_std()
+            .await;
 
         Ok(f)
     }

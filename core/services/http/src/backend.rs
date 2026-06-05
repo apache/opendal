@@ -169,8 +169,50 @@ pub struct HttpBackend {
     core: Arc<HttpCore>,
 }
 
+/// Reader returned by this backend.
+pub struct HttpReader {
+    backend: HttpBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl HttpReader {
+    fn new(backend: HttpBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for HttpReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.http_get(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for HttpBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<HttpReader>;
     type Writer = ();
     type Lister = ();
     type Deleter = ();
@@ -200,23 +242,11 @@ impl Access for HttpBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.http_get(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -229,9 +259,7 @@ impl Access for HttpBackend {
 
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.http_head_request(path, v)?,
-            PresignOperation::Read(v) => {
-                self.core.http_get_request(path, BytesRange::default(), v)?
-            }
+            PresignOperation::Read(range, v) => self.core.http_get_request(path, *range, v)?,
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

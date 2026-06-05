@@ -611,6 +611,61 @@ impl<R: oio::ReadStream, I: LoggingInterceptor> oio::ReadStream for LoggingReade
     }
 }
 
+impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        match self.inner.open(range).await {
+            Ok((rp, stream)) => Ok((
+                rp,
+                Box::new(LoggingReader::new(
+                    self.info.clone(),
+                    self.logger.clone(),
+                    &self.path,
+                    stream,
+                )) as Box<dyn oio::ReadStreamDyn>,
+            )),
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Read,
+                    &[("path", &self.path), ("range", &range.to_string())],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        match self.inner.read(range).await {
+            Ok((rp, buffer)) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Read,
+                    &[
+                        ("path", &self.path),
+                        ("range", &range.to_string()),
+                        ("size", &buffer.len().to_string()),
+                    ],
+                    "finished",
+                    None,
+                );
+                Ok((rp, buffer))
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Read,
+                    &[("path", &self.path), ("range", &range.to_string())],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+}
+
 #[doc(hidden)]
 pub struct LoggingWriter<W, I> {
     info: Arc<AccessorInfo>,

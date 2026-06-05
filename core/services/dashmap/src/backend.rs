@@ -111,8 +111,46 @@ impl DashmapBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct DashmapReader {
+    backend: DashmapBackend,
+    path: String,
+}
+
+impl DashmapReader {
+    fn new(backend: DashmapBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for DashmapReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+
+        match backend.core.get(&p)? {
+            Some(value) => {
+                let total_size = value.content.len() as u64;
+                let buffer = value
+                    .content
+                    .slice(range.to_content_range(value.content.len())?);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                Ok((
+                    RpRead::new(metadata),
+                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),
+        }
+    }
+}
+
 impl Access for DashmapBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<DashmapReader>;
     type Writer = DashmapWriter;
     type Lister = oio::HierarchyLister<DashmapLister>;
     type Deleter = oio::OneShotDeleter<DashmapDeleter>;
@@ -141,29 +179,11 @@ impl Access for DashmapBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        match self.core.get(&p)? {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let buffer = if args.range().is_full() {
-                    value.content
-                } else {
-                    let range = args.range();
-                    let start = range.offset() as usize;
-                    let end = match range.size() {
-                        Some(size) => (range.offset() + size) as usize,
-                        None => value.content.len(),
-                    };
-                    value.content.slice(start..end.min(value.content.len()))
-                };
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                Ok((RpRead::new(metadata), buffer))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(DashmapReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

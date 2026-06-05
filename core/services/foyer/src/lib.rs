@@ -102,6 +102,7 @@ mod tests {
     use foyer::{
         BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCacheBuilder, RecoverMode,
     };
+    use opendal_core::ErrorKind;
     use opendal_core::Operator;
     use size::consts::MiB;
 
@@ -198,6 +199,18 @@ mod tests {
         // Range read
         let buf = op.read_with("test").range(10..20).await.unwrap();
         assert_eq!(buf.to_vec(), data[10..20]);
+
+        let err = op.read_with("test").range(95..105).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let buf = op.read_with("test").range(100..).await.unwrap();
+        assert!(buf.is_empty());
+
+        let buf = op.read_with("test").range(200..).await.unwrap();
+        assert!(buf.is_empty());
+
+        let buf = op.read_with("test").range(200..200).await.unwrap();
+        assert!(buf.is_empty());
     }
 
     #[tokio::test]

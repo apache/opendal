@@ -242,12 +242,19 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
 
 #[doc(hidden)]
 pub struct FastraceWrapper<R> {
-    span: Span,
+    span: Arc<Span>,
     inner: R,
 }
 
 impl<R> FastraceWrapper<R> {
     fn new(span: Span, inner: R) -> Self {
+        Self {
+            span: Arc::new(span),
+            inner,
+        }
+    }
+
+    fn with_span(span: Arc<Span>, inner: R) -> Self {
         Self { span, inner }
     }
 }
@@ -256,6 +263,33 @@ impl<R: oio::ReadStream> oio::ReadStream for FastraceWrapper<R> {
     #[trace(enter_on_poll = true)]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
+    fn open(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> + MaybeSend {
+        let _g = self.span.set_local_parent();
+        let span = self.span.clone();
+        let fut = self.inner.open(range);
+        async move {
+            let (rp, stream) = fut.await?;
+            Ok((
+                rp,
+                Box::new(FastraceWrapper::with_span(span, stream)) as Box<dyn oio::ReadStreamDyn>,
+            ))
+        }
+    }
+
+    fn read(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
+        self.inner.read(range)
     }
 }
 

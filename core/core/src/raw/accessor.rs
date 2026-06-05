@@ -59,7 +59,7 @@ use crate::*;
 ///   - The default implementation should return [`ErrorKind::Unsupported`].
 pub trait Access: Send + Sync + Debug + Unpin + 'static {
     /// Reader is the associated reader returned in `read` operation.
-    type Reader: oio::ReadStream;
+    type Reader: oio::Read;
     /// Writer is the associated writer returned in `write` operation.
     type Writer: oio::Write;
     /// Lister is the associated lister returned in `list` operation.

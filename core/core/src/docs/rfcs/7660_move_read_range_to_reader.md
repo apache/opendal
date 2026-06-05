@@ -22,8 +22,6 @@ This RFC keeps the `Access::read` operation, but changes its contract:
   and read condition set.
 - `oio::Read::open(range)` opens a range-scoped byte stream.
 - `oio::Read::read(range)` reads one bounded planner range into one `Buffer`.
-- `oio::Read::fetch(ranges)` reads multiple bounded planner ranges and returns
-  buffers in input order.
 
 The public `Operator::read`, `Operator::reader`, `Reader::read`,
 `Reader::fetch`, and stream conversion APIs keep their existing user-facing
@@ -144,7 +142,7 @@ contract.
 `ReadOptions` and `ReaderOptions` should be converted differently:
 
 ```rust,ignore
-impl From<options::ReadOptions> for (OpRead, BytesRange, OpReader);
+impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader);
 impl From<options::ReaderOptions> for (OpRead, OpReader);
 ```
 
@@ -204,25 +202,6 @@ pub trait Read: Send + Sync + Debug + Unpin + 'static {
         }
     }
 
-    fn fetch(
-        &self,
-        ranges: Vec<BytesRange>,
-    ) -> impl Future<Output = Result<(RpRead, Vec<Buffer>)>> + MaybeSend {
-        async {
-            let mut observed = None;
-            let mut out = Vec::with_capacity(ranges.len());
-
-            for range in ranges {
-                let (rp, buffer) = self.read(range).await?;
-                if observed.is_none() {
-                    observed = rp.into_metadata();
-                }
-                out.push(buffer);
-            }
-
-            Ok((observed.map(RpRead::new).unwrap_or_default(), out))
-        }
-    }
 }
 ```
 
@@ -234,14 +213,12 @@ they need for wrapping and cloning.
 
 ## Range operation semantics
 
-`open`, `read`, and `fetch` are three different raw range operations:
+`open` and `read` are the two raw range operations:
 
 - `open(range)` opens a range stream. It may accept bounded or unbounded ranges.
   It is the primitive for streaming and backpressure.
 - `read(range)` reads one bounded planner range and returns exactly one
   materialized `Buffer`.
-- `fetch(ranges)` reads a batch of bounded planner ranges and returns one buffer
-  per input range in the same order.
 
 `read` is not a syscall-style partial read. Backends should not return a short
 buffer just because one underlying syscall or network read returned fewer bytes
@@ -249,20 +226,10 @@ than requested. For a valid bounded planner range, `read` should either return
 the complete range content or return an error. The complete layer can still
 enforce the final length check.
 
-`fetch` has these additional semantics:
-
-- `fetch(vec![])` returns an empty vector and should not perform storage I/O.
-- `fetch` must not apply public `gap` merging. The public `Reader` decides which
-  ranges should be read.
-- `fetch` must not own public `concurrent` or `prefetch` policy. The public
-  `Reader` schedules calls into the raw reader.
-- `RpRead` represents read response metadata observed while serving the batch.
-  It is not per-range metadata.
-
 The public `Reader::read` can still accept a large user range. The core planner
 must not blindly pass that large range to raw `read`. It should choose between
-`open` and planned bounded `read` / `fetch` calls based on `OpReader` policy,
-range shape, and stream conversion needs.
+`open` and planned bounded `read` calls based on `OpReader` policy, range shape,
+and stream conversion needs.
 
 The public `Reader::fetch` can keep its existing behavior:
 
@@ -270,8 +237,7 @@ The public `Reader::fetch` can keep its existing behavior:
 2. Split the merged ranges into bounded execution ranges.
 3. Schedule those execution ranges according to `OpReader::concurrent` and
    `OpReader::prefetch`.
-4. Execute `raw_reader.fetch(batch)` or concurrent `raw_reader.read(range)`
-   calls.
+4. Execute concurrent `raw_reader.read(range)` calls.
 5. Slice merged buffers back into the original requested ranges.
 
 ## Cursor-independent concurrency
@@ -309,7 +275,7 @@ range, and execution policy:
 
 ```rust,ignore
 async fn read_inner(acc: Accessor, path: String, opts: ReadOptions) -> Result<Buffer> {
-    let (op_read, range, op_reader) = opts.into();
+    let (range, op_read, op_reader) = opts.into();
     let (rp, raw_reader) = acc.read(&path, op_read).await?;
     let reader = Reader::new(acc, path, raw_reader, op_reader, rp);
     reader.read(range.to_range()).await
@@ -381,14 +347,13 @@ specific type alias.
 
 `CompleteLayer` currently reads `args.range().size()` in `Access::read` and
 wraps the returned range stream. After this RFC, range size is only known when
-`open`, `read`, or `fetch` is called.
+`open` or `read` is called.
 
 `CompleteLayer` should wrap the raw reader and validate each returned range
 body:
 
 - `open(range)` wraps the returned `ReadStream` with `CompleteReadStream`.
 - `read(range)` checks the returned buffer length.
-- `fetch(ranges)` checks each buffer against the corresponding range.
 
 ### Error context layer
 
@@ -414,12 +379,10 @@ The new retry model should be:
 - wrap the returned `ReadStream` and track bytes already emitted;
 - if a stream read fails with a temporary error, reopen the same raw reader with
   the remaining range and continue;
-- retry `read(range)` as an exact bounded range operation;
-- retry `fetch(ranges)` as an exact batch operation, or decompose it into
-  retried `read(range)` calls if that is easier to make correct.
+- retry `read(range)` as an exact bounded range operation.
 
-Because `read` and `fetch` are exact bounded range operations, retrying them is
-idempotent for the same path and read condition set.
+Because `read` is an exact bounded range operation, retrying it is idempotent
+for the same path and read condition set.
 
 ### Correctness check layer
 
@@ -436,14 +399,14 @@ This range should not move back into `OpRead`. Instead,
 ```rust,ignore
 pub enum PresignOperation {
     Read {
-        args: OpRead,
         range: BytesRange,
+        args: OpRead,
     },
     // ...
 }
 ```
 
-`presign_read_options` converts `ReadOptions` into `(OpRead, BytesRange,
+`presign_read_options` converts `ReadOptions` into `(BytesRange, OpRead,
 OpReader)` and discards `OpReader`.
 
 ## Backend implementation model
@@ -471,8 +434,7 @@ This keeps object-store behavior unchanged.
 ### Memory and database-like services
 
 Services that already have the data content in memory can store the content or
-lookup key in their raw reader. `read(range)` and `fetch(ranges)` can slice
-bounded ranges directly.
+lookup key in their raw reader. `read(range)` can slice bounded ranges directly.
 
 ### Handle based services
 
@@ -512,7 +474,7 @@ Migration can be staged mechanically:
 3. Update type erasure and core read context.
 4. Convert object-store services by moving current `Access::read` request logic
    into `open(range)`.
-5. Convert memory-like services by slicing in `read(range)` and `fetch(ranges)`.
+5. Convert memory-like services by slicing in `read(range)`.
 6. Convert handle based services first with independent per-range opens, then
    add positioned-read optimization where supported.
 7. Rewrite `RetryLayer` around range operation wrappers.
@@ -527,9 +489,9 @@ The implementation should be considered complete when:
   before the first range operation;
 - a handle based service test proves repeated planned range reads do not reopen
   the handle when positioned reads are supported;
-- retry tests cover `open(range)`, `ReadStream` progress retry, `read(range)`,
-  and `fetch(ranges)`;
-- complete layer tests cover short buffers from `read` and `fetch`.
+- retry tests cover `open(range)`, `ReadStream` progress retry, and
+  `read(range)`;
+- complete layer tests cover short buffers from `read`.
 
 # Drawbacks
 

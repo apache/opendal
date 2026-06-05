@@ -183,6 +183,21 @@ impl<R: oio::ReadStream> oio::ReadStream for ThrottleWrapper<R> {
     }
 }
 
+impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(ThrottleWrapper::new(stream, self.limiter.clone()))
+                as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
+    }
+}
+
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let len = bs.len();

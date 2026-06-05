@@ -371,8 +371,49 @@ pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AzdlsReader {
+    backend: AzdlsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl AzdlsReader {
+    fn new(backend: AzdlsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for AzdlsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.azdls_read(path, range, &args).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzdlsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AzdlsReader>;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
@@ -405,22 +446,11 @@ impl Access for AzdlsBackend {
         let metadata = self.core.azdls_stat_metadata(path).await?;
         Ok(RpStat::new(metadata))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range(), &args).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AzdlsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

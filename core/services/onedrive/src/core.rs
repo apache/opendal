@@ -271,12 +271,13 @@ impl OneDriveCore {
     pub(crate) async fn onedrive_get_content(
         &self,
         path: &str,
+        range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         // We can't "select" the OneDrive API response fields when reading because "select" shadows not found error
         let url: String = format!("{}:/content", self.onedrive_item_url(path, true));
 
-        let mut request = Request::get(&url).header(header::RANGE, args.range().to_header());
+        let mut request = Request::get(&url).header(header::RANGE, range.to_header());
         if let Some(etag) = args.if_none_match() {
             request = request.header(header::IF_NONE_MATCH, etag);
         }

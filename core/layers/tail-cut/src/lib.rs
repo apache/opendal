@@ -380,13 +380,12 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let size = args.range().size();
-        self.with_deadline(Operation::Read, size, self.inner.read(path, args))
+        self.with_deadline(Operation::Read, None, self.inner.read(path, args))
             .await
             .map(|(rp, r)| {
                 (
                     rp,
-                    TailCutWrapper::new(r, size, self.config.clone(), self.stats.clone()),
+                    TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()),
                 )
             })
     }
@@ -485,14 +484,18 @@ impl<R> TailCutWrapper<R> {
     }
 
     fn calculate_deadline(&self, op: Operation) -> Option<Duration> {
+        self.calculate_deadline_for(op, self.size)
+    }
+
+    fn calculate_deadline_for(&self, op: Operation, size: Option<u64>) -> Option<Duration> {
         let op_stats = self.stats.stats_for(op);
 
-        if op_stats.total_samples(self.size, self.config.window) < self.config.min_samples {
+        if op_stats.total_samples(size, self.config.window) < self.config.min_samples {
             return None;
         }
 
         let q = self.config.percentile as f64 / 100.0;
-        let pctl = op_stats.quantile(self.size, q, self.config.window)?;
+        let pctl = op_stats.quantile(size, q, self.config.window)?;
 
         let deadline = Duration::from_secs_f64(pctl.as_secs_f64() * self.config.safety_factor);
         Some(deadline.clamp(self.config.min_deadline, self.config.max_deadline))
@@ -538,7 +541,7 @@ impl<R> TailCutWrapper<R> {
 
 impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
-        let deadline = self.calculate_deadline(Operation::Read);
+        let deadline = self.calculate_deadline_for(Operation::Read, self.size);
         Self::with_io_deadline(
             deadline,
             self.config.percentile,
@@ -546,6 +549,46 @@ impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
             self.size,
             Operation::Read,
             self.inner.read(),
+        )
+        .await
+    }
+}
+
+impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let size = range.size();
+        let deadline = self.calculate_deadline_for(Operation::Read, size);
+        let (rp, stream) = Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            size,
+            Operation::Read,
+            self.inner.open(range),
+        )
+        .await?;
+
+        Ok((
+            rp,
+            Box::new(TailCutWrapper::new(
+                stream,
+                size,
+                self.config.clone(),
+                self.stats.clone(),
+            )) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let size = range.size();
+        let deadline = self.calculate_deadline_for(Operation::Read, size);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            size,
+            Operation::Read,
+            self.inner.read(range),
         )
         .await
     }

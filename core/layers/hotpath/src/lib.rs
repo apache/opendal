@@ -190,6 +190,20 @@ impl<R: oio::ReadStream> oio::ReadStream for HotpathWrapper<R> {
     }
 }
 
+impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = hotpath::measure_async(LABEL_READ, self.inner.open(range)).await?;
+        Ok((
+            rp,
+            Box::new(HotpathWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        hotpath::measure_async(LABEL_READER_READ, self.inner.read(range)).await
+    }
+}
+
 impl<R: oio::Write> oio::Write for HotpathWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.write(bs)).await

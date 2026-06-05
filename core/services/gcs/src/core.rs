@@ -173,7 +173,12 @@ impl GcsCore {
     }
 
     // It's for presign operation. Gcs only supports query sign over XML API.
-    pub fn gcs_get_object_xml_request(&self, path: &str, args: &OpRead) -> Result<Request<Buffer>> {
+    pub fn gcs_get_object_xml_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
@@ -193,6 +198,9 @@ impl GcsCore {
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
             req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
+        }
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
         }
 
         let req = req

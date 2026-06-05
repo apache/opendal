@@ -159,6 +159,22 @@ impl<R: oio::ReadStream> oio::ReadStream for AsyncBacktraceWrapper<R> {
     }
 }
 
+impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
+    #[async_backtrace::framed]
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(AsyncBacktraceWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    #[async_backtrace::framed]
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
+    }
+}
+
 impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn write(&mut self, bs: Buffer) -> Result<()> {

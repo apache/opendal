@@ -297,11 +297,11 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
+        range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
-        let range = args.range();
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         // Add query arguments to the URL based on response overrides
@@ -474,8 +474,13 @@ impl OssCore {
         Ok(req)
     }
 
-    pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
-        let req = self.oss_get_object_request(path, false, args)?;
+    pub async fn oss_get_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let req = self.oss_get_object_request(path, false, range, args)?;
         let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }

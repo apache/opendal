@@ -25,7 +25,7 @@ use super::err::format_ftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct FtpReader {
+pub struct FtpReadStream {
     /// Keep the connection alive while data stream is alive.
     _ftp_stream: bounded::Object<Manager>,
 
@@ -36,19 +36,16 @@ pub struct FtpReader {
 
 /// # Safety
 ///
-/// We only have `&mut self` for FtpReader.
-unsafe impl Sync for FtpReader {}
+/// We only have `&mut self` for FtpReadStream.
+unsafe impl Sync for FtpReadStream {}
 
-impl FtpReader {
+impl FtpReadStream {
     pub async fn new(
         mut ftp_stream: bounded::Object<Manager>,
         path: String,
-        args: OpRead,
+        range: BytesRange,
     ) -> Result<Self> {
-        let (offset, size) = (
-            args.range().offset(),
-            args.range().size().unwrap_or(u64::MAX),
-        );
+        let (offset, size) = (range.offset(), range.size().unwrap_or(u64::MAX));
         if offset != 0 {
             ftp_stream
                 .resume_transfer(offset as usize)
@@ -71,7 +68,7 @@ impl FtpReader {
     }
 }
 
-impl oio::ReadStream for FtpReader {
+impl oio::ReadStream for FtpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         self.buf.resize(self.chunk, 0);
         let n = self

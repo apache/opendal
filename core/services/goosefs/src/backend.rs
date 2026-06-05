@@ -25,7 +25,7 @@ use super::config::GoosefsConfig;
 use super::core::GoosefsCore;
 use super::deleter::GoosefsDeleter;
 use super::lister::GoosefsLister;
-use super::reader::GoosefsReader;
+use super::reader::GoosefsReadStream;
 use super::writer::GoosefsWriter;
 use super::writer::GoosefsWriters;
 use opendal_core::raw::*;
@@ -302,8 +302,51 @@ pub struct GoosefsBackend {
     core: Arc<GoosefsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct GoosefsReader {
+    backend: GoosefsBackend,
+    path: String,
+}
+
+impl GoosefsReader {
+    fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for GoosefsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let content_length = if range.offset() != 0 && range.size().is_none() {
+            let file_info = backend.core.get_status(path).await?;
+            Some(
+                backend
+                    .core
+                    .file_info_to_metadata(&file_info)
+                    .content_length(),
+            )
+        } else {
+            None
+        };
+        let rp = RpRead::default();
+        let stream = GoosefsReadStream::new(
+            backend.core.clone(),
+            path.to_string(),
+            range,
+            content_length,
+        );
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for GoosefsBackend {
-    type Reader = GoosefsReader;
+    type Reader = oio::StreamReader<GoosefsReader>;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
@@ -322,16 +365,11 @@ impl Access for GoosefsBackend {
         let file_info = self.core.get_status(path).await?;
         Ok(RpStat::new(self.core.file_info_to_metadata(&file_info)))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let content_length = if args.range().offset() != 0 && args.range().size().is_none() {
-            let file_info = self.core.get_status(path).await?;
-            Some(self.core.file_info_to_metadata(&file_info).content_length())
-        } else {
-            None
-        };
-        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args, content_length);
-        Ok((RpRead::default(), reader))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(GoosefsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

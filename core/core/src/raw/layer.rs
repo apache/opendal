@@ -111,7 +111,7 @@ pub trait Layer<A: Access> {
 pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
     type Inner: Access;
 
-    type Reader: oio::ReadStream;
+    type Reader: oio::Read;
     type Writer: oio::Write;
     type Lister: oio::List;
     type Deleter: oio::Delete;

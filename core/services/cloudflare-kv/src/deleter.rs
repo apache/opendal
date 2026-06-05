@@ -95,7 +95,11 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         };
 
         let mut batched_result = BatchDeleteResult {
-            succeeded: Vec::with_capacity(result.successful_key_count),
+            // `successful_key_count` is taken verbatim from the server response; cap it to
+            // the number of keys we actually requested so a malicious/compromised endpoint
+            // cannot drive `Vec::with_capacity` to an abort/OOM. (`unsuccessful_keys` is an
+            // already-parsed Vec, so its length is inherently bounded.)
+            succeeded: Vec::with_capacity(result.successful_key_count.min(batch.len())),
             failed: Vec::with_capacity(result.unsuccessful_keys.len()),
         };
 

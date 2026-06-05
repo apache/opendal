@@ -23,7 +23,6 @@ use fastpool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
 use std::io;
-use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -42,10 +41,7 @@ pub enum SocketStream {
 
 impl SocketStream {
     pub async fn connect_tcp(addr_str: &str) -> io::Result<Self> {
-        let socket_addr: SocketAddr = addr_str
-            .parse()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        let stream = TcpStream::connect(socket_addr).await?;
+        let stream = TcpStream::connect(addr_str).await?;
         Ok(SocketStream::Tcp(stream))
     }
 

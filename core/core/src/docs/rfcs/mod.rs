@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Capability API
+#[doc = include_str!("0000_capability_api.md")]
+pub mod rfc_0000_capability_api {}
+
 /// Move Read Range To Reader
 #[doc = include_str!("7660_move_read_range_to_reader.md")]
 pub mod rfc_7660_move_read_range_to_reader {}

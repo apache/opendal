@@ -556,6 +556,68 @@ mod tests {
         Ok(())
     }
 
+    /// Simulates the scenario where RetryWrapper exhausts its retry budget:
+    ///
+    /// ```text
+    /// Caller → WriteGenerator → RetryWrapper → InnerWriter
+    /// ```
+    ///
+    /// RetryWrapper clones the buffer on each retry attempt. If all retries
+    /// are exhausted, it returns the error to WriteGenerator. WriteGenerator
+    /// must restore its internal buffer (using old_buffer) so the caller can
+    /// retry WriteGenerator::write() without losing previously buffered data.
+    ///
+    /// 1. Write 5 bytes → buffered internally
+    /// 2. Write 10 bytes → triggers flush → inner writer fails (simulating
+    ///    RetryWrapper exhaustion)
+    /// 3. WriteGenerator restores old buffer (5 bytes from step 1)
+    /// 4. Caller retries WriteGenerator::write(10 bytes) with the SAME data
+    /// 5. This time flush succeeds → both chunks (5+10=15 bytes) are written
+    ///
+    /// Without the fix: step 3 would leave WriteGenerator's buffer empty,
+    /// and only the 10 bytes from the retry would be written (5 bytes lost).
+    #[tokio::test]
+    async fn test_inexact_write_failure_with_retry_style_retry() -> Result<()> {
+        let buf = Arc::new(Mutex::new(vec![]));
+        let fail_count = Arc::new(Mutex::new(1usize));
+
+        let mut writer = WriteGenerator::new(
+            Box::new(FailOnceMockWriter {
+                buf: buf.clone(),
+                fail_count: fail_count.clone(),
+            }),
+            Some(10),
+            false, // inexact mode
+        );
+
+        // Step 1: Write 5 bytes (buffered, below chunk_size=10)
+        let data1 = Bytes::from(vec![1u8; 5]);
+        let n = writer.write(data1.into()).await?;
+        assert_eq!(n, 5);
+
+        // Step 2: Write 10 bytes — triggers flush, fails once.
+        // This simulates RetryWrapper exhausting retries and returning error.
+        let data2 = Bytes::from(vec![2u8; 10]);
+        let err = writer.write(data2.clone().into()).await;
+        assert!(err.is_err(), "first flush should fail");
+
+        // Step 3: Caller retries with the SAME data2.
+        // Without the fix, data1 (5 bytes from step 1) would be lost.
+        // With the fix, data1 is preserved and both are written.
+        let n = writer.write(data2.into()).await?;
+        assert_eq!(n, 10);
+
+        writer.close().await?;
+
+        // Verify all 15 bytes were written correctly — no data loss
+        let written = buf.lock().await;
+        assert_eq!(written.len(), 15);
+        assert_eq!(&written[..5], &[1u8; 5]);
+        assert_eq!(&written[5..], &[2u8; 10]);
+
+        Ok(())
+    }
+
     /// A mock writer that fails the first N write calls, then succeeds.
     /// Used to test that WriteGenerator retains buffered data on write failure.
     struct FailOnceMockWriter {

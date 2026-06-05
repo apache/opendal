@@ -150,6 +150,12 @@ var (
 			&ffi.TypeUint8,   // stat
 			&ffi.TypeUint8,   // stat_with_if_match
 			&ffi.TypeUint8,   // stat_with_if_none_match
+			&ffi.TypeUint8,   // stat_with_if_modified_since
+			&ffi.TypeUint8,   // stat_with_if_unmodified_since
+			&ffi.TypeUint8,   // stat_with_override_cache_control
+			&ffi.TypeUint8,   // stat_with_override_content_disposition
+			&ffi.TypeUint8,   // stat_with_override_content_type
+			&ffi.TypeUint8,   // stat_with_version
 			&ffi.TypeUint8,   // read
 			&ffi.TypeUint8,   // read_with_if_match
 			&ffi.TypeUint8,   // read_with_if_match_none
@@ -176,6 +182,8 @@ var (
 			&ffi.TypePointer, // write_total_max_size
 			&ffi.TypeUint8,   // create_dir
 			&ffi.TypeUint8,   // delete
+			&ffi.TypeUint8,   // delete_with_version
+			&ffi.TypeUint8,   // delete_with_recursive
 			&ffi.TypeUint8,   // copy
 			&ffi.TypeUint8,   // rename
 			&ffi.TypeUint8,   // list
@@ -195,8 +203,14 @@ var (
 
 type opendalCapability struct {
 	stat                               uint8
-	statWithIfmatch                    uint8
+	statWithIfMatch                    uint8
 	statWithIfNoneMatch                uint8
+	statWithIfModifiedSince            uint8
+	statWithIfUnmodifiedSince          uint8
+	statWithOverrideCacheControl       uint8
+	statWithOverrideContentDisposition uint8
+	statWithOverrideContentType        uint8
+	statWithVersion                    uint8
 	read                               uint8
 	readWithIfMatch                    uint8
 	readWithIfNoneMatch                uint8
@@ -223,6 +237,8 @@ type opendalCapability struct {
 	writeTotalMaxSize                  uint
 	createDir                          uint8
 	delete                             uint8
+	deleteWithVersion                  uint8
+	deleteWithRecursive                uint8
 	copy                               uint8
 	rename                             uint8
 	list                               uint8
@@ -331,9 +347,13 @@ type opendalLister struct{}
 
 type opendalListOptions struct{}
 
+type opendalDeleteOptions struct{}
+
 type opendalReadOptions struct{}
 
 type opendalWriteOptions struct{}
+
+type opendalStatOptions struct{}
 
 type opendalWriteUserMetadataPair struct {
 	key   *byte

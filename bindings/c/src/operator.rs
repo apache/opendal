@@ -635,6 +635,61 @@ pub unsafe extern "C" fn opendal_operator_delete(
     }
 }
 
+/// \brief Blocking delete the object in `path` with options.
+///
+/// Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
+/// This is similar to `opendal_operator_delete` but allows specifying a version or
+/// requesting a recursive delete.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to delete
+/// @param opts The options for the delete operation; pass NULL to use defaults
+/// @see opendal_delete_options
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_delete_options,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let delete_opts = if opts.is_null() {
+        core::options::DeleteOptions::default()
+    } else {
+        let o = &*opts;
+        let version = if o.version.is_null() {
+            None
+        } else {
+            Some(
+                std::ffi::CStr::from_ptr(o.version)
+                    .to_str()
+                    .expect("malformed version")
+                    .to_owned(),
+            )
+        };
+        core::options::DeleteOptions {
+            version,
+            recursive: o.recursive,
+        }
+    };
+    match op.deref().delete_options(path, delete_opts) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
 /// \brief Check whether the path exists.
 ///
 /// If the operation succeeds, no matter the path exists or not,
@@ -798,6 +853,55 @@ pub unsafe extern "C" fn opendal_operator_stat(
         .to_str()
         .expect("malformed path");
     match op.deref().stat(path) {
+        Ok(m) => opendal_result_stat {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Blocking stat the object in `path` with options.
+///
+/// Stat the object in `path` with the provided `opendal_stat_options`. This is
+/// similar to `opendal_operator_stat` but allows passing options such as
+/// `version`, `if_match`, `if_none_match`, or response header overrides.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to stat
+/// @param opts The options for the stat operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_stat
+/// @see opendal_stat_options
+/// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_stat_options,
+) -> opendal_result_stat {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::StatOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().stat_options(path, opts) {
         Ok(m) => opendal_result_stat {
             meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
             error: std::ptr::null_mut(),

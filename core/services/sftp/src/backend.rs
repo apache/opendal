@@ -229,32 +229,29 @@ impl oio::StreamRead for SftpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, SftpReadStream)> = async {
-            let client = backend.core.connect().await?;
 
-            let mut fs = client.fs();
-            fs.set_cwd(&backend.core.root);
+        let client = backend.core.connect().await?;
 
-            let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+        let mut fs = client.fs();
+        fs.set_cwd(&backend.core.root);
 
-            let mut f = client
-                .open(path.as_path())
+        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+        let mut f = client
+            .open(path.as_path())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if range.offset() != 0 {
+            f.seek(SeekFrom::Start(range.offset()))
                 .await
-                .map_err(parse_sftp_error)?;
-
-            if range.offset() != 0 {
-                f.seek(SeekFrom::Start(range.offset()))
-                    .await
-                    .map_err(new_std_io_error)?;
-            }
-
-            Ok((
-                RpRead::default(),
-                SftpReadStream::new(client, f, range.size()),
-            ))
+                .map_err(new_std_io_error)?;
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let rp = RpRead::default();
+        let stream = SftpReadStream::new(client, f, range.size());
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

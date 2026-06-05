@@ -213,21 +213,21 @@ impl Reader {
                     let ctx = input.ctx.clone();
                     let range = input.range;
                     let range_idx = input.range_idx;
-                    let result = async move {
-                        let offset = range.offset();
-                        let size = range
-                            .size()
-                            .expect("fetch planner must only create bounded ranges");
-                        let (rp, buffer) = ctx.reader().read(range).await?;
-                        Ok(FetchReadOutput {
+
+                    let offset = range.offset();
+                    let size = range
+                        .size()
+                        .expect("fetch planner must only create bounded ranges");
+                    let result = match ctx.reader().read(range).await {
+                        Ok((rp, buffer)) => Ok(FetchReadOutput {
                             range_idx,
                             offset,
                             size,
                             rp,
                             buffer,
-                        })
-                    }
-                    .await;
+                        }),
+                        Err(err) => Err(err),
+                    };
 
                     (input, result)
                 })

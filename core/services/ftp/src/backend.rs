@@ -209,13 +209,12 @@ impl oio::StreamRead for FtpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, FtpReadStream)> = async {
-            let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
-            let reader = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
-            Ok((RpRead::default(), reader))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
+        let rp = RpRead::default();
+        let stream = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

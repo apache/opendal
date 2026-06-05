@@ -241,23 +241,22 @@ impl oio::StreamRead for MokaReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, Buffer)> = async {
-            let p = build_abs_path(&backend.root, path);
+        let p = build_abs_path(&backend.root, path);
 
-            match backend.core.get(&p).await? {
-                Some(value) => {
-                    let total_size = value.content.len() as u64;
-                    let buffer = value
-                        .content
-                        .slice(range.to_content_range(value.content.len())?);
-                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                    Ok((RpRead::new(metadata), buffer))
-                }
-                None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
+        match backend.core.get(&p).await? {
+            Some(value) => {
+                let total_size = value.content.len() as u64;
+                let buffer = value
+                    .content
+                    .slice(range.to_content_range(value.content.len())?);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                Ok((
+                    RpRead::new(metadata),
+                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+                ))
             }
+            None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

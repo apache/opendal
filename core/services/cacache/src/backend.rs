@@ -101,22 +101,20 @@ impl oio::StreamRead for CacacheReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, Buffer)> = async {
-            let data = backend.core.get(path).await?;
+        let data = backend.core.get(path).await?;
 
-            match data {
-                Some(bytes) => {
-                    let content_length = bytes.len() as u64;
-                    let buffer = Buffer::from(bytes.slice(range.to_content_range(bytes.len())?));
-                    let metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(content_length);
-                    Ok((RpRead::new(metadata), buffer))
-                }
-                None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+        match data {
+            Some(bytes) => {
+                let content_length = bytes.len() as u64;
+                let buffer = Buffer::from(bytes.slice(range.to_content_range(bytes.len())?));
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+                Ok((
+                    RpRead::new(metadata),
+                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+                ))
             }
+            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

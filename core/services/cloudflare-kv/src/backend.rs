@@ -212,93 +212,92 @@ impl oio::StreamRead for CloudflareKvReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let result: Result<(RpRead, Buffer)> = async {
-            let path = build_abs_path(&backend.core.info.root(), path);
-            let resp = backend.core.get(&path).await?;
+        let path = build_abs_path(&backend.core.info.root(), path);
+        let resp = backend.core.get(&path).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            if status != StatusCode::OK {
-                return Err(parse_error(resp));
+        if status != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let resp_body = resp.into_body();
+
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_modified_since().is_some()
+            || args.if_unmodified_since().is_some()
+        {
+            let meta_resp = backend.core.metadata(&path).await?;
+
+            if meta_resp.status() != StatusCode::OK {
+                return Err(parse_error(meta_resp));
             }
 
-            let resp_body = resp.into_body();
+            let cf_response: CfKvStatResponse =
+                serde_json::from_reader(meta_resp.into_body().reader())
+                    .map_err(new_json_deserialize_error)?;
 
-            if args.if_match().is_some()
-                || args.if_none_match().is_some()
-                || args.if_modified_since().is_some()
-                || args.if_unmodified_since().is_some()
-            {
-                let meta_resp = backend.core.metadata(&path).await?;
+            if !cf_response.success && cf_response.result.is_some() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "cloudflare_kv read this key failed for reason we don't know",
+                ));
+            }
 
-                if meta_resp.status() != StatusCode::OK {
-                    return Err(parse_error(meta_resp));
+            let metadata = cf_response.result.unwrap();
+
+            // Check if_match condition
+            if let Some(if_match) = &args.if_match() {
+                if if_match != &metadata.etag {
+                    return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
                 }
+            }
 
-                let cf_response: CfKvStatResponse =
-                    serde_json::from_reader(meta_resp.into_body().reader())
-                        .map_err(new_json_deserialize_error)?;
-
-                if !cf_response.success && cf_response.result.is_some() {
+            // Check if_none_match condition
+            if let Some(if_none_match) = &args.if_none_match() {
+                if if_none_match == &metadata.etag {
                     return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "cloudflare_kv read this key failed for reason we don't know",
+                        ErrorKind::ConditionNotMatch,
+                        "etag match when expected none match",
                     ));
                 }
+            }
 
-                let metadata = cf_response.result.unwrap();
+            // Parse since time once for both time-based conditions
+            let last_modified = metadata
+                .last_modified
+                .parse::<Timestamp>()
+                .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
-                // Check if_match condition
-                if let Some(if_match) = &args.if_match() {
-                    if if_match != &metadata.etag {
-                        return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
-                    }
-                }
-
-                // Check if_none_match condition
-                if let Some(if_none_match) = &args.if_none_match() {
-                    if if_none_match == &metadata.etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "etag match when expected none match",
-                        ));
-                    }
-                }
-
-                // Parse since time once for both time-based conditions
-                let last_modified = metadata
-                    .last_modified
-                    .parse::<Timestamp>()
-                    .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
-
-                // Check modified_since condition
-                if let Some(modified_since) = &args.if_modified_since() {
-                    if !last_modified.gt(modified_since) {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "not modified since specified time",
-                        ));
-                    }
-                }
-
-                // Check unmodified_since condition
-                if let Some(unmodified_since) = &args.if_unmodified_since() {
-                    if !last_modified.le(unmodified_since) {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "modified since specified time",
-                        ));
-                    }
+            // Check modified_since condition
+            if let Some(modified_since) = &args.if_modified_since() {
+                if !last_modified.gt(modified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "not modified since specified time",
+                    ));
                 }
             }
 
-            let total_size = resp_body.len() as u64;
-            let buffer = resp_body.slice(range.to_content_range(resp_body.len())?);
-            let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-            Ok((RpRead::new(metadata), buffer))
+            // Check unmodified_since condition
+            if let Some(unmodified_since) = &args.if_unmodified_since() {
+                if !last_modified.le(unmodified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "modified since specified time",
+                    ));
+                }
+            }
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let total_size = resp_body.len() as u64;
+        let buffer = resp_body.slice(range.to_content_range(resp_body.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 }
 

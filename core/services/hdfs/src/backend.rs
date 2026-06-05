@@ -216,16 +216,12 @@ impl oio::StreamRead for HdfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HdfsReadStream<hdrs::AsyncFile>)> = async {
-            let f = backend.core.hdfs_read(path, range).await?;
 
-            Ok((
-                RpRead::default(),
-                HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _),
-            ))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        let f = backend.core.hdfs_read(path, range).await?;
+        let rp = RpRead::default();
+        let stream = HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

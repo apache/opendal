@@ -326,55 +326,51 @@ impl oio::StreamRead for RedisReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, Buffer)> = async {
-            let p = build_abs_path(&backend.root, path);
+        let p = build_abs_path(&backend.root, path);
 
-            let (buffer, metadata) = if range.is_full() {
-                // Full read - use GET
-                match backend.core.get(&p).await? {
-                    Some(bs) => {
-                        let metadata =
-                            Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-                        (bs, Some(metadata))
-                    }
-                    None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+        let (buffer, metadata) = if range.is_full() {
+            // Full read - use GET
+            match backend.core.get(&p).await? {
+                Some(bs) => {
+                    let metadata =
+                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+                    (bs, Some(metadata))
                 }
-            } else {
-                // Range read - use GETRANGE
-                let content_length = match backend.core.len(&p).await? {
-                    Some(v) => v,
-                    None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-                };
-                let content_range = range.to_content_range(content_length)?;
-
-                let buffer = if content_range.is_empty() {
-                    Buffer::new()
-                } else {
-                    let start: isize = content_range.start.try_into().map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
-                            .set_source(err)
-                    })?;
-                    let end: isize = (content_range.end - 1).try_into().map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "range end exceeds isize::MAX")
-                            .set_source(err)
-                    })?;
-                    match backend.core.get_range(&p, start, end).await? {
-                        Some(bs) => bs,
-                        None => {
-                            return Err(Error::new(ErrorKind::NotFound, "key not found in redis"));
-                        }
-                    }
-                };
-                let metadata =
-                    Metadata::new(EntryMode::FILE).with_content_length(content_length as u64);
-                (buffer, Some(metadata))
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let content_length = match backend.core.len(&p).await? {
+                Some(v) => v,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             };
+            let content_range = range.to_content_range(content_length)?;
 
-            let rp = metadata.map_or_else(RpRead::default, RpRead::new);
-            Ok((rp, buffer))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+            let buffer = if content_range.is_empty() {
+                Buffer::new()
+            } else {
+                let start: isize = content_range.start.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                let end: isize = (content_range.end - 1).try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range end exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                match backend.core.get_range(&p, start, end).await? {
+                    Some(bs) => bs,
+                    None => {
+                        return Err(Error::new(ErrorKind::NotFound, "key not found in redis"));
+                    }
+                }
+            };
+            let metadata =
+                Metadata::new(EntryMode::FILE).with_content_length(content_length as u64);
+            (buffer, Some(metadata))
+        };
+
+        let rp = metadata.map_or_else(RpRead::default, RpRead::new);
+        Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

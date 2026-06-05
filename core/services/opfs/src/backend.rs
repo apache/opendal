@@ -86,13 +86,13 @@ impl oio::StreamRead for OpfsReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, OpfsReadStream)> = async {
-            let p = build_abs_path(&backend.core.root, path);
-            let handle = get_file_handle(&p, false).await?;
-            Ok((RpRead::default(), OpfsReadStream::new(handle, range)))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+
+        let p = build_abs_path(&backend.core.root, path);
+        let handle = get_file_handle(&p, false).await?;
+        let rp = RpRead::default();
+        let stream = OpfsReadStream::new(handle, range);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

@@ -276,9 +276,8 @@ impl oio::StreamRead for HfReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HfReadStream)> =
-            async { HfReadStream::try_new(&backend.core, path, range).await }.await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        let (rp, stream) = HfReadStream::try_new(&backend.core, path, range).await?;
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

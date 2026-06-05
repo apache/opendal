@@ -54,28 +54,26 @@ impl oio::StreamRead for VercelArtifactsReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let result: Result<(RpRead, HttpBody)> = async {
-            let response = backend
-                .core
-                .vercel_artifacts_get(path, range, &args)
-                .await?;
+        let response = backend
+            .core
+            .vercel_artifacts_get(path, range, &args)
+            .await?;
 
-            let status = response.status();
+        let status = response.status();
 
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                    RpRead::new(parse_into_metadata(path, response.headers())?),
-                    response.into_body(),
-                )),
-                _ => {
-                    let (part, mut body) = response.into_parts();
-                    let buf = body.to_buffer().await?;
-                    Err(parse_error(Response::from_parts(part, buf)))
-                }
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = response.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
             }
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

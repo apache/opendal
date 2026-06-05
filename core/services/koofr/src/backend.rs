@@ -208,24 +208,22 @@ impl oio::StreamRead for KoofrReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HttpBody)> = async {
-            let resp = backend.core.get(path, range).await?;
+        let resp = backend.core.get(path, range).await?;
 
-            let status = resp.status();
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                    RpRead::new(parse_into_metadata(path, resp.headers())?),
-                    resp.into_body(),
-                )),
-                _ => {
-                    let (part, mut body) = resp.into_parts();
-                    let buf = body.to_buffer().await?;
-                    Err(parse_error(Response::from_parts(part, buf)))
-                }
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
             }
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

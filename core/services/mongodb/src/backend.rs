@@ -223,20 +223,19 @@ impl oio::StreamRead for MongodbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, Buffer)> = async {
-            let p = build_abs_path(&backend.root, path);
-            let bs = match backend.core.get(&p).await? {
-                Some(bs) => bs,
-                None => {
-                    return Err(Error::new(ErrorKind::NotFound, "kv not found in mongodb"));
-                }
-            };
-            let content = bs.slice(range.to_content_range(bs.len())?);
-            let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-            Ok((RpRead::new(metadata), content))
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in mongodb"));
+            }
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 }
 

@@ -125,16 +125,17 @@ impl ChunkedReader {
             ctx.options().prefetch(),
             |mut input: ChunkedReadInput| {
                 Box::pin(async move {
-                    let result = async {
-                        if let Some(mut reader) = input.reader.take() {
-                            return reader.read_all().await;
+                    let result = if let Some(mut reader) = input.reader.take() {
+                        reader.read_all().await
+                    } else {
+                        match input.ctx.reader().read(input.range).await {
+                            Ok((rp, buffer)) => {
+                                input.ctx.observe_read_response(rp);
+                                Ok(buffer)
+                            }
+                            Err(err) => Err(err),
                         }
-
-                        let (rp, buffer) = input.ctx.reader().read(input.range).await?;
-                        input.ctx.observe_read_response(rp);
-                        Ok(buffer)
-                    }
-                    .await;
+                    };
                     (input, result)
                 })
             },

@@ -222,22 +222,21 @@ impl oio::StreamRead for EtcdReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, Buffer)> = async {
-            let abs_path = build_abs_path(&backend.info.root(), path);
+        let abs_path = build_abs_path(&backend.info.root(), path);
 
-            match backend.core.get(&abs_path).await? {
-                Some(buffer) => {
-                    let total_size = buffer.len() as u64;
-                    let sliced_buffer = buffer.slice(range.to_content_range(buffer.len())?);
-                    let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        match backend.core.get(&abs_path).await? {
+            Some(buffer) => {
+                let total_size = buffer.len() as u64;
+                let sliced_buffer = buffer.slice(range.to_content_range(buffer.len())?);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
 
-                    Ok((RpRead::new(metadata), sliced_buffer))
-                }
-                None => Err(Error::new(ErrorKind::NotFound, "path not found")),
+                Ok((
+                    RpRead::new(metadata),
+                    Box::new(sliced_buffer) as Box<dyn oio::ReadStreamDyn>,
+                ))
             }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

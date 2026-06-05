@@ -56,25 +56,23 @@ impl oio::StreamRead for OnedriveReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let result: Result<(RpRead, HttpBody)> = async {
-            let response = backend
-                .core
-                .onedrive_get_content(path, range, &args)
-                .await?;
-            match response.status() {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                    RpRead::new(parse_into_metadata(path, response.headers())?),
-                    response.into_body(),
-                )),
-                _ => {
-                    let (part, mut body) = response.into_parts();
-                    let buf = body.to_buffer().await?;
-                    Err(parse_error(Response::from_parts(part, buf)))
-                }
+        let response = backend
+            .core
+            .onedrive_get_content(path, range, &args)
+            .await?;
+        let (rp, stream) = match response.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = response.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
             }
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

@@ -651,21 +651,17 @@ mod tests {
                 range: BytesRange,
             ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
                 let backend = &self.backend;
-                let result: Result<(RpRead, HttpBody)> = async {
-                    let start = range.offset() as usize;
-                    let data = match range.size() {
-                        Some(sz) => backend.content.slice(start..start + sz as usize),
-                        None => backend.content.slice(start..),
-                    };
-                    let req = http::Request::get("http://fake").body(data).unwrap();
-                    let resp = backend.info.http_client().fetch(req).await?;
-                    Ok((
-                        RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                        resp.into_body(),
-                    ))
-                }
-                .await;
-                result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+                let start = range.offset() as usize;
+                let data = match range.size() {
+                    Some(sz) => backend.content.slice(start..start + sz as usize),
+                    None => backend.content.slice(start..),
+                };
+                let req = http::Request::get("http://fake").body(data).unwrap();
+                let resp = backend.info.http_client().fetch(req).await?;
+                let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+                let stream = resp.into_body();
+
+                Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
             }
         }
 

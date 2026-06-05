@@ -61,48 +61,46 @@ impl oio::StreamRead for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let result: Result<(RpRead, HttpBody)> = async {
-            let abs_path = build_abs_path(&backend.core.root, path);
-            let resp = match backend.core.gdrive_get(path, range).await {
-                Ok(resp) => resp,
-                Err(err) if err.kind() == ErrorKind::NotFound => {
-                    backend.core.refresh_path(&abs_path).await;
-                    backend.core.gdrive_get(path, range).await?
-                }
-                Err(err) => return Err(err),
-            };
+        let abs_path = build_abs_path(&backend.core.root, path);
+        let resp = match backend.core.gdrive_get(path, range).await {
+            Ok(resp) => resp,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                backend.core.refresh_path(&abs_path).await;
+                backend.core.gdrive_get(path, range).await?
+            }
+            Err(err) => return Err(err),
+        };
 
-            let status = resp.status();
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                    RpRead::new(parse_into_metadata(path, resp.headers())?),
-                    resp.into_body(),
-                )),
-                StatusCode::NOT_FOUND => {
-                    backend.core.refresh_path(&abs_path).await;
-                    let resp = backend.core.gdrive_get(path, range).await?;
-                    let status = resp.status();
-                    match status {
-                        StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                            RpRead::new(parse_into_metadata(path, resp.headers())?),
-                            resp.into_body(),
-                        )),
-                        _ => {
-                            let (part, mut body) = resp.into_parts();
-                            let buf = body.to_buffer().await?;
-                            Err(parse_error(Response::from_parts(part, buf)))
-                        }
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            StatusCode::NOT_FOUND => {
+                backend.core.refresh_path(&abs_path).await;
+                let resp = backend.core.gdrive_get(path, range).await?;
+                let status = resp.status();
+                match status {
+                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                        RpRead::new(parse_into_metadata(path, resp.headers())?),
+                        resp.into_body(),
+                    ),
+                    _ => {
+                        let (part, mut body) = resp.into_parts();
+                        let buf = body.to_buffer().await?;
+                        return Err(parse_error(Response::from_parts(part, buf)));
                     }
                 }
-                _ => {
-                    let (part, mut body) = resp.into_parts();
-                    let buf = body.to_buffer().await?;
-                    Err(parse_error(Response::from_parts(part, buf)))
-                }
             }
-        }
-        .await;
-        result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

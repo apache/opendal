@@ -1025,18 +1025,14 @@ mod tests {
     impl oio::StreamRead for MockReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             let backend = &self.backend;
-            let result: Result<(RpRead, MockReadStream)> = async {
-                Ok((
-                    RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                    MockReadStream {
-                        buf: Bytes::from("Hello, World!").into(),
-                        range,
-                        attempt: backend.attempt.clone(),
-                    },
-                ))
-            }
-            .await;
-            result.map(|(rp, stream)| (rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+            let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+            let stream = MockReadStream {
+                buf: Bytes::from("Hello, World!").into(),
+                range,
+                attempt: backend.attempt.clone(),
+            };
+
+            Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
         }
     }
 

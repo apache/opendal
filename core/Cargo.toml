@@ -43,7 +43,7 @@ version = "0.57.0"
 [workspace.dependencies]
 base64 = "0.22"
 bytes = "1.10"
-ctor = "1.0.1"
+ctor = "1.0.7"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
 log = { version = "0.4.29" }

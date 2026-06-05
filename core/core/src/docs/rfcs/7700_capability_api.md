@@ -1,6 +1,6 @@
 - Proposal Name: `capability_api`
 - Start Date: 2026-06-05
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#7700](https://github.com/apache/opendal/pull/7700)
 - Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary

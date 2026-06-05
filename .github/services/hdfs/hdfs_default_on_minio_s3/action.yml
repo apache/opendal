@@ -22,7 +22,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup java env
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         distribution: zulu
         java-version: 11

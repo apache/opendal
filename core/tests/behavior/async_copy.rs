@@ -56,6 +56,22 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copier_with_if_not_exists_to_existing_file
         ))
     }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_match {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_if_match_match,
+            test_copy_with_if_match_mismatch
+        ))
+    }
+
+    if cap.read && cap.write && cap.stat && cap.copy && cap.copy_with_source_version {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_source_version_to_new_file,
+            test_copy_with_source_version_to_same_file
+        ))
+    }
 }
 
 fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
@@ -346,6 +362,163 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_match matching the destination ETag should overwrite it.
+pub async fn test_copy_with_if_match_match(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
+    assert_ne!(source_content, target_content);
+    op.write(&target_path, target_content.clone()).await?;
+
+    let Some(etag) = op.stat(&target_path).await?.etag().map(|s| s.to_string()) else {
+        op.delete(&source_path).await.expect("delete must succeed");
+        op.delete(&target_path).await.expect("delete must succeed");
+        return Ok(());
+    };
+
+    op.copy_with(&source_path, &target_path)
+        .if_match(&etag)
+        .await?;
+
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_match not matching the destination ETag should fail.
+pub async fn test_copy_with_if_match_mismatch(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
+    assert_ne!(source_content, target_content);
+    op.write(&target_path, target_content.clone()).await?;
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_match("\"00000000000000000000000000000000\"")
+        .await
+        .expect_err("copy must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&target_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with source_version should copy a specific source version to a new file.
+pub async fn test_copy_with_source_version_to_new_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_source_version {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (new_content, _) = gen_bytes(op.info().full_capability());
+    assert_ne!(source_content, new_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    let version = op
+        .stat(&source_path)
+        .await?
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    op.write(&source_path, new_content).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    op.copy_with(&source_path, &target_path)
+        .source_version(version)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with source_version should allow copying a specific source version to itself.
+pub async fn test_copy_with_source_version_to_same_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_source_version {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (new_content, _) = gen_bytes(op.info().full_capability());
+    assert_ne!(source_content, new_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    let version = op
+        .stat(&source_path)
+        .await?
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    op.write(&source_path, new_content).await?;
+
+    op.copy_with(&source_path, &source_path)
+        .source_version(version)
+        .await?;
+
+    let current_content = op
+        .read(&source_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
     Ok(())
 }
 

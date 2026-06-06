@@ -77,6 +77,7 @@ public struct Capability
 
         Copy = native.copy != 0;
         CopyWithIfNotExists = native.copyWithIfNotExists != 0;
+        CopyWithSourceVersion = native.copyWithSourceVersion != 0;
         Rename = native.rename != 0;
 
         List = native.list != 0;
@@ -294,6 +295,11 @@ public struct Capability
     /// If operator supports copy with if not exists.
     /// </summary>
     public bool CopyWithIfNotExists { get; private set; }
+
+    /// <summary>
+    /// If operator supports copy with source version.
+    /// </summary>
+    public bool CopyWithSourceVersion { get; private set; }
 
     /// <summary>
     /// If operator supports rename.

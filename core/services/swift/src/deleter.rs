@@ -60,7 +60,10 @@ impl oio::BatchDelete for SwiftDeleter {
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         let mut batched_result = oio::BatchDeleteResult {
-            succeeded: Vec::with_capacity(batch.len() - result.errors.len()),
+            // `result.errors.len()` is server-controlled and may exceed `batch.len()`; use
+            // `saturating_sub` (mirroring services/tos) to avoid an unsigned underflow that
+            // wraps to a huge `with_capacity` (release: abort).
+            succeeded: Vec::with_capacity(batch.len().saturating_sub(result.errors.len())),
             failed: Vec::with_capacity(result.errors.len()),
         };
 

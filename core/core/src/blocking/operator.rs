@@ -515,12 +515,17 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
+    pub fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
         self.copy_options(from, to, options::CopyOptions::default())
     }
 
     /// Copy a file from `from` to `to` with additional options.
-    pub fn copy_options(&self, from: &str, to: &str, opts: options::CopyOptions) -> Result<()> {
+    pub fn copy_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<Metadata> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();

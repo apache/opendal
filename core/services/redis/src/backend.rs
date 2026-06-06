@@ -307,8 +307,75 @@ impl RedisBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct RedisReader {
+    backend: RedisBackend,
+    path: String,
+}
+
+impl RedisReader {
+    fn new(backend: RedisBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for RedisReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+
+        let (buffer, metadata) = if range.is_full() {
+            // Full read - use GET
+            match backend.core.get(&p).await? {
+                Some(bs) => {
+                    let metadata =
+                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+                    (bs, Some(metadata))
+                }
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let content_length = match backend.core.len(&p).await? {
+                Some(v) => v,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            };
+            let content_range = range.to_content_range(content_length)?;
+
+            let buffer = if content_range.is_empty() {
+                Buffer::new()
+            } else {
+                let start: isize = content_range.start.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                let end: isize = (content_range.end - 1).try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range end exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                match backend.core.get_range(&p, start, end).await? {
+                    Some(bs) => bs,
+                    None => {
+                        return Err(Error::new(ErrorKind::NotFound, "key not found in redis"));
+                    }
+                }
+            };
+            let metadata =
+                Metadata::new(EntryMode::FILE).with_content_length(content_length as u64);
+            (buffer, Some(metadata))
+        };
+
+        let rp = metadata.map_or_else(RpRead::default, RpRead::new);
+        Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for RedisBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
@@ -333,32 +400,11 @@ impl Access for RedisBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let range = args.range();
-        let buffer = if range.is_full() {
-            // Full read - use GET
-            match self.core.get(&p).await? {
-                Some(bs) => bs,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let start = range.offset() as isize;
-            let end = match range.size() {
-                Some(size) => (range.offset() + size - 1) as isize,
-                None => -1, // Redis uses -1 for end of string
-            };
-
-            match self.core.get_range(&p, start, end).await? {
-                Some(bs) => bs,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        };
-
-        Ok((RpRead::new(), buffer))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(RedisReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

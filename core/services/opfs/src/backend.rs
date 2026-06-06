@@ -27,7 +27,7 @@ use super::core::OpfsCore;
 use super::deleter::OpfsDeleter;
 use super::error::*;
 use super::lister::OpfsLister;
-use super::reader::OpfsReader;
+use super::reader::OpfsReadStream;
 use super::utils::*;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
@@ -67,8 +67,37 @@ pub struct OpfsBackend {
     core: Arc<OpfsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct OpfsReader {
+    backend: OpfsBackend,
+    path: String,
+}
+
+impl OpfsReader {
+    fn new(backend: OpfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for OpfsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let p = build_abs_path(&backend.core.root, path);
+        let handle = get_file_handle(&p, false).await?;
+        let rp = RpRead::default();
+        let stream = OpfsReadStream::new(handle, range);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for OpfsBackend {
-    type Reader = OpfsReader;
+    type Reader = oio::StreamReader<OpfsReader>;
 
     type Writer = OpfsWriter;
 
@@ -104,12 +133,11 @@ impl Access for OpfsBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.core.root, path);
-        let handle = get_file_handle(&p, false).await?;
-
-        Ok((RpRead::new(), OpfsReader::new(handle, args.range())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OpfsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {

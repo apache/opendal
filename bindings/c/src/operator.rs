@@ -92,11 +92,57 @@ fn build_operator(
 
     let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
 
+    build_blocking_operator(op)
+}
+
+fn build_operator_with_layers(
+    schema: &str,
+    map: HashMap<String, String>,
+    layers: *const opendal_operator_layers,
+) -> core::Result<core::blocking::Operator> {
+    core::init_default_registry();
+
+    let mut op = core::Operator::via_iter(schema, map)?;
+    if !layers.is_null() {
+        op = unsafe { (*layers).apply(op) };
+    }
+
+    build_blocking_operator(op)
+}
+
+fn build_blocking_operator(op: core::Operator) -> core::Result<core::blocking::Operator> {
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
     let _guard = runtime.enter();
     let op = core::blocking::Operator::new(op)?;
     Ok(op)
+}
+
+fn parse_operator_options(options: *const opendal_operator_options) -> HashMap<String, String> {
+    let mut map = HashMap::<String, String>::default();
+    if !options.is_null() {
+        unsafe {
+            for (k, v) in (*options).deref() {
+                map.insert(k.to_string(), v.to_string());
+            }
+        }
+    }
+    map
+}
+
+fn new_operator_result(op: core::Result<core::blocking::Operator>) -> opendal_result_operator_new {
+    match op {
+        Ok(op) => opendal_result_operator_new {
+            op: Box::into_raw(Box::new(opendal_operator {
+                inner: Box::into_raw(Box::new(op)) as _,
+            })),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_new {
+            op: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
 }
 
 /// \brief Construct an operator based on `scheme` and `options`
@@ -146,25 +192,33 @@ pub unsafe extern "C" fn opendal_operator_new(
         .to_str()
         .expect("malformed scheme");
 
-    let mut map = HashMap::<String, String>::default();
-    if !options.is_null() {
-        for (k, v) in (*options).deref() {
-            map.insert(k.to_string(), v.to_string());
-        }
-    }
+    let map = parse_operator_options(options);
 
-    match build_operator(scheme, map) {
-        Ok(op) => opendal_result_operator_new {
-            op: Box::into_raw(Box::new(opendal_operator {
-                inner: Box::into_raw(Box::new(op)) as _,
-            })),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_operator_new {
-            op: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    new_operator_result(build_operator(scheme, map))
+}
+
+/// \brief Construct an operator based on scheme, options, and explicit layers.
+///
+/// Unlike opendal_operator_new, this function will not add any default layer.
+/// Layers will be applied exactly as they were added to opendal_operator_layers.
+///
+/// # Safety
+///
+/// The only unsafe case is passing an invalid c string pointer to the scheme argument.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_new_with_layers(
+    scheme: *const c_char,
+    options: *const opendal_operator_options,
+    layers: *const opendal_operator_layers,
+) -> opendal_result_operator_new {
+    assert!(!scheme.is_null());
+    let scheme = std::ffi::CStr::from_ptr(scheme)
+        .to_str()
+        .expect("malformed scheme");
+
+    let map = parse_operator_options(options);
+
+    new_operator_result(build_operator_with_layers(scheme, map, layers))
 }
 
 /// \brief Blocking write raw bytes to `path`.
@@ -222,6 +276,29 @@ pub unsafe extern "C" fn opendal_operator_write(
         .to_str()
         .expect("malformed path");
     match op.deref().write(path, bytes) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
+/// \brief Blocking write raw bytes to `path` with options.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().write_options(path, bytes, opts) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
     }
@@ -287,6 +364,62 @@ pub unsafe extern "C" fn opendal_operator_read(
     }
 }
 
+/// \brief Blocking read the data from `path` with options.
+///
+/// Read the data out from `path` blocking by operator, using the provided
+/// `opendal_read_options` to control the behavior, e.g. range, version, or
+/// conditional headers.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to read the data out
+/// @param opts The options for the read operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_read
+/// @see opendal_read_options
+/// @see opendal_error
+/// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+/// opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+/// the operation failed and the `data` field is a nullptr.
+///
+/// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+/// After your usage of that, please call opendal_bytes_free() to free the space.
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_read_options,
+) -> opendal_result_read {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::ReadOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().read_options(path, opts) {
+        Ok(b) => opendal_result_read {
+            data: opendal_bytes::new(b),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking read the data from `path`.
 ///
 /// Read the data out from `path` blocking by operator, returns
@@ -338,7 +471,7 @@ pub unsafe extern "C" fn opendal_operator_reader(
             return opendal_result_operator_reader {
                 reader: std::ptr::null_mut(),
                 error: opendal_error::new(err),
-            }
+            };
         }
     };
 
@@ -405,7 +538,39 @@ pub unsafe extern "C" fn opendal_operator_writer(
             return opendal_result_operator_writer {
                 writer: std::ptr::null_mut(),
                 error: opendal_error::new(err),
-            }
+            };
+        }
+    };
+
+    opendal_result_operator_writer {
+        writer: Box::into_raw(Box::new(opendal_writer::new(writer))),
+        error: std::ptr::null_mut(),
+    }
+}
+
+/// \brief Blocking create a writer for the specified path with options.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_write_options,
+) -> opendal_result_operator_writer {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let writer = match op.deref().writer_options(path, opts) {
+        Ok(writer) => writer,
+        Err(err) => {
+            return opendal_result_operator_writer {
+                writer: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            };
         }
     };
 
@@ -465,6 +630,61 @@ pub unsafe extern "C" fn opendal_operator_delete(
         .to_str()
         .expect("malformed path");
     match op.deref().delete(path) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
+/// \brief Blocking delete the object in `path` with options.
+///
+/// Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
+/// This is similar to `opendal_operator_delete` but allows specifying a version or
+/// requesting a recursive delete.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to delete
+/// @param opts The options for the delete operation; pass NULL to use defaults
+/// @see opendal_delete_options
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_delete_options,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let delete_opts = if opts.is_null() {
+        core::options::DeleteOptions::default()
+    } else {
+        let o = &*opts;
+        let version = if o.version.is_null() {
+            None
+        } else {
+            Some(
+                std::ffi::CStr::from_ptr(o.version)
+                    .to_str()
+                    .expect("malformed version")
+                    .to_owned(),
+            )
+        };
+        core::options::DeleteOptions {
+            version,
+            recursive: o.recursive,
+        }
+    };
+    match op.deref().delete_options(path, delete_opts) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
     }
@@ -644,6 +864,55 @@ pub unsafe extern "C" fn opendal_operator_stat(
     }
 }
 
+/// \brief Blocking stat the object in `path` with options.
+///
+/// Stat the object in `path` with the provided `opendal_stat_options`. This is
+/// similar to `opendal_operator_stat` but allows passing options such as
+/// `version`, `if_match`, `if_none_match`, or response header overrides.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to stat
+/// @param opts The options for the stat operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_stat
+/// @see opendal_stat_options
+/// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_stat_options,
+) -> opendal_result_stat {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::StatOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    match op.deref().stat_options(path, opts) {
+        Ok(m) => opendal_result_stat {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking list the objects in `path`.
 ///
 /// List the object in `path` blocking by `op_ptr`, return a result with an
@@ -702,6 +971,71 @@ pub unsafe extern "C" fn opendal_operator_list(
         .to_str()
         .expect("malformed path");
     match op.deref().lister(path) {
+        Ok(lister) => opendal_result_list {
+            lister: Box::into_raw(Box::new(opendal_lister::new(lister))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Blocking list the objects in `path` with options.
+///
+/// List the objects in `path` with the provided `opendal_list_options`. This is
+/// similar to `opendal_operator_list` but allows passing options such as
+/// `recursive` to control the listing behavior.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to list
+/// @param opts The options for the list operation; pass NULL to use defaults
+/// @see opendal_lister
+/// @see opendal_list_options
+/// @return Returns opendal_result_list, containing a lister and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid null terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_list_options,
+) -> opendal_result_list {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let list_opts = if opts.is_null() {
+        core::options::ListOptions::default()
+    } else {
+        let o = &*opts;
+        let limit = if o.limit == 0 { None } else { Some(o.limit) };
+        let start_after = if o.start_after.is_null() {
+            None
+        } else {
+            Some(
+                std::ffi::CStr::from_ptr(o.start_after)
+                    .to_str()
+                    .expect("malformed start_after")
+                    .to_owned(),
+            )
+        };
+        core::options::ListOptions {
+            recursive: o.recursive,
+            limit,
+            start_after,
+            ..Default::default()
+        }
+    };
+    match op.deref().lister_options(path, list_opts) {
         Ok(lister) => opendal_result_list {
             lister: Box::into_raw(Box::new(opendal_lister::new(lister))),
             error: std::ptr::null_mut(),

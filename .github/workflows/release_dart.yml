@@ -73,8 +73,16 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --force
 
-      - name: Build on linux
-        if: runner.os == 'Linux'
+      - name: Build on native linux
+        if: runner.os == 'Linux' && matrix.target == 'x86_64-unknown-linux-gnu'
+        env:
+          CC_x86_64_unknown_linux_gnu: gcc
+        run: |
+          cd bindings/dart/rust
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Build on cross linux
+        if: runner.os == 'Linux' && matrix.target != 'x86_64-unknown-linux-gnu'
         run: |
           cd bindings/dart/rust
           cross build --release --target ${{ matrix.target }}

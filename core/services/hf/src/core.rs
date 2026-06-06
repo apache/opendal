@@ -23,16 +23,88 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use xet::xet_session::{
-    XetDownloadStreamGroup, XetFileInfo, XetSession, XetSessionBuilder, XetUploadCommit,
-};
+use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
-use super::error::parse_error;
-use super::uri::{HfRepo, HfUri};
 use opendal_core::raw::*;
 use opendal_core::*;
+
+use super::HUGGINGFACE_SCHEME;
+use super::error::parse_error;
+use super::uri::{HfRepo, HfUri};
+
+/// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
+/// [Reference](https://huggingface.co/docs/hub/repositories)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HfRepoType {
+    Model,
+    Dataset,
+    Space,
+    Bucket,
+}
+
+impl HfRepoType {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.to_lowercase().replace(' ', "").as_str() {
+            "model" | "models" => Ok(Self::Model),
+            "dataset" | "datasets" => Ok(Self::Dataset),
+            "space" | "spaces" => Ok(Self::Space),
+            "bucket" | "buckets" => Ok(Self::Bucket),
+            other => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown repo type: {other}"),
+            )
+            .with_context("service", HUGGINGFACE_SCHEME)),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Model => "model",
+            Self::Dataset => "dataset",
+            Self::Space => "space",
+            Self::Bucket => "bucket",
+        }
+    }
+
+    pub fn as_plural_str(&self) -> &'static str {
+        match self {
+            Self::Model => "models",
+            Self::Dataset => "datasets",
+            Self::Space => "spaces",
+            Self::Bucket => "buckets",
+        }
+    }
+}
+
+/// Download mode for HuggingFace files.
+///
+/// - `xet` (default): uses the XET protocol, asks resolve for XET file metadata,
+///   and routes XET files through the CAS download stream.
+/// - `http`: follows the resolve redirect and streams bytes directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum HfDownloadMode {
+    #[default]
+    Xet,
+    Http,
+}
+
+impl HfDownloadMode {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "xet" => Ok(Self::Xet),
+            "http" => Ok(Self::Http),
+            other => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown download mode: {other}"),
+            )
+            .with_context("service", HUGGINGFACE_SCHEME)),
+        }
+    }
+}
 
 /// API payload structures for commit operations
 #[derive(Debug, serde::Serialize)]
@@ -86,6 +158,12 @@ pub(super) struct MixedCommitPayload {
 
 // API response types
 
+#[derive(Deserialize)]
+pub(super) struct XetFileResponse {
+    pub hash: String,
+    pub size: u64,
+}
+
 #[derive(serde::Deserialize, Debug)]
 pub(super) struct CommitResponse {
     #[allow(dead_code)]
@@ -110,6 +188,9 @@ pub(super) struct PathInfo {
     pub path: String,
     #[serde(default)]
     pub last_commit: Option<LastCommit>,
+    /// BLAKE3 Merkle hash for XET-stored files; absent for plain git or non-XET LFS files.
+    #[serde(rename = "xetHash", default)]
+    pub xet_hash: Option<String>,
 }
 
 impl PathInfo {
@@ -150,6 +231,7 @@ pub(super) struct LfsInfo {
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 pub(super) struct LastCommit {
+    pub id: String,
     pub date: String,
 }
 
@@ -163,10 +245,8 @@ pub struct HfCore {
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
-    /// HTTP client with redirects disabled, used by XET probes to
-    /// inspect headers on 302 responses.
-    pub no_redirect_client: HttpClient,
     pub xet_session: XetSession,
+    pub download_mode: HfDownloadMode,
 }
 
 impl Debug for HfCore {
@@ -186,8 +266,8 @@ impl HfCore {
         root: String,
         token: Option<String>,
         endpoint: String,
-        no_redirect_client: HttpClient,
         xet_session: XetSession,
+        download_mode: HfDownloadMode,
     ) -> Self {
         Self {
             info,
@@ -195,28 +275,19 @@ impl HfCore {
             root,
             token,
             endpoint,
-            no_redirect_client,
             xet_session,
+            download_mode,
         }
     }
 
-    /// Build HfCore with dedicated reqwest HTTP clients.
-    ///
-    /// Uses separate clients for standard and no-redirect requests to
-    /// avoid "dispatch task is gone" errors with multiple tokio runtimes.
     pub fn build(
         info: Arc<AccessorInfo>,
         repo: HfRepo,
         root: String,
         token: Option<String>,
         endpoint: String,
+        download_mode: HfDownloadMode,
     ) -> Result<Self> {
-        let standard_client =
-            HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
-        let no_redirect_client =
-            HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
-        info.update_http_client(|_| standard_client);
-
         let xet_session = XetSessionBuilder::new().build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
         })?;
@@ -227,8 +298,8 @@ impl HfCore {
             root,
             token,
             endpoint,
-            no_redirect_client,
             xet_session,
+            download_mode,
         ))
     }
 
@@ -331,13 +402,18 @@ impl HfCore {
             .to_string()
     }
 
-    /// Send a request and return the successful response or a parsed error.
-    async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        let resp = self.info.http_client().send(req).await?;
-        if resp.status().is_success() {
-            Ok(resp)
+    /// Send a request and return the successful streaming response or a parsed error.
+    ///
+    /// Uses `fetch` so error response bodies are never read into memory —
+    /// `parse_error` reads only response headers.
+    async fn send(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        let resp = self.info.http_client().fetch(req).await?;
+        let (parts, body) = resp.into_parts();
+        if parts.status.is_success() {
+            Ok(Response::from_parts(parts, body))
         } else {
-            Err(parse_error(resp))
+            // Drop the streaming body without reading it.
+            Err(parse_error(parts))
         }
     }
 
@@ -349,8 +425,10 @@ impl HfCore {
         &self,
         req: Request<Buffer>,
     ) -> Result<(http::response::Parts, T)> {
-        let (parts, body) = self.send(req).await?.into_parts();
-        let parsed = serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        let (parts, mut body) = self.send(req).await?.into_parts();
+        let buffer = body.to_buffer().await?;
+        let parsed =
+            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
         Ok((parts, parsed))
     }
 
@@ -374,46 +452,42 @@ impl HfCore {
         Ok(files.remove(0))
     }
 
-    /// Issue a HEAD request and extract XET file info (hash and size).
+    /// Send `GET /resolve` and return the raw streaming response.
     ///
-    /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
-    ///
-    /// Uses a dedicated no-redirect HTTP client so we can inspect
-    /// headers (e.g. `X-Xet-Hash`) on the 302 response.
-    pub(super) async fn maybe_xet_file(&self, path: &str) -> Result<Option<XetFileInfo>> {
+    /// In `Xet` mode adds `Accept: application/vnd.xet-fileinfo+json` so the
+    /// server returns XET metadata instead of redirecting; in `Http` mode the
+    /// redirect is followed and the file bytes are streamed directly.
+    pub(super) async fn resolve(
+        &self,
+        path: &str,
+        range: BytesRange,
+        mode: HfDownloadMode,
+    ) -> Result<Response<HttpBody>> {
         let uri = self.uri(path);
-        let url = uri.resolve_url(&self.endpoint);
+        let url = uri.resolve_url(&self.endpoint, self.repo.revision());
 
-        let req = self
-            .request(http::Method::HEAD, &url, Operation::Stat)?
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+        let mut req = self.request(http::Method::GET, &url, Operation::Read)?;
 
-        let resp = self.no_redirect_client.send(req).await?;
-
-        if resp.status().is_client_error() || resp.status().is_server_error() {
-            return Err(parse_error(resp));
+        if mode == HfDownloadMode::Xet {
+            req = req.header(header::ACCEPT, "application/vnd.xet-fileinfo+json");
         }
 
-        let hash = resp
-            .headers()
-            .get("X-Xet-Hash")
-            .and_then(|v| v.to_str().ok())
-            .filter(|s| !s.is_empty());
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
+        }
 
-        let Some(hash) = hash else {
-            return Ok(None);
-        };
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let resp = self.info.http_client().fetch(req).await?;
 
-        let size = resp
-            .headers()
-            .get("X-Linked-Size")
-            .or_else(|| resp.headers().get(header::CONTENT_LENGTH))
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
+        if !resp.status().is_success() {
+            // Drop the streaming body without reading it — parse_error reads
+            // only response headers, so there is no need to buffer the body
+            // (which may be a large HTML error page).
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(parts));
+        }
 
-        Ok(Some(XetFileInfo::new(hash.to_string(), size)))
+        Ok(resp)
     }
 
     /// Commit file changes to a git-based repo (model/dataset/space).
@@ -521,25 +595,38 @@ pub(crate) mod test_utils {
             );
 
             // Return a minimal valid JSON response for API requests
-            let body = if req.uri().to_string().contains("/paths-info/")
+            let (body, content_length) = if req.uri().to_string().contains("/paths-info/")
                 || req.uri().to_string().contains("/tree/")
             {
                 let data =
                     Bytes::from(r#"[{"type":"file","oid":"abc123","size":100,"path":"test.txt"}]"#);
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
-                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             } else if req.uri().to_string().contains("/commit/") {
                 let data = Bytes::from(r#"{}"#);
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
-                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             } else {
-                HttpBody::new(futures::stream::empty(), Some(0))
+                let data = Bytes::from_static(b"hello");
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
             };
 
             Ok(Response::builder()
                 .status(StatusCode::OK)
+                .header(header::CONTENT_LENGTH, content_length)
                 .body(body)
                 .unwrap())
         }
@@ -568,8 +655,8 @@ pub(crate) mod test_utils {
             "/".to_string(),
             None,
             endpoint.to_string(),
-            HttpClient::with(mock_client.clone()),
             xet_session,
+            HfDownloadMode::Xet,
         );
 
         (core, mock_client)
@@ -661,13 +748,4 @@ mod tests {
 
         Ok(())
     }
-}
-
-fn build_reqwest(policy: reqwest::redirect::Policy) -> Result<reqwest::Client> {
-    reqwest::Client::builder()
-        .redirect(policy)
-        .build()
-        .map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "failed to build http client").set_source(err)
-        })
 }

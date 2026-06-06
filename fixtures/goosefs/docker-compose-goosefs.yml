@@ -88,7 +88,22 @@ services:
     # keep pulling the same artifact).
     entrypoint: ["/bin/bash", "/opt/opendal/bin/start-default.sh"]
     environment:
-      GOOSEFS_MASTER_HOSTNAME: localhost
+      # Bind the master to the IPv4 loopback literal (not the name
+      # `localhost`). The master's client-facing RPC on 9200 is bound
+      # to whatever `goosefs.master.hostname` resolves to, and there
+      # is no separate `*.client.rpc.bind.host` knob in GooseFS 2.x.
+      # On runners where `/etc/hosts` maps `localhost` to BOTH `::1`
+      # and `127.0.0.1`, the JVM ends up binding `[::1]:9200` while
+      # the in-container worker (and the `fs` CLI used by the
+      # healthcheck) dials `127.0.0.1:9200` over IPv4 -- yielding
+      # `Connection refused` in a tight retry loop, no worker
+      # registration, and the data-plane healthcheck eventually
+      # timing out. The previous `-Djava.net.preferIPv4Stack=true`
+      # only fixed the v6/v4 issue for ports the launcher binds
+      # explicitly to `0.0.0.0` (9202 / 9212); 9200 still followed
+      # the hostname. Using the literal `127.0.0.1` here removes the
+      # name-resolution ambiguity entirely.
+      GOOSEFS_MASTER_HOSTNAME: 127.0.0.1
       # The worker must register itself with the master using an address
       # that OpenDAL, running on the Docker *host*, can resolve AND reach —
       # because OpenDAL first talks to the master over 9200 to locate a

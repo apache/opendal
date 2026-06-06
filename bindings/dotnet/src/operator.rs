@@ -693,6 +693,7 @@ fn operator_copy_inner(
 
     executor
         .block_on(op.copy(source_path, target_path))
+        .map(|_| ())
         .map_err(OpenDALError::from_opendal_error)
 }
 
@@ -738,6 +739,7 @@ fn operator_copy_async_inner(
         let result = op
             .copy(&source_path, &target_path)
             .await
+            .map(|_| ())
             .map_err(OpenDALError::from_opendal_error);
 
         callback(

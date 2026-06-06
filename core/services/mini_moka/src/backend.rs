@@ -118,7 +118,7 @@ impl Builder for MiniMokaBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MiniMokaBackend {
     core: Arc<MiniMokaCore>,
     root: String,
@@ -130,8 +130,47 @@ impl MiniMokaBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct MiniMokaReader {
+    backend: MiniMokaBackend,
+    path: String,
+}
+
+impl MiniMokaReader {
+    fn new(backend: MiniMokaBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for MiniMokaReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+
+        match backend.core.get(&p) {
+            Some(value) => {
+                let total_size = value.content.len() as u64;
+                let sliced_content = value
+                    .content
+                    .slice(range.to_content_range(value.content.len())?);
+                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+
+                Ok((
+                    RpRead::new(metadata),
+                    Box::new(sliced_content) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
+        }
+    }
+}
+
 impl Access for MiniMokaBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<MiniMokaReader>;
     type Writer = MiniMokaWriter;
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
@@ -188,37 +227,11 @@ impl Access for MiniMokaBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        match self.core.get(&p) {
-            Some(value) => {
-                let range = op.range();
-
-                // If range is full, return the content buffer directly
-                if range.is_full() {
-                    return Ok((RpRead::new(), value.content));
-                }
-
-                let offset = range.offset() as usize;
-                if offset >= value.content.len() {
-                    return Err(Error::new(
-                        ErrorKind::RangeNotSatisfied,
-                        "range start offset exceeds content length",
-                    ));
-                }
-
-                let size = range.size().map(|s| s as usize);
-                let end = size.map_or(value.content.len(), |s| {
-                    (offset + s).min(value.content.len())
-                });
-                let sliced_content = value.content.slice(offset..end);
-
-                Ok((RpRead::new(), sliced_content))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(MiniMokaReader::new(self.clone(), path, op)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

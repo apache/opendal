@@ -167,8 +167,43 @@ impl RedbBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct RedbReader {
+    backend: RedbBackend,
+    path: String,
+}
+
+impl RedbReader {
+    fn new(backend: RedbBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for RedbReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p)? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
+            }
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for RedbBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<RedbReader>;
     type Writer = RedbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
@@ -193,16 +228,11 @@ impl Access for RedbBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
-            }
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(RedbReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

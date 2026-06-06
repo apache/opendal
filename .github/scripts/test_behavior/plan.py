@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]
+LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
@@ -82,6 +82,8 @@ class Hint:
     binding_java: bool = field(default=False, init=False)
     # Is binding python affected?
     binding_python: bool = field(default=False, init=False)
+    # Is binding ruby affected?
+    binding_ruby: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
     # Is binding go affected?
@@ -290,6 +292,27 @@ def generate_language_binding_cases(
         cases = [v for v in cases if v["service"] not in [
             # opendal-go-services doesn't provide TOS yet.
             "tos",
+        ]]
+    
+    # Enable integrated services (cases) for ruby.
+    # Ruby binding only integrates some services. Read more in bindings/ruby/Cargo.toml
+    if language == "ruby":
+        cases = [v for v in cases if v["service"] in [
+            "azblob",
+            "azdls",
+            "cos",
+            "fs",
+            "gcs",
+            "ghac",
+            "http",
+            "ipmfs",
+            "memory",
+            "obs",
+            "oss",
+            "s3",
+            "webdav",
+            "webhdfs",
+            "azfile",
         ]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":

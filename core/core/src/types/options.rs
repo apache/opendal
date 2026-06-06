@@ -572,6 +572,19 @@ pub struct CopyOptions {
     ///   destination object's ETag matches the given value.
     pub if_match: Option<String>,
 
+    /// Copy from a specific source object version.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_version`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will read from the specified source
+    ///   version instead of the current source object.
+    /// - Destination behavior follows normal copy semantics.
+    pub source_version: Option<String>,
+
     /// Known content length of the source object.
     ///
     /// This is an execution hint that allows OpenDAL to avoid extra metadata

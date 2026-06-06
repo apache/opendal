@@ -29,7 +29,10 @@ use http::StatusCode;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
+use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
+use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_azure_storage::Credential;
 use reqsign_core::Signer;
 
@@ -98,7 +101,12 @@ impl AzdlsCore {
 }
 
 impl AzdlsCore {
-    pub async fn azdls_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn azdls_read(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -112,6 +120,19 @@ impl AzdlsCore {
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req

@@ -460,7 +460,10 @@ impl Operator {
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
-        self.core.copy(&source, &target).map_err(format_pyerr)
+        self.core
+            .copy(&source, &target)
+            .map(|_| ())
+            .map_err(format_pyerr)
     }
 
     /// Rename (move) a file from one path to another.
@@ -1196,7 +1199,10 @@ impl AsyncOperator {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         future_into_py(py, async move {
-            this.copy(&source, &target).await.map_err(format_pyerr)
+            this.copy(&source, &target)
+                .await
+                .map(|_| ())
+                .map_err(format_pyerr)
         })
     }
 

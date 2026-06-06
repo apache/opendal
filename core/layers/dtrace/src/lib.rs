@@ -260,7 +260,7 @@ impl<R> DtraceLayerWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
@@ -268,6 +268,42 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
             Ok(bs) => {
                 probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.remaining());
                 Ok(bs)
+            }
+            Err(e) => {
+                probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
+                Err(e)
+            }
+        }
+    }
+}
+
+impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
+        match self.inner.open(range).await {
+            Ok((rp, stream)) => {
+                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), 0);
+                Ok((
+                    rp,
+                    Box::new(DtraceLayerWrapper::new(stream, &self.path))
+                        as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+            Err(e) => {
+                probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
+                Err(e)
+            }
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
+        match self.inner.read(range).await {
+            Ok((rp, buffer)) => {
+                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), buffer.len());
+                Ok((rp, buffer))
             }
             Err(e) => {
                 probe_lazy!(opendal, reader_read_error, c_path.as_ptr());

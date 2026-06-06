@@ -98,7 +98,7 @@ impl oio::MultipartCopy for TosCopier {
         }
     }
 
-    async fn copy_once(&self) -> Result<()> {
+    async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
             .tos_copy_object(&self.from, &self.to, &self.args)
@@ -116,7 +116,9 @@ impl oio::MultipartCopy for TosCopier {
                     .set_temporary());
                 }
 
-                Ok(())
+                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                meta.set_etag(result.etag.trim_matches('"'));
+                Ok(meta)
             }
             _ => Err(parse_error(resp)),
         }
@@ -181,7 +183,11 @@ impl oio::MultipartCopy for TosCopier {
         }
     }
 
-    async fn complete_copy(&self, upload_id: &str, parts: &[oio::MultipartPart]) -> Result<()> {
+    async fn complete_copy(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| CompleteMultipartUploadRequestPart {
@@ -204,7 +210,15 @@ impl oio::MultipartCopy for TosCopier {
                     return Err(Error::new(ErrorKind::Unexpected, ret.message));
                 }
 
-                Ok(())
+                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                if !ret.etag.is_empty() {
+                    meta.set_etag(ret.etag.trim_matches('"'));
+                }
+                if !ret.version_id.is_empty() {
+                    meta.set_version(&ret.version_id);
+                }
+
+                Ok(meta)
             }
             _ => Err(parse_error(resp)),
         }

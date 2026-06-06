@@ -73,7 +73,10 @@ impl oio::BatchDelete for S3Deleter {
 
         let mut errors = result.error;
         let mut batched_result = BatchDeleteResult {
-            succeeded: Vec::with_capacity(batch.len() - errors.len()),
+            // `errors.len()` is server-controlled and may exceed `batch.len()`; use
+            // `saturating_sub` (mirroring services/tos) to avoid an unsigned underflow
+            // that wraps to a huge `with_capacity` (release: abort).
+            succeeded: Vec::with_capacity(batch.len().saturating_sub(errors.len())),
             failed: Vec::with_capacity(errors.len()),
         };
         for (path, op) in batch {

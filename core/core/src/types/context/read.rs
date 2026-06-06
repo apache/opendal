@@ -19,7 +19,9 @@ use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
+use crate::raw::oio::Read as _;
 use crate::raw::*;
 use crate::*;
 
@@ -33,17 +35,29 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
+    /// Raw reader returned by [`Access::read`].
+    reader: oio::Reader,
+    /// Complete object metadata observed from successful read opens.
+    metadata: OnceLock<Metadata>,
 }
 
 impl ReadContext {
     /// Create a new ReadContext.
     #[inline]
-    pub fn new(acc: Accessor, path: String, args: OpRead, options: OpReader) -> Self {
+    pub fn new(
+        acc: Accessor,
+        path: String,
+        args: OpRead,
+        options: OpReader,
+        reader: oio::Reader,
+    ) -> Self {
         Self {
             acc,
             path,
             args,
             options,
+            reader,
+            metadata: OnceLock::new(),
         }
     }
 
@@ -69,6 +83,32 @@ impl ReadContext {
     #[inline]
     pub fn options(&self) -> &OpReader {
         &self.options
+    }
+
+    /// Get the raw reader.
+    #[inline]
+    pub fn reader(&self) -> &oio::Reader {
+        &self.reader
+    }
+
+    /// Get complete object metadata observed by this reader.
+    #[inline]
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.get()
+    }
+
+    /// Set cached object metadata observed from successful read opens once.
+    pub(crate) fn set_metadata(&self, metadata: Metadata) {
+        let _ = self.metadata.set(metadata);
+    }
+
+    /// Observe read response and cache metadata if available.
+    pub(crate) fn observe_read_response(&self, rp: RpRead) {
+        if let Some(metadata) = rp.into_metadata() {
+            if self.metadata().is_none() {
+                self.set_metadata(metadata);
+            }
+        }
     }
 
     /// Parse the range bounds into a range.
@@ -173,14 +213,19 @@ impl ReadGenerator {
     }
 
     /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<oio::Reader>> {
+    pub async fn next_reader(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
         let Some(range) = self.next_range() else {
             return Ok(None);
         };
 
-        let args = self.ctx.args.clone().with_range(range);
-        let (_, r) = self.ctx.acc.read(&self.ctx.path, args).await?;
+        let (rp, r) = self.ctx.reader().open(range).await?;
+        self.ctx.observe_read_response(rp);
         Ok(Some(r))
+    }
+
+    /// Get metadata observed by generated readers.
+    pub(crate) fn metadata(&self) -> Option<&Metadata> {
+        self.ctx.metadata()
     }
 }
 
@@ -189,6 +234,22 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (_, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            reader,
+        ))
+    }
 
     #[tokio::test]
     async fn test_next_reader() -> Result<()> {
@@ -200,12 +261,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_chunk(3),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
         let mut generator = ReadGenerator::new(ctx, 0, Some(10));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -226,12 +282,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_chunk(3),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
         let mut generator = ReadGenerator::new(ctx, 0, None);
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -248,7 +299,7 @@ mod tests {
         op.write("test", Buffer::from(Bytes::new())).await?;
 
         let acc = op.into_inner();
-        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
 
         let result = ctx.parse_into_range(..=u64::MAX).await;
         assert!(
@@ -265,7 +316,7 @@ mod tests {
         op.write("test", Buffer::from(Bytes::new())).await?;
 
         let acc = op.into_inner();
-        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
 
         let result = ctx
             .parse_into_range((Bound::Excluded(u64::MAX), Bound::Unbounded))
@@ -283,12 +334,8 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
 
         let acc = op.into_inner();
-        let ctx = ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_content_length_hint(42),
-        );
+        let ctx =
+            new_read_context(acc, "test", OpReader::new().with_content_length_hint(42)).await?;
 
         let range = ctx.parse_into_range(10..).await?;
 

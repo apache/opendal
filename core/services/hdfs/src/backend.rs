@@ -25,7 +25,7 @@ use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
-use super::reader::HdfsReader;
+use super::reader::HdfsReadStream;
 use super::writer::HdfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -197,8 +197,36 @@ pub struct HdfsBackend {
     core: Arc<HdfsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct HdfsReader {
+    backend: HdfsBackend,
+    path: String,
+}
+
+impl HdfsReader {
+    fn new(backend: HdfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for HdfsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let f = backend.core.hdfs_read(path, range).await?;
+        let rp = RpRead::default();
+        let stream = HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for HdfsBackend {
-    type Reader = HdfsReader<hdrs::AsyncFile>;
+    type Reader = oio::StreamReader<HdfsReader>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -217,13 +245,10 @@ impl Access for HdfsBackend {
         let m = self.core.hdfs_stat(path)?;
         Ok(RpStat::new(m))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let f = self.core.hdfs_read(path, &args).await?;
-
         Ok((
-            RpRead::new(),
-            HdfsReader::new(f, args.range().size().unwrap_or(u64::MAX) as _),
+            RpRead::default(),
+            oio::StreamReader::new(HdfsReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -164,12 +164,35 @@ impl<R> AwaitTreeWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for AwaitTreeWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
             .instrument_await(format!("opendal::{}", Operation::Read))
             .await
+    }
+}
+
+impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self
+            .inner
+            .open(range)
+            .instrument_await(format!("opendal::{}", Operation::Read))
+            .await?;
+        Ok((
+            rp,
+            Box::new(AwaitTreeWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    fn read(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+        self.inner
+            .read(range)
+            .instrument_await(format!("opendal::{}", Operation::Read))
     }
 }
 
@@ -219,6 +242,12 @@ impl<C: oio::Copy> oio::Copy for AwaitTreeWrapper<C> {
     fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend {
         self.inner
             .next()
+            .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+    }
+
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        self.inner
+            .close()
             .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
     }
 

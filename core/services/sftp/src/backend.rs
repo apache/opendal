@@ -33,7 +33,7 @@ use super::error::is_sftp_failure;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::lister::SftpLister;
-use super::reader::SftpReader;
+use super::reader::SftpReadStream;
 use super::utils::to_metadata;
 use super::writer::SftpWriter;
 use opendal_core::raw::*;
@@ -210,8 +210,53 @@ pub struct SftpBackend {
     pub core: Arc<SftpCore>,
 }
 
+/// Reader returned by this backend.
+pub struct SftpReader {
+    backend: SftpBackend,
+    path: String,
+}
+
+impl SftpReader {
+    fn new(backend: SftpBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for SftpReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let client = backend.core.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&backend.core.root);
+
+        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+        let mut f = client
+            .open(path.as_path())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if range.offset() != 0 {
+            f.seek(SeekFrom::Start(range.offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
+
+        let rp = RpRead::default();
+        let stream = SftpReadStream::new(client, f, range.size());
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for SftpBackend {
-    type Reader = SftpReader;
+    type Reader = oio::StreamReader<SftpReader>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -253,29 +298,10 @@ impl Access for SftpBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        if args.range().offset() != 0 {
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
-
         Ok((
             RpRead::default(),
-            SftpReader::new(client, f, args.range().size()),
+            oio::StreamReader::new(SftpReader::new(self.clone(), path, args)),
         ))
     }
 

@@ -20,7 +20,7 @@
 package opendal_test
 
 import (
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,17 @@ func testsWrite(cap *opendal.Capability) []behaviorTest {
 		testWriteWithDirPath,
 		testWriteWithSpecialChars,
 		testWriteOverwrite,
+		testWriteWithCacheControl,
+		testWriteWithContentType,
+		testWriteWithContentDisposition,
+		testWriteWithContentEncoding,
+		testWriteWithUserMetadata,
+		testWriteWithIfMatch,
+		testWriteWithIfNoneMatch,
+		testWriteWithIfNotExists,
 		testWriterWrite,
+		testWriteWithChunkAndConcurrent,
+		testWriterWithAppend,
 	}
 }
 
@@ -101,6 +111,150 @@ func testWriteOverwrite(assert *require.Assertions, op *opendal.Operator, fixtur
 	assert.Equal(contentTwo, bs, "read content_two")
 }
 
+func testWriteWithCacheControl(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithCacheControl, "write_with_cache_control") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := []byte("hello")
+	assert.Nil(op.Write(path, content, opendal.WriteWithCacheControl("max-age=60")))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(len(content)), meta.ContentLength())
+	cacheControl, ok := meta.CacheControl()
+	assert.True(ok, "cache control must exist")
+	assert.Equal("max-age=60", cacheControl)
+}
+
+func testWriteWithContentType(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentType, "write_with_content_type") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := []byte("hello")
+	assert.Nil(op.Write(path, content, opendal.WriteWithContentType("text/plain")))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(len(content)), meta.ContentLength())
+	contentType, ok := meta.ContentType()
+	assert.True(ok, "content type must exist")
+	assert.Equal("text/plain", contentType)
+}
+
+func testWriteWithContentDisposition(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentDisposition, "write_with_content_disposition") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := []byte("hello")
+	assert.Nil(op.Write(path, content, opendal.WriteWithContentDisposition("attachment; filename=hello.txt")))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(len(content)), meta.ContentLength())
+	contentDisposition, ok := meta.ContentDisposition()
+	assert.True(ok, "content disposition must exist")
+	assert.Equal("attachment; filename=hello.txt", contentDisposition)
+}
+
+func testWriteWithContentEncoding(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentEncoding, "write_with_content_encoding") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := []byte("hello")
+	assert.Nil(op.Write(path, content, opendal.WriteWithContentEncoding("gzip")))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(len(content)), meta.ContentLength())
+	contentEncoding, ok := meta.ContentEncoding()
+	assert.True(ok, "content encoding must exist")
+	assert.Equal("gzip", contentEncoding)
+}
+
+func testWriteWithUserMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithUserMetadata, "write_with_user_metadata") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := []byte("hello")
+	assert.Nil(op.Write(path, content, opendal.WriteWithUserMetadata(map[string]string{
+		"language": "go",
+		"project":  "opendal",
+	})))
+
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	assert.Equal(uint64(len(content)), meta.ContentLength())
+	assert.Equal(map[string]string{
+		"language": "go",
+		"project":  "opendal",
+	}, meta.UserMetadata())
+}
+
+func testWriteWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfMatch, "write_with_if_match") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	assert.Nil(op.Write(path, []byte("hello")))
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	etag, ok := meta.ETag()
+	assert.True(ok, "etag must exist")
+
+	assert.Nil(op.Write(path, []byte("world"), opendal.WriteWithIfMatch(etag)))
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal([]byte("world"), bs)
+}
+
+func testWriteWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfNoneMatch, "write_with_if_none_match") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	assert.Nil(op.Write(path, []byte("hello")))
+	meta, err := op.Stat(path)
+	assert.Nil(err, "stat must succeed")
+	etag, ok := meta.ETag()
+	assert.True(ok, "etag must exist")
+
+	err = op.Write(path, []byte("world"), opendal.WriteWithIfNoneMatch(etag))
+	assert.NotNil(err)
+	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
+
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal([]byte("hello"), bs)
+}
+
+func testWriteWithIfNotExists(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfNotExists, "write_with_if_not_exists") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	assert.Nil(op.Write(path, []byte("hello"), opendal.WriteWithIfNotExists(true)))
+	err := op.Write(path, []byte("world"), opendal.WriteWithIfNotExists(true))
+	assert.NotNil(err)
+	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
+
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal([]byte("hello"), bs)
+}
+
 func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetFullCapability().WriteCanMulti() {
 		return
@@ -128,4 +282,42 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 	assert.Equal(uint64(size*2), uint64(len(bs)), "read size")
 	assert.Equal(contentA, bs[:size], "read contentA")
 	assert.Equal(contentB, bs[size:], "read contentB")
+}
+
+func testWriteWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteCanMulti, "write_can_multi") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+	content := genFixedBytes(1024 * 1024)
+	assert.Nil(op.Write(path, content, opendal.WriteWithChunk(256*1024), opendal.WriteWithConcurrent(2)))
+
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal(content, bs)
+}
+
+func testWriterWithAppend(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !isCapEnabled(op.Info().GetFullCapability().WriteCanAppend, "write_can_append") {
+		return
+	}
+
+	path := fixture.NewFilePath()
+
+	w, err := op.Writer(path, opendal.WriteWithAppend(true))
+	assert.Nil(err)
+	_, err = w.Write([]byte("hello"))
+	assert.Nil(err)
+	assert.Nil(w.Close())
+
+	w, err = op.Writer(path, opendal.WriteWithAppend(true))
+	assert.Nil(err)
+	_, err = w.Write([]byte(" world"))
+	assert.Nil(err)
+	assert.Nil(w.Close())
+
+	bs, err := op.Read(path)
+	assert.Nil(err, "read must succeed")
+	assert.Equal([]byte("hello world"), bs)
 }

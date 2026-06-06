@@ -41,7 +41,7 @@ pub trait BlockCopy: Send + Sync + Unpin + 'static {
     ///
     /// BlockCopier will call this API when the source object can be copied
     /// without starting block copy.
-    fn copy_once(&self) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn copy_once(&self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// copy_block copies one source range into one block.
     fn copy_block(
@@ -51,7 +51,10 @@ pub trait BlockCopy: Send + Sync + Unpin + 'static {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// complete_block completes the block copy with the ordered block id list.
-    fn complete_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn complete_block(
+        &self,
+        block_ids: Vec<Uuid>,
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_block cancels the pending block copy and purges intermediate state.
     fn abort_block(&self, block_ids: Vec<Uuid>) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -97,6 +100,7 @@ pub struct BlockCopier<C: BlockCopy> {
     block_size: u64,
     concurrent: usize,
     completed: bool,
+    metadata: Option<Metadata>,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedBlock>,
 }
@@ -127,6 +131,7 @@ impl<C: BlockCopy> BlockCopier<C> {
             block_size,
             concurrent,
             completed: false,
+            metadata: None,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin(async move {
@@ -227,7 +232,7 @@ where
         let source_size = self.source_size().await?;
 
         if self.block_ids.is_empty() && source_size <= self.copy_once_threshold {
-            self.copier.copy_once().await?;
+            self.metadata = Some(self.copier.copy_once().await?);
             self.completed = true;
             return Ok(None);
         }
@@ -265,15 +270,24 @@ where
             .iter()
             .map(|(_, block_id)| *block_id)
             .collect();
-        self.copier.complete_block(block_ids).await?;
+        self.metadata = Some(self.copier.complete_block(block_ids).await?);
         self.completed = true;
         Ok(None)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        while !self.completed {
+            self.next().await?;
+        }
+
+        Ok(self.metadata.clone().unwrap_or_default())
     }
 
     async fn abort(&mut self) -> Result<()> {
         self.tasks.clear();
         if self.scheduled_block_ids.is_empty() {
             self.completed = true;
+            self.metadata = None;
             return Ok(());
         }
 
@@ -281,6 +295,7 @@ where
             .abort_block(self.scheduled_block_ids.clone())
             .await?;
         self.completed = true;
+        self.metadata = None;
         Ok(())
     }
 }
@@ -311,8 +326,8 @@ mod tests {
             Ok(Metadata::default().with_content_length(4))
         }
 
-        async fn copy_once(&self) -> Result<()> {
-            Ok(())
+        async fn copy_once(&self) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
@@ -329,13 +344,13 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
             let mut state = self.state.lock().expect("test state mutex poisoned");
             state.completed_ranges = block_ids
                 .into_iter()
                 .map(|block_id| state.ranges[&block_id])
                 .collect();
-            Ok(())
+            Ok(Metadata::default())
         }
 
         async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {

@@ -162,6 +162,20 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
                 "if_not_exists",
             ));
         }
+        if args.if_match().is_some() && !capability.copy_with_if_match {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Copy,
+                "if_match",
+            ));
+        }
+        if args.source_version().is_some() && !capability.copy_with_source_version {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Copy,
+                "source_version",
+            ));
+        }
 
         self.inner.copy(from, to, args, opts).await
     }

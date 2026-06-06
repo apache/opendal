@@ -47,6 +47,7 @@ const LABEL_LISTER_NEXT: &str = "opendal.lister.next";
 const LABEL_DELETER_DELETE: &str = "opendal.deleter.delete";
 const LABEL_DELETER_CLOSE: &str = "opendal.deleter.close";
 const LABEL_COPIER_NEXT: &str = "opendal.copier.next";
+const LABEL_COPIER_CLOSE: &str = "opendal.copier.close";
 const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
@@ -183,9 +184,23 @@ impl<R> HotpathWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for HotpathWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         hotpath::measure_async(LABEL_READER_READ, self.inner.read()).await
+    }
+}
+
+impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = hotpath::measure_async(LABEL_READ, self.inner.open(range)).await?;
+        Ok((
+            rp,
+            Box::new(HotpathWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        hotpath::measure_async(LABEL_READER_READ, self.inner.read(range)).await
     }
 }
 
@@ -222,6 +237,10 @@ impl<R: oio::Delete> oio::Delete for HotpathWrapper<R> {
 impl<C: oio::Copy> oio::Copy for HotpathWrapper<C> {
     async fn next(&mut self) -> Result<Option<usize>> {
         hotpath::measure_async(LABEL_COPIER_NEXT, self.inner.next()).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        hotpath::measure_async(LABEL_COPIER_CLOSE, self.inner.close()).await
     }
 
     async fn abort(&mut self) -> Result<()> {

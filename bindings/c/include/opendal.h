@@ -189,6 +189,19 @@ typedef struct opendal_lister {
 } opendal_lister;
 
 /**
+ * \brief The layers to apply when initializing an opendal_operator.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it.
+ */
+typedef struct opendal_operator_layers {
+  /**
+   * The pointer to the Vec<OperatorLayer> in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_operator_layers;
+
+/**
  * \brief Carries all metadata associated with a **path**.
  *
  * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
@@ -206,6 +219,31 @@ typedef struct opendal_metadata {
    */
   void *inner;
 } opendal_metadata;
+
+/**
+ * \brief User metadata associated with a **path**.
+ */
+typedef struct opendal_metadata_user_metadata {
+  /**
+   * The pointer to the user metadata in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_metadata_user_metadata;
+
+/**
+ * \brief A user metadata key-value pair.
+ */
+typedef struct opendal_metadata_user_metadata_pair {
+  /**
+   * The key of the user metadata.
+   */
+  const char *key;
+  /**
+   * The value of the user metadata.
+   */
+  const char *value;
+} opendal_metadata_user_metadata_pair;
 
 /**
  * \brief Used to access almost all OpenDAL APIs. It represents an
@@ -270,6 +308,81 @@ typedef struct opendal_operator_options {
 } opendal_operator_options;
 
 /**
+ * \brief A key-value pair for write user metadata.
+ */
+typedef struct opendal_write_user_metadata_pair {
+  /**
+   * The metadata key.
+   */
+  const char *key;
+  /**
+   * The metadata value.
+   */
+  const char *value;
+} opendal_write_user_metadata_pair;
+
+/**
+ * \brief The options for write operations.
+ *
+ * Use `opendal_write_options_new()` to construct and
+ * `opendal_write_options_free()` to free.
+ */
+typedef struct opendal_write_options {
+  /**
+   * Append data to the existing file.
+   */
+  bool append;
+  /**
+   * Cache-Control header value.
+   */
+  const char *cache_control;
+  /**
+   * Content-Type header value.
+   */
+  const char *content_type;
+  /**
+   * Content-Disposition header value.
+   */
+  const char *content_disposition;
+  /**
+   * Content-Encoding header value.
+   */
+  const char *content_encoding;
+  /**
+   * If-Match header value.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value.
+   */
+  const char *if_none_match;
+  /**
+   * Only write if target does not exist.
+   */
+  bool if_not_exists;
+  /**
+   * Concurrent write operations. `0` means sequential writes
+   */
+  uintptr_t concurrent;
+  /**
+   * Whether `chunk` has been set.
+   */
+  bool has_chunk;
+  /**
+   * Chunk size for buffered writes.
+   */
+  uintptr_t chunk;
+  /**
+   * User metadata pairs.
+   */
+  const struct opendal_write_user_metadata_pair *user_metadata;
+  /**
+   * User metadata pairs length.
+   */
+  uintptr_t user_metadata_len;
+} opendal_write_options;
+
+/**
  * \brief The result type returned by opendal's read operation.
  *
  * The result type of read operation in opendal C binding, it contains
@@ -287,6 +400,87 @@ typedef struct opendal_result_read {
    */
   struct opendal_error *error;
 } opendal_result_read;
+
+/**
+ * \brief The options for read operations.
+ *
+ * Use `opendal_read_options_new()` to construct and
+ * `opendal_read_options_free()` to free.
+ */
+typedef struct opendal_read_options {
+  /**
+   * The start offset of the range to read; default 0.
+   */
+  uint64_t offset;
+  /**
+   * Whether `length` has been set.
+   */
+  bool has_length;
+  /**
+   * The number of bytes to read starting from `offset`.
+   */
+  uint64_t length;
+  /**
+   * The version of the object to read; NULL means unset.
+   */
+  const char *version;
+  /**
+   * If-Match header value; NULL means unset.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value; NULL means unset.
+   */
+  const char *if_none_match;
+  /**
+   * Whether `if_modified_since` has been set.
+   */
+  bool has_if_modified_since;
+  /**
+   * If-Modified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_modified_since;
+  /**
+   * Whether `if_unmodified_since` has been set.
+   */
+  bool has_if_unmodified_since;
+  /**
+   * If-Unmodified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_unmodified_since;
+  /**
+   * Concurrent read operations. `0` means sequential reads.
+   */
+  uintptr_t concurrent;
+  /**
+   * Whether `chunk` has been set.
+   */
+  bool has_chunk;
+  /**
+   * Chunk size for each read request.
+   */
+  uintptr_t chunk;
+  /**
+   * Whether `gap` has been set.
+   */
+  bool has_gap;
+  /**
+   * Gap size for merging nearby range reads.
+   */
+  uintptr_t gap;
+  /**
+   * Override the response Content-Type header (presign only); NULL means unset.
+   */
+  const char *override_content_type;
+  /**
+   * Override the response Cache-Control header (presign only); NULL means unset.
+   */
+  const char *override_cache_control;
+  /**
+   * Override the response Content-Disposition header (presign only); NULL means unset.
+   */
+  const char *override_content_disposition;
+} opendal_read_options;
 
 /**
  * \brief The result type returned by opendal's reader operation.
@@ -349,6 +543,30 @@ typedef struct opendal_result_operator_writer {
 } opendal_result_operator_writer;
 
 /**
+ * \brief The options for the delete operation.
+ *
+ * This struct carries the options for the delete operation, including an optional
+ * version string and whether to delete recursively.
+ * Use `opendal_delete_options_new()` to construct and `opendal_delete_options_free()` to free.
+ *
+ * @see opendal_operator_delete_with
+ * @see opendal_delete_options_new
+ * @see opendal_delete_options_free
+ * @see opendal_delete_options_set_version
+ * @see opendal_delete_options_set_recursive
+ */
+typedef struct opendal_delete_options {
+  /**
+   * Optional version string to delete a specific version; NULL means unset.
+   */
+  char *version;
+  /**
+   * Whether to delete recursively; default false.
+   */
+  bool recursive;
+} opendal_delete_options;
+
+/**
  * \brief The result type returned by opendal_operator_is_exist().
  *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
@@ -409,6 +627,57 @@ typedef struct opendal_result_stat {
 } opendal_result_stat;
 
 /**
+ * \brief The options for stat operations.
+ *
+ * Use `opendal_stat_options_new()` to construct and
+ * `opendal_stat_options_free()` to free.
+ *
+ * @see opendal_operator_stat_with
+ */
+typedef struct opendal_stat_options {
+  /**
+   * The version of the object to stat; NULL means unset.
+   */
+  const char *version;
+  /**
+   * If-Match header value; NULL means unset.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value; NULL means unset.
+   */
+  const char *if_none_match;
+  /**
+   * Whether `if_modified_since` has been set.
+   */
+  bool has_if_modified_since;
+  /**
+   * If-Modified-Since timestamp in milliseconds since the Unix epoch.
+   */
+  int64_t if_modified_since;
+  /**
+   * Whether `if_unmodified_since` has been set.
+   */
+  bool has_if_unmodified_since;
+  /**
+   * If-Unmodified-Since timestamp in milliseconds since the Unix epoch.
+   */
+  int64_t if_unmodified_since;
+  /**
+   * Override the response Content-Type header; NULL means unset.
+   */
+  const char *override_content_type;
+  /**
+   * Override the response Cache-Control header; NULL means unset.
+   */
+  const char *override_cache_control;
+  /**
+   * Override the response Content-Disposition header; NULL means unset.
+   */
+  const char *override_content_disposition;
+} opendal_stat_options;
+
+/**
  * \brief The result type returned by opendal_operator_list().
  *
  * The result type for opendal_operator_list(), the field `lister` contains the lister
@@ -425,6 +694,35 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief The options for the list operation.
+ *
+ * This struct carries the options for the list operation, including whether to
+ * list recursively, an optional result limit, and an optional start-after key.
+ * Use `opendal_list_options_new()` to construct and `opendal_list_options_free()` to free.
+ *
+ * @see opendal_operator_list_with
+ * @see opendal_list_options_new
+ * @see opendal_list_options_free
+ * @see opendal_list_options_set_recursive
+ * @see opendal_list_options_set_limit
+ * @see opendal_list_options_set_start_after
+ */
+typedef struct opendal_list_options {
+  /**
+   * Whether to list recursively under the prefix; default false.
+   */
+  bool recursive;
+  /**
+   * Optional hint for maximum results per request; 0 means unset.
+   */
+  uintptr_t limit;
+  /**
+   * Optional key to start listing from; NULL means unset.
+   */
+  char *start_after;
+} opendal_list_options;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -456,6 +754,30 @@ typedef struct opendal_capability {
    */
   bool stat_with_if_none_match;
   /**
+   * If operator supports stat with if modified since.
+   */
+  bool stat_with_if_modified_since;
+  /**
+   * If operator supports stat with if unmodified since.
+   */
+  bool stat_with_if_unmodified_since;
+  /**
+   * if operator supports stat with override cache control.
+   */
+  bool stat_with_override_cache_control;
+  /**
+   * if operator supports stat with override content disposition.
+   */
+  bool stat_with_override_content_disposition;
+  /**
+   * if operator supports stat with override content type.
+   */
+  bool stat_with_override_content_type;
+  /**
+   * If operator supports stat with version.
+   */
+  bool stat_with_version;
+  /**
    * If operator supports read.
    */
   bool read;
@@ -479,6 +801,18 @@ typedef struct opendal_capability {
    * if operator supports read with override content type.
    */
   bool read_with_override_content_type;
+  /**
+   * If operator supports read with if modified since.
+   */
+  bool read_with_if_modified_since;
+  /**
+   * If operator supports read with if unmodified since.
+   */
+  bool read_with_if_unmodified_since;
+  /**
+   * If operator supports read with version.
+   */
+  bool read_with_version;
   /**
    * If operator supports write.
    */
@@ -504,9 +838,29 @@ typedef struct opendal_capability {
    */
   bool write_with_content_disposition;
   /**
+   * If operator supports write with content encoding.
+   */
+  bool write_with_content_encoding;
+  /**
    * If operator supports write with cache control.
    */
   bool write_with_cache_control;
+  /**
+   * If operator supports write with if match.
+   */
+  bool write_with_if_match;
+  /**
+   * If operator supports write with if none match.
+   */
+  bool write_with_if_none_match;
+  /**
+   * If operator supports write with if not exists.
+   */
+  bool write_with_if_not_exists;
+  /**
+   * If operator supports write with user metadata.
+   */
+  bool write_with_user_metadata;
   /**
    * write_multi_max_size is the max size that services support in write_multi.
    *
@@ -539,6 +893,14 @@ typedef struct opendal_capability {
    * If operator supports delete.
    */
   bool delete_;
+  /**
+   * If operator supports delete with version.
+   */
+  bool delete_with_version;
+  /**
+   * If operator supports delete with recursive.
+   */
+  bool delete_with_recursive;
   /**
    * If operator supports copy.
    */
@@ -699,59 +1061,124 @@ struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *sel
 void opendal_lister_free(struct opendal_lister *ptr);
 
 /**
+ * \brief Construct a heap-allocated opendal_operator_layers.
+ */
+struct opendal_operator_layers *opendal_operator_layers_new(void);
+
+/**
+ * \brief Add a retry layer.
+ */
+void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
+                                       bool jitter,
+                                       float factor,
+                                       uint64_t min_delay_ns,
+                                       uint64_t max_delay_ns,
+                                       uint64_t max_times);
+
+/**
+ * \brief Add a timeout layer.
+ */
+void opendal_operator_layers_add_timeout(struct opendal_operator_layers *self,
+                                         uint64_t timeout_ns,
+                                         uint64_t io_timeout_ns);
+
+/**
+ * \brief Free the allocated memory used by opendal_operator_layers.
+ */
+void opendal_operator_layers_free(struct opendal_operator_layers *ptr);
+
+/**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
 void opendal_metadata_free(struct opendal_metadata *ptr);
 
 /**
+ * \brief Return mode of the metadata: 0 for unknown, 1 for file, and 2 for dir.
+ */
+uint8_t opendal_metadata_mode(const struct opendal_metadata *self);
+
+/**
  * \brief Return the content_length of the metadata
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- * assert(opendal_metadata_content_length(meta) == 13);
- * ```
  */
 uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
 
 /**
  * \brief Return whether the path represents a file
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- * assert(opendal_metadata_is_file(meta));
- * ```
  */
 bool opendal_metadata_is_file(const struct opendal_metadata *self);
 
 /**
  * \brief Return whether the path represents a directory
- *
- * # Example
- * ```C
- * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * opendal_metadata *meta = s.meta;
- *
- * // this is not a directory
- * assert(!opendal_metadata_is_dir(meta));
- * ```
- *
- * \todo This is not a very clear example. A clearer example will be added
- * after we support opendal_operator_mkdir()
  */
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
+
+/**
+ * \brief Return whether this metadata is current.
+ *
+ * Returns 1 for current, 0 for not current, and 2 if unknown.
+ */
+uint8_t opendal_metadata_is_current(const struct opendal_metadata *self);
+
+/**
+ * \brief Return whether this metadata is deleted.
+ */
+bool opendal_metadata_is_deleted(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the cache control of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_cache_control(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content disposition of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_disposition(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content md5 of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_md5(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content type of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_type(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the content encoding of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_content_encoding(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the etag of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_etag(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the version of the metadata.
+ *
+ * \note: The string is on heap, free it with opendal_string_free().
+ */
+char *opendal_metadata_version(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the user metadata of the metadata.
+ *
+ * \note: The returned user metadata is on heap, free it with opendal_metadata_user_metadata_free().
+ */
+struct opendal_metadata_user_metadata *opendal_metadata_get_user_metadata(const struct opendal_metadata *self);
 
 /**
  * \brief Return the last_modified of the metadata, in milliseconds
@@ -767,6 +1194,21 @@ bool opendal_metadata_is_dir(const struct opendal_metadata *self);
  * ```
  */
 int64_t opendal_metadata_last_modified_ms(const struct opendal_metadata *self);
+
+/**
+ * \brief Return the key-value pairs of the user metadata.
+ */
+const struct opendal_metadata_user_metadata_pair *opendal_metadata_user_metadata_pairs(const struct opendal_metadata_user_metadata *metadata);
+
+/**
+ * \brief Return the number of key-value pairs in the user metadata.
+ */
+uintptr_t opendal_metadata_user_metadata_len(const struct opendal_metadata_user_metadata *metadata);
+
+/**
+ * \brief Free the user metadata returned by opendal_metadata_user_metadata.
+ */
+void opendal_metadata_user_metadata_free(struct opendal_metadata_user_metadata *metadata);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator.
@@ -830,6 +1272,20 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
 
 /**
+ * \brief Construct an operator based on scheme, options, and explicit layers.
+ *
+ * Unlike opendal_operator_new, this function will not add any default layer.
+ * Layers will be applied exactly as they were added to opendal_operator_layers.
+ *
+ * # Safety
+ *
+ * The only unsafe case is passing an invalid c string pointer to the scheme argument.
+ */
+struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
+                                                                    const struct opendal_operator_options *options,
+                                                                    const struct opendal_operator_layers *layers);
+
+/**
  * \brief Blocking write raw bytes to `path`.
  *
  * Write the `bytes` into the `path` blocking by `op_ptr`.
@@ -880,6 +1336,14 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
                                              const struct opendal_bytes *bytes);
 
 /**
+ * \brief Blocking write raw bytes to `path` with options.
+ */
+struct opendal_error *opendal_operator_write_with(const struct opendal_operator *op,
+                                                  const char *path,
+                                                  const struct opendal_bytes *bytes,
+                                                  const struct opendal_write_options *opts);
+
+/**
  * \brief Blocking read the data from `path`.
  *
  * Read the data out from `path` blocking by operator.
@@ -922,6 +1386,41 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
  */
 struct opendal_result_read opendal_operator_read(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blocking read the data from `path` with options.
+ *
+ * Read the data out from `path` blocking by operator, using the provided
+ * `opendal_read_options` to control the behavior, e.g. range, version, or
+ * conditional headers.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to read the data out
+ * @param opts The options for the read operation; pass NULL to use defaults
+ * @see opendal_operator
+ * @see opendal_result_read
+ * @see opendal_read_options
+ * @see opendal_error
+ * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+ * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+ * the operation failed and the `data` field is a nullptr.
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_read opendal_operator_read_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_read_options *opts);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -1006,6 +1505,13 @@ struct opendal_result_operator_writer opendal_operator_writer(const struct opend
                                                               const char *path);
 
 /**
+ * \brief Blocking create a writer for the specified path with options.
+ */
+struct opendal_result_operator_writer opendal_operator_writer_with(const struct opendal_operator *op,
+                                                                   const char *path,
+                                                                   const struct opendal_write_options *opts);
+
+/**
  * \brief Blocking delete the object in `path`.
  *
  * Delete the object in `path` blocking by `op_ptr`.
@@ -1048,6 +1554,32 @@ struct opendal_result_operator_writer opendal_operator_writer(const struct opend
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
 struct opendal_error *opendal_operator_delete(const struct opendal_operator *op, const char *path);
+
+/**
+ * \brief Blocking delete the object in `path` with options.
+ *
+ * Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
+ * This is similar to `opendal_operator_delete` but allows specifying a version or
+ * requesting a recursive delete.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path you want to delete
+ * @param opts The options for the delete operation; pass NULL to use defaults
+ * @see opendal_delete_options
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_error *opendal_operator_delete_with(const struct opendal_operator *op,
+                                                   const char *path,
+                                                   const struct opendal_delete_options *opts);
 
 /**
  * \brief Check whether the path exists.
@@ -1175,6 +1707,34 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
                                                  const char *path);
 
 /**
+ * \brief Blocking stat the object in `path` with options.
+ *
+ * Stat the object in `path` with the provided `opendal_stat_options`. This is
+ * similar to `opendal_operator_stat` but allows passing options such as
+ * `version`, `if_match`, `if_none_match`, or response header overrides.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to stat
+ * @param opts The options for the stat operation; pass NULL to use defaults
+ * @see opendal_operator
+ * @see opendal_result_stat
+ * @see opendal_stat_options
+ * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_stat opendal_operator_stat_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_stat_options *opts);
+
+/**
  * \brief Blocking list the objects in `path`.
  *
  * List the object in `path` blocking by `op_ptr`, return a result with an
@@ -1226,6 +1786,33 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  */
 struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
+
+/**
+ * \brief Blocking list the objects in `path` with options.
+ *
+ * List the objects in `path` with the provided `opendal_list_options`. This is
+ * similar to `opendal_operator_list` but allows passing options such as
+ * `recursive` to control the listing behavior.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path you want to list
+ * @param opts The options for the list operation; pass NULL to use defaults
+ * @see opendal_lister
+ * @see opendal_list_options
+ * @return Returns opendal_result_list, containing a lister and an opendal_error.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid null terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_list opendal_operator_list_with(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      const struct opendal_list_options *opts);
 
 /**
  * \brief Blocking create the directory in `path`.
@@ -1482,6 +2069,288 @@ void opendal_string_free(char *ptr);
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
+
+/**
+ * \brief Construct a heap-allocated opendal_list_options with default values.
+ *
+ * @return A new opendal_list_options with all options set to their defaults.
+ *
+ * @see opendal_list_options_free
+ */
+struct opendal_list_options *opendal_list_options_new(void);
+
+/**
+ * \brief Set the recursive option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param recursive Whether to list recursively.
+ */
+void opendal_list_options_set_recursive(struct opendal_list_options *opts, bool recursive);
+
+/**
+ * \brief Set the limit option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param limit Maximum number of results per request; 0 means unset.
+ */
+void opendal_list_options_set_limit(struct opendal_list_options *opts, uintptr_t limit);
+
+/**
+ * \brief Set the start_after option.
+ *
+ * Passes the specified key to the underlying service to start listing from.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param start_after The key to start listing from; NULL to unset.
+ */
+void opendal_list_options_set_start_after(struct opendal_list_options *opts,
+                                          const char *start_after);
+
+/**
+ * \brief Free the heap memory used by opendal_list_options.
+ *
+ * @param opts The opendal_list_options to free.
+ */
+void opendal_list_options_free(struct opendal_list_options *opts);
+
+/**
+ * \brief Construct a heap-allocated opendal_delete_options with default values.
+ *
+ * @return A new opendal_delete_options with all options set to their defaults.
+ *
+ * @see opendal_delete_options_free
+ */
+struct opendal_delete_options *opendal_delete_options_new(void);
+
+/**
+ * \brief Set the version option.
+ *
+ * @param opts The opendal_delete_options to modify.
+ * @param version The version string to delete; NULL to unset.
+ */
+void opendal_delete_options_set_version(struct opendal_delete_options *opts, const char *version);
+
+/**
+ * \brief Set the recursive option.
+ *
+ * @param opts The opendal_delete_options to modify.
+ * @param recursive Whether to delete recursively.
+ */
+void opendal_delete_options_set_recursive(struct opendal_delete_options *opts, bool recursive);
+
+/**
+ * \brief Free the heap memory used by opendal_delete_options.
+ *
+ * @param opts The opendal_delete_options to free.
+ */
+void opendal_delete_options_free(struct opendal_delete_options *opts);
+
+/**
+ * \brief Construct a heap-allocated opendal_write_options with default values.
+ */
+struct opendal_write_options *opendal_write_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_write_options.
+ */
+void opendal_write_options_free(struct opendal_write_options *opts);
+
+/**
+ * \brief Set append mode.
+ */
+void opendal_write_options_set_append(struct opendal_write_options *opts, bool append);
+
+/**
+ * \brief Set Cache-Control.
+ */
+void opendal_write_options_set_cache_control(struct opendal_write_options *opts,
+                                             const char *cache_control);
+
+/**
+ * \brief Set Content-Type.
+ */
+void opendal_write_options_set_content_type(struct opendal_write_options *opts,
+                                            const char *content_type);
+
+/**
+ * \brief Set Content-Disposition.
+ */
+void opendal_write_options_set_content_disposition(struct opendal_write_options *opts,
+                                                   const char *content_disposition);
+
+/**
+ * \brief Set Content-Encoding.
+ */
+void opendal_write_options_set_content_encoding(struct opendal_write_options *opts,
+                                                const char *content_encoding);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_write_options_set_if_match(struct opendal_write_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_write_options_set_if_none_match(struct opendal_write_options *opts,
+                                             const char *if_none_match);
+
+/**
+ * \brief Set if_not_exists.
+ */
+void opendal_write_options_set_if_not_exists(struct opendal_write_options *opts,
+                                             bool if_not_exists);
+
+/**
+ * \brief Set concurrent.
+ */
+void opendal_write_options_set_concurrent(struct opendal_write_options *opts, uintptr_t concurrent);
+
+/**
+ * \brief Set chunk.
+ */
+void opendal_write_options_set_chunk(struct opendal_write_options *opts, uintptr_t chunk);
+
+/**
+ * \brief Set user metadata.
+ */
+void opendal_write_options_set_user_metadata(struct opendal_write_options *opts,
+                                             const struct opendal_write_user_metadata_pair *pairs,
+                                             uintptr_t len);
+
+/**
+ * \brief Construct a heap-allocated opendal_stat_options with default values.
+ */
+struct opendal_stat_options *opendal_stat_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_stat_options.
+ */
+void opendal_stat_options_free(struct opendal_stat_options *opts);
+
+/**
+ * \brief Set the version.
+ */
+void opendal_stat_options_set_version(struct opendal_stat_options *opts, const char *version);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_stat_options_set_if_match(struct opendal_stat_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_stat_options_set_if_none_match(struct opendal_stat_options *opts,
+                                            const char *if_none_match);
+
+/**
+ * \brief Set If-Modified-Since in milliseconds since the Unix epoch.
+ */
+void opendal_stat_options_set_if_modified_since(struct opendal_stat_options *opts,
+                                                int64_t if_modified_since);
+
+/**
+ * \brief Set If-Unmodified-Since in milliseconds since the Unix epoch.
+ */
+void opendal_stat_options_set_if_unmodified_since(struct opendal_stat_options *opts,
+                                                  int64_t if_unmodified_since);
+
+/**
+ * \brief Set the override Content-Type.
+ */
+void opendal_stat_options_set_override_content_type(struct opendal_stat_options *opts,
+                                                    const char *override_content_type);
+
+/**
+ * \brief Set the override Cache-Control.
+ */
+void opendal_stat_options_set_override_cache_control(struct opendal_stat_options *opts,
+                                                     const char *override_cache_control);
+
+/**
+ * \brief Set the override Content-Disposition.
+ */
+void opendal_stat_options_set_override_content_disposition(struct opendal_stat_options *opts,
+                                                           const char *override_content_disposition);
+
+/**
+ * \brief Construct a heap-allocated opendal_read_options with default values.
+ */
+struct opendal_read_options *opendal_read_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_read_options.
+ */
+void opendal_read_options_free(struct opendal_read_options *opts);
+
+/**
+ * \brief Set the read range offset and length.
+ */
+void opendal_read_options_set_range(struct opendal_read_options *opts,
+                                    uint64_t offset,
+                                    uint64_t length);
+
+/**
+ * \brief Set the version of the object to read.
+ */
+void opendal_read_options_set_version(struct opendal_read_options *opts, const char *version);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_read_options_set_if_match(struct opendal_read_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_read_options_set_if_none_match(struct opendal_read_options *opts,
+                                            const char *if_none_match);
+
+/**
+ * \brief Set If-Modified-Since, in Unix milliseconds.
+ */
+void opendal_read_options_set_if_modified_since(struct opendal_read_options *opts,
+                                                int64_t if_modified_since);
+
+/**
+ * \brief Set If-Unmodified-Since, in Unix milliseconds.
+ */
+void opendal_read_options_set_if_unmodified_since(struct opendal_read_options *opts,
+                                                  int64_t if_unmodified_since);
+
+/**
+ * \brief Set concurrent read operations.
+ */
+void opendal_read_options_set_concurrent(struct opendal_read_options *opts, uintptr_t concurrent);
+
+/**
+ * \brief Set chunk size.
+ */
+void opendal_read_options_set_chunk(struct opendal_read_options *opts, uintptr_t chunk);
+
+/**
+ * \brief Set gap size.
+ */
+void opendal_read_options_set_gap(struct opendal_read_options *opts, uintptr_t gap);
+
+/**
+ * \brief Set the override Content-Type (presign only).
+ */
+void opendal_read_options_set_override_content_type(struct opendal_read_options *opts,
+                                                    const char *override_content_type);
+
+/**
+ * \brief Set the override Cache-Control (presign only).
+ */
+void opendal_read_options_set_override_cache_control(struct opendal_read_options *opts,
+                                                     const char *override_cache_control);
+
+/**
+ * \brief Set the override Content-Disposition (presign only).
+ */
+void opendal_read_options_set_override_content_disposition(struct opendal_read_options *opts,
+                                                           const char *override_content_disposition);
 
 /**
  * \brief Construct a heap-allocated opendal_operator_options

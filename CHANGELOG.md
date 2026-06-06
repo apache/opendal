@@ -7,6 +7,163 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.57.0] - 2026-05-28
+
+### Breaking Changes
+* core: `Operator::copy`, `copy_options`, `copy_with`, and blocking copy APIs now return `Metadata` instead of `()`. Custom raw copy implementations must implement the new copier flow and return server-side completion metadata from `oio::Copy::close`.
+* core: `RpRead` now carries optional `Metadata` observed while opening a read operation. Out-of-tree raw services that previously populated `RpRead` size or range fields must return `RpRead::new(metadata)` when read metadata is available, or `RpRead::default()` otherwise.
+* core: `RetryInterceptor::intercept` now takes a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. Update custom retry interceptors to read retry error, delay, operation, and attempt data from the event.
+* observability: HTTP metrics now include the `service_operation` label for service-specific request names. Update Prometheus, OpenTelemetry, fastmetrics, or custom metrics consumers that assume the previous HTTP metric label set.
+* services: S3-compatible services now use `skip_signature` for unsigned requests. S3, OSS, and GCS keep `allow_anonymous` as a deprecated alias; TOS users must migrate to `skip_signature` because `allow_anonymous` has been removed. GCS `skip_signature` now unconditionally bypasses signing instead of falling back on credential errors.
+* services/hf: `repo_type` is now required for the Hugging Face service. Set `repo_type` explicitly, for example `model`, `dataset`, `space`, or `bucket`, instead of relying on the previous implicit `model` default.
+* services/tos: `TosBuilder::enable_versioning` and `TosConfig::enable_versioning` have been removed. TOS now declares versioned stat/read/delete capabilities natively.
+* bindings/java: generated `ServiceConfig` now uses canonical service names. Replace `ServiceConfig.Huggingface` with `ServiceConfig.Hf`; generated `scheme()` values for services such as Aliyun Drive, Cloudflare KV, HDFS Native, Vercel Artifacts, Vercel Blob, and Yandex Disk now return hyphenated canonical schemes instead of underscore variants.
+
+### Added
+* feat(bindings/python): add behavior tests for conditional read/write by @TennyZhuang in https://github.com/apache/opendal/pull/7449
+* feat(bindings/python): expose list_with_versions and list_with_deleted in Capability by @TennyZhuang in https://github.com/apache/opendal/pull/7445
+* feat(bindings/python): expose if_not_exists option for copy by @TennyZhuang in https://github.com/apache/opendal/pull/7442
+* feat(bindings/python): expose DeleteOptions version and recursive params by @TennyZhuang in https://github.com/apache/opendal/pull/7443
+* feat(metrics): Add regression test for metrics recording by @dentiny in https://github.com/apache/opendal/pull/7362
+* feat(bindings/nodejs): add Operator.fromUri static factory by @TennyZhuang in https://github.com/apache/opendal/pull/7471
+* feat(bindings/nodejs): add Entry.name getter by @TennyZhuang in https://github.com/apache/opendal/pull/7470
+* feat(bindings/nodejs): add presignDelete method and Capability getter by @TennyZhuang in https://github.com/apache/opendal/pull/7468
+* feat(bindings/dart): add File.read and File.write with error mapping by @TennyZhuang in https://github.com/apache/opendal/pull/7473
+* feat(services/oss): support ECS RAM role credentials by @WenyXu in https://github.com/apache/opendal/pull/7480
+* feat(retry): record more fields in the retry interceptor by @dentiny in https://github.com/apache/opendal/pull/7406
+* feat(metrics): add service operation to metrics label by @dentiny in https://github.com/apache/opendal/pull/7407
+* feat(bindings/python): expose stat_with_if_modified_since, stat_with_if_unmodified_since, stat_with_version in Capability by @TennyZhuang in https://github.com/apache/opendal/pull/7444
+* feat(oss): add operation label for metrics by @dentiny in https://github.com/apache/opendal/pull/7489
+* feat(azure): Add operation label to azure operations by @dentiny in https://github.com/apache/opendal/pull/7488
+* feat(gcs): add service operation in metrics by @dentiny in https://github.com/apache/opendal/pull/7487
+* feat(core): expose metadata access for raw list entries by @ngg in https://github.com/apache/opendal/pull/7493
+* feat(hf): auto-discover token from env and credential file by @kszucs in https://github.com/apache/opendal/pull/7490
+* feat(services/opfs): OPFS backend for OpenDAL by @jccampagne in https://github.com/apache/opendal/pull/7199
+* feat(services/s3): support configuring assume role duration_seconds by @YuangGao in https://github.com/apache/opendal/pull/7495
+* feat(services/goosefs): implement opendal-service-goosefs crate backed by goosefs-sdk by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7428
+* feat(service/tos): impl tos read/write/delete by @ddupg in https://github.com/apache/opendal/pull/7350
+* feat(services/mysql): support list by @fengys1996 in https://github.com/apache/opendal/pull/7076
+* feat(services/s3): support configuring assume role session tags by @YuangGao in https://github.com/apache/opendal/pull/7518
+* feat(services/cos): support copy_with_if_not_exists via x-cos-forbid-… by @mikewhb in https://github.com/apache/opendal/pull/7526
+* feat(core): add split_to and split_off to Buffer by @kimjune01 in https://github.com/apache/opendal/pull/7513
+* feat(bindings/java): Add musl platform support by @Xuanwo in https://github.com/apache/opendal/pull/7087
+* feat(services/azdls): Add user defined metadata support by @YuangGao in https://github.com/apache/opendal/pull/7528
+* feat(binding/c): extract metadata from list entry by @dentiny in https://github.com/apache/opendal/pull/7529
+* feat(binding/golang): expose metadata on list operation by @dentiny in https://github.com/apache/opendal/pull/7534
+* feat(core): add copier api by @Xuanwo in https://github.com/apache/opendal/pull/7527
+* feat(services/azblob): support skip_signature by @YuangGao in https://github.com/apache/opendal/pull/7533
+* feat(services/s3): add multipart copier by @Xuanwo in https://github.com/apache/opendal/pull/7541
+* feat(core): add capability override layer by @Xuanwo in https://github.com/apache/opendal/pull/7520
+* feat(services/gcs): add rewrite copier by @Xuanwo in https://github.com/apache/opendal/pull/7545
+* feat(services/s3): Rename allow_anonymous to skip_signature by @YuangGao in https://github.com/apache/opendal/pull/7544
+* feat(core): Add content length hints for read and copy by @leiysky in https://github.com/apache/opendal/pull/7543
+* feat(services/tos): add list support by @ddupg in https://github.com/apache/opendal/pull/7536
+* feat(services/oss): Rename allow_anonymous to skip_signature by @YuangGao in https://github.com/apache/opendal/pull/7556
+* feat(services/tos): Add native copy support by @ddupg in https://github.com/apache/opendal/pull/7553
+* feat(services/tos): Rename allow_anonymous to skip_signature by @YuangGao in https://github.com/apache/opendal/pull/7566
+* feat(services/gcs): Rename allow_anonymous to skip_signature by @YuangGao in https://github.com/apache/opendal/pull/7567
+* feat(services/azblob): add block copier by @Xuanwo in https://github.com/apache/opendal/pull/7551
+* feat(services/tos): implement stat and multipart upload by @ddupg in https://github.com/apache/opendal/pull/7552
+* feat(services/tos): add versioning support by @ddupg in https://github.com/apache/opendal/pull/7575
+* feat(services/tos): enable shared capability by @ddupg in https://github.com/apache/opendal/pull/7580
+* feat(services/tos): implement copier by @ddupg in https://github.com/apache/opendal/pull/7576
+* feat(services/goosefs): bump goosefs-sdk to 0.1.2 and image to v2.1.0.1 by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7588
+* feat: add reqwest-rustls-no-provider-tls feature by @valkum in https://github.com/apache/opendal/pull/7582
+* feat(services/cos): support cosn scheme and STS security token by @WangXiaoBao1222 in https://github.com/apache/opendal/pull/7418
+* feat(copy): apply timeout to copy operations by @dentiny in https://github.com/apache/opendal/pull/7594
+* feat(copy): add conditional destination copy by @dentiny in https://github.com/apache/opendal/pull/7600
+* feat(s3): validate multipart copy part number by @dentiny in https://github.com/apache/opendal/pull/7585
+* feat(core): return metadata from copy by @Xuanwo in https://github.com/apache/opendal/pull/7606
+* feat: C/Go bindings support layers by @yuchanns in https://github.com/apache/opendal/pull/7611
+* feat(core): return metadata from read by @Xuanwo in https://github.com/apache/opendal/pull/7624
+* feat(core): complete copy_with_if_match implementation by @YuangGao in https://github.com/apache/opendal/pull/7627
+* feat(services/hf): add download_mode option and require explicit repo_type by @kszucs in https://github.com/apache/opendal/pull/7625
+### Changed
+* refactor(services/s3): complete capability override migration by @Xuanwo in https://github.com/apache/opendal/pull/7546
+* refactor(services/oss): complete capability override migration by @Xuanwo in https://github.com/apache/opendal/pull/7549
+* refactor(services/cos): complete capability override migration by @Xuanwo in https://github.com/apache/opendal/pull/7554
+* refactor(services/tos): remove versioning option by @Xuanwo in https://github.com/apache/opendal/pull/7555
+* refactor(services/onedrive): deprecate versioning option by @Xuanwo in https://github.com/apache/opendal/pull/7558
+* refactor(services/obs): deprecate versioning option by @Xuanwo in https://github.com/apache/opendal/pull/7560
+* refactor(services/azblob): deprecate batch option by @Xuanwo in https://github.com/apache/opendal/pull/7561
+* refactor(services/webdav): deprecate capability toggles by @Xuanwo in https://github.com/apache/opendal/pull/7562
+* refactor(services/hdfs): deprecate append option by @Xuanwo in https://github.com/apache/opendal/pull/7563
+* refactor(services/sftp): deprecate copy option by @Xuanwo in https://github.com/apache/opendal/pull/7568
+* refactor(services/azblob): use OsEnv instead of StaticEnv hack by @YuangGao in https://github.com/apache/opendal/pull/7589
+### Fixed
+* fix(core): validate range bounds to prevent underflow by @TennyZhuang in https://github.com/apache/opendal/pull/7441
+* fix(bindings/python): add RateLimited and RangeNotSatisfied exception kinds by @TennyZhuang in https://github.com/apache/opendal/pull/7437
+* fix(core): prevent integer overflow in parse_into_range for u64::MAX bounds by @TennyZhuang in https://github.com/apache/opendal/pull/7397
+* fix(layers/concurrent-limit): limit copy and rename by @TennyZhuang in https://github.com/apache/opendal/pull/7452
+* fix(services/ghac): normalize cache URL joins by @TennyZhuang in https://github.com/apache/opendal/pull/7450
+* Revert "fix(services/s3): support write if-none-match" by @dentiny in https://github.com/apache/opendal/pull/7462
+* fix(core): prevent integer overflow/underflow in BytesRange conversions by @TennyZhuang in https://github.com/apache/opendal/pull/7398
+* fix(services/gdrive): stabilize behavior CI semantics by @suyanhanx in https://github.com/apache/opendal/pull/7390
+* fix(services/gdrive): restore behavior CI semantics by @suyanhanx in https://github.com/apache/opendal/pull/7486
+* fix(core): refresh tos lockfile entry by @Xuanwo in https://github.com/apache/opendal/pull/7515
+* fix(bindings/go): release owned c strings via c api by @jihuayu in https://github.com/apache/opendal/pull/7403
+* fix(services): redact credentials in debug output by @jihuayu in https://github.com/apache/opendal/pull/7523
+* fix(dev/generator): fix service generation after services refactor by @trim21 in https://github.com/apache/opendal/pull/7531
+* fix(services/azdls): return user metadata from stat by @Xuanwo in https://github.com/apache/opendal/pull/7532
+* fix(binding/go): correct entry free ffi signature by @Xuanwo in https://github.com/apache/opendal/pull/7538
+* fix(binding/go): keep service library loaded by @Xuanwo in https://github.com/apache/opendal/pull/7542
+* fix(ci): disable WebDAV metadata test for Nextcloud and OwnCloud by @Xuanwo in https://github.com/apache/opendal/pull/7565
+* fix(bindings/nodejs): Align versioned list startAfter test by @ddupg in https://github.com/apache/opendal/pull/7579
+* ci: fix up Haskell workflows by @dentiny in https://github.com/apache/opendal/pull/7586
+* fix(copy): avoid caching source metadata in copiers by @Xuanwo in https://github.com/apache/opendal/pull/7590
+* fix(copy): add retry for copy operation by @dentiny in https://github.com/apache/opendal/pull/7595
+* fix(layers): wrap copier with all layers by @dentiny in https://github.com/apache/opendal/pull/7596
+* fix(services/goosefs): bump goosefs-sdk to 0.1.3 by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7603
+* fix(services/tos): Set user agent header by @ddupg in https://github.com/apache/opendal/pull/7598
+* fix(s3): fix S3 copy response by @dentiny in https://github.com/apache/opendal/pull/7602
+### Docs
+* docs(bindings/dart): document local development workflow by @TennyZhuang in https://github.com/apache/opendal/pull/7478
+* docs(hf): document bucket support and update service table by @kszucs in https://github.com/apache/opendal/pull/7387
+* docs(sftp): correct key description to private key by @FilUnderscore in https://github.com/apache/opendal/pull/7492
+* docs: add OpenDAL release skill by @Xuanwo in https://github.com/apache/opendal/pull/7482
+* RFC-7519: Copier API by @Xuanwo in https://github.com/apache/opendal/pull/7519
+* docs: Add skip_signature upgrade note by @Xuanwo in https://github.com/apache/opendal/pull/7570
+* docs(services): Document skip_signature in S3 and GCS docs by @YuangGao in https://github.com/apache/opendal/pull/7572
+* docs: update architecture overview image by @Xuanwo in https://github.com/apache/opendal/pull/7574
+* docs: reshape README around action cards by @Xuanwo in https://github.com/apache/opendal/pull/7578
+* docs: tune service logo presentation by @Xuanwo in https://github.com/apache/opendal/pull/7581
+* docs(services/tos): add service docs by @ddupg in https://github.com/apache/opendal/pull/7587
+* docs: update read returns metadata RFC by @Xuanwo in https://github.com/apache/opendal/pull/7623
+### CI
+* ci(bindings/dotnet): drive releases via workflow_dispatch with previe… by @Fatorin in https://github.com/apache/opendal/pull/7422
+* ci: drop skipStagingRepositoryClose for smoother staging by @tisonkun in https://github.com/apache/opendal/pull/7436
+* ci(s3): use curl -fLO to follow redirect when downloading mc by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7429
+* ci(bindings/ocaml): upgrade setup-ocaml to v3 to fix opam release download by @TennyZhuang in https://github.com/apache/opendal/pull/7455
+* ci(bindings/ocaml): avoid unnecessary dune cache install by @TennyZhuang in https://github.com/apache/opendal/pull/7457
+* ci: fix main workflow failures by @Xuanwo in https://github.com/apache/opendal/pull/7476
+* ci: harden rust release publishing by @Xuanwo in https://github.com/apache/opendal/pull/7474
+* ci: fix check-msrv ci  by @tisonkun in https://github.com/apache/opendal/pull/7483
+* build(deps): upgrade hotpath to 0.16.0 by @Xuanwo in https://github.com/apache/opendal/pull/7503
+* build(deps): upgrade etcd-client to 0.18.0 by @Xuanwo in https://github.com/apache/opendal/pull/7498
+* ci: install wasm-pack from official installer by @Xuanwo in https://github.com/apache/opendal/pull/7517
+* ci: Add ASF allowlist check by @Xuanwo in https://github.com/apache/opendal/pull/7516
+* ci: Add TOS behavior test setup by @Xuanwo in https://github.com/apache/opendal/pull/7548
+* fix(ci/goosefs): bind master internal RPC to 0.0.0.0 and force IPv4 by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7597
+### Chore
+* chore: Update .gitignore to remove bin and build entries by @tisonkun in https://github.com/apache/opendal/pull/7460
+* chore(bindings/dart): upgrade flutter_rust_bridge to 2.12.0 and fix native library loading by @TennyZhuang in https://github.com/apache/opendal/pull/7472
+* chore(deps): bump the docusaur group in /website with 3 updates by @dependabot[bot] in https://github.com/apache/opendal/pull/7464
+* chore(deps): upgrade rand to 0.10.1 by @Xuanwo in https://github.com/apache/opendal/pull/7510
+* test(bindings/nodejs): upgrade vitest for behavior stability by @suyanhanx in https://github.com/apache/opendal/pull/7564
+
+## New Contributors
+* @XuQianJin-Stars made their first contribution in https://github.com/apache/opendal/pull/7429
+* @FilUnderscore made their first contribution in https://github.com/apache/opendal/pull/7492
+* @jccampagne made their first contribution in https://github.com/apache/opendal/pull/7199
+* @YuangGao made their first contribution in https://github.com/apache/opendal/pull/7495
+* @fengys1996 made their first contribution in https://github.com/apache/opendal/pull/7076
+* @mikewhb made their first contribution in https://github.com/apache/opendal/pull/7526
+* @kimjune01 made their first contribution in https://github.com/apache/opendal/pull/7513
+* @valkum made their first contribution in https://github.com/apache/opendal/pull/7582
+* @WangXiaoBao1222 made their first contribution in https://github.com/apache/opendal/pull/7418
+
+**Full Changelog**: https://github.com/apache/opendal/compare/v0.56.0...v0.57.0
+
 ## [v0.56.0] - 2026-04-16
 
 ### Breaking Changes

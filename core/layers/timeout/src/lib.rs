@@ -327,10 +327,34 @@ impl<R> TimeoutWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
         Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
+    }
+}
+
+impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.open(range),
+        )
+        .await?;
+        Ok((
+            rp,
+            Box::new(TimeoutWrapper::new(stream, self.timeout)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.read(range),
+        )
+        .await
     }
 }
 
@@ -376,6 +400,11 @@ impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
         Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        let fut = self.inner.close();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
         Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
@@ -415,7 +444,10 @@ mod tests {
 
         /// This function will build a reader that always return pending.
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(MockReader)))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(MockReader),
+            ))
         }
 
         /// This function will never return.
@@ -444,7 +476,14 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read(&mut self) -> impl Future<Output = Result<Buffer>> {
+        fn open(
+            &self,
+            _: BytesRange,
+        ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> {
+            pending()
+        }
+
+        fn read(&self, _: BytesRange) -> impl Future<Output = Result<(RpRead, Buffer)>> {
             pending()
         }
     }
@@ -476,6 +515,10 @@ mod tests {
 
     impl oio::Copy for MockCopier {
         fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> {
+            pending()
+        }
+
+        fn close(&mut self) -> impl Future<Output = Result<Metadata>> {
             pending()
         }
 

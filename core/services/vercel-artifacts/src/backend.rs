@@ -32,8 +32,53 @@ pub struct VercelArtifactsBackend {
     pub core: Arc<VercelArtifactsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct VercelArtifactsReader {
+    backend: VercelArtifactsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl VercelArtifactsReader {
+    fn new(backend: VercelArtifactsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for VercelArtifactsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let response = backend
+            .core
+            .vercel_artifacts_get(path, range, &args)
+            .await?;
+
+        let status = response.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = response.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for VercelArtifactsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<VercelArtifactsReader>;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type Deleter = ();
@@ -57,25 +102,11 @@ impl Access for VercelArtifactsBackend {
             _ => Err(parse_error(response)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let response = self
-            .core
-            .vercel_artifacts_get(path, args.range(), &args)
-            .await?;
-
-        let status = response.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::new(), response.into_body()))
-            }
-            _ => {
-                let (part, mut body) = response.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(VercelArtifactsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

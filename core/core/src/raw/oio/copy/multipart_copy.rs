@@ -41,7 +41,7 @@ pub trait MultipartCopy: Send + Sync + Unpin + 'static {
     ///
     /// MultipartCopier will call this API when the source object can be copied
     /// without starting a multipart copy.
-    fn copy_once(&self) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn copy_once(&self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// initiate_copy starts a multipart copy and returns the upload id.
     fn initiate_copy(&self) -> impl Future<Output = Result<String>> + MaybeSend;
@@ -61,7 +61,7 @@ pub trait MultipartCopy: Send + Sync + Unpin + 'static {
         &self,
         upload_id: &str,
         parts: &[MultipartPart],
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 
     /// abort_copy cancels the pending multipart copy and purges intermediate state.
     fn abort_copy(&self, upload_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -95,7 +95,7 @@ struct CopiedPart {
 /// MultipartCopier implements [`oio::Copy`] based on multipart copy.
 pub struct MultipartCopier<C: MultipartCopy> {
     copier: Arc<C>,
-    executor: Executor,
+    info: Arc<AccessorInfo>,
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
@@ -106,6 +106,7 @@ pub struct MultipartCopier<C: MultipartCopy> {
     part_size: u64,
     concurrent: usize,
     completed: bool,
+    metadata: Option<Metadata>,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedPart>,
 }
@@ -126,7 +127,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
         Self {
             copier,
-            executor: executor.clone(),
+            info,
             upload_id: None,
             parts: Vec::new(),
             next_part_number: 0,
@@ -136,6 +137,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             part_size,
             concurrent,
             completed: false,
+            metadata: None,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin(async move {
@@ -183,6 +185,38 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         }
     }
 
+    /// Ensure the planned multipart copy does not exceed the service's derived part-count limit.
+    ///
+    /// This is called before `initiate_copy` so we fail a copy operation before we make any IO.
+    fn validate_part_count(&self, source_size: u64) -> Result<()> {
+        let capability = self.info.full_capability();
+        let (Some(max_total_size), Some(max_part_size)) = (
+            capability.write_total_max_size,
+            capability.write_multi_max_size,
+        ) else {
+            return Ok(());
+        };
+
+        if max_part_size == 0 {
+            return Ok(());
+        }
+
+        let max_parts = (max_total_size as u64).div_ceil(max_part_size as u64);
+        let part_count = source_size.div_ceil(self.part_size);
+        if part_count > max_parts {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "multipart copy part count exceeds service limit, please increase `OpCopier::chunk`"
+            )
+            .with_context("source_size", source_size)
+            .with_context("part_size", self.part_size)
+            .with_context("part_count", part_count)
+            .with_context("max_parts", max_parts));
+        }
+
+        Ok(())
+    }
+
     async fn upload_id(&mut self) -> Result<Arc<String>> {
         match self.upload_id.clone() {
             Some(upload_id) => Ok(upload_id),
@@ -197,6 +231,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
     async fn fill_tasks(&mut self, upload_id: Arc<String>, source_size: u64) -> Result<()> {
         let mut scheduled = 0;
+        let executor = self.info.executor();
 
         while self.next_offset < source_size
             && self.tasks.has_remaining()
@@ -207,7 +242,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
             let input = CopyInput {
                 copier: self.copier.clone(),
-                executor: self.executor.clone(),
+                executor: executor.clone(),
                 upload_id: upload_id.clone(),
                 part_number: self.next_part_number,
                 range,
@@ -246,9 +281,14 @@ where
         let source_size = self.source_size().await?;
 
         if self.upload_id.is_none() && source_size <= self.copy_once_threshold {
-            self.copier.copy_once().await?;
+            self.metadata = Some(self.copier.copy_once().await?);
             self.completed = true;
             return Ok(None);
+        }
+
+        // Validate part count before performing any copy requests.
+        if self.upload_id.is_none() {
+            self.validate_part_count(source_size)?;
         }
 
         let upload_id = self.upload_id().await?;
@@ -283,9 +323,17 @@ where
         }
 
         self.parts.sort_by_key(|part| part.part_number);
-        self.copier.complete_copy(&upload_id, &self.parts).await?;
+        self.metadata = Some(self.copier.complete_copy(&upload_id, &self.parts).await?);
         self.completed = true;
         Ok(None)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        while !self.completed {
+            self.next().await?;
+        }
+
+        Ok(self.metadata.clone().unwrap_or_default())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -296,6 +344,7 @@ where
 
         self.copier.abort_copy(&upload_id).await?;
         self.completed = true;
+        self.metadata = None;
         Ok(())
     }
 }
@@ -312,6 +361,7 @@ mod tests {
         source_size: u64,
         source_metadata_calls: AtomicUsize,
         copy_once_calls: AtomicUsize,
+        initiate_copy_calls: AtomicUsize,
     }
 
     impl TestCopy {
@@ -320,6 +370,7 @@ mod tests {
                 source_size,
                 source_metadata_calls: AtomicUsize::new(0),
                 copy_once_calls: AtomicUsize::new(0),
+                initiate_copy_calls: AtomicUsize::new(0),
             })
         }
     }
@@ -330,12 +381,13 @@ mod tests {
             Ok(Metadata::default().with_content_length(self.source_size))
         }
 
-        async fn copy_once(&self) -> Result<()> {
+        async fn copy_once(&self) -> Result<Metadata> {
             self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(())
+            Ok(Metadata::default())
         }
 
         async fn initiate_copy(&self) -> Result<String> {
+            self.initiate_copy_calls.fetch_add(1, Ordering::Relaxed);
             Ok("upload_id".to_string())
         }
 
@@ -353,8 +405,8 @@ mod tests {
             })
         }
 
-        async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<()> {
-            Ok(())
+        async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
+            Ok(Metadata::default())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {
@@ -381,6 +433,37 @@ mod tests {
         assert_eq!(copier.next().await?, None);
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_part_count_rejects_before_initiate() -> Result<()> {
+        let info = Arc::new(AccessorInfo::default());
+        info.update_full_capability(|cap| Capability {
+            write_total_max_size: Some(2),
+            write_multi_max_size: Some(1),
+            ..cap
+        });
+
+        // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
+        let inner = TestCopy::new(10);
+        let mut copier = MultipartCopier::new(
+            /*info=*/ info,
+            /*inner=*/ inner.clone(),
+            /*source_content_length_hint=*/ Some(10),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 1,
+            /*concurrent=*/ 1,
+        );
+
+        let err = copier
+            .next()
+            .await
+            .expect_err("part count should exceed max_parts");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        // Validation must reject before any multipart state is created on the server.
+        assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 0);
         Ok(())
     }
 }

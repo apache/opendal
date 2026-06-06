@@ -120,8 +120,46 @@ impl FoundationdbBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct FoundationdbReader {
+    backend: FoundationdbBackend,
+    path: String,
+}
+
+impl FoundationdbReader {
+    fn new(backend: FoundationdbBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for FoundationdbReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "kv not found in foundationdb",
+                ));
+            }
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for FoundationdbBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<FoundationdbReader>;
     type Writer = FoundationdbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoundationdbDeleter>;
@@ -149,19 +187,11 @@ impl Access for FoundationdbBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "kv not found in foundationdb",
-                ));
-            }
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(FoundationdbReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

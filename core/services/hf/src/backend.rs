@@ -23,9 +23,10 @@ use log::debug;
 use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
+use super::core::HfDownloadMode;
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
-use super::reader::HfReader;
+use super::reader::HfReadStream;
 use super::uri::{HfRepo, HfRepoType};
 use super::writer::HfWriter;
 use opendal_core::raw::*;
@@ -52,7 +53,7 @@ impl HfBuilder {
     pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
             if let Ok(rt) = HfRepoType::parse(repo_type) {
-                self.config.repo_type = rt;
+                self.config.repo_type = Some(rt);
             }
         }
         self
@@ -107,6 +108,19 @@ impl HfBuilder {
     pub fn token(mut self, token: &str) -> Self {
         if !token.is_empty() {
             self.config.token = Some(token.to_string());
+        }
+        self
+    }
+
+    /// Set the download mode. Either `xet` (default) or `http`.
+    ///
+    /// - `xet`: uses the XET protocol for downloads (default).
+    /// - `http`: plain HTTP download, following the redirect from the server.
+    pub fn download_mode(mut self, mode: &str) -> Self {
+        if !mode.is_empty() {
+            if let Ok(m) = HfDownloadMode::parse(mode) {
+                self.config.download_mode = Some(m);
+            }
         }
         self
     }
@@ -178,15 +192,18 @@ impl Builder for HfBuilder {
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
 
-        let repo_type = self.config.repo_type;
+        let repo_type = self.config.repo_type.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "repo_type is required")
+                .with_operation("Builder::build")
+                .with_context("service", HF_SCHEME)
+        })?;
         debug!("backend use repo_type: {:?}", &repo_type);
 
-        let repo_id = match &self.config.repo_id {
-            Some(repo_id) => Ok(repo_id.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
+        let repo_id = self.config.repo_id.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "repo_id is required")
                 .with_operation("Builder::build")
-                .with_context("service", HF_SCHEME)),
-        }?;
+                .with_context("service", HF_SCHEME)
+        })?;
         debug!("backend use repo_id: {}", &repo_id);
 
         let revision = match &self.config.revision {
@@ -199,6 +216,8 @@ impl Builder for HfBuilder {
         debug!("backend use root: {}", &root);
         debug!("backend use token: {}", token.is_some());
         debug!("backend use endpoint: {}", &endpoint);
+        let download_mode = self.config.download_mode.unwrap_or_default();
+        debug!("backend use download_mode: {:?}", download_mode);
 
         let info: Arc<AccessorInfo> = {
             let am = AccessorInfo::default();
@@ -220,7 +239,14 @@ impl Builder for HfBuilder {
         debug!("backend repo uri: {:?}", repo.uri(&root, ""));
 
         Ok(HfBackend {
-            core: Arc::new(HfCore::build(info, repo, root, token, endpoint)?),
+            core: Arc::new(HfCore::build(
+                info,
+                repo,
+                root,
+                token,
+                endpoint,
+                download_mode,
+            )?),
         })
     }
 }
@@ -231,8 +257,32 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
+/// Reader returned by this backend.
+pub struct HfReader {
+    backend: HfBackend,
+    path: String,
+}
+
+impl HfReader {
+    fn new(backend: HfBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for HfReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let (rp, stream) = HfReadStream::try_new(&backend.core, path, range).await?;
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for HfBackend {
-    type Reader = HfReader;
+    type Reader = oio::StreamReader<HfReader>;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
@@ -248,28 +298,19 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        if self.core.repo.is_bucket() {
-            if path.ends_with('/') {
-                return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-            }
-            return match self.core.maybe_xet_file(path).await? {
-                Some(file_info) => {
-                    let size = file_info.file_size().unwrap_or(0);
-                    Ok(RpStat::new(
-                        Metadata::new(EntryMode::FILE).with_content_length(size),
-                    ))
-                }
-                None => Err(Error::new(ErrorKind::NotFound, "path not found")),
-            };
+        // Buckets have no git directory entries; treat any trailing-slash path as a virtual dir.
+        if self.core.repo.is_bucket() && path.ends_with('/') {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let info = self.core.path_info(path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let reader = HfReader::try_new(&self.core, path, args.range()).await?;
-        Ok((RpRead::default(), reader))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(HfReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -294,10 +335,15 @@ impl Access for HfBackend {
 
 #[cfg(test)]
 pub(super) mod test_utils {
+    use std::sync::Arc;
+
+    use super::super::core::{HfCore, HfDownloadMode};
+    use super::super::uri::{HfRepo, HfRepoType};
     use super::HfBuilder;
+    use opendal_core::Capability;
     use opendal_core::Operator;
     use opendal_core::layers::HttpClientLayer;
-    use opendal_core::raw::HttpClient;
+    use opendal_core::raw::{AccessorInfo, HttpClient};
 
     fn finish_operator(op: Operator) -> Operator {
         let client = HttpClient::with(reqwest::Client::new());
@@ -308,7 +354,8 @@ pub(super) mod test_utils {
         let op = Operator::new(
             HfBuilder::default()
                 .repo_type("model")
-                .repo_id("openai-community/gpt2"),
+                .repo_id("openai-community/gpt2")
+                .download_mode("http"),
         )
         .unwrap()
         .finish();
@@ -324,6 +371,34 @@ pub(super) mod test_utils {
         .unwrap()
         .finish();
         finish_operator(op)
+    }
+
+    pub fn testing_dataset_core() -> Arc<HfCore> {
+        let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+
+        let info = AccessorInfo::default();
+        info.set_scheme("hf").set_native_capability(Capability {
+            read: true,
+            write: true,
+            delete: true,
+            ..Default::default()
+        });
+        info.update_http_client(|_| HttpClient::with(reqwest::Client::new()));
+
+        let repo = HfRepo::new(HfRepoType::Dataset, repo_id, Some("main".to_string()));
+
+        Arc::new(
+            HfCore::build(
+                Arc::new(info),
+                repo,
+                "/".to_string(),
+                Some(token),
+                "https://huggingface.co".to_string(),
+                HfDownloadMode::Xet,
+            )
+            .expect("failed to build HfCore"),
+        )
     }
 
     pub fn testing_bucket_operator() -> Operator {

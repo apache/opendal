@@ -15,36 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-#[derive(Default, Deserialize)]
-struct HfError {
-    error: String,
-}
-
-impl Debug for HfError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HfError")
-            .field("message", &self.error.replace('\n', " "))
-            .finish()
-    }
-}
-
-pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
-    let (parts, body) = resp.into_parts();
-    let bs = body.to_bytes();
-
-    let message = match serde_json::from_slice::<HfError>(&bs) {
-        Ok(hf_error) => hf_error.error,
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
+pub(super) fn parse_error(parts: http::response::Parts) -> Error {
+    // HF sets x-error-message on every error response with a short human-readable
+    // description. Using the header avoids reading the response body, which can be
+    // a large HTML error page (e.g. 52 KB on 404s from the /resolve/ endpoint).
+    let message = parts
+        .headers
+        .get("x-error-message")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown error")
+        .to_string();
 
     // HF git-style commit APIs reject stale branch snapshots with 412.
     // Treat this specific conflict as temporary so RetryLayer can replay
@@ -78,36 +63,24 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod test {
+    use http::Response;
     use http::StatusCode;
 
     use super::*;
 
     #[test]
-    fn test_parse_error() -> Result<()> {
-        let resp = r#"
-            {
-                "error": "Invalid username or password."
-            }
-            "#;
-        let decoded_response = serde_json::from_slice::<HfError>(resp.as_bytes())
-            .map_err(new_json_deserialize_error)?;
-
-        assert_eq!(decoded_response.error, "Invalid username or password.");
-
-        Ok(())
-    }
-
-    #[test]
     fn test_parse_error_branch_update_conflict_is_temporary() {
-        let body = Buffer::from(bytes::Bytes::from(
-            r#"{"error":"The branch was updated since you opened this page. Please refresh and try again."}"#,
-        ));
-        let resp = Response::builder()
+        let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
-            .body(body)
-            .unwrap();
+            .header(
+                "x-error-message",
+                "The branch was updated since you opened this page. Please refresh and try again.",
+            )
+            .body(())
+            .unwrap()
+            .into_parts();
 
-        let err = parse_error(resp);
+        let err = parse_error(parts);
 
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         assert!(err.is_temporary());
@@ -115,13 +88,14 @@ mod test {
 
     #[test]
     fn test_parse_error_other_precondition_failed_is_not_temporary() {
-        let body = Buffer::from(bytes::Bytes::from(r#"{"error":"etag mismatch"}"#));
-        let resp = Response::builder()
+        let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
-            .body(body)
-            .unwrap();
+            .header("x-error-message", "etag mismatch")
+            .body(())
+            .unwrap()
+            .into_parts();
 
-        let err = parse_error(resp);
+        let err = parse_error(parts);
 
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         assert!(!err.is_temporary());

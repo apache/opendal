@@ -33,6 +33,7 @@ use crate::*;
 /// - `None` means the copy operation has completed.
 pub struct Copier {
     copier: Option<oio::Copier>,
+    metadata: Option<Metadata>,
 
     fut: Option<BoxedStaticFuture<(oio::Copier, Result<Option<usize>>)>>,
     errored: bool,
@@ -65,6 +66,7 @@ impl Copier {
 
         Ok(Self {
             copier: Some(copier),
+            metadata: None,
 
             fut: None,
             errored: false,
@@ -84,6 +86,7 @@ impl Copier {
         match copier.next_dyn().await {
             Ok(Some(n)) => Ok(Some(n)),
             Ok(None) => {
+                self.metadata = Some(copier.close_dyn().await?);
                 self.copier = None;
                 Ok(None)
             }
@@ -101,6 +104,29 @@ impl Copier {
         };
 
         copier.abort_dyn().await
+    }
+
+    /// Close the copier and return metadata from the server-side completion response.
+    pub async fn close(&mut self) -> Result<Metadata> {
+        if self.errored {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "copier has already failed and can't be closed",
+            ));
+        }
+
+        if let Some(metadata) = self.metadata.clone() {
+            return Ok(metadata);
+        }
+
+        while self.metadata.is_none() {
+            match self.next().await? {
+                Some(_) => continue,
+                None => break,
+            }
+        }
+
+        Ok(self.metadata.clone().unwrap_or_default())
     }
 }
 
@@ -127,10 +153,7 @@ impl Stream for Copier {
 
             return match res {
                 Ok(Some(n)) => Poll::Ready(Some(Ok(n))),
-                Ok(None) => {
-                    self.copier = None;
-                    Poll::Ready(None)
-                }
+                Ok(None) => Poll::Ready(None),
                 Err(err) => {
                     self.errored = true;
                     Poll::Ready(Some(Err(err)))

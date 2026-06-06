@@ -134,8 +134,43 @@ pub struct AlluxioBackend {
     core: Arc<AlluxioCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AlluxioReader {
+    backend: AlluxioBackend,
+    path: String,
+}
+
+impl AlluxioReader {
+    fn new(backend: AlluxioBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for AlluxioReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let stream_id = backend.core.open_file(path).await?;
+
+        let resp = backend.core.read(stream_id, range).await?;
+        if !resp.status().is_success() {
+            let (part, mut body) = resp.into_parts();
+            let buf = body.to_buffer().await?;
+            return Err(parse_error(Response::from_parts(part, buf)));
+        }
+
+        let rp = RpRead::new(parse_into_metadata(path, resp.headers())?);
+        let stream = resp.into_body();
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AlluxioBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AlluxioReader>;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
@@ -155,17 +190,11 @@ impl Access for AlluxioBackend {
 
         Ok(RpStat::new(file_info.try_into()?))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let stream_id = self.core.open_file(path).await?;
-
-        let resp = self.core.read(stream_id, args.range()).await?;
-        if !resp.status().is_success() {
-            let (part, mut body) = resp.into_parts();
-            let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)));
-        }
-        Ok((RpRead::new(), resp.into_body()))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AlluxioReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

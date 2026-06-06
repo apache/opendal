@@ -188,8 +188,50 @@ pub struct LakefsBackend {
     core: Arc<LakefsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct LakefsReader {
+    backend: LakefsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl LakefsReader {
+    fn new(backend: LakefsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for LakefsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.get_object_content(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for LakefsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<LakefsReader>;
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
@@ -224,25 +266,11 @@ impl Access for LakefsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .get_object_content(path, args.range(), &args)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(LakefsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

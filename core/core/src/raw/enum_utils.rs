@@ -51,7 +51,7 @@ pub enum TwoWays<ONE, TWO> {
     Two(TWO),
 }
 
-impl<ONE: oio::Read, TWO: oio::Read> oio::Read for TwoWays<ONE, TWO> {
+impl<ONE: oio::ReadStream, TWO: oio::ReadStream> oio::ReadStream for TwoWays<ONE, TWO> {
     async fn read(&mut self) -> Result<Buffer> {
         match self {
             TwoWays::One(v) => v.read().await,
@@ -91,6 +91,13 @@ impl<ONE: oio::Copy, TWO: oio::Copy> oio::Copy for TwoWays<ONE, TWO> {
         }
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        match self {
+            Self::One(v) => v.close().await,
+            Self::Two(v) => v.close().await,
+        }
+    }
+
     async fn abort(&mut self) -> Result<()> {
         match self {
             Self::One(v) => v.abort().await,
@@ -120,7 +127,9 @@ pub enum ThreeWays<ONE, TWO, THREE> {
     Three(THREE),
 }
 
-impl<ONE: oio::Read, TWO: oio::Read, THREE: oio::Read> oio::Read for ThreeWays<ONE, TWO, THREE> {
+impl<ONE: oio::ReadStream, TWO: oio::ReadStream, THREE: oio::ReadStream> oio::ReadStream
+    for ThreeWays<ONE, TWO, THREE>
+{
     async fn read(&mut self) -> Result<Buffer> {
         match self {
             ThreeWays::One(v) => v.read().await,
@@ -182,12 +191,12 @@ pub enum FourWays<ONE, TWO, THREE, FOUR> {
     Four(FOUR),
 }
 
-impl<ONE, TWO, THREE, FOUR> oio::Read for FourWays<ONE, TWO, THREE, FOUR>
+impl<ONE, TWO, THREE, FOUR> oio::ReadStream for FourWays<ONE, TWO, THREE, FOUR>
 where
-    ONE: oio::Read,
-    TWO: oio::Read,
-    THREE: oio::Read,
-    FOUR: oio::Read,
+    ONE: oio::ReadStream,
+    TWO: oio::ReadStream,
+    THREE: oio::ReadStream,
+    FOUR: oio::ReadStream,
 {
     async fn read(&mut self) -> Result<Buffer> {
         match self {

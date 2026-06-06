@@ -21,8 +21,8 @@ use std::io;
 use std::ops::Range;
 use std::sync::Arc;
 
+use crate::datetime_to_timestamp;
 use crate::utils::*;
-use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
@@ -31,6 +31,7 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use mea::mutex::Mutex;
 use mea::oneshot;
+use object_store::Attributes;
 use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
 use object_store::ListResult;
@@ -48,11 +49,84 @@ use object_store::{GetResult, PutMode};
 use opendal::Buffer;
 use opendal::Writer;
 use opendal::options::CopyOptions;
+use opendal::options::ReaderOptions;
+use opendal::options::StatOptions;
 use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
 const DEFAULT_CONCURRENT: usize = 8;
+
+fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
+    let mut attributes = Attributes::new();
+    if let Some(user_meta) = meta.user_metadata() {
+        for (key, value) in user_meta {
+            attributes.insert(
+                object_store::Attribute::Metadata(key.clone().into()),
+                value.clone().into(),
+            );
+        }
+    }
+
+    attributes
+}
+
+fn format_reader_options(options: &GetOptions, content_length_hint: Option<u64>) -> ReaderOptions {
+    ReaderOptions {
+        version: options.version.clone(),
+        if_match: options.if_match.clone(),
+        if_none_match: options.if_none_match.clone(),
+        if_modified_since: options.if_modified_since.and_then(datetime_to_timestamp),
+        if_unmodified_since: options.if_unmodified_since.and_then(datetime_to_timestamp),
+        content_length_hint,
+        ..Default::default()
+    }
+}
+
+fn format_stat_options(options: &GetOptions) -> StatOptions {
+    StatOptions {
+        version: options.version.clone(),
+        if_match: options.if_match.clone(),
+        if_none_match: options.if_none_match.clone(),
+        if_modified_since: options.if_modified_since.and_then(datetime_to_timestamp),
+        if_unmodified_since: options.if_unmodified_since.and_then(datetime_to_timestamp),
+        ..Default::default()
+    }
+}
+
+fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
+    match range {
+        Some(GetRange::Bounded(r)) => {
+            if r.start >= r.end || r.start >= size {
+                0..0
+            } else {
+                r.start..r.end.min(size)
+            }
+        }
+        Some(GetRange::Offset(offset)) => {
+            if *offset < size {
+                *offset..size
+            } else {
+                0..0
+            }
+        }
+        Some(GetRange::Suffix(suffix)) if *suffix < size => (size - *suffix)..size,
+        _ => 0..size,
+    }
+}
+
+fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::Error {
+    match err.kind() {
+        // Ask get_opts to fall back to the stat path when read-open can't provide
+        // enough metadata to build a valid GetResult, such as ranges beyond EOF.
+        opendal::ErrorKind::Unsupported | opendal::ErrorKind::RangeNotSatisfied => {
+            object_store::Error::NotSupported {
+                source: Box::new(err),
+            }
+        }
+        _ => format_object_store_error(err, path),
+    }
+}
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -119,6 +193,147 @@ impl OpendalStore {
     /// Get the Operator info.
     pub fn info(&self) -> &OperatorInfo {
         self.info.as_ref()
+    }
+
+    async fn get_opts_without_stat(
+        &self,
+        location: &Path,
+        raw_location: &str,
+        options: &GetOptions,
+    ) -> object_store::Result<GetResult> {
+        let reader = self
+            .inner
+            .reader_options(raw_location, format_reader_options(options, None))
+            .into_send()
+            .await
+            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+
+        let mut stream = match options.range.as_ref() {
+            Some(GetRange::Bounded(range)) => {
+                reader
+                    .into_bytes_stream(range.start..range.end)
+                    .into_send()
+                    .await
+            }
+            Some(GetRange::Offset(offset)) => reader.into_bytes_stream(*offset..).into_send().await,
+            Some(GetRange::Suffix(_)) => unreachable!("suffix range needs object metadata"),
+            None => reader.into_bytes_stream(..).into_send().await,
+        }
+        .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+
+        let metadata = stream
+            .metadata()
+            .into_send()
+            .await
+            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+        let attributes = format_object_attributes(&metadata);
+        let meta = format_object_meta(location.as_ref(), &metadata);
+        let read_range = format_read_range(options.range.as_ref(), meta.size);
+
+        if read_range.start >= read_range.end {
+            return Ok(GetResult {
+                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
+                range: read_range,
+                meta,
+                attributes,
+            });
+        }
+
+        if matches!(
+            options.range.as_ref(),
+            Some(GetRange::Bounded(range)) if range.end > meta.size
+        ) {
+            let reader = self
+                .inner
+                .reader_options(
+                    raw_location,
+                    format_reader_options(options, Some(meta.size)),
+                )
+                .into_send()
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            stream = reader
+                .into_bytes_stream(read_range.start..read_range.end)
+                .into_send()
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        }
+
+        let stream = stream
+            .into_send()
+            .map_err(|err: io::Error| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            });
+
+        Ok(GetResult {
+            payload: GetResultPayload::Stream(Box::pin(stream)),
+            range: read_range,
+            meta,
+            attributes,
+        })
+    }
+
+    async fn get_opts_with_stat(
+        &self,
+        location: &Path,
+        raw_location: &str,
+        options: &GetOptions,
+    ) -> object_store::Result<GetResult> {
+        let metadata = self
+            .inner
+            .stat_options(raw_location, format_stat_options(options))
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let attributes = format_object_attributes(&metadata);
+        let meta = format_object_meta(location.as_ref(), &metadata);
+
+        if options.head {
+            return Ok(GetResult {
+                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
+                range: 0..0,
+                meta,
+                attributes,
+            });
+        }
+
+        let read_range = format_read_range(options.range.as_ref(), meta.size);
+        if read_range.start >= read_range.end {
+            return Ok(GetResult {
+                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
+                range: read_range,
+                meta,
+                attributes,
+            });
+        }
+
+        let reader = self
+            .inner
+            .reader_options(
+                raw_location,
+                format_reader_options(options, Some(meta.size)),
+            )
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let stream = reader
+            .into_bytes_stream(read_range.start..read_range.end)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?
+            .into_send()
+            .map_err(|err: io::Error| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            });
+
+        Ok(GetResult {
+            payload: GetResultPayload::Stream(Box::pin(stream)),
+            range: read_range,
+            meta,
+            attributes,
+        })
     }
 
     /// Copy a file from one location to another
@@ -296,126 +511,26 @@ impl ObjectStore for OpendalStore {
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
         let raw_location = percent_decode_path(location.as_ref());
-        let meta = {
-            let mut s = self.inner.stat_with(&raw_location);
-            if let Some(version) = &options.version {
-                s = s.version(version.as_str())
-            }
-            if let Some(if_match) = &options.if_match {
-                s = s.if_match(if_match.as_str());
-            }
-            if let Some(if_none_match) = &options.if_none_match {
-                s = s.if_none_match(if_none_match.as_str());
-            }
-            if let Some(if_modified_since) =
-                options.if_modified_since.and_then(datetime_to_timestamp)
-            {
-                s = s.if_modified_since(if_modified_since);
-            }
-            if let Some(if_unmodified_since) =
-                options.if_unmodified_since.and_then(datetime_to_timestamp)
-            {
-                s = s.if_unmodified_since(if_unmodified_since);
-            }
-            s.into_send()
-                .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?
-        };
-
-        // Convert user defined metadata from OpenDAL to object_store attributes
-        let mut attributes = object_store::Attributes::new();
-        if let Some(user_meta) = meta.user_metadata() {
-            for (key, value) in user_meta {
-                attributes.insert(
-                    object_store::Attribute::Metadata(key.clone().into()),
-                    value.clone().into(),
-                );
-            }
-        }
-
-        let meta = ObjectMeta {
-            location: location.clone(),
-            last_modified: meta
-                .last_modified()
-                .and_then(timestamp_to_datetime)
-                .unwrap_or_default(),
-            size: meta.content_length(),
-            e_tag: meta.etag().map(|x| x.to_string()),
-            version: meta.version().map(|x| x.to_string()),
-        };
 
         if options.head {
-            return Ok(GetResult {
-                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
-                range: 0..0,
-                meta,
-                attributes,
-            });
+            return self
+                .get_opts_with_stat(location, &raw_location, &options)
+                .await;
         }
 
-        let reader = {
-            let mut r = self.inner.reader_with(raw_location.as_ref());
-            if let Some(version) = options.version {
-                r = r.version(version.as_str());
-            }
-            if let Some(if_match) = options.if_match {
-                r = r.if_match(if_match.as_str());
-            }
-            if let Some(if_none_match) = options.if_none_match {
-                r = r.if_none_match(if_none_match.as_str());
-            }
-            if let Some(if_modified_since) =
-                options.if_modified_since.and_then(datetime_to_timestamp)
-            {
-                r = r.if_modified_since(if_modified_since);
-            }
-            if let Some(if_unmodified_since) =
-                options.if_unmodified_since.and_then(datetime_to_timestamp)
-            {
-                r = r.if_unmodified_since(if_unmodified_since);
-            }
-            r.into_send()
+        if !matches!(options.range.as_ref(), Some(GetRange::Suffix(_))) {
+            match self
+                .get_opts_without_stat(location, &raw_location, &options)
                 .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?
-        };
-
-        let read_range = match options.range {
-            Some(GetRange::Bounded(r)) => {
-                if r.start >= r.end || r.start >= meta.size {
-                    0..0
-                } else {
-                    let end = r.end.min(meta.size);
-                    r.start..end
-                }
+            {
+                Ok(result) => return Ok(result),
+                Err(object_store::Error::NotSupported { .. }) => {}
+                Err(err) => return Err(err),
             }
-            Some(GetRange::Offset(r)) => {
-                if r < meta.size {
-                    r..meta.size
-                } else {
-                    0..0
-                }
-            }
-            Some(GetRange::Suffix(r)) if r < meta.size => (meta.size - r)..meta.size,
-            _ => 0..meta.size,
-        };
+        }
 
-        let stream = reader
-            .into_bytes_stream(read_range.start..read_range.end)
-            .into_send()
+        self.get_opts_with_stat(location, &raw_location, &options)
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?
-            .into_send()
-            .map_err(|err: io::Error| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            });
-
-        Ok(GetResult {
-            payload: GetResultPayload::Stream(Box::pin(stream)),
-            range: read_range.start..read_range.end,
-            meta,
-            attributes,
-        })
     }
 
     async fn get_ranges(
@@ -1017,17 +1132,75 @@ mod tests {
         // Reset counter
         stat_count.store(0, Ordering::SeqCst);
 
-        // Test 2: get_opts SHOULD call stat() to get metadata
+        // Test 2: get_opts should NOT call stat() for bounded range reads
         let opts = object_store::GetOptions {
             range: Some(object_store::GetRange::Bounded(0..5)),
             ..Default::default()
         };
         let ret = store.get_opts(&location, opts).await.unwrap();
+        assert_eq!(ret.meta.size, value.len() as u64);
+        assert_eq!(ret.range, 0..5);
         let data = ret.bytes().await.unwrap();
         assert_eq!(Bytes::from_static(b"Hello"), data);
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "get_opts should not call stat() for bounded range reads"
+        );
+
+        // Reset counter
+        stat_count.store(0, Ordering::SeqCst);
+
+        // Test 3: get_opts should NOT call stat() for offset range reads
+        let opts = object_store::GetOptions {
+            range: Some(object_store::GetRange::Offset(7)),
+            ..Default::default()
+        };
+        let ret = store.get_opts(&location, opts).await.unwrap();
+        assert_eq!(ret.meta.size, value.len() as u64);
+        assert_eq!(ret.range, 7..value.len() as u64);
+        let data = ret.bytes().await.unwrap();
+        assert_eq!(Bytes::from_static(b"world!"), data);
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "get_opts should not call stat() for offset range reads"
+        );
+
+        // Reset counter
+        stat_count.store(0, Ordering::SeqCst);
+
+        // Test 4: get_opts should NOT call stat() for full reads
+        let ret = store
+            .get_opts(&location, object_store::GetOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(ret.meta.size, value.len() as u64);
+        assert_eq!(ret.range, 0..value.len() as u64);
+        let data = ret.bytes().await.unwrap();
+        assert_eq!(value, data);
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "get_opts should not call stat() for full reads"
+        );
+
+        // Reset counter
+        stat_count.store(0, Ordering::SeqCst);
+
+        // Test 5: get_opts should still call stat() for suffix range reads
+        let opts = object_store::GetOptions {
+            range: Some(object_store::GetRange::Suffix(6)),
+            ..Default::default()
+        };
+        let ret = store.get_opts(&location, opts).await.unwrap();
+        assert_eq!(ret.meta.size, value.len() as u64);
+        assert_eq!(ret.range, 7..value.len() as u64);
+        let data = ret.bytes().await.unwrap();
+        assert_eq!(Bytes::from_static(b"world!"), data);
         assert!(
             stat_count.load(Ordering::SeqCst) > 0,
-            "get_opts should call stat() to get metadata"
+            "get_opts should call stat() for suffix range reads"
         );
 
         // Cleanup

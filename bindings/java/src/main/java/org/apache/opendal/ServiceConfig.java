@@ -1574,6 +1574,10 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
         /**
+         * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
+         */
+        public final String downloadMode;
+        /**
          * <p>Endpoint of the Hugging Face Hub.</p>
          * <p>Default is &quot;https://huggingface.co&quot;.</p>
          */
@@ -1584,10 +1588,9 @@ public interface ServiceConfig {
          */
         public final String repoId;
         /**
-         * <p>Repo type of this backend. Default is model.</p>
-         * <p>Default is model</p>
+         * <p>Repo type of this backend. Required.</p>
          */
-        public final @NonNull String repoType;
+        public final String repoType;
         /**
          * <p>Revision of this backend.</p>
          * <p>Default is main.</p>
@@ -1612,13 +1615,18 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (downloadMode != null) {
+                map.put("download_mode", downloadMode);
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
             if (repoId != null) {
                 map.put("repo_id", repoId);
             }
-            map.put("repo_type", repoType);
+            if (repoType != null) {
+                map.put("repo_type", repoType);
+            }
             if (revision != null) {
                 map.put("revision", revision);
             }

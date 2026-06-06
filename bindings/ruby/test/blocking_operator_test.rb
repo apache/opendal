@@ -20,7 +20,7 @@
 require "test_helper"
 require "tmpdir"
 
-class OpenDalTest < ActiveSupport::TestCase
+class BlockingOperatorTest < ActiveSupport::TestCase
   setup do
     @root = Dir.mktmpdir
     File.write("#{@root}/sample", "Sample data for testing")

@@ -288,9 +288,23 @@ impl<R> TracingWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TracingWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TracingWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().instrument(self.span.clone()).await
+    }
+}
+
+impl<R: oio::Read> oio::Read for TracingWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self.inner.open(range).instrument(self.span.clone()).await?;
+        Ok((
+            rp,
+            Box::new(TracingWrapper::new(self.span.clone(), stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).instrument(self.span.clone()).await
     }
 }
 

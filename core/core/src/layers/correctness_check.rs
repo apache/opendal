@@ -240,6 +240,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_match",
             ));
         }
+        if args.source_version().is_some() && !capability.copy_with_source_version {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_version",
+            ));
+        }
 
         self.inner.copy(from, to, args, opts).await
     }
@@ -333,7 +340,10 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(MockReader),
+            ))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -346,6 +356,18 @@ mod tests {
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             Ok((RpDelete::default(), Box::new(MockDeleter)))
+        }
+    }
+
+    struct MockReader;
+
+    impl oio::Read for MockReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            Ok((RpRead::default(), Box::new(Buffer::new())))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Ok((RpRead::default(), Buffer::new()))
         }
     }
 

@@ -75,7 +75,24 @@ set -euo pipefail
 export GOOSEFS_JAVA_OPTS="${GOOSEFS_JAVA_OPTS:-} -Djava.net.preferIPv4Stack=true"
 
 : "${GOOSEFS_HOME:=/opt/goosefs}"
-: "${GOOSEFS_MASTER_HOSTNAME:=localhost}"
+# Use the IPv4 literal `127.0.0.1` (not the name `localhost`) for the
+# master hostname on purpose. The master's *client-facing* RPC port
+# 9200 is bound directly to whatever `goosefs.master.hostname` resolves
+# to (there is no separate `goosefs.master.client.rpc.bind.host` in
+# GooseFS 2.x). On Ubuntu 24.04 GitHub Actions runners and many Linux
+# images, `/etc/hosts` resolves `localhost` to BOTH `::1` and
+# `127.0.0.1`, and the JVM's default resolver may hand back `::1`
+# first — even with `-Djava.net.preferIPv4Stack=true`, because that
+# flag only suppresses *creating* IPv6 sockets, it does not change
+# `InetAddress.getByName("localhost")`'s ordering when the name maps
+# to both families. Result: master binds 9200 on `[::1]`, while the
+# in-container worker (and the `fs` CLI used by the healthcheck) dials
+# `127.0.0.1:9200` over IPv4 and gets `Connection refused` in a tight
+# retry loop, never registers, and the data-plane healthcheck times
+# out. Pinning the hostname to the v4 literal forces bind+dial onto
+# the same loopback address and matches what `GOOSEFS_WORKER_HOSTNAME`
+# already does for the worker side.
+: "${GOOSEFS_MASTER_HOSTNAME:=127.0.0.1}"
 # OpenDAL writes to the worker via `127.0.0.1:9203` from the host; see
 # the long comment in docker-compose-goosefs.yml for why this must be
 # the IPv4 literal and not the `localhost` name.

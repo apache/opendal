@@ -143,7 +143,10 @@ bundle exec rake compile
 Run tests:
 
 ```shell
-bundle exec rake test
+bundle exec rake test_base
+
+# Optional
+OPENDAL_TEST=fs bundle exec rake test_service
 ```
 
 Run linters:

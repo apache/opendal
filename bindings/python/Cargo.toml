@@ -79,7 +79,6 @@ services-all = [
   'services-sqlite',
   'services-swift',
   'services-upyun',
-  'services-foyer',
   'services-tos',
   'services-vercel-artifacts',
   'services-yandex-disk',
@@ -190,7 +189,7 @@ abi3 = ["pyo3/abi3-py311"]
 [target.'cfg(not(windows))'.features]
 services-all = ["services-sftp"]
 
-# Conditionally include sftp only on non-windows targets
+# Conditionally include hdfs-native only on non-arm targets
 [target.'cfg(not(target_arch = "arm"))'.features]
 services-all = ["services-hdfs-native"]
 

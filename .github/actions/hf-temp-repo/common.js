@@ -39,11 +39,18 @@ function hfRequest(method, path, token, body) {
       (res) => {
         let result = "";
         res.on("data", (chunk) => (result += chunk));
-        res.on("end", () =>
-          res.statusCode >= 200 && res.statusCode < 300
-            ? resolve(result)
-            : reject(new Error(`HTTP ${res.statusCode}: ${result}`))
-        );
+        res.on("end", () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(result);
+          } else {
+            // Prefer the structured error header to avoid logging large HTML pages.
+            const msg =
+              res.headers["x-error-message"] ||
+              result.slice(0, 200) ||
+              "unknown error";
+            reject(new Error(`HTTP ${res.statusCode}: ${msg}`));
+          }
+        });
       }
     );
     req.on("error", reject);

@@ -32,6 +32,9 @@ pub trait Copy: Unpin + Send + Sync {
     /// `Ok(None)` means the copy operation has completed.
     fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend;
 
+    /// Close the copier and return metadata from the server-side completion response.
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
+
     /// Abort the pending copy operation.
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
 }
@@ -41,6 +44,10 @@ impl Copy for () {
         Ok(None)
     }
 
+    async fn close(&mut self) -> Result<Metadata> {
+        Ok(Metadata::default())
+    }
+
     async fn abort(&mut self) -> Result<()> {
         Ok(())
     }
@@ -48,7 +55,8 @@ impl Copy for () {
 
 /// OneShotCopier drives a single asynchronous copy step.
 pub struct OneShotCopier {
-    fut: Option<BoxedStaticFuture<Result<Option<usize>>>>,
+    fut: Option<BoxedStaticFuture<Result<Metadata>>>,
+    meta: Option<Metadata>,
 }
 
 /// # Safety
@@ -63,28 +71,42 @@ unsafe impl Send for OneShotCopier {}
 
 impl OneShotCopier {
     /// Create a new one-shot copier.
-    pub fn new(fut: impl Future<Output = Result<Option<usize>>> + MaybeSend + 'static) -> Self {
+    pub fn new(fut: impl Future<Output = Result<Metadata>> + MaybeSend + 'static) -> Self {
         Self {
             fut: Some(Box::pin(fut)),
+            meta: None,
         }
     }
 
     /// Create a one-shot copier that has already completed.
     pub fn completed() -> Self {
-        Self { fut: None }
+        Self {
+            fut: None,
+            meta: Some(Metadata::default()),
+        }
     }
 }
 
 impl Copy for OneShotCopier {
     async fn next(&mut self) -> Result<Option<usize>> {
-        match self.fut.take() {
-            Some(fut) => fut.await,
-            None => Ok(None),
+        if self.meta.is_none() {
+            self.close().await?;
         }
+
+        Ok(None)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        if let Some(fut) = self.fut.take() {
+            self.meta = Some(fut.await?);
+        }
+
+        Ok(self.meta.clone().unwrap_or_default())
     }
 
     async fn abort(&mut self) -> Result<()> {
         self.fut = None;
+        self.meta = None;
         Ok(())
     }
 }
@@ -93,6 +115,9 @@ impl Copy for OneShotCopier {
 pub trait CopyDyn: Unpin + Send + Sync {
     /// The dyn version of [`Copy::next`].
     fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<usize>>>;
+
+    /// The dyn version of [`Copy::close`].
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>>;
 
     /// The dyn version of [`Copy::abort`].
     fn abort_dyn(&mut self) -> BoxedFuture<'_, Result<()>>;
@@ -103,6 +128,10 @@ impl<T: Copy + ?Sized> CopyDyn for T {
         Box::pin(self.next())
     }
 
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>> {
+        Box::pin(self.close())
+    }
+
     fn abort_dyn(&mut self) -> BoxedFuture<'_, Result<()>> {
         Box::pin(self.abort())
     }
@@ -111,6 +140,10 @@ impl<T: Copy + ?Sized> CopyDyn for T {
 impl<T: CopyDyn + ?Sized> Copy for Box<T> {
     async fn next(&mut self) -> Result<Option<usize>> {
         self.deref_mut().next_dyn().await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.deref_mut().close_dyn().await
     }
 
     async fn abort(&mut self) -> Result<()> {

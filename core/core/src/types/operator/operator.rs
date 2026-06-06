@@ -526,9 +526,9 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-        let range = args.range();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (range, args, opts) = opts.into();
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         let r = Reader::new(context);
         let buf = r.read(range.to_range()).await?;
         Ok(buf)
@@ -636,7 +636,8 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         Ok(Reader::new(context))
     }
 
@@ -989,7 +990,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
         self.copy_options(from, to, options::CopyOptions::default())
             .await
     }
@@ -1005,7 +1006,8 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and `source_version` is not set,
+    ///   an `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1027,7 +1029,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+    pub fn copy_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopy<impl Future<Output = Result<Metadata>>> {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
@@ -1061,7 +1067,8 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and `source_version` is not set,
+    ///   an `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1089,7 +1096,7 @@ impl Operator {
         from: &str,
         to: &str,
         opts: impl Into<options::CopyOptions>,
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         let from = normalize_path(from);
         let to = normalize_path(to);
         let opts = opts.into();
@@ -1115,7 +1122,7 @@ impl Operator {
         acc: Accessor,
         from: String,
         (opts, to): (options::CopyOptions, String),
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
@@ -1134,7 +1141,7 @@ impl Operator {
             );
         }
 
-        if from == to {
+        if from == to && opts.source_version.is_none() {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copy")
@@ -1145,15 +1152,11 @@ impl Operator {
         }
 
         let mut copier = Self::copier_inner(acc, from, (opts, to)).await?;
-
-        loop {
-            match copier.next().await {
-                Ok(Some(_)) => continue,
-                Ok(None) => return Ok(()),
-                Err(err) => {
-                    let _ = copier.abort().await;
-                    return Err(err);
-                }
+        match copier.close().await {
+            Ok(meta) => Ok(meta),
+            Err(err) => {
+                let _ = copier.abort().await;
+                Err(err)
             }
         }
     }
@@ -1181,7 +1184,7 @@ impl Operator {
             );
         }
 
-        if from == to {
+        if from == to && opts.source_version.is_none() {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copier")
@@ -2001,8 +2004,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_read, _) = opts.into();
-        let op = OpPresign::new(op_read, expire);
+        let (range, op_read, _) = opts.into();
+        let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = acc.presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }

@@ -222,8 +222,43 @@ impl D1Backend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct D1Reader {
+    backend: D1Backend,
+    path: String,
+}
+
+impl D1Reader {
+    fn new(backend: D1Backend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for D1Reader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
+            }
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for D1Backend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<D1Reader>;
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
@@ -248,16 +283,11 @@ impl Access for D1Backend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
-            }
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(D1Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

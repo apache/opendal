@@ -263,7 +263,9 @@ impl TosCore {
             );
         }
 
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -300,7 +302,9 @@ impl TosCore {
 
         req = self.insert_metadata_headers(req, size, args);
 
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -372,7 +376,9 @@ impl TosCore {
             );
         }
 
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -412,6 +418,7 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -442,7 +449,9 @@ impl TosCore {
         req = req.header(CONTENT_TYPE, "application/json");
         req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteMultipleObjects"));
 
         let req = req
             .body(Buffer::from(content))

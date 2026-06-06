@@ -20,6 +20,7 @@ use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 
 use opendal::options;
+use opendal::raw::{BytesRange, Timestamp};
 use opendal::Buffer;
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
@@ -190,6 +191,95 @@ impl opendal_list_options {
             if !o.start_after.is_null() {
                 drop(CString::from_raw(o.start_after));
                 o.start_after = std::ptr::null_mut();
+            }
+            drop(Box::from_raw(opts));
+        }
+    }
+}
+
+/// \brief The options for the delete operation.
+///
+/// This struct carries the options for the delete operation, including an optional
+/// version string and whether to delete recursively.
+/// Use `opendal_delete_options_new()` to construct and `opendal_delete_options_free()` to free.
+///
+/// @see opendal_operator_delete_with
+/// @see opendal_delete_options_new
+/// @see opendal_delete_options_free
+/// @see opendal_delete_options_set_version
+/// @see opendal_delete_options_set_recursive
+#[repr(C)]
+pub struct opendal_delete_options {
+    /// Optional version string to delete a specific version; NULL means unset.
+    pub version: *mut c_char,
+    /// Whether to delete recursively; default false.
+    pub recursive: bool,
+}
+
+impl opendal_delete_options {
+    /// \brief Construct a heap-allocated opendal_delete_options with default values.
+    ///
+    /// @return A new opendal_delete_options with all options set to their defaults.
+    ///
+    /// @see opendal_delete_options_free
+    #[no_mangle]
+    pub extern "C" fn opendal_delete_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self {
+            version: std::ptr::null_mut(),
+            recursive: false,
+        }))
+    }
+
+    /// \brief Set the version option.
+    ///
+    /// @param opts The opendal_delete_options to modify.
+    /// @param version The version string to delete; NULL to unset.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_set_version(
+        opts: *mut opendal_delete_options,
+        version: *const c_char,
+    ) {
+        if opts.is_null() {
+            return;
+        }
+        let o = &mut *opts;
+        if !o.version.is_null() {
+            drop(CString::from_raw(o.version));
+            o.version = std::ptr::null_mut();
+        }
+        if !version.is_null() {
+            let s = CStr::from_ptr(version)
+                .to_str()
+                .expect("malformed version")
+                .to_owned();
+            o.version = CString::new(s).unwrap().into_raw();
+        }
+    }
+
+    /// \brief Set the recursive option.
+    ///
+    /// @param opts The opendal_delete_options to modify.
+    /// @param recursive Whether to delete recursively.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_set_recursive(
+        opts: *mut opendal_delete_options,
+        recursive: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).recursive = recursive;
+        }
+    }
+
+    /// \brief Free the heap memory used by opendal_delete_options.
+    ///
+    /// @param opts The opendal_delete_options to free.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_delete_options_free(opts: *mut opendal_delete_options) {
+        if !opts.is_null() {
+            let o = &mut *opts;
+            if !o.version.is_null() {
+                drop(CString::from_raw(o.version));
+                o.version = std::ptr::null_mut();
             }
             drop(Box::from_raw(opts));
         }
@@ -453,11 +543,441 @@ impl From<&opendal_write_options> for options::WriteOptions {
     }
 }
 
-impl Drop for opendal_bytes {
-    fn drop(&mut self) {
-        unsafe {
-            // Safety: the pointer is always valid
-            Self::opendal_bytes_free(self);
+/// \brief The options for stat operations.
+///
+/// Use `opendal_stat_options_new()` to construct and
+/// `opendal_stat_options_free()` to free.
+///
+/// @see opendal_operator_stat_with
+#[repr(C)]
+pub struct opendal_stat_options {
+    /// The version of the object to stat; NULL means unset.
+    pub version: *const c_char,
+    /// If-Match header value; NULL means unset.
+    pub if_match: *const c_char,
+    /// If-None-Match header value; NULL means unset.
+    pub if_none_match: *const c_char,
+    /// Whether `if_modified_since` has been set.
+    pub has_if_modified_since: bool,
+    /// If-Modified-Since timestamp in milliseconds since the Unix epoch.
+    pub if_modified_since: i64,
+    /// Whether `if_unmodified_since` has been set.
+    pub has_if_unmodified_since: bool,
+    /// If-Unmodified-Since timestamp in milliseconds since the Unix epoch.
+    pub if_unmodified_since: i64,
+    /// Override the response Content-Type header; NULL means unset.
+    pub override_content_type: *const c_char,
+    /// Override the response Cache-Control header; NULL means unset.
+    pub override_cache_control: *const c_char,
+    /// Override the response Content-Disposition header; NULL means unset.
+    pub override_content_disposition: *const c_char,
+}
+
+impl opendal_stat_options {
+    /// \brief Construct a heap-allocated opendal_stat_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_stat_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_stat_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_free(opts: *mut opendal_stat_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set the version.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_version(
+        opts: *mut opendal_stat_options,
+        version: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).version = version;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_match(
+        opts: *mut opendal_stat_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_none_match(
+        opts: *mut opendal_stat_options,
+        if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_none_match = if_none_match;
+        }
+    }
+
+    /// \brief Set If-Modified-Since in milliseconds since the Unix epoch.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_modified_since(
+        opts: *mut opendal_stat_options,
+        if_modified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_modified_since = true;
+            (*opts).if_modified_since = if_modified_since;
+        }
+    }
+
+    /// \brief Set If-Unmodified-Since in milliseconds since the Unix epoch.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_if_unmodified_since(
+        opts: *mut opendal_stat_options,
+        if_unmodified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_unmodified_since = true;
+            (*opts).if_unmodified_since = if_unmodified_since;
+        }
+    }
+
+    /// \brief Set the override Content-Type.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_content_type(
+        opts: *mut opendal_stat_options,
+        override_content_type: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_type = override_content_type;
+        }
+    }
+
+    /// \brief Set the override Cache-Control.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_cache_control(
+        opts: *mut opendal_stat_options,
+        override_cache_control: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_cache_control = override_cache_control;
+        }
+    }
+
+    /// \brief Set the override Content-Disposition.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_stat_options_set_override_content_disposition(
+        opts: *mut opendal_stat_options,
+        override_content_disposition: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_disposition = override_content_disposition;
+        }
+    }
+}
+
+impl Default for opendal_stat_options {
+    fn default() -> Self {
+        Self {
+            version: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            has_if_modified_since: false,
+            if_modified_since: 0,
+            has_if_unmodified_since: false,
+            if_unmodified_since: 0,
+            override_content_type: std::ptr::null(),
+            override_cache_control: std::ptr::null(),
+            override_content_disposition: std::ptr::null(),
+        }
+    }
+}
+
+impl From<&opendal_stat_options> for options::StatOptions {
+    fn from(value: &opendal_stat_options) -> Self {
+        Self {
+            version: unsafe { optional_cstr(value.version) },
+            if_match: unsafe { optional_cstr(value.if_match) },
+            if_none_match: unsafe { optional_cstr(value.if_none_match) },
+            if_modified_since: value
+                .has_if_modified_since
+                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
+                .flatten(),
+            if_unmodified_since: value
+                .has_if_unmodified_since
+                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
+                .flatten(),
+            override_content_type: unsafe { optional_cstr(value.override_content_type) },
+            override_cache_control: unsafe { optional_cstr(value.override_cache_control) },
+            override_content_disposition: unsafe {
+                optional_cstr(value.override_content_disposition)
+            },
+        }
+    }
+}
+
+/// \brief The options for read operations.
+///
+/// Use `opendal_read_options_new()` to construct and
+/// `opendal_read_options_free()` to free.
+#[repr(C)]
+pub struct opendal_read_options {
+    /// The start offset of the range to read; default 0.
+    pub offset: u64,
+    /// Whether `length` has been set.
+    pub has_length: bool,
+    /// The number of bytes to read starting from `offset`.
+    pub length: u64,
+    /// The version of the object to read; NULL means unset.
+    pub version: *const c_char,
+    /// If-Match header value; NULL means unset.
+    pub if_match: *const c_char,
+    /// If-None-Match header value; NULL means unset.
+    pub if_none_match: *const c_char,
+    /// Whether `if_modified_since` has been set.
+    pub has_if_modified_since: bool,
+    /// If-Modified-Since condition, in Unix milliseconds.
+    pub if_modified_since: i64,
+    /// Whether `if_unmodified_since` has been set.
+    pub has_if_unmodified_since: bool,
+    /// If-Unmodified-Since condition, in Unix milliseconds.
+    pub if_unmodified_since: i64,
+    /// Concurrent read operations. `0` means sequential reads.
+    pub concurrent: usize,
+    /// Whether `chunk` has been set.
+    pub has_chunk: bool,
+    /// Chunk size for each read request.
+    pub chunk: usize,
+    /// Whether `gap` has been set.
+    pub has_gap: bool,
+    /// Gap size for merging nearby range reads.
+    pub gap: usize,
+    /// Override the response Content-Type header (presign only); NULL means unset.
+    pub override_content_type: *const c_char,
+    /// Override the response Cache-Control header (presign only); NULL means unset.
+    pub override_cache_control: *const c_char,
+    /// Override the response Content-Disposition header (presign only); NULL means unset.
+    pub override_content_disposition: *const c_char,
+}
+
+impl Default for opendal_read_options {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            has_length: false,
+            length: 0,
+            version: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            has_if_modified_since: false,
+            if_modified_since: 0,
+            has_if_unmodified_since: false,
+            if_unmodified_since: 0,
+            concurrent: 0,
+            has_chunk: false,
+            chunk: 0,
+            has_gap: false,
+            gap: 0,
+            override_content_type: std::ptr::null(),
+            override_cache_control: std::ptr::null(),
+            override_content_disposition: std::ptr::null(),
+        }
+    }
+}
+
+impl opendal_read_options {
+    /// \brief Construct a heap-allocated opendal_read_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_read_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_read_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_free(opts: *mut opendal_read_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set the read range offset and length.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_range(
+        opts: *mut opendal_read_options,
+        offset: u64,
+        length: u64,
+    ) {
+        if !opts.is_null() {
+            (*opts).offset = offset;
+            (*opts).has_length = true;
+            (*opts).length = length;
+        }
+    }
+
+    /// \brief Set the version of the object to read.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_version(
+        opts: *mut opendal_read_options,
+        version: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).version = version;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_if_match(
+        opts: *mut opendal_read_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_if_none_match(
+        opts: *mut opendal_read_options,
+        if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_none_match = if_none_match;
+        }
+    }
+
+    /// \brief Set If-Modified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_if_modified_since(
+        opts: *mut opendal_read_options,
+        if_modified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_modified_since = true;
+            (*opts).if_modified_since = if_modified_since;
+        }
+    }
+
+    /// \brief Set If-Unmodified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_if_unmodified_since(
+        opts: *mut opendal_read_options,
+        if_unmodified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_unmodified_since = true;
+            (*opts).if_unmodified_since = if_unmodified_since;
+        }
+    }
+
+    /// \brief Set concurrent read operations.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_concurrent(
+        opts: *mut opendal_read_options,
+        concurrent: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).concurrent = concurrent;
+        }
+    }
+
+    /// \brief Set chunk size.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_chunk(
+        opts: *mut opendal_read_options,
+        chunk: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_chunk = true;
+            (*opts).chunk = chunk;
+        }
+    }
+
+    /// \brief Set gap size.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_gap(
+        opts: *mut opendal_read_options,
+        gap: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_gap = true;
+            (*opts).gap = gap;
+        }
+    }
+
+    /// \brief Set the override Content-Type (presign only).
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_override_content_type(
+        opts: *mut opendal_read_options,
+        override_content_type: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_type = override_content_type;
+        }
+    }
+
+    /// \brief Set the override Cache-Control (presign only).
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_override_cache_control(
+        opts: *mut opendal_read_options,
+        override_cache_control: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_cache_control = override_cache_control;
+        }
+    }
+
+    /// \brief Set the override Content-Disposition (presign only).
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_override_content_disposition(
+        opts: *mut opendal_read_options,
+        override_content_disposition: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).override_content_disposition = override_content_disposition;
+        }
+    }
+}
+
+impl From<&opendal_read_options> for options::ReadOptions {
+    fn from(value: &opendal_read_options) -> Self {
+        let range = if value.offset > 0 || value.has_length {
+            let size = if value.has_length {
+                Some(value.length)
+            } else {
+                None
+            };
+            BytesRange::new(value.offset, size)
+        } else {
+            BytesRange::default()
+        };
+
+        Self {
+            range,
+            version: unsafe { optional_cstr(value.version) },
+            if_match: unsafe { optional_cstr(value.if_match) },
+            if_none_match: unsafe { optional_cstr(value.if_none_match) },
+            if_modified_since: value
+                .has_if_modified_since
+                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
+                .flatten(),
+            if_unmodified_since: value
+                .has_if_unmodified_since
+                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
+                .flatten(),
+            content_length_hint: None,
+            concurrent: value.concurrent,
+            chunk: value.has_chunk.then_some(value.chunk),
+            gap: value.has_gap.then_some(value.gap),
+            override_content_type: unsafe { optional_cstr(value.override_content_type) },
+            override_cache_control: unsafe { optional_cstr(value.override_cache_control) },
+            override_content_disposition: unsafe {
+                optional_cstr(value.override_content_disposition)
+            },
         }
     }
 }

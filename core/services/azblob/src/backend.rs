@@ -464,8 +464,49 @@ pub struct AzblobBackend {
     core: Arc<AzblobCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AzblobReader {
+    backend: AzblobBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl AzblobReader {
+    fn new(backend: AzblobBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for AzblobReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.azblob_get_blob(path, range, &args).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzblobBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AzblobReader>;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
@@ -498,22 +539,11 @@ impl Access for AzblobBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azblob_get_blob(path, args.range(), &args).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AzblobReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -566,10 +596,7 @@ impl Access for AzblobBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
-            PresignOperation::Read(v) => {
-                self.core
-                    .azblob_get_blob_request(path, BytesRange::default(), v)
-            }
+            PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
             PresignOperation::Write(_) => {
                 self.core
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())

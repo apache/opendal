@@ -72,8 +72,11 @@ pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
+pub use types::opendal_delete_options;
 pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
+pub use types::opendal_read_options;
+pub use types::opendal_stat_options;
 pub use types::opendal_write_options;
 pub use types::opendal_write_user_metadata_pair;
 

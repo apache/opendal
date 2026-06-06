@@ -19,14 +19,14 @@ use std::cmp::Ordering;
 
 use futures::Stream;
 use futures::StreamExt;
-use oio::Read;
+use oio::ReadStream;
 
 use crate::raw::*;
 use crate::*;
 
 /// The streaming body that OpenDAL's HttpClient returned.
 ///
-/// We implement [`oio::Read`] for the `HttpBody`. Services can use `HttpBody` as
+/// We implement [`oio::ReadStream`] for the `HttpBody`. Services can use `HttpBody` as
 /// [`Access::Read`].
 pub struct HttpBody {
     #[cfg(not(target_arch = "wasm32"))]
@@ -128,7 +128,7 @@ impl HttpBody {
     }
 }
 
-impl oio::Read for HttpBody {
+impl oio::ReadStream for HttpBody {
     async fn read(&mut self) -> Result<Buffer> {
         match self.stream.next().await.transpose()? {
             Some(buf) => {

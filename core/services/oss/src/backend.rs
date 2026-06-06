@@ -578,6 +578,7 @@ impl Builder for OssBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
+                            write_with_content_encoding: true,
                             write_with_if_not_exists: true,
 
                             // The min multipart size of OSS is 100 KiB.
@@ -639,8 +640,50 @@ pub struct OssBackend {
     core: Arc<OssCore>,
 }
 
+/// Reader returned by this backend.
+pub struct OssReader {
+    backend: OssBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl OssReader {
+    fn new(backend: OssBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for OssReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.oss_get_object(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for OssBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<OssReader>;
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
@@ -669,23 +712,11 @@ impl Access for OssBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.oss_get_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OssReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -754,7 +785,9 @@ impl Access for OssBackend {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
-            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v),
+            PresignOperation::Read(range, v) => {
+                self.core.oss_get_object_request(path, true, *range, v)
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)

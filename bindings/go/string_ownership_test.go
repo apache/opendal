@@ -22,6 +22,7 @@ package opendal
 import (
 	"context"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
@@ -845,5 +846,146 @@ func TestFfiOperatorListWithArgTypes(t *testing.T) {
 		if at != &ffi.TypePointer {
 			t.Fatalf("ffiOperatorListWith aTypes[%d] = %v, want TypePointer", i, at)
 		}
+	}
+}
+
+func TestReadWithOptions(t *testing.T) {
+	modified := time.Unix(1700000000, 0)
+	unmodified := time.Unix(1700000123, 0)
+
+	o := &readOptions{}
+	ReadWithRange(1024, 2048)(o)
+	ReadWithVersion("v1")(o)
+	ReadWithIfMatch("etag-a")(o)
+	ReadWithIfNoneMatch("etag-b")(o)
+	ReadWithIfModifiedSince(modified)(o)
+	ReadWithIfUnmodifiedSince(unmodified)(o)
+	ReadWithConcurrent(4)(o)
+	ReadWithChunk(1024)(o)
+	ReadWithGap(512)(o)
+	ReadWithOverrideContentType("text/plain")(o)
+	ReadWithOverrideCacheControl("max-age=60")(o)
+	ReadWithOverrideContentDisposition("attachment")(o)
+
+	if !o.hasRange {
+		t.Fatalf("hasRange = false, want true")
+	}
+	if o.rangeOffset != 1024 {
+		t.Fatalf("rangeOffset = %d, want 1024", o.rangeOffset)
+	}
+	if o.rangeLength != 2048 {
+		t.Fatalf("rangeLength = %d, want 2048", o.rangeLength)
+	}
+	if o.version != "v1" {
+		t.Fatalf("version = %q, want v1", o.version)
+	}
+	if o.ifMatch != "etag-a" {
+		t.Fatalf("ifMatch = %q, want etag-a", o.ifMatch)
+	}
+	if o.ifNoneMatch != "etag-b" {
+		t.Fatalf("ifNoneMatch = %q, want etag-b", o.ifNoneMatch)
+	}
+	if o.ifModifiedSince == nil || *o.ifModifiedSince != modified.UnixMilli() {
+		t.Fatalf("ifModifiedSince = %v, want %d", o.ifModifiedSince, modified.UnixMilli())
+	}
+	if o.ifUnmodifiedSince == nil || *o.ifUnmodifiedSince != unmodified.UnixMilli() {
+		t.Fatalf("ifUnmodifiedSince = %v, want %d", o.ifUnmodifiedSince, unmodified.UnixMilli())
+	}
+	if o.concurrent != 4 {
+		t.Fatalf("concurrent = %d, want 4", o.concurrent)
+	}
+	if o.chunk != 1024 {
+		t.Fatalf("chunk = %d, want 1024", o.chunk)
+	}
+	if o.gap != 512 {
+		t.Fatalf("gap = %d, want 512", o.gap)
+	}
+	if o.overrideContentType != "text/plain" {
+		t.Fatalf("overrideContentType = %q, want text/plain", o.overrideContentType)
+	}
+	if o.overrideCacheControl != "max-age=60" {
+		t.Fatalf("overrideCacheControl = %q, want max-age=60", o.overrideCacheControl)
+	}
+	if o.overrideContentDisposition != "attachment" {
+		t.Fatalf("overrideContentDisposition = %q, want attachment", o.overrideContentDisposition)
+	}
+}
+
+func TestFfiOperatorReadWithReturnType(t *testing.T) {
+	if ffiOperatorReadWith.opts.rType != &typeResultRead {
+		t.Fatalf("ffiOperatorReadWith rType = %v, want typeResultRead", ffiOperatorReadWith.opts.rType)
+	}
+}
+
+func TestFfiOperatorReadWithArgTypes(t *testing.T) {
+	aTypes := ffiOperatorReadWith.opts.aTypes
+	if len(aTypes) != 3 {
+		t.Fatalf("ffiOperatorReadWith aTypes len = %d, want 3", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiOperatorReadWith aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}
+
+func TestReadOptionsSetterArgTypes(t *testing.T) {
+	stringSetters := []*FFI[func(*opendalReadOptions, string) ([]byte, error)]{
+		ffiReadOptionsSetVersion,
+		ffiReadOptionsSetIfMatch,
+		ffiReadOptionsSetIfNoneMatch,
+		ffiReadOptionsSetOverrideContentType,
+		ffiReadOptionsSetOverrideCacheControl,
+		ffiReadOptionsSetOverrideContentDisposition,
+	}
+	for _, setter := range stringSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+
+	int64Setters := []*FFI[func(*opendalReadOptions, int64)]{
+		ffiReadOptionsSetIfModifiedSince,
+		ffiReadOptionsSetIfUnmodifiedSince,
+	}
+	for _, setter := range int64Setters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeSint64 {
+			t.Fatalf("%s aTypes = %v, want TypePointer, TypeSint64", setter.opts.sym, aTypes)
+		}
+	}
+
+	uintSetters := []*FFI[func(*opendalReadOptions, uint)]{
+		ffiReadOptionsSetConcurrent,
+		ffiReadOptionsSetChunk,
+		ffiReadOptionsSetGap,
+	}
+	for _, setter := range uintSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+
+	rangeATypes := ffiReadOptionsSetRange.opts.aTypes
+	if len(rangeATypes) != 3 {
+		t.Fatalf("ffiReadOptionsSetRange aTypes len = %d, want 3", len(rangeATypes))
+	}
+	if rangeATypes[0] != &ffi.TypePointer || rangeATypes[1] != &ffi.TypeUint64 || rangeATypes[2] != &ffi.TypeUint64 {
+		t.Fatalf("ffiReadOptionsSetRange aTypes = %v, want TypePointer, TypeUint64, TypeUint64", rangeATypes)
 	}
 }

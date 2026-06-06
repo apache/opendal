@@ -29,7 +29,6 @@ use super::core::HdfsNativeCore;
 use super::deleter::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
-use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -168,8 +167,45 @@ pub struct HdfsNativeBackend {
     core: Arc<HdfsNativeCore>,
 }
 
+/// Reader returned by this backend.
+pub struct HdfsNativeReader {
+    file: hdfs_native::file::FileReader,
+}
+
+impl HdfsNativeReader {
+    fn new(file: hdfs_native::file::FileReader) -> Self {
+        Self { file }
+    }
+}
+
+impl oio::PositionRead for HdfsNativeReader {
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
+        }
+
+        let Ok(offset) = usize::try_from(offset) else {
+            return Ok(Buffer::new());
+        };
+
+        let file_length = self.file.file_length();
+        if offset >= file_length {
+            return Ok(Buffer::new());
+        }
+
+        let size = size.min(file_length - offset);
+        let bytes = self
+            .file
+            .read_range(offset, size)
+            .await
+            .map_err(parse_hdfs_error)?;
+
+        Ok(Buffer::from(bytes))
+    }
+}
+
 impl Access for HdfsNativeBackend {
-    type Reader = HdfsNativeReader;
+    type Reader = oio::PositionReader<HdfsNativeReader>;
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -188,16 +224,11 @@ impl Access for HdfsNativeBackend {
         let m = self.core.hdfs_stat(path).await?;
         Ok(RpStat::new(m))
     }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let (f, offset, size) = self.core.hdfs_read(path, &args).await?;
-        let content_length = f.file_length() as u64;
-
-        let r = HdfsNativeReader::new(f, offset as _, size as _);
-
+    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let file = self.core.hdfs_open(path).await?;
         Ok((
-            RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(content_length)),
-            r,
+            RpRead::default(),
+            oio::PositionReader::new(HdfsNativeReader::new(file)),
         ))
     }
 

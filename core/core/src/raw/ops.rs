@@ -271,7 +271,7 @@ pub enum PresignOperation {
     /// Presign a stat(head) operation.
     Stat(OpStat),
     /// Presign a read operation.
-    Read(OpRead),
+    Read(BytesRange, OpRead),
     /// Presign a write operation.
     Write(OpWrite),
     /// Presign a delete operation.
@@ -286,7 +286,7 @@ impl From<OpStat> for PresignOperation {
 
 impl From<OpRead> for PresignOperation {
     fn from(v: OpRead) -> Self {
-        Self::Read(v)
+        Self::Read(BytesRange::default(), v)
     }
 }
 
@@ -305,7 +305,6 @@ impl From<OpDelete> for PresignOperation {
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
     if_modified_since: Option<Timestamp>,
@@ -320,22 +319,6 @@ impl OpRead {
     /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Set the range of the option
-    pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.range = range;
-        self
-    }
-
-    /// Get range from option
-    pub fn range(&self) -> BytesRange {
-        self.range
-    }
-
-    /// Returns a mutable range to allow updating.
-    pub fn range_mut(&mut self) -> &mut BytesRange {
-        &mut self.range
     }
 
     /// Sets the content-disposition header that should be sent back by the remote read operation.
@@ -517,11 +500,11 @@ impl OpReader {
     }
 }
 
-impl From<options::ReadOptions> for (OpRead, OpReader) {
+impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
     fn from(value: options::ReadOptions) -> Self {
         (
+            value.range,
             OpRead {
-                range: value.range,
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
                 if_modified_since: value.if_modified_since,
@@ -547,7 +530,6 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
     fn from(value: options::ReaderOptions) -> Self {
         (
             OpRead {
-                range: BytesRange::default(),
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
                 if_modified_since: value.if_modified_since,
@@ -899,6 +881,7 @@ pub struct OpCopy {
     source_if_none_match: Option<String>,
     source_if_modified_since: Option<Timestamp>,
     source_if_unmodified_since: Option<Timestamp>,
+    source_version: Option<String>,
 }
 
 impl OpCopy {
@@ -990,6 +973,19 @@ impl OpCopy {
     pub fn source_if_unmodified_since(&self) -> Option<Timestamp> {
         self.source_if_unmodified_since
     }
+
+    /// Set source version for the operation.
+    ///
+    /// When set, the copy operation will copy from the specified source version.
+    pub fn with_source_version(mut self, version: impl Into<String>) -> Self {
+        self.source_version = Some(version.into());
+        self
+    }
+
+    /// Get source version from the operation.
+    pub fn source_version(&self) -> Option<&str> {
+        self.source_version.as_deref()
+    }
 }
 
 /// Args for `copier` operation.
@@ -1050,6 +1046,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
                 source_if_none_match: value.source_if_none_match,
                 source_if_modified_since: value.source_if_modified_since,
                 source_if_unmodified_since: value.source_if_unmodified_since,
+                source_version: value.source_version,
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),

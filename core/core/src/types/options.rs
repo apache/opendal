@@ -615,6 +615,19 @@ pub struct CopyOptions {
     ///   object has not been modified after the given timestamp.
     pub source_if_unmodified_since: Option<Timestamp>,
 
+    /// Copy from a specific source object version.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_version`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will read from the specified source
+    ///   version instead of the current source object.
+    /// - Destination behavior follows normal copy semantics.
+    pub source_version: Option<String>,
+
     /// Known content length of the source object.
     ///
     /// This is an execution hint that allows OpenDAL to avoid extra metadata

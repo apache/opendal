@@ -1482,6 +1482,14 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Sets source version for this copy operation.
+    ///
+    /// Refer to [`options::CopyOptions::source_version`] for more details.
+    pub fn source_version(mut self, version: impl Into<String>) -> Self {
+        self.args.0.source_version = Some(version.into());
+        self
+    }
+
     /// Sets concurrent copy operations for this copy.
     ///
     /// Refer to [`options::CopyOptions::concurrent`] for more details.
@@ -1527,6 +1535,14 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     /// Refer to [`options::CopyOptions::if_match`] for more details.
     pub fn if_match(mut self, etag: &str) -> Self {
         self.args.0.if_match = Some(etag.to_string());
+        self
+    }
+
+    /// Sets source version for this copier operation.
+    ///
+    /// Refer to [`options::CopyOptions::source_version`] for more details.
+    pub fn source_version(mut self, version: impl Into<String>) -> Self {
+        self.args.0.source_version = Some(version.into());
         self
     }
 

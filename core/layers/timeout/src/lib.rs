@@ -327,10 +327,34 @@ impl<R> TimeoutWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
         Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
+    }
+}
+
+impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.open(range),
+        )
+        .await?;
+        Ok((
+            rp,
+            Box::new(TimeoutWrapper::new(stream, self.timeout)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.read(range),
+        )
+        .await
     }
 }
 
@@ -452,7 +476,14 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read(&mut self) -> impl Future<Output = Result<Buffer>> {
+        fn open(
+            &self,
+            _: BytesRange,
+        ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> {
+            pending()
+        }
+
+        fn read(&self, _: BytesRange) -> impl Future<Output = Result<(RpRead, Buffer)>> {
             pending()
         }
     }

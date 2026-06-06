@@ -256,10 +256,15 @@ impl AlluxioCore {
         }
     }
 
-    /// TODO: we should implement range support correctly.
-    ///
-    /// Please refer to [alluxio-py](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-    pub async fn read(&self, stream_id: u64, _: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn read(&self, stream_id: u64, range: BytesRange) -> Result<Response<HttpBody>> {
+        if !range.is_full() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "alluxio stream read doesn't support range",
+            )
+            .with_context("range", format!("{range:?}")));
+        }
+
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,
@@ -315,6 +320,27 @@ impl AlluxioCore {
             StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_rejects_range() {
+        let core = AlluxioCore {
+            info: AccessorInfo::default().into(),
+            root: "/".to_string(),
+            endpoint: "http://127.0.0.1:1".to_string(),
+        };
+
+        let err = match core.read(1, BytesRange::from(0_u64..1)).await {
+            Ok(_) => panic!("range read should be rejected"),
+            Err(err) => err,
+        };
+
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
 

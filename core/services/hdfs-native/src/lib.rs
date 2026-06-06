@@ -29,7 +29,6 @@ mod core;
 mod deleter;
 mod error;
 mod lister;
-mod reader;
 mod writer;
 
 pub use backend::HdfsNativeBuilder as HdfsNative;

@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -166,6 +167,10 @@ impl OssCore {
             req = req.header(CONTENT_DISPOSITION, pos);
         }
 
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control);
         }
@@ -292,11 +297,11 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
+        range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
-        let range = args.range();
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         // Add query arguments to the URL based on response overrides
@@ -469,8 +474,13 @@ impl OssCore {
         Ok(req)
     }
 
-    pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
-        let req = self.oss_get_object_request(path, false, args)?;
+    pub async fn oss_get_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+        args: &OpRead,
+    ) -> Result<Response<HttpBody>> {
+        let req = self.oss_get_object_request(path, false, range, args)?;
         let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }
@@ -616,6 +626,7 @@ impl OssCore {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
+        content_encoding: Option<&str>,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
@@ -630,6 +641,9 @@ impl OssCore {
         }
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control);
+        }
+        if let Some(encoding) = content_encoding {
+            req = req.header(CONTENT_ENCODING, encoding);
         }
         req = self.insert_sse_headers(req);
 

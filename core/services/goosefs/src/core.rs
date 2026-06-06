@@ -321,7 +321,7 @@ impl GoosefsCore {
     /// payload in memory.
     ///
     /// Historically this was the entry point for the reader, but the
-    /// streaming `GoosefsReader` now pulls data block-by-block directly
+    /// streaming `GoosefsReadStream` now pulls data block-by-block directly
     /// from [`Self::open_range_reader`] / [`Self::open_reader`]. We keep
     /// `read_file` around (muted with `#[allow(dead_code)]`) because
     /// (a) it's useful for small reads / internal diagnostics, and

@@ -23,7 +23,7 @@ use tokio::io::ReadBuf;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct HdfsReader<F> {
+pub struct HdfsReadStream<F> {
     f: F,
     read: usize,
     size: usize,
@@ -31,7 +31,7 @@ pub struct HdfsReader<F> {
     buf: BytesMut,
 }
 
-impl<F> HdfsReader<F> {
+impl<F> HdfsReadStream<F> {
     pub fn new(f: F, size: usize) -> Self {
         Self {
             f,
@@ -44,7 +44,7 @@ impl<F> HdfsReader<F> {
     }
 }
 
-impl oio::Read for HdfsReader<AsyncFile> {
+impl oio::ReadStream for HdfsReadStream<AsyncFile> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.read >= self.size {
             return Ok(Buffer::new());

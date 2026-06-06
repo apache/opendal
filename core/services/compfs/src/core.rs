@@ -16,6 +16,7 @@
 // under the License.
 
 use std::future::Future;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -63,8 +64,31 @@ pub(super) struct CompfsCore {
 }
 
 impl CompfsCore {
-    pub fn prepare_path(&self, path: &str) -> PathBuf {
-        self.root.join(path.trim_end_matches('/'))
+    /// Join a caller-supplied key onto `self.root` while keeping the result
+    /// confined to that root.
+    ///
+    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
+    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
+    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
+    /// configured `root` at syscall time. compfs is a local (compio-backed)
+    /// filesystem, so the host kernel resolves `..` when the path is used; we
+    /// reject any key whose components include a `..` (parent-dir) traversal.
+    ///
+    /// This mirrors the confinement added to the `fs` backend in #7684.
+    pub fn prepare_path(&self, path: &str) -> Result<PathBuf> {
+        use std::path::Component;
+        let trimmed = path.trim_end_matches('/');
+        if Path::new(trimmed)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir))
+        {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "path escapes the configured root via `..`",
+            )
+            .with_context("path", path));
+        }
+        Ok(self.root.join(trimmed))
     }
 
     pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> opendal_core::Result<R>
@@ -135,5 +159,50 @@ mod tests {
 
         assert_eq!(buf.total_len(), len);
         assert_eq!(collected, bytes);
+    }
+
+    fn new_test_core() -> CompfsCore {
+        CompfsCore {
+            info: Arc::new(AccessorInfo::default()),
+            root: PathBuf::from("/data/root"),
+            dispatcher: Dispatcher::new().unwrap(),
+            buf_pool: oio::PooledBuf::new(16),
+        }
+    }
+
+    #[test]
+    fn test_prepare_path_rejects_parent_dir() {
+        let core = new_test_core();
+        for key in ["../etc/passwd", "../../etc/passwd", "a/../../b", "a/.."] {
+            let err = core.prepare_path(key).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "key should be rejected: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_prepare_path_allows_normal_keys() {
+        let core = new_test_core();
+        // Normal keys, `.` (CurDir), and trailing slashes resolve unchanged.
+        assert_eq!(
+            core.prepare_path("a/b.txt").unwrap(),
+            PathBuf::from("/data/root/a/b.txt")
+        );
+        assert_eq!(
+            core.prepare_path("a/b/").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        assert_eq!(
+            core.prepare_path("./a/b").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        // A key containing `..` only as a substring of a name is not a traversal.
+        assert_eq!(
+            core.prepare_path("a..b").unwrap(),
+            PathBuf::from("/data/root/a..b")
+        );
     }
 }

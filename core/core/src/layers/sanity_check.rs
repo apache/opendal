@@ -1,0 +1,118 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use std::collections::HashSet;
+
+use crate::raw::*;
+use crate::{Error, ErrorKind, Result};
+
+/// SanityCheckLayer adds a simple sanity check for list operations.
+/// It ensures that the paths returned by underlying storage start with
+/// the requested prefix. If an unexpected path is returned, it will return
+/// an Unexpected error.
+///
+/// This layer can detect misbehaving services that return responses for
+/// unrelated keys (see issue #6646).
+#[derive(Default)]
+pub struct SanityCheckLayer;
+
+impl<A: Access> Layer<A> for SanityCheckLayer {
+    type LayeredAccess = SanityCheckAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        SanityCheckAccessor { inner }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SanityCheckAccessor<A: Access> {
+    inner: A,
+}
+
+impl<A: Access> LayeredAccess for SanityCheckAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type Writer = A::Writer;
+    type Lister = SanityCheckLister<A::Lister>;
+    type Deleter = A::Deleter;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(path, args).await
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete().await
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let (rp, lister) = self.inner.list(path, args).await?;
+        let prefix = path.to_string();
+        let checker = SanityCheckLister::new(lister, prefix);
+        Ok((rp, checker))
+    }
+}
+
+pub struct SanityCheckLister<L: oio::List> {
+    inner: L,
+    prefix: String,
+    seen: HashSet<String>,
+}
+
+impl<L: oio::List> SanityCheckLister<L> {
+    fn new(inner: L, prefix: String) -> Self {
+        Self {
+            inner,
+            prefix,
+            seen: HashSet::new(),
+        }
+    }
+}
+
+impl<L: oio::List> oio::List for SanityCheckLister<L> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self.inner.next().await? {
+            Some(entry) => {
+                let p = entry.path();
+                if !p.starts_with(&self.prefix) {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!(
+                            "sanity check failed: entry {} is outside prefix {}",
+                            p, self.prefix
+                        ),
+                    ));
+                }
+                if !self.seen.insert(p.to_string()) {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("sanity check failed: duplicate entry {} detected", p),
+                    ));
+                }
+                Ok(Some(entry))
+            }
+            None => Ok(None),
+        }
+    }
+}

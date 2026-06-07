@@ -1018,6 +1018,153 @@ impl From<&opendal_read_options> for options::ReadOptions {
     }
 }
 
+/// \brief The options for copy operations.
+///
+/// Use `opendal_copy_options_new()` to construct and
+/// `opendal_copy_options_free()` to free.
+#[repr(C)]
+pub struct opendal_copy_options {
+    /// Only copy if target does not exist; default false.
+    pub if_not_exists: bool,
+    /// If-Match condition; NULL means unset.
+    pub if_match: *const c_char,
+    /// Source version; NULL means unset.
+    pub source_version: *const c_char,
+    /// Whether `source_content_length_hint` has been set.
+    pub has_source_content_length_hint: bool,
+    /// Known content length of the source object.
+    pub source_content_length_hint: u64,
+    /// Concurrent copy operations. `0` means sequential copy.
+    pub concurrent: usize,
+    /// Whether `chunk` has been set.
+    pub has_chunk: bool,
+    /// Chunk size for segmented copy operations.
+    pub chunk: usize,
+}
+
+impl opendal_copy_options {
+    /// \brief Construct a heap-allocated opendal_copy_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_copy_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_copy_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_free(opts: *mut opendal_copy_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set if_not_exists.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_if_not_exists(
+        opts: *mut opendal_copy_options,
+        if_not_exists: bool,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_not_exists = if_not_exists;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_if_match(
+        opts: *mut opendal_copy_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set source version.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_version(
+        opts: *mut opendal_copy_options,
+        source_version: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).source_version = source_version;
+        }
+    }
+
+    /// \brief Set source_content_length_hint.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_content_length_hint(
+        opts: *mut opendal_copy_options,
+        source_content_length_hint: u64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_source_content_length_hint = true;
+            (*opts).source_content_length_hint = source_content_length_hint;
+        }
+    }
+
+    /// \brief Set concurrent.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_concurrent(
+        opts: *mut opendal_copy_options,
+        concurrent: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).concurrent = concurrent;
+        }
+    }
+
+    /// \brief Set chunk.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_chunk(
+        opts: *mut opendal_copy_options,
+        chunk: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_chunk = true;
+            (*opts).chunk = chunk;
+        }
+    }
+}
+
+impl Default for opendal_copy_options {
+    fn default() -> Self {
+        Self {
+            if_not_exists: false,
+            if_match: std::ptr::null(),
+            source_version: std::ptr::null(),
+            has_source_content_length_hint: false,
+            source_content_length_hint: 0,
+            concurrent: 0,
+            has_chunk: false,
+            chunk: 0,
+        }
+    }
+}
+
+impl From<&opendal_copy_options> for options::CopyOptions {
+    fn from(value: &opendal_copy_options) -> Self {
+        Self {
+            if_not_exists: value.if_not_exists,
+            if_match: unsafe { optional_cstr(value.if_match) },
+            source_version: unsafe { optional_cstr(value.source_version) },
+            source_content_length_hint: value
+                .has_source_content_length_hint
+                .then_some(value.source_content_length_hint),
+            concurrent: value.concurrent,
+            chunk: value.has_chunk.then_some(value.chunk),
+        }
+    }
+}
+
+impl Drop for opendal_bytes {
+    fn drop(&mut self) {
+        unsafe {
+            // Safety: the pointer is always valid
+            Self::opendal_bytes_free(self);
+        }
+    }
+}
+
 impl From<&opendal_bytes> for Buffer {
     fn from(v: &opendal_bytes) -> Self {
         let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };

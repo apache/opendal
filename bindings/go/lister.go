@@ -105,11 +105,33 @@ func ListWithStartAfter(startAfter string) WithListFn {
 	}
 }
 
+// ListWithVersions sets the versions flag for the list operation.
+//
+// When versions is true, the list operation will include all object versions.
+// This option is only meaningful on version-aware backends.
+func ListWithVersions(versions bool) WithListFn {
+	return func(o *listOptions) {
+		o.versions = versions
+	}
+}
+
+// ListWithDeleted sets the deleted flag for the list operation.
+//
+// When deleted is true, the list operation will include delete markers.
+// This option is only meaningful on version-aware backends.
+func ListWithDeleted(deleted bool) WithListFn {
+	return func(o *listOptions) {
+		o.deleted = deleted
+	}
+}
+
 // listOptions holds the options for a list operation.
 type listOptions struct {
 	recursive  bool
 	limit      uint
 	startAfter *string
+	versions   bool
+	deleted    bool
 }
 
 // List returns a Lister to iterate over entries that start with the given path.
@@ -166,6 +188,8 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 	if o.startAfter != nil {
 		ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
 	}
+	ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
+	ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
 	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
 	if err != nil {
 		return nil, err
@@ -405,6 +429,42 @@ var ffiListOptionsSetStartAfter = newFFI(ffiOpts{
 			nil,
 			unsafe.Pointer(&opts),
 			unsafe.Pointer(&bytePtr),
+		)
+	}
+})
+
+var ffiListOptionsSetVersions = newFFI(ffiOpts{
+	sym:    "opendal_list_options_set_versions",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, versions bool) {
+	return func(opts *opendalListOptions, versions bool) {
+		var v uint8
+		if versions {
+			v = 1
+		}
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+			unsafe.Pointer(&v),
+		)
+	}
+})
+
+var ffiListOptionsSetDeleted = newFFI(ffiOpts{
+	sym:    "opendal_list_options_set_deleted",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, deleted bool) {
+	return func(opts *opendalListOptions, deleted bool) {
+		var d uint8
+		if deleted {
+			d = 1
+		}
+		ffiCall(
+			nil,
+			unsafe.Pointer(&opts),
+			unsafe.Pointer(&d),
 		)
 	}
 })

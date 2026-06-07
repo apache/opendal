@@ -708,6 +708,8 @@ typedef struct opendal_result_list {
  * @see opendal_list_options_set_recursive
  * @see opendal_list_options_set_limit
  * @see opendal_list_options_set_start_after
+ * @see opendal_list_options_set_versions
+ * @see opendal_list_options_set_deleted
  */
 typedef struct opendal_list_options {
   /**
@@ -722,6 +724,14 @@ typedef struct opendal_list_options {
    * Optional key to start listing from; NULL means unset.
    */
   char *start_after;
+  /**
+   * Include object versions when supported by version-aware backends; default false.
+   */
+  bool versions;
+  /**
+   * Include delete markers when supported by version-aware backends; default false.
+   */
+  bool deleted;
 } opendal_list_options;
 
 /**
@@ -925,6 +935,14 @@ typedef struct opendal_capability {
    * If backend supports list without delimiter.
    */
   bool list_with_recursive;
+  /**
+   * If backend supports list with versions.
+   */
+  bool list_with_versions;
+  /**
+   * If backend supports list with deleted.
+   */
+  bool list_with_deleted;
   /**
    * If operator supports presign.
    */
@@ -2105,6 +2123,22 @@ void opendal_list_options_set_limit(struct opendal_list_options *opts, uintptr_t
  */
 void opendal_list_options_set_start_after(struct opendal_list_options *opts,
                                           const char *start_after);
+
+/**
+ * \brief Set the versions option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param versions Whether to include object versions.
+ */
+void opendal_list_options_set_versions(struct opendal_list_options *opts, bool versions);
+
+/**
+ * \brief Set the deleted option.
+ *
+ * @param opts The opendal_list_options to modify.
+ * @param deleted Whether to include delete markers.
+ */
+void opendal_list_options_set_deleted(struct opendal_list_options *opts, bool deleted);
 
 /**
  * \brief Free the heap memory used by opendal_list_options.

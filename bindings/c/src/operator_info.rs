@@ -148,6 +148,10 @@ pub struct opendal_capability {
     pub list_with_start_after: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
+    /// If backend supports list with versions.
+    pub list_with_versions: bool,
+    /// If backend supports list with deleted.
+    pub list_with_deleted: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -299,6 +303,8 @@ impl From<core::Capability> for opendal_capability {
             list_with_limit: value.list_with_limit,
             list_with_start_after: value.list_with_start_after,
             list_with_recursive: value.list_with_recursive,
+            list_with_versions: value.list_with_versions,
+            list_with_deleted: value.list_with_deleted,
             presign: value.presign,
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,

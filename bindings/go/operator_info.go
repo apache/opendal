@@ -271,6 +271,14 @@ func (c *Capability) ListWithRecursive() bool {
 	return c.inner.listWithRecursive == 1
 }
 
+func (c *Capability) ListWithVersions() bool {
+	return c.inner.listWithVersions == 1
+}
+
+func (c *Capability) ListWithDeleted() bool {
+	return c.inner.listWithDeleted == 1
+}
+
 func (c *Capability) Presign() bool {
 	return c.inner.presign == 1
 }

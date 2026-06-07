@@ -831,6 +831,40 @@ func TestListWithStartAfterEmptyString(t *testing.T) {
 	}
 }
 
+func TestListWithVersionsTrue(t *testing.T) {
+	o := &listOptions{}
+	ListWithVersions(true)(o)
+	if !o.versions {
+		t.Fatalf("ListWithVersions(true): versions = false, want true")
+	}
+}
+
+func TestListWithVersionsFalse(t *testing.T) {
+	o := &listOptions{}
+	ListWithVersions(true)(o)
+	ListWithVersions(false)(o)
+	if o.versions {
+		t.Fatalf("ListWithVersions(false): versions = true, want false")
+	}
+}
+
+func TestListWithDeletedTrue(t *testing.T) {
+	o := &listOptions{}
+	ListWithDeleted(true)(o)
+	if !o.deleted {
+		t.Fatalf("ListWithDeleted(true): deleted = false, want true")
+	}
+}
+
+func TestListWithDeletedFalse(t *testing.T) {
+	o := &listOptions{}
+	ListWithDeleted(true)(o)
+	ListWithDeleted(false)(o)
+	if o.deleted {
+		t.Fatalf("ListWithDeleted(false): deleted = true, want false")
+	}
+}
+
 func TestFfiOperatorListWithReturnType(t *testing.T) {
 	if ffiOperatorListWith.opts.rType != &typeResultList {
 		t.Fatalf("ffiOperatorListWith rType = %v, want typeResultList", ffiOperatorListWith.opts.rType)

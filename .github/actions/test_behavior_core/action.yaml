@@ -32,7 +32,7 @@ runs:
       shell: bash
       run: |
         mkdir -p ./dynamic_test_core &&
-        cat <<EOF >./dynamic_test_core/action.yml
+        cat <<'EOF' >./dynamic_test_core/action.yml
         runs:
           using: composite
           steps:

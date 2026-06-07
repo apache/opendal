@@ -98,6 +98,9 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
+          - os: macos-14
+            platform: arm64-darwin23
+            rust_target: aarch64-apple-darwin
           - os: macos-15
             platform: arm64-darwin24
             rust_target: aarch64-apple-darwin
@@ -109,14 +112,14 @@ jobs:
     continue-on-error: true
 
     env:
-      RB_SYS_CARGO_TARGET: ${{ matrix.rust_target }}
+      CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
+      OPENDAL_RUBY_PLATFORM: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
-        shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
@@ -126,13 +129,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
+          working-directory: bindings/ruby # must repeat because actions will not use defaults.run
 
       - name: Show available rake tasks
         run: bundle exec rake --tasks
 
       - name: Build native gem
-        run: bundle exec rake native:opendal:${{ matrix.platform }} gem
+        run: bundle exec rake native:opendal:${{ matrix.platform }}
 
       - name: Collect built gem
         run: |

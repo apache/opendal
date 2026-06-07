@@ -24,7 +24,20 @@ runs:
     - name: Setup HDFS Native cluster
       shell: bash
       working-directory: fixtures/hdfs
-      run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
+      run: |
+        # Retry docker compose up to 3 times to handle transient network issues
+        # (e.g., Docker Hub pull timeouts).
+        for i in $(seq 1 3); do
+          echo "--- docker compose up attempt $i/3 ---"
+          if docker compose -f docker-compose-hdfs-cluster.yml up -d --wait; then
+            exit 0
+          fi
+          if [ "$i" -lt 3 ]; then
+            sleep $((i * 10))
+            docker compose -f docker-compose-hdfs-cluster.yml down 2>/dev/null || true
+          fi
+        done
+        exit 1
     - name: Setup opendal env
       shell: bash
       run: |

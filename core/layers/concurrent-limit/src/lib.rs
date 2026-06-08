@@ -511,7 +511,7 @@ mod tests {
         let semaphore = Arc::new(Semaphore::new(1));
         let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
         let info = Arc::new(AccessorInfo::default());
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             copy: true,
             rename: true,
             ..Default::default()
@@ -579,7 +579,7 @@ mod tests {
         let semaphore = Arc::new(Semaphore::new(1));
         let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
         let info = Arc::new(AccessorInfo::default());
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             copy: true,
             stat: true,
             ..Default::default()

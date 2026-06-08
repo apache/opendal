@@ -41,7 +41,7 @@ func (op *Operator) Info() *OperatorInfo {
 		scheme:    ffiOperatorInfoGetScheme.symbol(op.ctx)(inner),
 		root:      ffiOperatorInfoGetRoot.symbol(op.ctx)(inner),
 		name:      ffiOperatorInfoGetName.symbol(op.ctx)(inner),
-		fullCap:   &Capability{inner: ffiOperatorInfoGetFullCapability.symbol(op.ctx)(inner)},
+		cap:       &Capability{inner: ffiOperatorInfoGetCapability.symbol(op.ctx)(inner)},
 		nativeCap: &Capability{inner: ffiOperatorInfoGetNativeCapability.symbol(op.ctx)(inner)},
 	}
 }
@@ -55,12 +55,16 @@ type OperatorInfo struct {
 	scheme    string
 	root      string
 	name      string
-	fullCap   *Capability
+	cap       *Capability
 	nativeCap *Capability
 }
 
+func (i *OperatorInfo) GetCapability() *Capability {
+	return i.cap
+}
+
 func (i *OperatorInfo) GetFullCapability() *Capability {
-	return i.fullCap
+	return i.cap
 }
 
 func (i *OperatorInfo) GetNativeCapability() *Capability {
@@ -335,8 +339,8 @@ var ffiOperatorInfoFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorInfoGetFullCapability = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_full_capability",
+var ffiOperatorInfoGetCapability = newFFI(ffiOpts{
+	sym:    "opendal_operator_info_get_capability",
 	rType:  &typeCapability,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) *opendalCapability {
@@ -349,6 +353,8 @@ var ffiOperatorInfoGetFullCapability = newFFI(ffiOpts{
 		return &cap
 	}
 })
+
+var ffiOperatorInfoGetFullCapability = ffiOperatorInfoGetCapability
 
 var ffiOperatorInfoGetNativeCapability = newFFI(ffiOpts{
 	sym:    "opendal_operator_info_get_native_capability",

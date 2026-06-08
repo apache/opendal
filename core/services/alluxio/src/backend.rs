@@ -98,7 +98,7 @@ impl Builder for AlluxioBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(ALLUXIO_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             // FIXME:

@@ -215,7 +215,7 @@ impl FoyerBackend {
         info.set_scheme(FOYER_SCHEME);
         info.set_name(core.name().unwrap_or("foyer"));
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             write: true,
             write_can_empty: true,

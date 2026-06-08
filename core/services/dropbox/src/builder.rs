@@ -153,7 +153,7 @@ impl Builder for DropboxBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(DROPBOX_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

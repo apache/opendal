@@ -55,7 +55,7 @@ internal static class OperatorInfoMarshaller
             Utilities.ReadUtf8(payload.Scheme),
             Utilities.ReadUtf8(payload.Root),
             Utilities.ReadUtf8(payload.Name),
-            new Capability(payload.FullCapability),
+            new Capability(payload.Capability),
             new Capability(payload.NativeCapability)
         );
     }

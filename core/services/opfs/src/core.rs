@@ -33,7 +33,7 @@ impl OpfsCore {
         info.set_scheme(OPFS_SCHEME);
         info.set_name("opfs");
         info.set_root(&root);
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             stat: true,
 
             read: true,

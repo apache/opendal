@@ -147,7 +147,7 @@ impl Builder for KoofrBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(KOOFR_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             create_dir: true,

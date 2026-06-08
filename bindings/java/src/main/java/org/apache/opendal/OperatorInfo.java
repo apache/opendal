@@ -27,19 +27,23 @@ public class OperatorInfo {
     public final String scheme;
     public final String root;
     public final String name;
+    public final Capability capability;
+    @Deprecated
     public final Capability fullCapability;
+    @Deprecated
     public final Capability nativeCapability;
 
     public OperatorInfo(
             @NonNull String scheme,
             @NonNull String root,
             @NonNull String name,
-            @NonNull Capability fullCapability,
+            @NonNull Capability capability,
             @NonNull Capability nativeCapability) {
         this.scheme = scheme;
         this.root = root;
         this.name = name;
-        this.fullCapability = fullCapability;
+        this.capability = capability;
+        this.fullCapability = capability;
         this.nativeCapability = nativeCapability;
     }
 }

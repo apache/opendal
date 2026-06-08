@@ -76,7 +76,7 @@ impl<A: Access> Layer<A> for SimulateLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
-        info.update_full_capability(|mut cap| {
+        info.update_capability(|mut cap| {
             if self.create_dir && cap.list && cap.write_can_empty {
                 cap.create_dir = true;
             }
@@ -109,7 +109,7 @@ impl<A: Access> Debug for SimulateAccessor<A> {
 
 impl<A: Access> SimulateAccessor<A> {
     async fn simulate_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.native_capability();
+        let capability = self.info.service_capability();
 
         if capability.create_dir || !self.config.create_dir {
             return self.inner().create_dir(path, args).await;
@@ -125,7 +125,7 @@ impl<A: Access> SimulateAccessor<A> {
     }
 
     async fn simulate_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.native_capability();
+        let capability = self.info.service_capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -170,7 +170,7 @@ impl<A: Access> SimulateAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, SimulateLister<A, A::Lister>)> {
-        let cap = self.info.native_capability();
+        let cap = self.info.service_capability();
 
         let recursive = args.recursive();
         let forward = args;
@@ -225,7 +225,7 @@ impl<A: Access> SimulateAccessor<A> {
         path: &str,
         args: OpDelete,
     ) -> Result<()> {
-        if !self.info.full_capability().delete_with_recursive {
+        if !self.info.capability().delete_with_recursive {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "recursive delete is not supported",
@@ -331,7 +331,7 @@ impl<A: Access, D> SimulateDeleter<A, D> {
 impl<A: Access, D: oio::Delete> oio::Delete for SimulateDeleter<A, D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         if args.recursive() {
-            let cap = self.accessor.info.native_capability();
+            let cap = self.accessor.info.service_capability();
 
             if cap.delete_with_recursive {
                 return self.deleter.delete(path, args).await;

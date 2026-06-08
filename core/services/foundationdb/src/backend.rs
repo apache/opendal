@@ -96,7 +96,7 @@ impl FoundationdbBackend {
         info.set_scheme(FOUNDATIONDB_SCHEME);
         info.set_name("foundationdb");
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

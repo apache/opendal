@@ -81,7 +81,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
     let mut writer = op.writer_with(&path);
     if let Some(buffer) = input.buffer {
         writer = writer.chunk(buffer);
-    } else if let Some(min_size) = op.info().full_capability().write_multi_min_size {
+    } else if let Some(min_size) = op.info().capability().write_multi_min_size {
         writer = writer.chunk(min_size);
     }
     if let Some(concurrent) = input.concurrent {
@@ -109,7 +109,7 @@ fuzz_target!(|input: FuzzInput| {
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {
-        if !op.info().full_capability().write_can_multi {
+        if !op.info().capability().write_can_multi {
             log::warn!("service doesn't support write multi, skip fuzzing");
             return;
         }

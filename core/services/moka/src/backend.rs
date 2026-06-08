@@ -193,7 +193,7 @@ impl MokaBackend {
         info.set_scheme(MOKA_SCHEME);
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             write: true,
             write_can_empty: true,

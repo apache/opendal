@@ -79,7 +79,7 @@ impl oio::PageList for OneDriveLister {
         let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
-        let list_with_versions = self.core.info.native_capability().list_with_versions;
+        let list_with_versions = self.core.info.service_capability().list_with_versions;
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {

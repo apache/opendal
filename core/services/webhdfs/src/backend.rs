@@ -168,7 +168,7 @@ impl Builder for WebhdfsBuilder {
         let info = AccessorInfo::default();
         info.set_scheme(WEBHDFS_SCHEME)
             .set_root(&root)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
 
                 read: true,

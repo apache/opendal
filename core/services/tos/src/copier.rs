@@ -35,7 +35,7 @@ pub fn new_tos_copier(
     args: OpCopy,
     opts: OpCopier,
 ) -> Result<TosCopiers> {
-    let capability = core.info.full_capability();
+    let capability = core.info.capability();
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
         Error::new(
             ErrorKind::Unexpected,

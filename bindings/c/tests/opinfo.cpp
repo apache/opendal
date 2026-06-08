@@ -60,7 +60,7 @@ protected:
 // We test the capability set by **memory** service.
 TEST_F(OpendalOperatorInfoTest, CapabilityTest)
 {
-    opendal_capability full_cap = opendal_operator_info_get_full_capability(this->info);
+    opendal_capability full_cap = opendal_operator_info_get_capability(this->info);
     opendal_capability native_cap = opendal_operator_info_get_native_capability(this->info);
 
     EXPECT_TRUE(full_cap.read);

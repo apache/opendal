@@ -147,7 +147,7 @@ impl Builder for CloudflareKvBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(CLOUDFLARE_KV_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             create_dir: true,
 
                             stat: true,
@@ -495,7 +495,7 @@ impl Access for CloudflareKvBackend {
             RpDelete::default(),
             oio::BatchDeleter::new(
                 CloudflareKvDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
+                self.core.info.capability().delete_max_size,
             ),
         ))
     }

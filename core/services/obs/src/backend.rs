@@ -207,7 +207,7 @@ impl Builder for ObsBuilder {
                     info.set_scheme(OBS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,

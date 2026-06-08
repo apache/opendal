@@ -25,16 +25,19 @@ pub struct OpendalOperatorInfo {
     pub scheme: *mut c_char,
     pub root: *mut c_char,
     pub name: *mut c_char,
-    pub full_capability: Capability,
+    pub capability: Capability,
     pub native_capability: Capability,
 }
 
 pub fn into_operator_info(info: opendal::OperatorInfo) -> OpendalOperatorInfo {
+    #[allow(deprecated)]
+    let native_capability = info.native_capability();
+
     OpendalOperatorInfo {
         scheme: into_string_ptr(info.scheme().to_string()),
         root: into_string_ptr(info.root()),
         name: into_string_ptr(info.name()),
-        full_capability: Capability::new(info.full_capability()),
-        native_capability: Capability::new(info.native_capability()),
+        capability: Capability::new(info.capability()),
+        native_capability: Capability::new(native_capability),
     }
 }

@@ -142,7 +142,7 @@ impl Builder for UpyunBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(UPYUN_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             create_dir: true,

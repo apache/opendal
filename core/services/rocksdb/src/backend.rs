@@ -91,7 +91,7 @@ impl RocksdbBackend {
         info.set_scheme(ROCKSDB_SCHEME)
             .set_name(&core.db.path().to_string_lossy())
             .set_root("/")
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 read: true,
                 stat: true,
                 write: true,

@@ -100,7 +100,7 @@ impl Builder for VercelBlobBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(VERCEL_BLOB_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

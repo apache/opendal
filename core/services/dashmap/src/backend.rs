@@ -86,7 +86,7 @@ impl DashmapBackend {
         info.set_scheme(DASHMAP_SCHEME);
         info.set_name("dashmap");
         info.set_root(&root);
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
 
             write: true,

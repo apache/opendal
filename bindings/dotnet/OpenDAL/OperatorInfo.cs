@@ -40,21 +40,28 @@ public sealed class OperatorInfo
     public string Name { get; }
 
     /// <summary>
+    /// Gets the capability of this operator.
+    /// </summary>
+    public Capability Capability { get; }
+
+    /// <summary>
     /// Gets the full capability of this operator.
     /// </summary>
-    public Capability FullCapability { get; }
+    [Obsolete("Use Capability.")]
+    public Capability FullCapability => Capability;
 
     /// <summary>
     /// Gets the native capability of this operator.
     /// </summary>
+    [Obsolete("NativeCapability is not intended for availability checks. Use Capability.")]
     public Capability NativeCapability { get; }
 
-    internal OperatorInfo(string scheme, string root, string name, Capability fullCapability, Capability nativeCapability)
+    internal OperatorInfo(string scheme, string root, string name, Capability capability, Capability nativeCapability)
     {
         Scheme = scheme;
         Root = root;
         Name = name;
-        FullCapability = fullCapability;
+        Capability = capability;
         NativeCapability = nativeCapability;
     }
 }

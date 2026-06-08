@@ -102,7 +102,7 @@ impl Access for ObjectStoreService {
         info.set_scheme(OBJECT_STORE_SCHEME)
             .set_root("/")
             .set_name("object_store")
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_unmodified_since: true,
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(info.name(), "object_store".into());
         assert_eq!(info.root(), "/".into());
 
-        let cap = info.native_capability();
+        let cap = info.service_capability();
         assert!(cap.stat);
         assert!(cap.read);
         assert!(cap.write);

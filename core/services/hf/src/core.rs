@@ -643,7 +643,7 @@ pub(crate) mod test_utils {
 
         let info = AccessorInfo::default();
         info.set_scheme("hf")
-            .set_native_capability(Capability::default());
+            .set_service_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
         let xet_session = XetSessionBuilder::new()

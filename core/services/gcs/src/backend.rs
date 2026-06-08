@@ -347,7 +347,7 @@ impl Builder for GcsBuilder {
                     info.set_scheme(GCS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
@@ -513,7 +513,7 @@ impl Access for GcsBackend {
             RpDelete::default(),
             oio::BatchDeleter::new(
                 GcsDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
+                self.core.info.capability().delete_max_size,
             ),
         ))
     }

@@ -71,7 +71,7 @@ impl MonoiofsCore {
                 let am = AccessorInfo::default();
                 am.set_scheme(MONOIOFS_SCHEME)
                     .set_root(&root.to_string_lossy())
-                    .set_native_capability(Capability {
+                    .set_service_capability(Capability {
                         stat: true,
 
                         read: true,

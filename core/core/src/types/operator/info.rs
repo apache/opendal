@@ -49,13 +49,20 @@ impl OperatorInfo {
         self.0.name().to_string()
     }
 
+    /// Get [`Capability`] of operator.
+    pub fn capability(&self) -> Capability {
+        self.0.capability()
+    }
+
     /// Get [`Full Capability`] of operator.
+    #[deprecated(note = "use capability()")]
     pub fn full_capability(&self) -> Capability {
-        self.0.full_capability()
+        self.0.capability()
     }
 
     /// Get [`Native Capability`] of operator.
+    #[deprecated(note = "service capability is not intended for availability checks")]
     pub fn native_capability(&self) -> Capability {
-        self.0.native_capability()
+        self.0.service_capability()
     }
 }

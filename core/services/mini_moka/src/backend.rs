@@ -180,7 +180,7 @@ impl Access for MiniMokaBackend {
         let info = AccessorInfo::default();
         info.set_scheme(MINI_MOKA_SCHEME)
             .set_root(&self.root)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
                 read: true,
                 write: true,

@@ -467,7 +467,7 @@ impl Access for () {
         ai.set_scheme("dummy")
             .set_root("")
             .set_name("dummy")
-            .set_native_capability(Capability::default());
+            .set_service_capability(Capability::default());
         ai.into()
     }
 }
@@ -565,8 +565,8 @@ struct AccessorInfoInner {
     root: Arc<str>,
     name: Arc<str>,
 
-    native_capability: Capability,
-    full_capability: Capability,
+    service_capability: Capability,
+    capability: Capability,
 
     http_client: HttpClient,
     executor: Executor,
@@ -578,8 +578,8 @@ impl Default for AccessorInfoInner {
             scheme: "unknown",
             root: Arc::from(""),
             name: Arc::from(""),
-            native_capability: Capability::default(),
-            full_capability: Capability::default(),
+            service_capability: Capability::default(),
+            capability: Capability::default(),
             http_client: HttpClient::default(),
             executor: Executor::default(),
         }
@@ -744,66 +744,90 @@ impl AccessorInfo {
         self
     }
 
-    /// Get backend's native capabilities.
+    /// Get service-declared capabilities.
     ///
     /// # Panic Safety
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current native capability.
-    pub fn native_capability(&self) -> Capability {
+    /// this method will gracefully continue execution by simply returning the current service capability.
+    pub fn service_capability(&self) -> Capability {
         match self.inner.read() {
-            Ok(v) => v.native_capability,
-            Err(err) => err.get_ref().native_capability,
+            Ok(v) => v.service_capability,
+            Err(err) => err.get_ref().service_capability,
         }
     }
 
-    /// Set native capabilities for service.
+    /// Set service-declared capabilities.
     ///
     /// # NOTES
     ///
-    /// Set native capability will also flush the full capability. The only way to change
-    /// full_capability is via `update_full_capability`.
+    /// Setting service capability will also reset the effective capability. The only way to
+    /// change effective capability after this is via `update_capability`.
     ///
     /// # Panic Safety
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
     /// this method will gracefully continue execution by simply skipping the update operation
     /// rather than propagating the panic.
-    pub fn set_native_capability(&self, capability: Capability) -> &Self {
+    pub fn set_service_capability(&self, capability: Capability) -> &Self {
         if let Ok(mut v) = self.inner.write() {
-            v.native_capability = capability;
-            v.full_capability = capability;
+            v.service_capability = capability;
+            v.capability = capability;
         }
 
         self
+    }
+
+    /// Get effective capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply returning the current capability.
+    pub fn capability(&self) -> Capability {
+        match self.inner.read() {
+            Ok(v) => v.capability,
+            Err(err) => err.get_ref().capability,
+        }
+    }
+
+    /// Update effective capabilities.
+    ///
+    /// # Panic Safety
+    ///
+    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
+    /// this method will gracefully continue execution by simply skipping the update operation
+    /// rather than propagating the panic.
+    pub fn update_capability(&self, f: impl FnOnce(Capability) -> Capability) -> &Self {
+        if let Ok(mut v) = self.inner.write() {
+            v.capability = f(v.capability);
+        }
+
+        self
+    }
+
+    /// Get backend's native capabilities.
+    #[deprecated(note = "use service_capability()")]
+    pub fn native_capability(&self) -> Capability {
+        self.service_capability()
+    }
+
+    /// Set native capabilities for service.
+    #[deprecated(note = "use set_service_capability()")]
+    pub fn set_native_capability(&self, capability: Capability) -> &Self {
+        self.set_service_capability(capability)
     }
 
     /// Get service's full capabilities.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current native capability.
+    #[deprecated(note = "use capability()")]
     pub fn full_capability(&self) -> Capability {
-        match self.inner.read() {
-            Ok(v) => v.full_capability,
-            Err(err) => err.get_ref().full_capability,
-        }
+        self.capability()
     }
 
     /// Update service's full capabilities.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
+    #[deprecated(note = "use update_capability()")]
     pub fn update_full_capability(&self, f: impl FnOnce(Capability) -> Capability) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.full_capability = f(v.full_capability);
-        }
-
-        self
+        self.update_capability(f)
     }
 
     /// Get http client from the context.

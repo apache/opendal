@@ -235,7 +235,7 @@ impl Builder for AzfileBuilder {
                 info: {
                     info.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

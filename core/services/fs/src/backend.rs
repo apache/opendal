@@ -140,7 +140,7 @@ impl Builder for FsBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(FS_SCHEME)
                         .set_root(&root.to_string_lossy())
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

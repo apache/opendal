@@ -323,7 +323,7 @@ impl Builder for AzdlsBuilder {
                     info.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

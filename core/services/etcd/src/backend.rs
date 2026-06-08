@@ -181,7 +181,7 @@ impl EtcdBackend {
         info.set_scheme(ETCD_SCHEME);
         info.set_name("etcd");
         info.set_root(root);
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
 
             write: true,

@@ -138,6 +138,17 @@ typedef struct opendal_error {
 } opendal_error;
 
 /**
+ * \brief A cancellation token for cancellable OpenDAL operations.
+ */
+typedef struct opendal_cancel_token {
+  /**
+   * The pointer to the Rust cancellation token.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_cancel_token;
+
+/**
  * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
  *
  * For examples, please see the comment section of opendal_operator_list()
@@ -253,14 +264,14 @@ typedef struct opendal_metadata_user_metadata_pair {
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator actually owns a pointer to
- * an opendal::blocking::Operator, which is inside the Rust core code.
+ * an opendal::Operator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
  */
 typedef struct opendal_operator {
   /**
-   * The pointer to the opendal::blocking::Operator in the Rust code.
+   * The pointer to the operator state in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -1063,15 +1074,25 @@ extern "C" {
 void opendal_error_free(struct opendal_error *ptr);
 
 /**
- * \brief Return the next object to be listed
- *
- * Lister is an iterator of the objects under its path, this method is the same as
- * calling next() on the iterator
- *
- * For examples, please see the comment section of opendal_operator_list()
- * @see opendal_operator_list()
+ * \brief Construct a cancellation token.
  */
-struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *self);
+struct opendal_cancel_token *opendal_cancel_token_new(void);
+
+/**
+ * \brief Cancel operations using this token.
+ */
+void opendal_cancel_token_cancel(const struct opendal_cancel_token *ptr);
+
+/**
+ * \brief Free a cancellation token.
+ */
+void opendal_cancel_token_free(struct opendal_cancel_token *ptr);
+
+/**
+ * \brief Return the next object with cancellation support.
+ */
+struct opendal_result_lister_next opendal_lister_next_with_cancel(struct opendal_lister *self,
+                                                                  const struct opendal_cancel_token *token);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_lister
@@ -1348,18 +1369,21 @@ struct opendal_result_operator_new opendal_operator_new_with_layers(const char *
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Write raw bytes to `path` with cancellation support.
  */
-struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
-                                             const char *path,
-                                             const struct opendal_bytes *bytes);
+struct opendal_error *opendal_operator_write_with_cancel(const struct opendal_operator *op,
+                                                         const char *path,
+                                                         const struct opendal_bytes *bytes,
+                                                         const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking write raw bytes to `path` with options.
+ * \brief Write raw bytes to `path` with options and cancellation support.
  */
-struct opendal_error *opendal_operator_write_with(const struct opendal_operator *op,
-                                                  const char *path,
-                                                  const struct opendal_bytes *bytes,
-                                                  const struct opendal_write_options *opts);
+struct opendal_error *opendal_operator_write_with_options_cancel(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 const struct opendal_bytes *bytes,
+                                                                 const struct opendal_write_options *opts,
+                                                                 const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -1401,44 +1425,19 @@ struct opendal_error *opendal_operator_write_with(const struct opendal_operator 
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Read data from `path` with cancellation support.
  */
-struct opendal_result_read opendal_operator_read(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_result_read opendal_operator_read_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking read the data from `path` with options.
- *
- * Read the data out from `path` blocking by operator, using the provided
- * `opendal_read_options` to control the behavior, e.g. range, version, or
- * conditional headers.
- *
- * @param op The opendal_operator created previously
- * @param path The path you want to read the data out
- * @param opts The options for the read operation; pass NULL to use defaults
- * @see opendal_operator
- * @see opendal_result_read
- * @see opendal_read_options
- * @see opendal_error
- * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
- * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
- * the operation failed and the `data` field is a nullptr.
- *
- * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
- * After your usage of that, please call opendal_bytes_free() to free the space.
- *
- * # Safety
- *
- * It is **safe** under the cases below
- * * The memory pointed to by `path` must contain a valid nul terminator at the end of
- *   the string.
- *
- * # Panic
- *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Read data from `path` with options and cancellation support.
  */
-struct opendal_result_read opendal_operator_read_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_read_options *opts);
+struct opendal_result_read opendal_operator_read_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_read_options *opts,
+                                                                     const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -1477,9 +1476,11 @@ struct opendal_result_read opendal_operator_read_with(const struct opendal_opera
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Create a reader with cancellation support.
  */
-struct opendal_result_operator_reader opendal_operator_reader(const struct opendal_operator *op,
-                                                              const char *path);
+struct opendal_result_operator_reader opendal_operator_reader_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking create a writer for the specified path.
@@ -1518,16 +1519,19 @@ struct opendal_result_operator_reader opendal_operator_reader(const struct opend
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Create a writer with cancellation support.
  */
-struct opendal_result_operator_writer opendal_operator_writer(const struct opendal_operator *op,
-                                                              const char *path);
+struct opendal_result_operator_writer opendal_operator_writer_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking create a writer for the specified path with options.
+ * \brief Create a writer with options and cancellation support.
  */
-struct opendal_result_operator_writer opendal_operator_writer_with(const struct opendal_operator *op,
-                                                                   const char *path,
-                                                                   const struct opendal_write_options *opts);
+struct opendal_result_operator_writer opendal_operator_writer_with_options_cancel(const struct opendal_operator *op,
+                                                                                  const char *path,
+                                                                                  const struct opendal_write_options *opts,
+                                                                                  const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking delete the object in `path`.
@@ -1570,34 +1574,19 @@ struct opendal_result_operator_writer opendal_operator_writer_with(const struct 
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Delete the object in `path` with cancellation support.
  */
-struct opendal_error *opendal_operator_delete(const struct opendal_operator *op, const char *path);
+struct opendal_error *opendal_operator_delete_with_cancel(const struct opendal_operator *op,
+                                                          const char *path,
+                                                          const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking delete the object in `path` with options.
- *
- * Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
- * This is similar to `opendal_operator_delete` but allows specifying a version or
- * requesting a recursive delete.
- *
- * @param op The opendal_operator created previously
- * @param path The designated path you want to delete
- * @param opts The options for the delete operation; pass NULL to use defaults
- * @see opendal_delete_options
- * @return NULL if succeeds, otherwise it contains the error code and error message.
- *
- * # Safety
- *
- * * The memory pointed to by `path` must contain a valid nul terminator at the end of
- *   the string.
- *
- * # Panic
- *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Delete the object in `path` with options and cancellation support.
  */
-struct opendal_error *opendal_operator_delete_with(const struct opendal_operator *op,
-                                                   const char *path,
-                                                   const struct opendal_delete_options *opts);
+struct opendal_error *opendal_operator_delete_with_options_cancel(const struct opendal_operator *op,
+                                                                  const char *path,
+                                                                  const struct opendal_delete_options *opts,
+                                                                  const struct opendal_cancel_token *token);
 
 /**
  * \brief Check whether the path exists.
@@ -1637,9 +1626,11 @@ struct opendal_error *opendal_operator_delete_with(const struct opendal_operator
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Check whether the path exists with cancellation support.
  */
-struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
-                                                         const char *path);
+struct opendal_result_is_exist opendal_operator_is_exist_with_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_cancel_token *token);
 
 /**
  * \brief Check whether the path exists.
@@ -1679,9 +1670,11 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Check whether the path exists with cancellation support.
  */
-struct opendal_result_exists opendal_operator_exists(const struct opendal_operator *op,
-                                                     const char *path);
+struct opendal_result_exists opendal_operator_exists_with_cancel(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 const struct opendal_cancel_token *token);
 
 /**
  * \brief Stat the path, return its metadata.
@@ -1720,37 +1713,19 @@ struct opendal_result_exists opendal_operator_exists(const struct opendal_operat
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Stat the path with cancellation support.
  */
-struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_result_stat opendal_operator_stat_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking stat the object in `path` with options.
- *
- * Stat the object in `path` with the provided `opendal_stat_options`. This is
- * similar to `opendal_operator_stat` but allows passing options such as
- * `version`, `if_match`, `if_none_match`, or response header overrides.
- *
- * @param op The opendal_operator created previously
- * @param path The path you want to stat
- * @param opts The options for the stat operation; pass NULL to use defaults
- * @see opendal_operator
- * @see opendal_result_stat
- * @see opendal_stat_options
- * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
- *
- * # Safety
- *
- * * The memory pointed to by `path` must contain a valid nul terminator at the end of
- *   the string.
- *
- * # Panic
- *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Stat the path with options and cancellation support.
  */
-struct opendal_result_stat opendal_operator_stat_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_stat_options *opts);
+struct opendal_result_stat opendal_operator_stat_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_stat_options *opts,
+                                                                     const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking list the objects in `path`.
@@ -1801,36 +1776,19 @@ struct opendal_result_stat opendal_operator_stat_with(const struct opendal_opera
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief List the objects in `path` with cancellation support.
  */
-struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_result_list opendal_operator_list_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
 
 /**
- * \brief Blocking list the objects in `path` with options.
- *
- * List the objects in `path` with the provided `opendal_list_options`. This is
- * similar to `opendal_operator_list` but allows passing options such as
- * `recursive` to control the listing behavior.
- *
- * @param op The opendal_operator created previously
- * @param path The designated path you want to list
- * @param opts The options for the list operation; pass NULL to use defaults
- * @see opendal_lister
- * @see opendal_list_options
- * @return Returns opendal_result_list, containing a lister and an opendal_error.
- *
- * # Safety
- *
- * * The memory pointed to by `path` must contain a valid null terminator at the end of
- *   the string.
- *
- * # Panic
- *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief List the objects in `path` with options and cancellation support.
  */
-struct opendal_result_list opendal_operator_list_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_list_options *opts);
+struct opendal_result_list opendal_operator_list_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_list_options *opts,
+                                                                     const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking create the directory in `path`.
@@ -1866,9 +1824,11 @@ struct opendal_result_list opendal_operator_list_with(const struct opendal_opera
  * # Panic
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * \brief Create the directory in `path` with cancellation support.
  */
-struct opendal_error *opendal_operator_create_dir(const struct opendal_operator *op,
-                                                  const char *path);
+struct opendal_error *opendal_operator_create_dir_with_cancel(const struct opendal_operator *op,
+                                                              const char *path,
+                                                              const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking rename the object in `path`.
@@ -1912,10 +1872,12 @@ struct opendal_error *opendal_operator_create_dir(const struct opendal_operator 
  * # Panic
  *
  * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ * \brief Rename the object with cancellation support.
  */
-struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
-                                              const char *src,
-                                              const char *dest);
+struct opendal_error *opendal_operator_rename_with_cancel(const struct opendal_operator *op,
+                                                          const char *src,
+                                                          const char *dest,
+                                                          const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking copy the object in `path`.
@@ -1959,12 +1921,15 @@ struct opendal_error *opendal_operator_rename(const struct opendal_operator *op,
  * # Panic
  *
  * * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+ * \brief Copy the object with cancellation support.
  */
-struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
-                                            const char *src,
-                                            const char *dest);
+struct opendal_error *opendal_operator_copy_with_cancel(const struct opendal_operator *op,
+                                                        const char *src,
+                                                        const char *dest,
+                                                        const struct opendal_cancel_token *token);
 
-struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+struct opendal_error *opendal_operator_check_with_cancel(const struct opendal_operator *op,
+                                                         const struct opendal_cancel_token *token);
 
 /**
  * \brief Get information of underlying accessor.
@@ -2024,32 +1989,36 @@ struct opendal_capability opendal_operator_info_get_full_capability(const struct
 struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 
 /**
- * \brief Presign a read operation.
+ * \brief Presign a read operation with cancellation support.
  */
-struct opendal_result_presign opendal_operator_presign_read(const struct opendal_operator *op,
-                                                            const char *path,
-                                                            uint64_t expire_secs);
+struct opendal_result_presign opendal_operator_presign_read_with_cancel(const struct opendal_operator *op,
+                                                                        const char *path,
+                                                                        uint64_t expire_secs,
+                                                                        const struct opendal_cancel_token *token);
 
 /**
- * \brief Presign a write operation.
+ * \brief Presign a write operation with cancellation support.
  */
-struct opendal_result_presign opendal_operator_presign_write(const struct opendal_operator *op,
-                                                             const char *path,
-                                                             uint64_t expire_secs);
+struct opendal_result_presign opendal_operator_presign_write_with_cancel(const struct opendal_operator *op,
+                                                                         const char *path,
+                                                                         uint64_t expire_secs,
+                                                                         const struct opendal_cancel_token *token);
 
 /**
- * \brief Presign a delete operation.
+ * \brief Presign a delete operation with cancellation support.
  */
-struct opendal_result_presign opendal_operator_presign_delete(const struct opendal_operator *op,
-                                                              const char *path,
-                                                              uint64_t expire_secs);
+struct opendal_result_presign opendal_operator_presign_delete_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          uint64_t expire_secs,
+                                                                          const struct opendal_cancel_token *token);
 
 /**
- * \brief Presign a stat operation.
+ * \brief Presign a stat operation with cancellation support.
  */
-struct opendal_result_presign opendal_operator_presign_stat(const struct opendal_operator *op,
-                                                            const char *path,
-                                                            uint64_t expire_secs);
+struct opendal_result_presign opendal_operator_presign_stat_with_cancel(const struct opendal_operator *op,
+                                                                        const char *path,
+                                                                        uint64_t expire_secs,
+                                                                        const struct opendal_cancel_token *token);
 
 /**
  * Get the method of the presigned request.
@@ -2458,18 +2427,20 @@ struct opendal_metadata *opendal_entry_metadata(const struct opendal_entry *self
 void opendal_entry_free(struct opendal_entry *ptr);
 
 /**
- * \brief Read data from the reader.
+ * \brief Read data from the reader with cancellation support.
  */
-struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
-                                                      uint8_t *buf,
-                                                      uintptr_t len);
+struct opendal_result_reader_read opendal_reader_read_with_cancel(struct opendal_reader *self,
+                                                                  uint8_t *buf,
+                                                                  uintptr_t len,
+                                                                  const struct opendal_cancel_token *token);
 
 /**
- * \brief Seek to an offset, in bytes, in a stream.
+ * \brief Seek to an offset with cancellation support.
  */
-struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *self,
-                                                      int64_t offset,
-                                                      int32_t whence);
+struct opendal_result_reader_seek opendal_reader_seek_with_cancel(struct opendal_reader *self,
+                                                                  int64_t offset,
+                                                                  int32_t whence,
+                                                                  const struct opendal_cancel_token *token);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.
@@ -2477,15 +2448,17 @@ struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *sel
 void opendal_reader_free(struct opendal_reader *ptr);
 
 /**
- * \brief Write data to the writer.
+ * \brief Write data to the writer with cancellation support.
  */
-struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *self,
-                                                        const struct opendal_bytes *bytes);
+struct opendal_result_writer_write opendal_writer_write_with_cancel(struct opendal_writer *self,
+                                                                    const struct opendal_bytes *bytes,
+                                                                    const struct opendal_cancel_token *token);
 
 /**
- * \brief Close the writer and make sure all data have been stored.
+ * \brief Close the writer with cancellation support.
  */
-struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
+struct opendal_error *opendal_writer_close_with_cancel(struct opendal_writer *ptr,
+                                                       const struct opendal_cancel_token *token);
 
 /**
  * \brief Frees the heap memory used by the opendal_writer.

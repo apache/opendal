@@ -90,28 +90,34 @@ type deleteOptions struct {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
-	if len(opts) == 0 {
-		return ffiOperatorDelete.symbol(op.ctx)(op.inner, path)
-	}
-	o := &deleteOptions{}
-	for _, opt := range opts {
-		opt(o)
-	}
-	cOpts := ffiDeleteOptionsNew.symbol(op.ctx)()
-	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	ffiDeleteOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
-	if o.version != nil {
-		ffiDeleteOptionsSetVersion.symbol(op.ctx)(cOpts, *o.version)
-	}
-	return ffiOperatorDeleteWith.symbol(op.ctx)(op.inner, path, cOpts)
+	return op.DeleteWithContext(context.Background(), path, opts...)
 }
 
-var ffiOperatorDelete = newFFI(ffiOpts{
-	sym:    "opendal_operator_delete",
+func (op *Operator) DeleteWithContext(ctx context.Context, path string, opts ...WithDeleteFn) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		if len(opts) == 0 {
+			return ffiOperatorDeleteWithCancel.symbol(op.ctx)(op.inner, path, token)
+		}
+		o := &deleteOptions{}
+		for _, opt := range opts {
+			opt(o)
+		}
+		cOpts := ffiDeleteOptionsNew.symbol(op.ctx)()
+		defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
+		ffiDeleteOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
+		if o.version != nil {
+			ffiDeleteOptionsSetVersion.symbol(op.ctx)(cOpts, *o.version)
+		}
+		return ffiOperatorDeleteWithOptionsCancel.symbol(op.ctx)(op.inner, path, cOpts, token)
+	})
+}
+
+var ffiOperatorDeleteWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_delete_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) error {
-	return func(op *opendalOperator, path string) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) error {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
@@ -121,6 +127,7 @@ var ffiOperatorDelete = newFFI(ffiOpts{
 			unsafe.Pointer(&e),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}
@@ -186,12 +193,12 @@ var ffiDeleteOptionsFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorDeleteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_delete_with",
+var ffiOperatorDeleteWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_delete_with_options_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
-	return func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalDeleteOptions, token *opendalCancelToken) error {
+	return func(op *opendalOperator, path string, opts *opendalDeleteOptions, token *opendalCancelToken) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
@@ -202,6 +209,7 @@ var ffiOperatorDeleteWith = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}

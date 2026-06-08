@@ -16,10 +16,11 @@
 // under the License.
 
 use std::ffi::c_void;
-use std::io::{Read, Seek, SeekFrom};
+use std::future::Future;
 
 use ::opendal as core;
 
+use crate::operator::RUNTIME;
 use crate::result::opendal_result_reader_seek;
 
 use super::*;
@@ -39,78 +40,98 @@ pub struct opendal_reader {
     inner: *mut c_void,
 }
 
+struct AsyncReader {
+    reader: core::Reader,
+    position: u64,
+}
+
 impl opendal_reader {
-    fn deref_mut(&mut self) -> &mut core::blocking::StdReader {
+    fn deref_mut(&mut self) -> &mut AsyncReader {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::blocking::StdReader) }
+        unsafe { &mut *(self.inner as *mut AsyncReader) }
     }
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::blocking::StdReader) -> Self {
+    pub(crate) fn new_async(reader: core::Reader) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader)) as _,
+            inner: Box::into_raw(Box::new(AsyncReader {
+                reader,
+                position: 0,
+            })) as _,
         }
     }
 
-    /// \brief Read data from the reader.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_reader_read(
-        &mut self,
-        buf: *mut u8,
-        len: usize,
-    ) -> opendal_result_reader_read {
-        assert!(!buf.is_null());
-        let buf = std::slice::from_raw_parts_mut(buf, len);
-        match self.deref_mut().read(buf) {
+    fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
+    where
+        F: Future<Output = core::Result<T>>,
+    {
+        let token = unsafe { cancel::clone_token(token) };
+        RUNTIME.block_on(cancel::run(token, fut))
+    }
+
+    async fn read_async_inner(reader: &mut AsyncReader, buf: &mut [u8]) -> core::Result<usize> {
+        let len = buf.len() as u64;
+        let data = reader
+            .reader
+            .read(reader.position..reader.position + len)
+            .await?;
+        let size = data.len().min(buf.len());
+        buf[..size].copy_from_slice(&data.to_vec()[..size]);
+        reader.position += size as u64;
+        Ok(size)
+    }
+
+    fn result_read(result: core::Result<usize>) -> opendal_result_reader_read {
+        match result {
             Ok(n) => opendal_result_reader_read {
                 size: n,
                 error: std::ptr::null_mut(),
             },
             Err(e) => opendal_result_reader_read {
                 size: 0,
-                error: opendal_error::new(
-                    core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
-                        .set_source(e),
-                ),
+                error: opendal_error::new(e),
             },
         }
     }
 
-    /// \brief Seek to an offset, in bytes, in a stream.
+    /// \brief Read data from the reader with cancellation support.
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_reader_seek(
+    pub unsafe extern "C" fn opendal_reader_read_with_cancel(
+        &mut self,
+        buf: *mut u8,
+        len: usize,
+        token: *const opendal_cancel_token,
+    ) -> opendal_result_reader_read {
+        assert!(!buf.is_null());
+        let buf = std::slice::from_raw_parts_mut(buf, len);
+        let reader = self.deref_mut();
+        Self::result_read(Self::block_on_cancelable(token, async move {
+            Self::read_async_inner(reader, buf).await
+        }))
+    }
+
+    /// \brief Seek to an offset with cancellation support.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_seek_with_cancel(
         &mut self,
         offset: i64,
         whence: i32,
+        token: *const opendal_cancel_token,
     ) -> opendal_result_reader_seek {
-        let pos = match whence {
-            _x @ OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
-            _x @ OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
-            _x @ OPENDAL_SEEK_END => SeekFrom::End(offset),
-            _ => {
-                return opendal_result_reader_seek {
-                    pos: 0,
-                    error: opendal_error::new(core::Error::new(
-                        core::ErrorKind::Unexpected,
-                        "undefined whence",
-                    )),
-                };
-            }
-        };
-
-        match self.deref_mut().seek(pos) {
+        let reader = self.deref_mut();
+        match Self::block_on_cancelable(
+            token,
+            async move { seek_async_reader(reader, offset, whence) },
+        ) {
             Ok(pos) => opendal_result_reader_seek {
                 pos,
                 error: std::ptr::null_mut(),
             },
             Err(e) => opendal_result_reader_seek {
                 pos: 0,
-                error: opendal_error::new(
-                    core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
-                        .set_source(e),
-                ),
+                error: opendal_error::new(e),
             },
         }
     }
@@ -120,11 +141,42 @@ impl opendal_reader {
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw(
-                    (*ptr).inner as *mut core::blocking::StdReader,
-                ));
+                drop(Box::from_raw((*ptr).inner as *mut AsyncReader));
                 drop(Box::from_raw(ptr));
             }
         }
     }
+}
+
+fn seek_async_reader(reader: &mut AsyncReader, offset: i64, whence: i32) -> core::Result<u64> {
+    let base = match whence {
+        _x @ OPENDAL_SEEK_SET => 0,
+        _x @ OPENDAL_SEEK_CUR => reader.position as i64,
+        _x @ OPENDAL_SEEK_END => {
+            let Some(meta) = reader.reader.metadata() else {
+                return Err(core::Error::new(
+                    core::ErrorKind::Unsupported,
+                    "seek from end requires reader metadata",
+                ));
+            };
+            meta.content_length() as i64
+        }
+        _ => {
+            return Err(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "undefined whence",
+            ));
+        }
+    };
+    let position = base.checked_add(offset).ok_or_else(|| {
+        core::Error::new(core::ErrorKind::Unexpected, "reader seek position overflow")
+    })?;
+    if position < 0 {
+        return Err(core::Error::new(
+            core::ErrorKind::Unexpected,
+            "reader seek position is negative",
+        ));
+    }
+    reader.position = position as u64;
+    Ok(reader.position)
 }

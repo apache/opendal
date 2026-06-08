@@ -36,6 +36,72 @@ type ffiOpts struct {
 
 type ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)
 
+type contextResult[T any] struct {
+	value T
+	err   error
+}
+
+func runWithContext[T any](ctx context.Context, fn func() (T, error), cleanup ...func(T)) (T, error) {
+	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	return fn()
+}
+
+func runWithCancelContext[T any](ctx context.Context, ffiCtx context.Context, fn func(*opendalCancelToken) (T, error), cleanup ...func(T)) (T, error) {
+	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	if ctx.Done() == nil {
+		return fn(nil)
+	}
+
+	token := ffiCancelTokenNew.symbol(ffiCtx)()
+	defer ffiCancelTokenFree.symbol(ffiCtx)(token)
+
+	ch := make(chan contextResult[T], 1)
+	go func() {
+		value, err := fn(token)
+		ch <- contextResult[T]{value: value, err: err}
+	}()
+
+	select {
+	case result := <-ch:
+		return result.value, result.err
+	case <-ctx.Done():
+		ffiCancelTokenCancel.symbol(ffiCtx)(token)
+		result := <-ch
+		for _, cleanup := range cleanup {
+			if cleanup != nil {
+				cleanup(result.value)
+			}
+		}
+		return zero, ctx.Err()
+	}
+}
+
+func runErrWithContext(ctx context.Context, fn func() error) error {
+	_, err := runWithContext(ctx, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
+}
+
+func runErrWithCancelContext(ctx context.Context, ffiCtx context.Context, fn func(*opendalCancelToken) error) error {
+	_, err := runWithCancelContext(ctx, ffiCtx, func(token *opendalCancelToken) (struct{}, error) {
+		return struct{}{}, fn(token)
+	})
+	return err
+}
+
 type contextKey string
 
 func (c contextKey) String() string {
@@ -125,3 +191,40 @@ func newContext(path string) (ctx context.Context, cancel context.CancelFunc, er
 
 	return
 }
+
+var ffiCancelTokenNew = newFFI(ffiOpts{
+	sym:   "opendal_cancel_token_new",
+	rType: &ffi.TypePointer,
+}, func(_ context.Context, ffiCall ffiCall) func() *opendalCancelToken {
+	return func() *opendalCancelToken {
+		var token *opendalCancelToken
+		ffiCall(unsafe.Pointer(&token))
+		return token
+	}
+})
+
+var ffiCancelTokenCancel = newFFI(ffiOpts{
+	sym:    "opendal_cancel_token_cancel",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(_ context.Context, ffiCall ffiCall) func(token *opendalCancelToken) {
+	return func(token *opendalCancelToken) {
+		ffiCall(
+			nil,
+			unsafe.Pointer(&token),
+		)
+	}
+})
+
+var ffiCancelTokenFree = newFFI(ffiOpts{
+	sym:    "opendal_cancel_token_free",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(_ context.Context, ffiCall ffiCall) func(token *opendalCancelToken) {
+	return func(token *opendalCancelToken) {
+		ffiCall(
+			nil,
+			unsafe.Pointer(&token),
+		)
+	}
+})

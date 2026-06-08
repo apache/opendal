@@ -49,7 +49,7 @@ TEST_F(OpendalErrorTest, ErrorReadTest)
 {
     // Initialize a operator for "memory" backend, with no options
     // The read is supposed to fail
-    opendal_result_read r = opendal_operator_read(this->p, "/testpath");
+    opendal_result_read r = opendal_operator_read_with_cancel(this->p, "/testpath", nullptr);
     ASSERT_NE(r.error, nullptr);
     ASSERT_EQ(r.error->code, OPENDAL_NOT_FOUND);
 

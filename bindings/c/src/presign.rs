@@ -16,12 +16,17 @@
 // under the License.
 
 use std::ffi::{c_char, CStr, CString};
+use std::future::Future;
 use std::time::Duration;
 
+use ::opendal as core;
 use opendal::raw::PresignedRequest as ocorePresignedRequest;
 
+use crate::cancel;
 use crate::error::opendal_error;
+use crate::opendal_cancel_token;
 use crate::operator::opendal_operator;
+use crate::operator::RUNTIME;
 
 /// \brief The key-value pair for the headers of the presigned request.
 #[repr(C)]
@@ -81,6 +86,38 @@ impl opendal_presigned_request_inner {
     }
 }
 
+fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
+where
+    T: Send + 'static,
+    F: Future<Output = core::Result<T>> + Send + 'static,
+{
+    let token = unsafe { cancel::clone_token(token) };
+    RUNTIME
+        .block_on(RUNTIME.spawn(cancel::run(token, fut)))
+        .map_err(|err| {
+            core::Error::new(core::ErrorKind::Unexpected, "cancellable task failed").set_source(err)
+        })?
+}
+
+fn result_presign(result: core::Result<ocorePresignedRequest>) -> opendal_result_presign {
+    match result {
+        Ok(req) => {
+            let inner = Box::new(opendal_presigned_request_inner::new(req));
+            let presigned_req = Box::new(opendal_presigned_request {
+                inner: Box::into_raw(inner),
+            });
+            opendal_result_presign {
+                req: Box::into_raw(presigned_req),
+                error: std::ptr::null_mut(),
+            }
+        }
+        Err(e) => opendal_result_presign {
+            req: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief The underlying presigned request, which contains the HTTP method, URI, and headers.
 /// This is an opaque struct, please use the accessor functions to get the fields.
 #[repr(C)]
@@ -97,127 +134,84 @@ pub struct opendal_result_presign {
     pub error: *mut opendal_error,
 }
 
-/// \brief Presign a read operation.
+/// \brief Presign a read operation with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_presign_read(
+pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
+    token: *const opendal_cancel_token,
 ) -> opendal_result_presign {
     assert!(!path.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let path = CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path")
+        .to_owned();
     let duration = Duration::from_secs(expire_secs);
-
-    match op.presign_read(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    let op = op.deref().clone();
+    result_presign(block_on_cancelable(token, async move {
+        op.presign_read(&path, duration).await
+    }))
 }
 
-/// \brief Presign a write operation.
+/// \brief Presign a write operation with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_presign_write(
+pub unsafe extern "C" fn opendal_operator_presign_write_with_cancel(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
+    token: *const opendal_cancel_token,
 ) -> opendal_result_presign {
     assert!(!path.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let path = CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path")
+        .to_owned();
     let duration = Duration::from_secs(expire_secs);
-
-    match op.presign_write(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    let op = op.deref().clone();
+    result_presign(block_on_cancelable(token, async move {
+        op.presign_write(&path, duration).await
+    }))
 }
 
-/// \brief Presign a delete operation.
+/// \brief Presign a delete operation with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_presign_delete(
+pub unsafe extern "C" fn opendal_operator_presign_delete_with_cancel(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
+    token: *const opendal_cancel_token,
 ) -> opendal_result_presign {
     assert!(!path.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let path = CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path")
+        .to_owned();
     let duration = Duration::from_secs(expire_secs);
-    match op.presign_delete(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    let op = op.deref().clone();
+    result_presign(block_on_cancelable(token, async move {
+        op.presign_delete(&path, duration).await
+    }))
 }
 
-/// \brief Presign a stat operation.
+/// \brief Presign a stat operation with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_presign_stat(
+pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
+    token: *const opendal_cancel_token,
 ) -> opendal_result_presign {
     assert!(!path.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let path = CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path")
+        .to_owned();
     let duration = Duration::from_secs(expire_secs);
-
-    match op.presign_stat(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    let op = op.deref().clone();
+    result_presign(block_on_cancelable(token, async move {
+        op.presign_stat(&path, duration).await
+    }))
 }
 
 /// Get the method of the presigned request.

@@ -391,10 +391,10 @@ void test_presign_read(opendal_test_context* ctx)
     data.len = strlen(content);
     data.capacity = strlen(content);
 
-    opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
+    opendal_error* error = opendal_operator_write_with_cancel(ctx->config->operator_instance, path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_read(ctx->config->operator_instance, path, 3600);
+    opendal_result_presign presign_result = opendal_operator_presign_read_with_cancel(ctx->config->operator_instance, path, 3600, nullptr);
     OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign read should succeed");
     OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
 
@@ -464,7 +464,7 @@ void test_presign_read(opendal_test_context* ctx)
 
     opendal_presigned_request_free(presign_result.req);
 
-    opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
+    opendal_error* delete_error = opendal_operator_delete_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
 
     OPENDAL_ASSERT(header_found, "Content-Length header should be present");
@@ -482,7 +482,7 @@ void test_presign_write(opendal_test_context* ctx)
     const char* content = "Presign write content";
     size_t content_len = strlen(content);
 
-    opendal_result_presign presign_result = opendal_operator_presign_write(ctx->config->operator_instance, path, 3600);
+    opendal_result_presign presign_result = opendal_operator_presign_write_with_cancel(ctx->config->operator_instance, path, 3600, nullptr);
     OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign write should succeed");
     OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
 
@@ -556,7 +556,7 @@ void test_presign_write(opendal_test_context* ctx)
     presign_cleanup_curl(curl, chunk);
     opendal_presigned_request_free(presign_result.req);
 
-    opendal_result_stat stat_res = opendal_operator_stat(ctx->config->operator_instance, path);
+    opendal_result_stat stat_res = opendal_operator_stat_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(stat_res.error, "Stat after presign write should succeed");
     OPENDAL_ASSERT_NOT_NULL(stat_res.meta, "Stat metadata should not be null");
     OPENDAL_ASSERT_EQ(content_len, (size_t)opendal_metadata_content_length(stat_res.meta),
@@ -564,14 +564,14 @@ void test_presign_write(opendal_test_context* ctx)
 
     opendal_metadata_free(stat_res.meta);
 
-    opendal_result_read read_res = opendal_operator_read(ctx->config->operator_instance, path);
+    opendal_result_read read_res = opendal_operator_read_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(read_res.error, "Read after presign write should succeed");
     OPENDAL_ASSERT_EQ(content_len, read_res.data.len, "Read length should match uploaded content length");
     OPENDAL_ASSERT(memcmp(content, read_res.data.data, read_res.data.len) == 0,
         "Read content should match uploaded content");
     opendal_bytes_free(&read_res.data);
 
-    opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
+    opendal_error* delete_error = opendal_operator_delete_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
 }
 
@@ -586,10 +586,10 @@ void test_presign_stat(opendal_test_context* ctx)
     data.data = (uint8_t*)content;
     data.len = content_len;
     data.capacity = content_len;
-    opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
+    opendal_error* error = opendal_operator_write_with_cancel(ctx->config->operator_instance, path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_stat(ctx->config->operator_instance, path, 3600);
+    opendal_result_presign presign_result = opendal_operator_presign_stat_with_cancel(ctx->config->operator_instance, path, 3600, nullptr);
     OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign stat should succeed");
     OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
 
@@ -652,7 +652,7 @@ void test_presign_stat(opendal_test_context* ctx)
     OPENDAL_ASSERT_EQ(content_len, header_ctx.content_length,
         "Stat Content-Length should match written data");
 
-    opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
+    opendal_error* delete_error = opendal_operator_delete_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
 }
 
@@ -674,10 +674,10 @@ void test_presign_delete(opendal_test_context* ctx)
     data.data = (uint8_t*)content;
     data.len = content_len;
     data.capacity = content_len;
-    opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
+    opendal_error* error = opendal_operator_write_with_cancel(ctx->config->operator_instance, path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_delete(ctx->config->operator_instance, path, 3600);
+    opendal_result_presign presign_result = opendal_operator_presign_delete_with_cancel(ctx->config->operator_instance, path, 3600, nullptr);
     OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign delete should succeed");
     OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
 
@@ -712,12 +712,12 @@ void test_presign_delete(opendal_test_context* ctx)
     presign_cleanup_curl(curl, chunk);
     opendal_presigned_request_free(presign_result.req);
 
-    opendal_result_exists exists_res = opendal_operator_exists(ctx->config->operator_instance, path);
+    opendal_result_exists exists_res = opendal_operator_exists_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(exists_res.error, "Exists after presign delete should succeed");
     OPENDAL_ASSERT(!exists_res.exists, "Object should not exist after presign delete");
 
     // Ensure cleanup is idempotent
-    opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
+    opendal_error* delete_error = opendal_operator_delete_with_cancel(ctx->config->operator_instance, path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Delete after presign delete should be idempotent");
 }
 

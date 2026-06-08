@@ -62,7 +62,7 @@ public class Operator {
             let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
             let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count), capacity: UInt(dataPointer.count))
             return withUnsafePointer(to: bytes) { bytesPointer in
-                opendal_operator_write(nativeOp, path, bytesPointer)
+                opendal_operator_write_with_cancel(nativeOp, path, bytesPointer, nil)
             }
         }
 
@@ -81,7 +81,7 @@ public class Operator {
     }
 
     public func blockingRead(_ path: String) throws -> Data {
-        var ret = opendal_operator_read(nativeOp, path)
+        var ret = opendal_operator_read_with_cancel(nativeOp, path, nil)
         if let err = ret.error {
             defer {
                 opendal_error_free(err)

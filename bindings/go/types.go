@@ -264,6 +264,8 @@ type resultOperatorNew struct {
 
 type opendalOperator struct{}
 
+type opendalCancelToken struct{}
+
 type resultRead struct {
 	data  opendalBytes
 	error *opendalError

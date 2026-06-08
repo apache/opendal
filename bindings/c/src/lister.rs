@@ -16,9 +16,12 @@
 // under the License.
 
 use ::opendal as core;
+use futures_util::StreamExt;
 use std::ffi::c_void;
+use std::future::Future;
 
 use super::*;
+use crate::operator::RUNTIME;
 
 /// \brief BlockingLister is designed to list entries at given path in a blocking
 /// manner.
@@ -35,45 +38,38 @@ pub struct opendal_lister {
 }
 
 impl opendal_lister {
-    fn deref_mut(&mut self) -> &mut core::blocking::Lister {
+    fn deref_mut(&mut self) -> &mut core::Lister {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::blocking::Lister) }
+        unsafe { &mut *(self.inner as *mut core::Lister) }
     }
 }
 
 impl opendal_lister {
-    pub(crate) fn new(lister: core::blocking::Lister) -> Self {
+    pub(crate) fn new_async(lister: core::Lister) -> Self {
         Self {
             inner: Box::into_raw(Box::new(lister)) as _,
         }
     }
 
-    /// \brief Return the next object to be listed
-    ///
-    /// Lister is an iterator of the objects under its path, this method is the same as
-    /// calling next() on the iterator
-    ///
-    /// For examples, please see the comment section of opendal_operator_list()
-    /// @see opendal_operator_list()
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&mut self) -> opendal_result_lister_next {
-        let e = self.deref_mut().next();
-        if e.is_none() {
-            return opendal_result_lister_next {
+    fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
+    where
+        F: Future<Output = core::Result<T>>,
+    {
+        let token = unsafe { cancel::clone_token(token) };
+        RUNTIME.block_on(cancel::run(token, fut))
+    }
+
+    fn result_next(result: core::Result<Option<core::Entry>>) -> opendal_result_lister_next {
+        match result {
+            Ok(Some(e)) => opendal_result_lister_next {
+                entry: Box::into_raw(Box::new(opendal_entry::new(e))),
+                error: std::ptr::null_mut(),
+            },
+            Ok(None) => opendal_result_lister_next {
                 entry: std::ptr::null_mut(),
                 error: std::ptr::null_mut(),
-            };
-        }
-
-        match e.unwrap() {
-            Ok(e) => {
-                let ent = Box::into_raw(Box::new(opendal_entry::new(e)));
-                opendal_result_lister_next {
-                    entry: ent,
-                    error: std::ptr::null_mut(),
-                }
-            }
+            },
             Err(e) => opendal_result_lister_next {
                 entry: std::ptr::null_mut(),
                 error: opendal_error::new(e),
@@ -81,12 +77,24 @@ impl opendal_lister {
         }
     }
 
+    /// \brief Return the next object with cancellation support.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_lister_next_with_cancel(
+        &mut self,
+        token: *const opendal_cancel_token,
+    ) -> opendal_result_lister_next {
+        let lister = self.deref_mut();
+        Self::result_next(Self::block_on_cancelable(token, async move {
+            lister.next().await.transpose()
+        }))
+    }
+
     /// \brief Free the heap-allocated metadata used by opendal_lister
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(ptr: *mut opendal_lister) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw((*ptr).inner as *mut core::blocking::Lister));
+                drop(Box::from_raw((*ptr).inner as *mut core::Lister));
                 drop(Box::from_raw(ptr));
             }
         }

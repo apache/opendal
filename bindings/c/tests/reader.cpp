@@ -54,41 +54,41 @@ TEST_F(OpendalReaderTest, SeekTest)
     };
 
     // Prepare the file to be read immediately
-    opendal_error* err = opendal_operator_write(this->p, "/testseek", &data);
+    opendal_error* err = opendal_operator_write_with_cancel(this->p, "/testseek", &data, nullptr);
     EXPECT_EQ(err, nullptr);
 
-    opendal_result_operator_reader r = opendal_operator_reader(this->p, "/testseek");
+    opendal_result_operator_reader r = opendal_operator_reader_with_cancel(this->p, "/testseek", nullptr);
     EXPECT_EQ(r.error, nullptr);
 
     //  Test seek set
-    opendal_result_reader_seek seek_result = opendal_reader_seek(r.reader, 6, OPENDAL_SEEK_SET);
+    opendal_result_reader_seek seek_result = opendal_reader_seek_with_cancel(r.reader, 6, OPENDAL_SEEK_SET, nullptr);
     EXPECT_EQ(seek_result.pos, 6);
     EXPECT_EQ(seek_result.error, nullptr);
 
     char buf1[64] = { 0 };
-    opendal_result_reader_read read_result = opendal_reader_read(r.reader, (uint8_t*)buf1, 7);
+    opendal_result_reader_read read_result = opendal_reader_read_with_cancel(r.reader, (uint8_t*)buf1, 7, nullptr);
     EXPECT_EQ(read_result.error, nullptr);
     EXPECT_EQ(read_result.size, 7);
     EXPECT_EQ(std::string(buf1), "Gabcdef");
 
     // Test seek cur, now we step on '3'
-    seek_result = opendal_reader_seek(r.reader, 3, OPENDAL_SEEK_CUR);
+    seek_result = opendal_reader_seek_with_cancel(r.reader, 3, OPENDAL_SEEK_CUR, nullptr);
     EXPECT_EQ(seek_result.pos, 16);
     EXPECT_EQ(seek_result.error, nullptr);
 
     char buf2[64] = { 0 };
-    read_result = opendal_reader_read(r.reader, (uint8_t*)buf2, 32 /* no more 32 bytes*/);
+    read_result = opendal_reader_read_with_cancel(r.reader, (uint8_t*)buf2, 32 /* no more 32 bytes*/, nullptr);
     EXPECT_EQ(read_result.error, nullptr);
     EXPECT_EQ(read_result.size, 5);
     EXPECT_EQ(std::string(buf2), "34567");
 
     // Test seek end, now we step on 'g'
-    seek_result = opendal_reader_seek(r.reader, -8, OPENDAL_SEEK_END);
+    seek_result = opendal_reader_seek_with_cancel(r.reader, -8, OPENDAL_SEEK_END, nullptr);
     EXPECT_EQ(seek_result.pos, 13);
     EXPECT_EQ(seek_result.error, nullptr);
 
     char buf3[64] = { 0 };
-    read_result = opendal_reader_read(r.reader, (uint8_t*)buf3, 32 /* no more 32 bytes*/);
+    read_result = opendal_reader_read_with_cancel(r.reader, (uint8_t*)buf3, 32 /* no more 32 bytes*/, nullptr);
     EXPECT_EQ(read_result.error, nullptr);
     EXPECT_EQ(read_result.size, 8);
     EXPECT_EQ(std::string(buf3), "g1234567");

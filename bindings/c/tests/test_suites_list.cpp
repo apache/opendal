@@ -28,7 +28,7 @@ void test_list_basic(opendal_test_context* ctx)
     const char* dir_path = "test_list_dir/";
 
     // Create directory
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir operation should succeed");
 
     // Create some test files
@@ -42,20 +42,20 @@ void test_list_basic(opendal_test_context* ctx)
         data.data = (uint8_t*)"test content";
         data.len = 12;
         data.capacity = 12;
-        error = opendal_operator_write(ctx->config->operator_instance,
-            test_files[i], &data);
+        error = opendal_operator_write_with_cancel(ctx->config->operator_instance,
+            test_files[i], &data, nullptr);
         OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
     }
 
     // List directory
-    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
+    opendal_result_list list_result = opendal_operator_list_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
 
     // Collect all entries
     std::set<std::string> found_paths;
     while (true) {
-        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next_result = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next_result.error) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
@@ -91,9 +91,9 @@ void test_list_basic(opendal_test_context* ctx)
     // Cleanup
     opendal_lister_free(list_result.lister);
     for (size_t i = 0; i < num_files; i++) {
-        opendal_operator_delete(ctx->config->operator_instance, test_files[i]);
+        opendal_operator_delete_with_cancel(ctx->config->operator_instance, test_files[i], nullptr);
     }
-    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
 }
 
 // Test: List empty directory
@@ -102,18 +102,18 @@ void test_list_empty_dir(opendal_test_context* ctx)
     const char* dir_path = "test_empty_dir/";
 
     // Create directory
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir operation should succeed");
 
     // List directory
-    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
+    opendal_result_list list_result = opendal_operator_list_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
 
     // Collect entries
     std::set<std::string> found_paths;
     while (true) {
-        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next_result = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next_result.error) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
@@ -142,7 +142,7 @@ void test_list_empty_dir(opendal_test_context* ctx)
 
     // Cleanup
     opendal_lister_free(list_result.lister);
-    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
 }
 
 // Test: List nested directories
@@ -154,10 +154,10 @@ void test_list_nested(opendal_test_context* ctx)
     const char* file_in_sub = "test_nested/subdir/sub_file.txt";
 
     // Create directories
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, base_dir);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, base_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create base dir should succeed");
 
-    error = opendal_operator_create_dir(ctx->config->operator_instance, sub_dir);
+    error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, sub_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create sub dir should succeed");
 
     // Create files
@@ -166,21 +166,21 @@ void test_list_nested(opendal_test_context* ctx)
     data.len = 12;
     data.capacity = 12;
 
-    error = opendal_operator_write(ctx->config->operator_instance, file_in_base,
-        &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_in_base,
+        &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write to base dir should succeed");
 
-    error = opendal_operator_write(ctx->config->operator_instance, file_in_sub,
-        &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_in_sub,
+        &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write to sub dir should succeed");
 
     // List base directory
-    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, base_dir);
+    opendal_result_list list_result = opendal_operator_list_with_cancel(ctx->config->operator_instance, base_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
 
     std::set<std::string> found_paths;
     while (true) {
-        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next_result = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next_result.error) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
@@ -220,10 +220,10 @@ void test_list_nested(opendal_test_context* ctx)
 
     // Cleanup
     opendal_lister_free(list_result.lister);
-    opendal_operator_delete(ctx->config->operator_instance, file_in_sub);
-    opendal_operator_delete(ctx->config->operator_instance, file_in_base);
-    opendal_operator_delete(ctx->config->operator_instance, sub_dir);
-    opendal_operator_delete(ctx->config->operator_instance, base_dir);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_in_sub, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_in_base, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, sub_dir, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, base_dir, nullptr);
 }
 
 // Test: Entry name vs path
@@ -233,23 +233,23 @@ void test_entry_name_path(opendal_test_context* ctx)
     const char* file_path = "test_entry_names/test_file.txt";
 
     // Create directory and file
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir should succeed");
 
     opendal_bytes data;
     data.data = (uint8_t*)"test";
     data.len = 4;
     data.capacity = 4;
-    error = opendal_operator_write(ctx->config->operator_instance, file_path, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
 
     // List directory
-    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
+    opendal_result_list list_result = opendal_operator_list_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
 
     bool found_file = false;
     while (true) {
-        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next_result = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next_result.error) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
@@ -279,8 +279,8 @@ void test_entry_name_path(opendal_test_context* ctx)
 
     // Cleanup
     opendal_lister_free(list_result.lister);
-    opendal_operator_delete(ctx->config->operator_instance, file_path);
-    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_path, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
 }
 
 // Test: Entry metadata from lister
@@ -292,24 +292,24 @@ void test_entry_metadata(opendal_test_context* ctx)
     const size_t content_len = strlen(content_str);
 
     // Create directory and file
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir should succeed");
 
     opendal_bytes data;
     data.data = (uint8_t*)content_str;
     data.len = content_len;
     data.capacity = content_len;
-    error = opendal_operator_write(ctx->config->operator_instance, file_path, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
 
     // List directory
-    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
+    opendal_result_list list_result = opendal_operator_list_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
 
     bool found_file = false;
     bool found_dir = false;
     while (true) {
-        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next_result = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next_result.error) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
@@ -344,8 +344,8 @@ void test_entry_metadata(opendal_test_context* ctx)
 
     // Cleanup
     opendal_lister_free(list_result.lister);
-    opendal_operator_delete(ctx->config->operator_instance, file_path);
-    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_path, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
 }
 
 // Test: list_with default options (null opts behaves like list)
@@ -354,25 +354,25 @@ void test_list_with_default_options(opendal_test_context* ctx)
     const char* dir_path = "test_list_with_default/";
     const char* file_path = "test_list_with_default/file.txt";
 
-    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    opendal_error* error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir should succeed");
 
     opendal_bytes data;
     data.data = (uint8_t*)"content";
     data.len = 7;
     data.capacity = 7;
-    error = opendal_operator_write(ctx->config->operator_instance, file_path, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_path, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
 
     // Pass NULL opts — should behave identically to opendal_operator_list
-    opendal_result_list list_result = opendal_operator_list_with(
-        ctx->config->operator_instance, dir_path, NULL);
+    opendal_result_list list_result = opendal_operator_list_with_options_cancel(
+        ctx->config->operator_instance, dir_path, NULL, nullptr);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "list_with(NULL opts) should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
 
     bool found_file = false;
     while (true) {
-        opendal_result_lister_next next = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next.error) {
             OPENDAL_ASSERT_NO_ERROR(next.error, "lister_next should not fail");
             break;
@@ -390,8 +390,8 @@ void test_list_with_default_options(opendal_test_context* ctx)
     OPENDAL_ASSERT(found_file, "Should find the file with null opts");
 
     opendal_lister_free(list_result.lister);
-    opendal_operator_delete(ctx->config->operator_instance, file_path);
-    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_path, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, dir_path, nullptr);
 }
 
 // Test: list_with recursive=true returns entries in nested directories
@@ -410,17 +410,17 @@ void test_list_with_recursive(opendal_test_context* ctx)
     data.capacity = 1;
 
     opendal_error* error;
-    error = opendal_operator_create_dir(ctx->config->operator_instance, base_dir);
+    error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, base_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create base dir should succeed");
-    error = opendal_operator_create_dir(ctx->config->operator_instance, sub_dir);
+    error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, sub_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create sub dir should succeed");
-    error = opendal_operator_create_dir(ctx->config->operator_instance, deep_dir);
+    error = opendal_operator_create_dir_with_cancel(ctx->config->operator_instance, deep_dir, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Create deep dir should succeed");
-    error = opendal_operator_write(ctx->config->operator_instance, file_top, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_top, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write top file should succeed");
-    error = opendal_operator_write(ctx->config->operator_instance, file_sub, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_sub, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write sub file should succeed");
-    error = opendal_operator_write(ctx->config->operator_instance, file_deep, &data);
+    error = opendal_operator_write_with_cancel(ctx->config->operator_instance, file_deep, &data, nullptr);
     OPENDAL_ASSERT_NO_ERROR(error, "Write deep file should succeed");
 
     // List recursively from base_dir
@@ -428,8 +428,8 @@ void test_list_with_recursive(opendal_test_context* ctx)
     OPENDAL_ASSERT_NOT_NULL(opts, "list_options_new should not return NULL");
     opendal_list_options_set_recursive(opts, true);
 
-    opendal_result_list list_result = opendal_operator_list_with(
-        ctx->config->operator_instance, base_dir, opts);
+    opendal_result_list list_result = opendal_operator_list_with_options_cancel(
+        ctx->config->operator_instance, base_dir, opts, nullptr);
     opendal_list_options_free(opts);
 
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "Recursive list should succeed");
@@ -437,7 +437,7 @@ void test_list_with_recursive(opendal_test_context* ctx)
 
     std::unordered_set<std::string> found_paths;
     while (true) {
-        opendal_result_lister_next next = opendal_lister_next(list_result.lister);
+        opendal_result_lister_next next = opendal_lister_next_with_cancel(list_result.lister, nullptr);
         if (next.error) {
             OPENDAL_ASSERT_NO_ERROR(next.error, "lister_next should not fail");
             break;
@@ -460,12 +460,12 @@ void test_list_with_recursive(opendal_test_context* ctx)
         "Recursive list must include file in deep directory");
 
     // Cleanup
-    opendal_operator_delete(ctx->config->operator_instance, file_deep);
-    opendal_operator_delete(ctx->config->operator_instance, file_sub);
-    opendal_operator_delete(ctx->config->operator_instance, file_top);
-    opendal_operator_delete(ctx->config->operator_instance, deep_dir);
-    opendal_operator_delete(ctx->config->operator_instance, sub_dir);
-    opendal_operator_delete(ctx->config->operator_instance, base_dir);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_deep, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_sub, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, file_top, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, deep_dir, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, sub_dir, nullptr);
+    opendal_operator_delete_with_cancel(ctx->config->operator_instance, base_dir, nullptr);
 }
 
 // Define the list test suite

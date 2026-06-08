@@ -64,26 +64,32 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
-	if len(opts) == 0 {
-		meta, err := ffiOperatorStat.symbol(op.ctx)(op.inner, path)
+	return op.StatWithContext(context.Background(), path, opts...)
+}
+
+func (op *Operator) StatWithContext(ctx context.Context, path string, opts ...WithStatFn) (*Metadata, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Metadata, error) {
+		if len(opts) == 0 {
+			meta, err := ffiOperatorStatWithCancel.symbol(op.ctx)(op.inner, path, token)
+			if err != nil {
+				return nil, err
+			}
+			return newMetadata(op.ctx, meta), nil
+		}
+
+		o := parseStatOptions(opts...)
+		cOpts, keepAlive, err := newOpendalStatOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
+		meta, err := ffiOperatorStatWithOptionsCancel.symbol(op.ctx)(op.inner, path, cOpts, token)
+		runtime.KeepAlive(keepAlive)
 		if err != nil {
 			return nil, err
 		}
 		return newMetadata(op.ctx, meta), nil
-	}
-
-	o := parseStatOptions(opts...)
-	cOpts, keepAlive, err := newOpendalStatOptions(op.ctx, o)
-	if err != nil {
-		return nil, err
-	}
-	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	meta, err := ffiOperatorStatWith.symbol(op.ctx)(op.inner, path, cOpts)
-	runtime.KeepAlive(keepAlive)
-	if err != nil {
-		return nil, err
-	}
-	return newMetadata(op.ctx, meta), nil
+	})
 }
 
 // WithStatFn is a functional option for stat operations.
@@ -245,15 +251,21 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //		fmt.Println("The file does not exist")
 //	}
 func (op *Operator) IsExist(path string) (bool, error) {
-	return ffiOperatorIsExist.symbol(op.ctx)(op.inner, path)
+	return op.IsExistWithContext(context.Background(), path)
 }
 
-var ffiOperatorStat = newFFI(ffiOpts{
-	sym:    "opendal_operator_stat",
+func (op *Operator) IsExistWithContext(ctx context.Context, path string) (bool, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (bool, error) {
+		return ffiOperatorIsExistWithCancel.symbol(op.ctx)(op.inner, path, token)
+	})
+}
+
+var ffiOperatorStatWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_stat_with_cancel",
 	rType:  &typeResultStat,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalMetadata, error) {
-	return func(op *opendalOperator, path string) (*opendalMetadata, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalMetadata, error) {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalMetadata, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -263,6 +275,7 @@ var ffiOperatorStat = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return nil, parseError(ctx, result.error)
@@ -271,12 +284,12 @@ var ffiOperatorStat = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorStatWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_stat_with",
+var ffiOperatorStatWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_stat_with_options_cancel",
 	rType:  &typeResultStat,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
-	return func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalStatOptions, token *opendalCancelToken) (*opendalMetadata, error) {
+	return func(op *opendalOperator, path string, opts *opendalStatOptions, token *opendalCancelToken) (*opendalMetadata, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -287,6 +300,7 @@ var ffiOperatorStatWith = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return nil, parseError(ctx, result.error)
@@ -295,12 +309,12 @@ var ffiOperatorStatWith = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorIsExist = newFFI(ffiOpts{
-	sym:    "opendal_operator_is_exist",
+var ffiOperatorIsExistWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_is_exist_with_cancel",
 	rType:  &typeResultIsExist,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (bool, error) {
-	return func(op *opendalOperator, path string) (bool, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (bool, error) {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) (bool, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return false, err
@@ -310,6 +324,7 @@ var ffiOperatorIsExist = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return false, parseError(ctx, result.error)

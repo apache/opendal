@@ -36,6 +36,9 @@ mod error;
 pub use error::opendal_code;
 pub use error::opendal_error;
 
+mod cancel;
+pub use cancel::opendal_cancel_token;
+
 mod lister;
 pub use lister::opendal_lister;
 

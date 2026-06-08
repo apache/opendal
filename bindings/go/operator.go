@@ -60,7 +60,13 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Copy(src, dest string) error {
-	return ffiOperatorCopy.symbol(op.ctx)(op.inner, src, dest)
+	return op.CopyWithContext(context.Background(), src, dest)
+}
+
+func (op *Operator) CopyWithContext(ctx context.Context, src, dest string) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorCopyWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
+	})
 }
 
 // Rename changes the name or location of a file from the source path to the destination path.
@@ -95,7 +101,13 @@ func (op *Operator) Copy(src, dest string) error {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Rename(src, dest string) error {
-	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
+	return op.RenameWithContext(context.Background(), src, dest)
+}
+
+func (op *Operator) RenameWithContext(ctx context.Context, src, dest string) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorRenameWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
+	})
 }
 
 func normalizeScheme(scheme Scheme) (*byte, error) {
@@ -195,12 +207,12 @@ var ffiOperatorOptionsFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorCopy = newFFI(ffiOpts{
-	sym:    "opendal_operator_copy",
+var ffiOperatorCopyWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_copy_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
-	return func(op *opendalOperator, src, dest string) (err error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
+	return func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
 		var (
 			byteSrc  *byte
 			byteDest *byte
@@ -219,17 +231,18 @@ var ffiOperatorCopy = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&byteSrc),
 			unsafe.Pointer(&byteDest),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}
 })
 
-var ffiOperatorRename = newFFI(ffiOpts{
-	sym:    "opendal_operator_rename",
+var ffiOperatorRenameWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_rename_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
-	return func(op *opendalOperator, src, dest string) (err error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
+	return func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
 		var (
 			byteSrc  *byte
 			byteDest *byte
@@ -248,6 +261,7 @@ var ffiOperatorRename = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&byteSrc),
 			unsafe.Pointer(&byteDest),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}

@@ -61,19 +61,19 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_error* error = opendal_operator_check(this->p);
+    opendal_error* error = opendal_operator_check_with_cancel(this->p, nullptr);
     EXPECT_EQ(error, nullptr);
 
-    error = opendal_operator_write(this->p, this->path.c_str(), &data);
+    error = opendal_operator_write_with_cancel(this->p, this->path.c_str(), &data, nullptr);
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
-    opendal_result_exists e = opendal_operator_exists(this->p, this->path.c_str());
+    opendal_result_exists e = opendal_operator_exists_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(e.error, nullptr);
     EXPECT_TRUE(e.exists);
 
     // The blocking file "test" entry mode must be file
-    opendal_result_stat s = opendal_operator_stat(this->p, this->path.c_str());
+    opendal_result_stat s = opendal_operator_stat_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(s.error, nullptr);
     opendal_metadata* meta = s.meta;
     EXPECT_TRUE(opendal_metadata_is_file(meta));
@@ -86,7 +86,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
+    struct opendal_result_read r = opendal_operator_read_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(r.error, nullptr);
     EXPECT_EQ(r.data.len, this->content.length());
     for (int i = 0; i < r.data.len; i++) {
@@ -94,27 +94,27 @@ TEST_F(OpendalBddTest, FeatureTest)
     }
 
     // The blocking file should be deleted
-    error = opendal_operator_delete(this->p, this->path.c_str());
+    error = opendal_operator_delete_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(error, nullptr);
-    e = opendal_operator_exists(this->p, this->path.c_str());
+    e = opendal_operator_exists_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(e.error, nullptr);
     EXPECT_FALSE(e.exists);
 
-    opendal_result_operator_writer writer = opendal_operator_writer(this->p, this->path.c_str());
+    opendal_result_operator_writer writer = opendal_operator_writer_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(writer.error, nullptr);
-    opendal_result_writer_write w = opendal_writer_write(writer.writer, &data);
+    opendal_result_writer_write w = opendal_writer_write_with_cancel(writer.writer, &data, nullptr);
     EXPECT_EQ(w.error, nullptr);
     EXPECT_EQ(w.size, this->content.length());
-    opendal_error* close_err = opendal_writer_close(writer.writer);
+    opendal_error* close_err = opendal_writer_close_with_cancel(writer.writer, nullptr);
     EXPECT_EQ(close_err, nullptr);
     opendal_writer_free(writer.writer);
 
     // The blocking file "test" must have content "Hello, World!" and read into buffer
     int length = this->content.length();
     unsigned char buffer[this->content.length()];
-    opendal_result_operator_reader reader = opendal_operator_reader(this->p, this->path.c_str());
+    opendal_result_operator_reader reader = opendal_operator_reader_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(reader.error, nullptr);
-    auto rst = opendal_reader_read(reader.reader, buffer, length);
+    auto rst = opendal_reader_read_with_cancel(reader.reader, buffer, length, nullptr);
     EXPECT_EQ(rst.size, length);
     for (int i = 0; i < this->content.length(); i++) {
         EXPECT_EQ(this->content[i], buffer[i]);
@@ -122,19 +122,19 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_reader_free(reader.reader);
 
     // The deletion operation should be idempotent
-    error = opendal_operator_delete(this->p, this->path.c_str());
+    error = opendal_operator_delete_with_cancel(this->p, this->path.c_str(), nullptr);
     EXPECT_EQ(error, nullptr);
 
     opendal_bytes_free(&r.data);
 
     // The directory "tmpdir/" should exist and should be a directory
-    error = opendal_operator_create_dir(this->p, "tmpdir/");
+    error = opendal_operator_create_dir_with_cancel(this->p, "tmpdir/", nullptr);
     EXPECT_EQ(error, nullptr);
-    auto stat = opendal_operator_stat(this->p, "tmpdir/");
+    auto stat = opendal_operator_stat_with_cancel(this->p, "tmpdir/", nullptr);
     EXPECT_EQ(stat.error, nullptr);
     EXPECT_TRUE(opendal_metadata_is_dir(stat.meta));
     EXPECT_FALSE(opendal_metadata_is_file(stat.meta));
     opendal_metadata_free(stat.meta);
-    error = opendal_operator_delete(this->p, "tmpdir/");
+    error = opendal_operator_delete_with_cancel(this->p, "tmpdir/", nullptr);
     EXPECT_EQ(error, nullptr);
 }

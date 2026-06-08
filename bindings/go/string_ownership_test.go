@@ -683,26 +683,26 @@ func TestWriteWithOptions(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorWriteWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorWriteWith.opts.aTypes
-	if len(aTypes) != 4 {
-		t.Fatalf("ffiOperatorWriteWith aTypes len = %d, want 4", len(aTypes))
+func TestFfiOperatorWriteWithOptionsCancelArgTypes(t *testing.T) {
+	aTypes := ffiOperatorWriteWithOptionsCancel.opts.aTypes
+	if len(aTypes) != 5 {
+		t.Fatalf("ffiOperatorWriteWithOptionsCancel aTypes len = %d, want 5", len(aTypes))
 	}
 	for i, at := range aTypes {
 		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorWriteWith aTypes[%d] = %v, want TypePointer", i, at)
+			t.Fatalf("ffiOperatorWriteWithOptionsCancel aTypes[%d] = %v, want TypePointer", i, at)
 		}
 	}
 }
 
-func TestFfiOperatorWriterWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorWriterWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorWriterWith aTypes len = %d, want 3", len(aTypes))
+func TestFfiOperatorWriterWithOptionsCancelArgTypes(t *testing.T) {
+	aTypes := ffiOperatorWriterWithOptionsCancel.opts.aTypes
+	if len(aTypes) != 4 {
+		t.Fatalf("ffiOperatorWriterWithOptionsCancel aTypes len = %d, want 4", len(aTypes))
 	}
 	for i, at := range aTypes {
 		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorWriterWith aTypes[%d] = %v, want TypePointer", i, at)
+			t.Fatalf("ffiOperatorWriterWithOptionsCancel aTypes[%d] = %v, want TypePointer", i, at)
 		}
 	}
 }
@@ -865,20 +865,20 @@ func TestListWithDeletedFalse(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorListWithReturnType(t *testing.T) {
-	if ffiOperatorListWith.opts.rType != &typeResultList {
-		t.Fatalf("ffiOperatorListWith rType = %v, want typeResultList", ffiOperatorListWith.opts.rType)
+func TestFfiOperatorListWithOptionsCancelReturnType(t *testing.T) {
+	if ffiOperatorListWithOptionsCancel.opts.rType != &typeResultList {
+		t.Fatalf("ffiOperatorListWithOptionsCancel rType = %v, want typeResultList", ffiOperatorListWithOptionsCancel.opts.rType)
 	}
 }
 
-func TestFfiOperatorListWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorListWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorListWith aTypes len = %d, want 3", len(aTypes))
+func TestFfiOperatorListWithOptionsCancelArgTypes(t *testing.T) {
+	aTypes := ffiOperatorListWithOptionsCancel.opts.aTypes
+	if len(aTypes) != 4 {
+		t.Fatalf("ffiOperatorListWithOptionsCancel aTypes len = %d, want 4", len(aTypes))
 	}
 	for i, at := range aTypes {
 		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorListWith aTypes[%d] = %v, want TypePointer", i, at)
+			t.Fatalf("ffiOperatorListWithOptionsCancel aTypes[%d] = %v, want TypePointer", i, at)
 		}
 	}
 }
@@ -945,20 +945,20 @@ func TestReadWithOptions(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorReadWithReturnType(t *testing.T) {
-	if ffiOperatorReadWith.opts.rType != &typeResultRead {
-		t.Fatalf("ffiOperatorReadWith rType = %v, want typeResultRead", ffiOperatorReadWith.opts.rType)
+func TestFfiOperatorReadWithOptionsCancelReturnType(t *testing.T) {
+	if ffiOperatorReadWithOptionsCancel.opts.rType != &typeResultRead {
+		t.Fatalf("ffiOperatorReadWithOptionsCancel rType = %v, want typeResultRead", ffiOperatorReadWithOptionsCancel.opts.rType)
 	}
 }
 
-func TestFfiOperatorReadWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorReadWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorReadWith aTypes len = %d, want 3", len(aTypes))
+func TestFfiOperatorReadWithOptionsCancelArgTypes(t *testing.T) {
+	aTypes := ffiOperatorReadWithOptionsCancel.opts.aTypes
+	if len(aTypes) != 4 {
+		t.Fatalf("ffiOperatorReadWithOptionsCancel aTypes len = %d, want 4", len(aTypes))
 	}
 	for i, at := range aTypes {
 		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorReadWith aTypes[%d] = %v, want TypePointer", i, at)
+			t.Fatalf("ffiOperatorReadWithOptionsCancel aTypes[%d] = %v, want TypePointer", i, at)
 		}
 	}
 }

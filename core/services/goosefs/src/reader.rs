@@ -24,7 +24,7 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `GoosefsReader` implements [`oio::Read`] on top of the goosefs-sdk
+/// `GoosefsReadStream` implements [`oio::ReadStream`] on top of the goosefs-sdk
 /// high-level streaming reader (`GoosefsFileReader`).
 ///
 /// # Streaming semantics
@@ -42,7 +42,7 @@ use opendal_core::*;
 ///     first block lands, rather than stalling until the whole range
 ///     is materialised.
 ///   - When `read_next_block` returns `None` the reader returns an
-///     empty `Buffer`, which is OpenDAL's `oio::Read` EOF signal.
+///     empty `Buffer`, which is OpenDAL's `oio::ReadStream` EOF signal.
 ///
 /// # Range handling
 ///
@@ -52,7 +52,7 @@ use opendal_core::*;
 ///   - [`SdkReader::open_range_with_context`] for a bounded
 ///     `[offset, offset+length)` stream.
 ///
-/// We pick between them based on the incoming [`OpRead`] range. When
+/// We pick between them based on the incoming [`BytesRange`]. When
 /// only `offset` is specified (unbounded tail read), we resolve the
 /// actual tail length via `get_status` and fall through to the
 /// range-based opener, so the SDK can still use its efficient
@@ -68,10 +68,10 @@ use opendal_core::*;
 /// rather than a stale SASL credential, and transparent mid-stream
 /// recovery would require replaying `bytes_read` bytes, which is
 /// more complexity than the failure mode warrants.
-pub struct GoosefsReader {
+pub struct GoosefsReadStream {
     core: Arc<GoosefsCore>,
     path: String,
-    args: OpRead,
+    range: BytesRange,
     content_length: Option<u64>,
     /// Lazily-opened SDK reader. `None` until the first `read()` call.
     inner: Option<SdkReader>,
@@ -82,17 +82,17 @@ pub struct GoosefsReader {
     done: bool,
 }
 
-impl GoosefsReader {
+impl GoosefsReadStream {
     pub fn new(
         core: Arc<GoosefsCore>,
         path: String,
-        args: OpRead,
+        range: BytesRange,
         content_length: Option<u64>,
     ) -> Self {
-        GoosefsReader {
+        GoosefsReadStream {
             core,
             path,
-            args,
+            range,
             content_length,
             inner: None,
             done: false,
@@ -100,11 +100,10 @@ impl GoosefsReader {
     }
 
     /// Open the underlying SDK reader, picking between the full-file
-    /// and ranged variants based on `self.args`.
+    /// and ranged variants based on `self.range`.
     async fn open(&self) -> Result<SdkReader> {
-        let range = self.args.range();
-        let offset = range.offset();
-        let size = range.size();
+        let offset = self.range.offset();
+        let size = self.range.size();
 
         // Three cases:
         //   1. No offset and no size      → full-file stream.
@@ -137,7 +136,7 @@ impl GoosefsReader {
     }
 }
 
-impl oio::Read for GoosefsReader {
+impl oio::ReadStream for GoosefsReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());

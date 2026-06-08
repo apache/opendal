@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::ops::Bound;
+use std::ops::Range;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
@@ -140,6 +141,61 @@ impl BytesRange {
                 None => Bound::Unbounded,
             },
         )
+    }
+
+    /// Convert bytes range into a checked content slice range.
+    pub fn to_content_range(self, content_length: usize) -> Result<Range<usize>> {
+        if self.1 == Some(0) {
+            return Ok(0..0);
+        }
+
+        if self.0 >= content_length as u64 && self.1.is_none() {
+            return Ok(content_length..content_length);
+        }
+
+        let offset: usize = self.0.try_into().map_err(|_| {
+            Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                .with_operation("BytesRange::to_content_range")
+                .with_context("offset", self.0)
+                .with_context("content_length", content_length)
+        })?;
+
+        match self.1 {
+            Some(size) => {
+                let end = self
+                    .0
+                    .checked_add(size)
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                            .with_operation("BytesRange::to_content_range")
+                            .with_context("offset", self.0)
+                            .with_context("size", size)
+                            .with_context("content_length", content_length)
+                    })?
+                    .try_into()
+                    .map_err(|_| {
+                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                            .with_operation("BytesRange::to_content_range")
+                            .with_context("offset", self.0)
+                            .with_context("size", size)
+                            .with_context("content_length", content_length)
+                    })?;
+
+                if end > content_length {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range exceeds content length",
+                    )
+                    .with_operation("BytesRange::to_content_range")
+                    .with_context("offset", self.0)
+                    .with_context("size", size)
+                    .with_context("content_length", content_length));
+                }
+
+                Ok(offset..end)
+            }
+            None => Ok(offset..content_length),
+        }
     }
 }
 
@@ -376,6 +432,34 @@ mod tests {
     fn test_bytes_range_to_range_as_usize_overflow() {
         let range = BytesRange::new(u64::MAX, Some(1));
         let _ = range.to_range_as_usize();
+    }
+
+    #[test]
+    fn test_bytes_range_to_content_range() -> Result<()> {
+        assert_eq!(BytesRange::new(2, Some(4)).to_content_range(10)?, 2..6);
+        assert_eq!(BytesRange::new(2, None).to_content_range(10)?, 2..10);
+        assert_eq!(BytesRange::new(10, None).to_content_range(10)?, 10..10);
+        assert_eq!(BytesRange::new(20, None).to_content_range(10)?, 10..10);
+        assert_eq!(
+            BytesRange::new(u64::MAX, None).to_content_range(10)?,
+            10..10
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)).to_content_range(10)?,
+            0..0
+        );
+
+        let err = BytesRange::new(8, Some(4))
+            .to_content_range(10)
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = BytesRange::new(u64::MAX, Some(1))
+            .to_content_range(10)
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        Ok(())
     }
 
     #[test]

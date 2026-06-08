@@ -49,6 +49,18 @@ pub struct opendal_capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
+    /// If operator supports stat with if modified since.
+    pub stat_with_if_modified_since: bool,
+    /// If operator supports stat with if unmodified since.
+    pub stat_with_if_unmodified_since: bool,
+    /// if operator supports stat with override cache control.
+    pub stat_with_override_cache_control: bool,
+    /// if operator supports stat with override content disposition.
+    pub stat_with_override_content_disposition: bool,
+    /// if operator supports stat with override content type.
+    pub stat_with_override_content_type: bool,
+    /// If operator supports stat with version.
+    pub stat_with_version: bool,
 
     /// If operator supports read.
     pub read: bool,
@@ -117,6 +129,10 @@ pub struct opendal_capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// If operator supports delete with version.
+    pub delete_with_version: bool,
+    /// If operator supports delete with recursive.
+    pub delete_with_recursive: bool,
 
     /// If operator supports copy.
     pub copy: bool,
@@ -132,6 +148,10 @@ pub struct opendal_capability {
     pub list_with_start_after: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
+    /// If backend supports list with versions.
+    pub list_with_versions: bool,
+    /// If backend supports list with deleted.
+    pub list_with_deleted: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -243,6 +263,12 @@ impl From<core::Capability> for opendal_capability {
             stat: value.stat,
             stat_with_if_match: value.stat_with_if_match,
             stat_with_if_none_match: value.stat_with_if_none_match,
+            stat_with_if_modified_since: value.stat_with_if_modified_since,
+            stat_with_if_unmodified_since: value.stat_with_if_unmodified_since,
+            stat_with_override_content_type: value.stat_with_override_content_type,
+            stat_with_override_cache_control: value.stat_with_override_cache_control,
+            stat_with_override_content_disposition: value.stat_with_override_content_disposition,
+            stat_with_version: value.stat_with_version,
             read: value.read,
             read_with_if_match: value.read_with_if_match,
             read_with_if_none_match: value.read_with_if_none_match,
@@ -269,12 +295,16 @@ impl From<core::Capability> for opendal_capability {
             write_total_max_size: value.write_total_max_size.unwrap_or(0),
             create_dir: value.create_dir,
             delete: value.delete,
+            delete_with_version: value.delete_with_version,
+            delete_with_recursive: value.delete_with_recursive,
             copy: value.copy,
             rename: value.rename,
             list: value.list,
             list_with_limit: value.list_with_limit,
             list_with_start_after: value.list_with_start_after,
             list_with_recursive: value.list_with_recursive,
+            list_with_versions: value.list_with_versions,
+            list_with_deleted: value.list_with_deleted,
             presign: value.presign,
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,

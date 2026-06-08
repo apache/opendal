@@ -289,7 +289,7 @@ impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
 
 impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Inner = A;
-    type Reader = RetryWrapper<RetryReader<A, A::Reader>, I>;
+    type Reader = RetryReader<A::Reader, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type Lister = RetryWrapper<A::Lister, I>;
     type Deleter = RetryWrapper<A::Deleter, I>;
@@ -334,10 +334,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .await
             .map_err(|e| e.set_persistent())?;
 
-        let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
-        let retry_wrapper = RetryWrapper::new(retry_reader, self.notify.clone(), self.builder);
-
-        Ok((rp, retry_wrapper))
+        Ok((
+            rp,
+            RetryReader::new(reader, self.notify.clone(), self.builder),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -460,43 +460,168 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
 }
 
 #[doc(hidden)]
-pub struct RetryReader<A, R> {
-    inner: Arc<A>,
-    reader: Option<R>,
-
-    path: String,
-    args: OpRead,
+pub struct RetryReader<R, I> {
+    inner: Arc<R>,
+    notify: Arc<I>,
+    builder: ExponentialBuilder,
 }
 
-impl<A, R> RetryReader<A, R> {
-    fn new(inner: Arc<A>, path: String, args: OpRead, r: R) -> Self {
+impl<R, I> RetryReader<R, I> {
+    fn new(inner: R, notify: Arc<I>, builder: ExponentialBuilder) -> Self {
         Self {
-            inner,
-            reader: Some(r),
-
-            path,
-            args,
+            inner: Arc::new(inner),
+            notify,
+            builder,
         }
     }
 }
 
-impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
+impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        use backon::Retryable;
+
+        let mut attempt: u32 = 0;
+        let (rp, stream) = { || self.inner.open(range) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|e| e.set_persistent())?;
+
+        Ok((
+            rp,
+            Box::new(RetryReadStream::new(
+                self.inner.clone(),
+                stream,
+                range,
+                self.notify.clone(),
+                self.builder,
+            )) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        use backon::Retryable;
+
+        let mut attempt: u32 = 0;
+        { || self.inner.read(range) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|e| e.set_persistent())
+    }
+}
+
+#[doc(hidden)]
+pub struct RetryReadStream<R, I> {
+    reader: Arc<R>,
+    stream: Option<Box<dyn oio::ReadStreamDyn>>,
+    range: BytesRange,
+    read: u64,
+    notify: Arc<I>,
+    builder: ExponentialBuilder,
+}
+
+impl<R, I> RetryReadStream<R, I> {
+    fn new(
+        reader: Arc<R>,
+        stream: Box<dyn oio::ReadStreamDyn>,
+        range: BytesRange,
+        notify: Arc<I>,
+        builder: ExponentialBuilder,
+    ) -> Self {
+        Self {
+            reader,
+            stream: Some(stream),
+            range,
+            read: 0,
+            notify,
+            builder,
+        }
+    }
+}
+
+impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
-        loop {
-            match self.reader.take() {
-                None => {
-                    let (_, r) = self.inner.read(&self.path, self.args.clone()).await?;
-                    self.reader = Some(r);
-                    continue;
-                }
-                Some(mut reader) => {
-                    let buf = reader.read().await?;
-                    self.reader = Some(reader);
-                    self.args.range_mut().advance(buf.len() as u64);
-                    return Ok(buf);
+        use backon::RetryableWithContext;
+
+        let reader = self.reader.clone();
+        let stream = self.stream.take();
+        let range = self.range;
+        let read = self.read;
+        let mut attempt: u32 = 0;
+
+        let ((stream, range, read), res) = {
+            |(stream, mut range, mut read): (
+                Option<Box<dyn oio::ReadStreamDyn>>,
+                BytesRange,
+                u64,
+            )| {
+                let reader = reader.clone();
+                async move {
+                    let mut stream = match stream {
+                        Some(stream) => stream,
+                        None => {
+                            range.advance(read);
+                            read = 0;
+
+                            match reader.open(range).await {
+                                Ok((_, stream)) => stream,
+                                Err(err) => return ((None, range, read), Err(err)),
+                            }
+                        }
+                    };
+
+                    let res = match stream.read().await {
+                        Ok(buf) => {
+                            if !buf.is_empty() {
+                                read += buf.len() as u64;
+                            }
+                            (Some(stream), Ok(buf))
+                        }
+                        Err(err) => (None, Err(err)),
+                    };
+
+                    ((res.0, range, read), res.1)
                 }
             }
         }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context((stream, range, read))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Read,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.stream = stream;
+        self.range = range;
+        self.read = read;
+
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -527,7 +652,7 @@ impl<R, I> RetryWrapper<R, I> {
     }
 }
 
-impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
+impl<R: oio::ReadStream, I: RetryInterceptor> oio::ReadStream for RetryWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         use backon::RetryableWithContext;
 
@@ -886,8 +1011,33 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
+    /// Reader returned by this backend.
+    pub struct MockReader {
+        backend: MockService,
+    }
+
+    impl MockReader {
+        fn new(backend: MockService, _: &str, _: OpRead) -> Self {
+            Self { backend }
+        }
+    }
+
+    impl oio::StreamRead for MockReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let backend = &self.backend;
+            let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+            let stream = MockReadStream {
+                buf: Bytes::from("Hello, World!").into(),
+                range,
+                attempt: backend.attempt.clone(),
+            };
+
+            Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        }
+    }
+
     impl Access for MockService {
-        type Reader = MockReader;
+        type Reader = oio::StreamReader<MockReader>;
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
@@ -917,14 +1067,10 @@ mod tests {
             ))
         }
 
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                MockReader {
-                    buf: Bytes::from("Hello, World!").into(),
-                    range: args.range(),
-                    attempt: self.attempt.clone(),
-                },
+                RpRead::default(),
+                oio::StreamReader::new(MockReader::new(self.clone(), path, args)),
             ))
         }
 
@@ -964,13 +1110,13 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Default)]
-    struct MockReader {
+    struct MockReadStream {
         buf: Buffer,
         range: BytesRange,
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl oio::Read for MockReader {
+    impl oio::ReadStream for MockReadStream {
         async fn read(&mut self) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
@@ -1254,6 +1400,53 @@ mod tests {
         let r = op.reader("retryable_error").await?;
         let mut content = Vec::new();
         let _ = r.read_into(&mut content, ..).await?;
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Read, 1),
+                (Operation::Read, 2),
+                (Operation::Read, 1),
+            ],
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_read_stream_error_enters_retry_budget() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let backend = MockService::default();
+        let reader = RetryReader::new(
+            oio::StreamReader::new(MockReader::new(
+                backend.clone(),
+                "retryable_error",
+                OpRead::default(),
+            )),
+            Arc::new(recorder.clone()),
+            ExponentialBuilder::default()
+                .with_min_delay(Duration::from_millis(1))
+                .with_max_delay(Duration::from_millis(1)),
+        );
+
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::default()).await?;
+        let buf = oio::ReadStream::read_all(&mut stream).await?;
+
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"Hello, World!"));
+        assert_eq!(*backend.attempt.lock().unwrap(), 5);
 
         let events = recorder.events.lock().unwrap().clone();
         assert_eq!(

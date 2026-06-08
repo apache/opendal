@@ -24,13 +24,13 @@ use super::error::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct OpfsReader {
+pub struct OpfsReadStream {
     handle: SendWrapper<FileSystemFileHandle>,
     range: BytesRange,
     done: bool,
 }
 
-impl OpfsReader {
+impl OpfsReadStream {
     pub fn new(handle: FileSystemFileHandle, range: BytesRange) -> Self {
         Self {
             handle: SendWrapper::new(handle),
@@ -40,7 +40,7 @@ impl OpfsReader {
     }
 }
 
-impl oio::Read for OpfsReader {
+impl oio::ReadStream for OpfsReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());

@@ -983,6 +983,7 @@ impl Builder for S3Builder {
                             copy_can_multi: true,
                             copy_with_if_not_exists: true,
                             copy_with_if_match: true,
+                            copy_with_source_version: true,
                             // The min multipart size of S3 is 5 MiB.
                             //
                             // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1041,8 +1042,49 @@ pub struct S3Backend {
     core: Arc<S3Core>,
 }
 
+/// Reader returned by this backend.
+pub struct S3Reader {
+    backend: S3Backend,
+    path: String,
+    args: OpRead,
+}
+
+impl S3Reader {
+    fn new(backend: S3Backend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for S3Reader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.s3_get_object(path, range, &args).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for S3Backend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<S3Reader>;
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
@@ -1076,22 +1118,11 @@ impl Access for S3Backend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.s3_get_object(path, args.range(), &args).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(S3Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -1160,10 +1191,7 @@ impl Access for S3Backend {
         // We will not send this request out, just for signing.
         let req = match op {
             PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
-            PresignOperation::Read(v) => {
-                self.core
-                    .s3_get_object_request(path, BytesRange::default(), &v)
-            }
+            PresignOperation::Read(range, v) => self.core.s3_get_object_request(path, range, &v),
             PresignOperation::Write(v) => {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())

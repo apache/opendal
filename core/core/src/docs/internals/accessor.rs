@@ -27,7 +27,7 @@
 //! ```ignore
 //! //                  <----------Trait Bound-------------->
 //! pub trait Access: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: oio::Read;                    // --+
+//!     type Reader: oio::ReadStream;                    // --+
 //!     type Writer: oio::Write;                   //   +--> Associated Type
 //!     type Lister: oio::List;                    //   +
 //!     type Deleter: oio::Delete;                 // --+

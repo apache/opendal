@@ -79,7 +79,10 @@ impl oio::BatchDelete for OssDeleter {
 
         let mut batched_result = BatchDeleteResult {
             succeeded: Vec::with_capacity(result.deleted.len()),
-            failed: Vec::with_capacity(keys.len() - result.deleted.len()),
+            // `result.deleted.len()` is server-controlled and may exceed `keys.len()`; use
+            // `saturating_sub` (mirroring services/tos) to avoid an unsigned underflow that
+            // wraps to a huge `with_capacity` (release: abort).
+            failed: Vec::with_capacity(keys.len().saturating_sub(result.deleted.len())),
         };
 
         for i in result.deleted {

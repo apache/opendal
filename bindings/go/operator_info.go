@@ -100,12 +100,40 @@ func (c *Capability) Stat() bool {
 	return c.inner.stat == 1
 }
 
+func (c *Capability) StatWithIfMatch() bool {
+	return c.inner.statWithIfMatch == 1
+}
+
 func (c *Capability) StatWithIfmatch() bool {
-	return c.inner.statWithIfmatch == 1
+	return c.StatWithIfMatch()
 }
 
 func (c *Capability) StatWithIfNoneMatch() bool {
 	return c.inner.statWithIfNoneMatch == 1
+}
+
+func (c *Capability) StatWithIfModifiedSince() bool {
+	return c.inner.statWithIfModifiedSince == 1
+}
+
+func (c *Capability) StatWithIfUnmodifiedSince() bool {
+	return c.inner.statWithIfUnmodifiedSince == 1
+}
+
+func (c *Capability) StatWithOverrideCacheControl() bool {
+	return c.inner.statWithOverrideCacheControl == 1
+}
+
+func (c *Capability) StatWithOverrideContentDisposition() bool {
+	return c.inner.statWithOverrideContentDisposition == 1
+}
+
+func (c *Capability) StatWithOverrideContentType() bool {
+	return c.inner.statWithOverrideContentType == 1
+}
+
+func (c *Capability) StatWithVersion() bool {
+	return c.inner.statWithVersion == 1
 }
 
 func (c *Capability) Read() bool {
@@ -211,6 +239,14 @@ func (c *Capability) Delete() bool {
 	return c.inner.delete == 1
 }
 
+func (c *Capability) DeleteWithVersion() bool {
+	return c.inner.deleteWithVersion == 1
+}
+
+func (c *Capability) DeleteWithRecursive() bool {
+	return c.inner.deleteWithRecursive == 1
+}
+
 func (c *Capability) Copy() bool {
 	return c.inner.copy == 1
 }
@@ -233,6 +269,14 @@ func (c *Capability) ListWithStartAfter() bool {
 
 func (c *Capability) ListWithRecursive() bool {
 	return c.inner.listWithRecursive == 1
+}
+
+func (c *Capability) ListWithVersions() bool {
+	return c.inner.listWithVersions == 1
+}
+
+func (c *Capability) ListWithDeleted() bool {
+	return c.inner.listWithDeleted == 1
 }
 
 func (c *Capability) Presign() bool {

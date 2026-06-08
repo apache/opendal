@@ -26,7 +26,7 @@ use super::core::HfCore;
 use super::core::HfDownloadMode;
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
-use super::reader::HfReader;
+use super::reader::HfReadStream;
 use super::uri::{HfRepo, HfRepoType};
 use super::writer::HfWriter;
 use opendal_core::raw::*;
@@ -257,8 +257,32 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
+/// Reader returned by this backend.
+pub struct HfReader {
+    backend: HfBackend,
+    path: String,
+}
+
+impl HfReader {
+    fn new(backend: HfBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for HfReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let (rp, stream) = HfReadStream::try_new(&backend.core, path, range).await?;
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for HfBackend {
-    type Reader = HfReader;
+    type Reader = oio::StreamReader<HfReader>;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
@@ -282,9 +306,11 @@ impl Access for HfBackend {
         let info = self.core.path_info(path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        HfReader::try_new(&self.core, path, args.range()).await
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(HfReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

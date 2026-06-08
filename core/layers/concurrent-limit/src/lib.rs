@@ -245,7 +245,7 @@ where
     S::Permit: Unpin,
 {
     type Inner = A;
-    type Reader = ConcurrentLimitWrapper<A::Reader, S::Permit>;
+    type Reader = ConcurrentLimitReader<A::Reader, S>;
     type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
     type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
     type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
@@ -262,12 +262,10 @@ where
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let permit = self.semaphore.acquire().await;
-
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
+            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, self.semaphore.clone())))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -326,6 +324,37 @@ where
 }
 
 #[doc(hidden)]
+pub struct ConcurrentLimitReader<R, S> {
+    inner: R,
+    semaphore: S,
+}
+
+impl<R, S> ConcurrentLimitReader<R, S> {
+    fn new(inner: R, semaphore: S) -> Self {
+        Self { inner, semaphore }
+    }
+}
+
+impl<R: oio::Read, S: ConcurrentLimitSemaphore> oio::Read for ConcurrentLimitReader<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let permit = self.semaphore.acquire().await;
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(ConcurrentLimitWrapper::new(stream, permit)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.read(range).await
+    }
+}
+
+#[doc(hidden)]
 pub struct ConcurrentLimitWrapper<R, P> {
     inner: R,
 
@@ -342,9 +371,21 @@ impl<R, P> ConcurrentLimitWrapper<R, P> {
     }
 }
 
-impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
+    for ConcurrentLimitWrapper<R, P>
+{
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.inner.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
     }
 }
 
@@ -593,8 +634,39 @@ mod tests {
             content: Buffer,
         }
 
+        /// Reader returned by this backend.
+        pub struct HttpReader {
+            backend: HttpBackend,
+        }
+
+        impl HttpReader {
+            fn new(backend: HttpBackend, _: &str, _: OpRead) -> Self {
+                Self { backend }
+            }
+        }
+
+        impl oio::StreamRead for HttpReader {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let backend = &self.backend;
+                let start = range.offset() as usize;
+                let data = match range.size() {
+                    Some(sz) => backend.content.slice(start..start + sz as usize),
+                    None => backend.content.slice(start..),
+                };
+                let req = http::Request::get("http://fake").body(data).unwrap();
+                let resp = backend.info.http_client().fetch(req).await?;
+                let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+                let stream = resp.into_body();
+
+                Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+            }
+        }
+
         impl Access for HttpBackend {
-            type Reader = HttpBody;
+            type Reader = oio::StreamReader<HttpReader>;
             type Writer = ();
             type Lister = ();
             type Deleter = ();
@@ -604,18 +676,10 @@ mod tests {
                 self.info.clone()
             }
 
-            async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-                let range = args.range();
-                let start = range.offset() as usize;
-                let data = match range.size() {
-                    Some(sz) => self.content.slice(start..start + sz as usize),
-                    None => self.content.slice(start..),
-                };
-                let req = http::Request::get("http://fake").body(data).unwrap();
-                let resp = self.info.http_client().fetch(req).await?;
+            async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
                 Ok((
-                    RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                    resp.into_body(),
+                    RpRead::default(),
+                    oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
                 ))
             }
 

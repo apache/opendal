@@ -191,8 +191,49 @@ pub struct AliyunDriveBackend {
     core: Arc<AliyunDriveCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AliyunDriveReader {
+    backend: AliyunDriveBackend,
+    path: String,
+}
+
+impl AliyunDriveReader {
+    fn new(backend: AliyunDriveBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for AliyunDriveReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let res = backend.core.get_by_path(path).await?;
+        let file: AliyunDriveFile =
+            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+        let resp = backend.core.download(&file.file_id, range).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AliyunDriveBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AliyunDriveReader>;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
@@ -318,25 +359,11 @@ impl Access for AliyunDriveBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let res = self.core.get_by_path(path).await?;
-        let file: AliyunDriveFile =
-            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        let resp = self.core.download(&file.file_id, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            )),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AliyunDriveReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

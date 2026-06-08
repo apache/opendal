@@ -93,7 +93,7 @@ pub struct MonoiofsBackend {
 }
 
 impl Access for MonoiofsBackend {
-    type Reader = MonoiofsReader;
+    type Reader = oio::PositionReader<MonoiofsReader>;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -124,11 +124,10 @@ impl Access for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = self.core.prepare_path(path);
-        let reader = MonoiofsReader::new(self.core.clone(), path, args.range()).await?;
-        Ok((RpRead::default(), reader))
+        let reader = MonoiofsReader::new(self.core.clone(), path).await?;
+        Ok((RpRead::default(), oio::PositionReader::new(reader)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

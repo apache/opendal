@@ -28,8 +28,10 @@ public class OperatorInfo {
     public final String root;
     public final String name;
     public final Capability capability;
+
     @Deprecated
     public final Capability fullCapability;
+
     @Deprecated
     public final Capability nativeCapability;
 

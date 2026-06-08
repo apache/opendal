@@ -354,8 +354,6 @@ var ffiOperatorInfoGetCapability = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorInfoGetFullCapability = ffiOperatorInfoGetCapability
-
 var ffiOperatorInfoGetNativeCapability = newFFI(ffiOpts{
 	sym:    "opendal_operator_info_get_native_capability",
 	rType:  &typeCapability,

@@ -30,6 +30,9 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         // Some services (like owncloud) return 403 while file locked.
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

@@ -346,6 +346,7 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Write raw bytes to `path` with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_write_with_cancel(
@@ -423,6 +424,7 @@ pub unsafe extern "C" fn opendal_operator_write_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Read data from `path` with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_read_with_cancel(
@@ -494,6 +496,7 @@ pub unsafe extern "C" fn opendal_operator_read_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Create a reader with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
@@ -551,6 +554,7 @@ pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Create a writer with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_writer_with_cancel(
@@ -639,6 +643,7 @@ pub unsafe extern "C" fn opendal_operator_writer_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Delete the object in `path` with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_delete_with_cancel(
@@ -707,6 +712,7 @@ pub unsafe extern "C" fn opendal_operator_delete_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Check whether the path exists with cancellation support.
 #[no_mangle]
 #[cfg_attr(cbindgen, cbindgen::ignore)]
@@ -766,6 +772,7 @@ pub unsafe extern "C" fn opendal_operator_is_exist_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Check whether the path exists with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
@@ -823,6 +830,7 @@ pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Stat the path with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_stat_with_cancel(
@@ -906,6 +914,7 @@ pub unsafe extern "C" fn opendal_operator_stat_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief List the objects in `path` with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_list_with_cancel(
@@ -983,6 +992,7 @@ pub unsafe extern "C" fn opendal_operator_list_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Create the directory in `path` with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
@@ -1038,6 +1048,7 @@ pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
 /// # Panic
 ///
 /// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Rename the object with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
@@ -1095,6 +1106,7 @@ pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
 /// # Panic
 ///
 /// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+///
 /// \brief Copy the object with cancellation support.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
@@ -1118,4 +1130,164 @@ pub unsafe extern "C" fn opendal_operator_check_with_cancel(
 ) -> *mut opendal_error {
     let op = op.deref().clone();
     result_error(block_on_cancelable(token, async move { op.check().await }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_write_with_cancel(op, path, bytes, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_write_with_options_cancel(op, path, bytes, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_read {
+    unsafe { opendal_operator_read_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_read_options,
+) -> opendal_result_read {
+    unsafe { opendal_operator_read_with_options_cancel(op, path, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_reader(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_operator_reader {
+    unsafe { opendal_operator_reader_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_operator_writer {
+    unsafe { opendal_operator_writer_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_write_options,
+) -> opendal_result_operator_writer {
+    unsafe { opendal_operator_writer_with_options_cancel(op, path, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_delete_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_delete_options,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_delete_with_options_cancel(op, path, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+#[cfg_attr(cbindgen, cbindgen::ignore)]
+pub unsafe extern "C" fn opendal_operator_is_exist(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_is_exist {
+    unsafe { opendal_operator_is_exist_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_exists(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_exists {
+    unsafe { opendal_operator_exists_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_stat {
+    unsafe { opendal_operator_stat_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_stat_options,
+) -> opendal_result_stat {
+    unsafe { opendal_operator_stat_with_options_cancel(op, path, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> opendal_result_list {
+    unsafe { opendal_operator_list_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_list_options,
+) -> opendal_result_list {
+    unsafe { opendal_operator_list_with_options_cancel(op, path, opts, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_create_dir(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_create_dir_with_cancel(op, path, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_rename(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_rename_with_cancel(op, src, dest, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_copy_with_cancel(op, src, dest, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut opendal_error {
+    unsafe { opendal_operator_check_with_cancel(op, std::ptr::null()) }
 }

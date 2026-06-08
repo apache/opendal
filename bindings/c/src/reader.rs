@@ -112,6 +112,16 @@ impl opendal_reader {
         }))
     }
 
+    /// \brief Read data from the reader.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_read(
+        &mut self,
+        buf: *mut u8,
+        len: usize,
+    ) -> opendal_result_reader_read {
+        unsafe { Self::opendal_reader_read_with_cancel(self, buf, len, std::ptr::null()) }
+    }
+
     /// \brief Seek to an offset with cancellation support.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_seek_with_cancel(
@@ -134,6 +144,16 @@ impl opendal_reader {
                 error: opendal_error::new(e),
             },
         }
+    }
+
+    /// \brief Seek to an offset, in bytes, in a stream.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_seek(
+        &mut self,
+        offset: i64,
+        whence: i32,
+    ) -> opendal_result_reader_seek {
+        unsafe { Self::opendal_reader_seek_with_cancel(self, offset, whence, std::ptr::null()) }
     }
 
     /// \brief Frees the heap memory used by the opendal_reader.

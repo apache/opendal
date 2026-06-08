@@ -84,6 +84,15 @@ impl opendal_writer {
         }))
     }
 
+    /// \brief Write data to the writer.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_writer_write(
+        &mut self,
+        bytes: &opendal_bytes,
+    ) -> opendal_result_writer_write {
+        unsafe { Self::opendal_writer_write_with_cancel(self, bytes, std::ptr::null()) }
+    }
+
     /// \brief Close the writer with cancellation support.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_close_with_cancel(
@@ -101,6 +110,12 @@ impl opendal_writer {
             }
             std::ptr::null_mut()
         }
+    }
+
+    /// \brief Close the writer and make sure all data have been stored.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_writer_close(ptr: *mut opendal_writer) -> *mut opendal_error {
+        unsafe { Self::opendal_writer_close_with_cancel(ptr, std::ptr::null()) }
     }
 
     /// \brief Frees the heap memory used by the opendal_writer.

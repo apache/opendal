@@ -89,6 +89,12 @@ impl opendal_lister {
         }))
     }
 
+    /// \brief Return the next object to be listed.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_lister_next(&mut self) -> opendal_result_lister_next {
+        unsafe { Self::opendal_lister_next_with_cancel(self, std::ptr::null()) }
+    }
+
     /// \brief Free the heap-allocated metadata used by opendal_lister
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(ptr: *mut opendal_lister) {

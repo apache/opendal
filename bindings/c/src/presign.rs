@@ -214,6 +214,42 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
     }))
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_read(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+) -> opendal_result_presign {
+    unsafe { opendal_operator_presign_read_with_cancel(op, path, expire_secs, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_write(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+) -> opendal_result_presign {
+    unsafe { opendal_operator_presign_write_with_cancel(op, path, expire_secs, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_delete(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+) -> opendal_result_presign {
+    unsafe { opendal_operator_presign_delete_with_cancel(op, path, expire_secs, std::ptr::null()) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_stat(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+) -> opendal_result_presign {
+    unsafe { opendal_operator_presign_stat_with_cancel(op, path, expire_secs, std::ptr::null()) }
+}
+
 /// Get the method of the presigned request.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_presigned_request_method(

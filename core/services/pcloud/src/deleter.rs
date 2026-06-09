@@ -58,6 +58,12 @@ impl oio::OneShotDelete for PcloudDeleter {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
+                if path.ends_with('/') {
+                    self.core.invalidate_path_prefix_cache(&path);
+                } else {
+                    self.core.invalidate_path_cache(&path);
+                }
+
                 Ok(())
             }
             _ => Err(parse_error(resp)),

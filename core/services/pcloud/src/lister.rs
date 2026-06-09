@@ -29,20 +29,62 @@ pub struct PcloudLister {
     core: Arc<PcloudCore>,
 
     path: String,
+    recursive: bool,
 }
 
 impl PcloudLister {
-    pub(super) fn new(core: Arc<PcloudCore>, path: &str) -> Self {
+    pub(super) fn new(core: Arc<PcloudCore>, path: &str, recursive: bool) -> Self {
         PcloudLister {
             core,
             path: path.to_string(),
+            recursive,
         }
     }
 }
 
+fn append_entries(
+    entries: &mut std::collections::VecDeque<oio::Entry>,
+    core: &PcloudCore,
+    root: &str,
+    parent_path: &str,
+    content: ListMetadata,
+    recursive: bool,
+) -> Result<()> {
+    let mut absolute_path = content
+        .path
+        .clone()
+        .unwrap_or_else(|| format!("{parent_path}/{}", content.name));
+    if content.isfolder {
+        absolute_path.push('/');
+    } else if let Some(file_id) = content.fileid {
+        core.cache_file_id(&absolute_path, file_id);
+    }
+
+    let md = parse_list_metadata(&content)?;
+    let relative_path = build_rel_path(root, &absolute_path);
+    entries.push_back(oio::Entry::new(&relative_path, md));
+
+    if recursive {
+        if let Some(contents) = content.contents {
+            for child in contents {
+                append_entries(
+                    entries,
+                    core,
+                    root,
+                    absolute_path.trim_end_matches('/'),
+                    child,
+                    true,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl oio::PageList for PcloudLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.list_folder(&self.path).await?;
+        let resp = self.core.list_folder(&self.path, self.recursive).await?;
 
         let status = resp.status();
 
@@ -64,18 +106,17 @@ impl oio::PageList for PcloudLister {
                 }
 
                 if let Some(metadata) = resp.metadata {
+                    let parent_path = metadata.path.as_deref().unwrap_or(&self.path);
                     if let Some(contents) = metadata.contents {
                         for content in contents {
-                            let path = if content.isfolder {
-                                format!("{}/", content.path.clone())
-                            } else {
-                                content.path.clone()
-                            };
-
-                            let md = parse_list_metadata(content)?;
-                            let path = build_rel_path(&self.core.root, &path);
-
-                            ctx.entries.push_back(oio::Entry::new(&path, md))
+                            append_entries(
+                                &mut ctx.entries,
+                                &self.core,
+                                &self.core.root,
+                                parent_path,
+                                content,
+                                self.recursive,
+                            )?;
                         }
                     }
 
@@ -90,5 +131,152 @@ impl oio::PageList for PcloudLister {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use opendal_core::EntryMode;
+    use opendal_core::raw::AccessorInfo;
+
+    use super::ListMetadata;
+    use super::PcloudCore;
+    use super::append_entries;
+
+    fn core() -> PcloudCore {
+        PcloudCore::new(
+            Arc::new(AccessorInfo::default()),
+            "/repo/".to_string(),
+            "https://api.pcloud.com".to_string(),
+            "user@example.com".to_string(),
+            "secret".to_string(),
+        )
+    }
+
+    fn file(path: &str, size: u64) -> ListMetadata {
+        ListMetadata {
+            path: Some(path.to_string()),
+            name: path.rsplit('/').next().unwrap_or(path).to_string(),
+            modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
+            isfolder: false,
+            fileid: Some(1),
+            size: Some(size),
+            contents: None,
+        }
+    }
+
+    fn dir(path: &str, contents: Vec<ListMetadata>) -> ListMetadata {
+        ListMetadata {
+            path: Some(path.to_string()),
+            name: path.rsplit('/').next().unwrap_or(path).to_string(),
+            modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
+            isfolder: true,
+            fileid: None,
+            size: None,
+            contents: Some(contents),
+        }
+    }
+
+    #[test]
+    fn append_entries_flattens_recursive_contents() {
+        let mut entries = VecDeque::new();
+
+        append_entries(
+            &mut entries,
+            &core(),
+            "/repo/",
+            "/repo",
+            dir(
+                "/repo/data/00",
+                vec![
+                    file("/repo/data/00/pack1", 11),
+                    dir(
+                        "/repo/data/00/sub",
+                        vec![file("/repo/data/00/sub/pack2", 22)],
+                    ),
+                ],
+            ),
+            true,
+        )
+        .expect("entries should flatten");
+
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
+        assert_eq!(
+            paths,
+            vec![
+                "data/00/",
+                "data/00/pack1",
+                "data/00/sub/",
+                "data/00/sub/pack2"
+            ]
+        );
+        assert_eq!(entries[0].mode(), EntryMode::DIR);
+        assert_eq!(entries[1].mode(), EntryMode::FILE);
+        assert_eq!(entries[3].mode(), EntryMode::FILE);
+    }
+
+    #[test]
+    fn append_entries_keeps_non_recursive_listing_shallow() {
+        let mut entries = VecDeque::new();
+
+        append_entries(
+            &mut entries,
+            &core(),
+            "/repo/",
+            "/repo",
+            dir(
+                "/repo/data/00",
+                vec![
+                    file("/repo/data/00/pack1", 11),
+                    dir(
+                        "/repo/data/00/sub",
+                        vec![file("/repo/data/00/sub/pack2", 22)],
+                    ),
+                ],
+            ),
+            false,
+        )
+        .expect("entries should flatten");
+
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
+        assert_eq!(paths, vec!["data/00/"]);
+    }
+
+    #[test]
+    fn append_entries_rebuilds_missing_child_paths() {
+        let mut entries = VecDeque::new();
+
+        append_entries(
+            &mut entries,
+            &core(),
+            "/repo/",
+            "/repo/keys",
+            ListMetadata {
+                path: None,
+                name: "file1".to_string(),
+                modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
+                isfolder: false,
+                fileid: Some(1),
+                size: Some(363),
+                contents: None,
+            },
+            true,
+        )
+        .expect("entries should rebuild missing child paths");
+
+        let paths: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
+        assert_eq!(paths, vec!["keys/file1"]);
     }
 }

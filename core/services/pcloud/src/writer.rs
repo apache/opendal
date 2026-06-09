@@ -58,6 +58,8 @@ impl oio::OneShotWrite for PcloudWriter {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
+                self.core.invalidate_path_cache(&self.path);
+
                 Ok(Metadata::default())
             }
             _ => Err(parse_error(resp)),

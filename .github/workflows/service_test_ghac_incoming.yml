@@ -69,16 +69,16 @@ jobs:
           # This token must have Actions read/write permission on `opendal-ghac-service-continuous-integration`.
           github-token: ${{ secrets.GHAC_SERVICE_CI_TOKEN }}
           script: |
-            const OWNER = 'apache';
-            const RUNNER_REPO = 'opendal-ghac-service-continuous-integration';
+            const owner = 'apache';
+            const repo = 'opendal-ghac-service-continuous-integration';
             const workflow_id = process.env.TARGET_WORKFLOW;
             const correlation_id = process.env.CORRELATION_ID;
 
             await github.rest.actions.createWorkflowDispatch({
-              OWNER,
-              RUNNER_REPO,
+              owner,
+              repo,
               workflow_id,
-              ref: 'main',
+              ref: 'ghac-ci', // FIXME: change to `main` upon merge
               inputs: {
                 opendal_repository: process.env.OPENDAL_REPOSITORY,
                 opendal_ref: process.env.OPENDAL_REF,
@@ -86,7 +86,7 @@ jobs:
               },
             });
 
-            core.info(`Dispatched ${OWNER}/${RUNNER_REPO}/${workflow_id} with correlation ${correlation_id}`);
+            core.info(`Dispatched ${owner}/${repo}/${workflow_id} with correlation ${correlation_id}`);
 
       - name: Wait for remote GHAC test
         uses: actions/github-script@v8
@@ -95,10 +95,10 @@ jobs:
           script: |
             const { setTimeout } = require('node:timers/promises');
 
-            const REMOTE_RUN_POLL_ATTEMPTS = 180; // 10s * 120 = 1200s = 20min
+            const REMOTE_RUN_POLL_ATTEMPTS = 180; // 10s * 180 = 1800s = 30min
             const REMOTE_RUN_POLL_INTERVAL_MS = 10000; // 10s
-            const OWNER = 'apache';
-            const RUNNER_REPO = 'opendal-ghac-service-continuous-integration';
+            const owner = 'apache';
+            const repo = 'opendal-ghac-service-continuous-integration';
 
             const workflow_id = process.env.TARGET_WORKFLOW;
             const correlation_id = process.env.CORRELATION_ID;
@@ -107,8 +107,8 @@ jobs:
             let run;
             for (let attempt = 0; attempt < REMOTE_RUN_POLL_ATTEMPTS; attempt++) {
               const { data } = await github.rest.actions.listWorkflowRuns({
-                OWNER,
-                RUNNER_REPO,
+                owner,
+                repo,
                 workflow_id,
                 event: 'workflow_dispatch',
                 per_page: 20,

@@ -77,7 +77,9 @@ impl opendal_lister {
         }
     }
 
-    /// \brief Return the next object with cancellation support.
+    /// \brief Like `opendal_lister_next` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_next_with_cancel(
         &mut self,

@@ -96,7 +96,9 @@ impl opendal_reader {
         }
     }
 
-    /// \brief Read data from the reader with cancellation support.
+    /// \brief Like `opendal_reader_read` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_read_with_cancel(
         &mut self,
@@ -122,7 +124,9 @@ impl opendal_reader {
         unsafe { Self::opendal_reader_read_with_cancel(self, buf, len, std::ptr::null()) }
     }
 
-    /// \brief Seek to an offset with cancellation support.
+    /// \brief Like `opendal_reader_seek` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_seek_with_cancel(
         &mut self,

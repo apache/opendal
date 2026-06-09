@@ -134,7 +134,9 @@ pub struct opendal_result_presign {
     pub error: *mut opendal_error,
 }
 
-/// \brief Presign a read operation with cancellation support.
+/// \brief Like `opendal_operator_presign_read` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
     op: &opendal_operator,
@@ -154,7 +156,9 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
     }))
 }
 
-/// \brief Presign a write operation with cancellation support.
+/// \brief Like `opendal_operator_presign_write` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_write_with_cancel(
     op: &opendal_operator,
@@ -174,7 +178,9 @@ pub unsafe extern "C" fn opendal_operator_presign_write_with_cancel(
     }))
 }
 
-/// \brief Presign a delete operation with cancellation support.
+/// \brief Like `opendal_operator_presign_delete` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_delete_with_cancel(
     op: &opendal_operator,
@@ -194,7 +200,9 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with_cancel(
     }))
 }
 
-/// \brief Presign a stat operation with cancellation support.
+/// \brief Like `opendal_operator_presign_stat` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
     op: &opendal_operator,
@@ -214,6 +222,7 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
     }))
 }
 
+/// \brief Presign a read operation.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_read(
     op: &opendal_operator,
@@ -223,6 +232,7 @@ pub unsafe extern "C" fn opendal_operator_presign_read(
     unsafe { opendal_operator_presign_read_with_cancel(op, path, expire_secs, std::ptr::null()) }
 }
 
+/// \brief Presign a write operation.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_write(
     op: &opendal_operator,
@@ -232,6 +242,7 @@ pub unsafe extern "C" fn opendal_operator_presign_write(
     unsafe { opendal_operator_presign_write_with_cancel(op, path, expire_secs, std::ptr::null()) }
 }
 
+/// \brief Presign a delete operation.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_delete(
     op: &opendal_operator,
@@ -241,6 +252,7 @@ pub unsafe extern "C" fn opendal_operator_presign_delete(
     unsafe { opendal_operator_presign_delete_with_cancel(op, path, expire_secs, std::ptr::null()) }
 }
 
+/// \brief Presign a stat operation.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_stat(
     op: &opendal_operator,

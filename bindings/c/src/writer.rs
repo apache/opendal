@@ -68,7 +68,9 @@ impl opendal_writer {
         }
     }
 
-    /// \brief Write data to the writer with cancellation support.
+    /// \brief Like `opendal_writer_write` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write_with_cancel(
         &mut self,
@@ -93,7 +95,9 @@ impl opendal_writer {
         unsafe { Self::opendal_writer_write_with_cancel(self, bytes, std::ptr::null()) }
     }
 
-    /// \brief Close the writer with cancellation support.
+    /// \brief Like `opendal_writer_close` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_close_with_cancel(
         ptr: *mut opendal_writer,

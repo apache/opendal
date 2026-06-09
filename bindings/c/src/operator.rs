@@ -302,6 +302,398 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
     new_operator_result(build_operator_with_layers(scheme, map, layers))
 }
 
+/// \brief Like `opendal_operator_write` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let bytes = core::Buffer::from(bytes);
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.write(&path, bytes).await.map(|_| ())
+    }))
+}
+
+/// \brief Like `opendal_operator_write_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let bytes = core::Buffer::from(bytes);
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        unsafe { (&*opts).into() }
+    };
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.write_options(&path, bytes, opts).await.map(|_| ())
+    }))
+}
+
+/// \brief Like `opendal_operator_read` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_read {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    result_read(block_on_cancelable(
+        token,
+        async move { op.read(&path).await },
+    ))
+}
+
+/// \brief Like `opendal_operator_read_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_read_options,
+    token: *const opendal_cancel_token,
+) -> opendal_result_read {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let opts = if opts.is_null() {
+        core::options::ReadOptions::default()
+    } else {
+        unsafe { (&*opts).into() }
+    };
+    let op = op.deref().clone();
+    result_read(block_on_cancelable(token, async move {
+        op.read_options(&path, opts).await
+    }))
+}
+
+/// \brief Like `opendal_operator_reader` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_operator_reader {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move {
+        let reader = op.reader(&path).await?;
+        opendal_reader::create_async(reader).await
+    }) {
+        Ok(reader) => opendal_result_operator_reader {
+            reader: Box::into_raw(Box::new(opendal_reader::from_async(reader))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_reader {
+            reader: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_writer` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_operator_writer {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.writer(&path).await }) {
+        Ok(writer) => opendal_result_operator_writer {
+            writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_writer {
+            writer: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_writer_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_writer_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_write_options,
+    token: *const opendal_cancel_token,
+) -> opendal_result_operator_writer {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        unsafe { (&*opts).into() }
+    };
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.writer_options(&path, opts).await }) {
+        Ok(writer) => opendal_result_operator_writer {
+            writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_writer {
+            writer: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_delete` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(
+        token,
+        async move { op.delete(&path).await },
+    ))
+}
+
+/// \brief Like `opendal_operator_delete_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_delete_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_delete_options,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let opts = unsafe { parse_delete_options(opts) };
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.delete_options(&path, opts).await
+    }))
+}
+
+/// \brief Like `opendal_operator_is_exist` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+#[cfg_attr(cbindgen, cbindgen::ignore)]
+pub unsafe extern "C" fn opendal_operator_is_exist_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_is_exist {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.exists(&path).await }) {
+        Ok(e) => opendal_result_is_exist {
+            is_exist: e,
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_is_exist {
+            is_exist: false,
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_exists` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_exists {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.exists(&path).await }) {
+        Ok(e) => opendal_result_exists {
+            exists: e,
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_exists {
+            exists: false,
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_stat` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_stat {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    result_stat(block_on_cancelable(
+        token,
+        async move { op.stat(&path).await },
+    ))
+}
+
+/// \brief Like `opendal_operator_stat_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_stat_options,
+    token: *const opendal_cancel_token,
+) -> opendal_result_stat {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let opts = if opts.is_null() {
+        core::options::StatOptions::default()
+    } else {
+        unsafe { (&*opts).into() }
+    };
+    let op = op.deref().clone();
+    result_stat(block_on_cancelable(token, async move {
+        op.stat_options(&path, opts).await
+    }))
+}
+
+/// \brief Like `opendal_operator_list` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> opendal_result_list {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.lister(&path).await }) {
+        Ok(lister) => opendal_result_list {
+            lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_list_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_list_with_options_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_list_options,
+    token: *const opendal_cancel_token,
+) -> opendal_result_list {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let opts = unsafe { parse_list_options(opts) };
+    let op = op.deref().clone();
+    match block_on_cancelable(token, async move { op.lister_options(&path, opts).await }) {
+        Ok(lister) => opendal_result_list {
+            lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Like `opendal_operator_create_dir` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let path = unsafe { parse_cstr(path, "path") }.to_owned();
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.create_dir(&path).await
+    }))
+}
+
+/// \brief Like `opendal_operator_rename` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let src = unsafe { parse_cstr(src, "src") }.to_owned();
+    let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.rename(&src, &dest).await
+    }))
+}
+
+/// \brief Like `opendal_operator_copy` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let src = unsafe { parse_cstr(src, "src") }.to_owned();
+    let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move {
+        op.copy(&src, &dest).await.map(|_| ())
+    }))
+}
+
+/// \brief Like `opendal_operator_check` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_check_with_cancel(
+    op: &opendal_operator,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
+    let op = op.deref().clone();
+    result_error(block_on_cancelable(token, async move { op.check().await }))
+}
+
 /// \brief Blocking write raw bytes to `path`.
 ///
 /// Write the `bytes` into the `path` blocking by `op_ptr`.
@@ -346,43 +738,24 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Write raw bytes to `path` with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_write_with_cancel(
+pub unsafe extern "C" fn opendal_operator_write(
     op: &opendal_operator,
     path: *const c_char,
     bytes: &opendal_bytes,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let bytes = core::Buffer::from(bytes);
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.write(&path, bytes).await.map(|_| ())
-    }))
+    unsafe { opendal_operator_write_with_cancel(op, path, bytes, std::ptr::null()) }
 }
 
-/// \brief Write raw bytes to `path` with options and cancellation support.
+/// \brief Blocking write raw bytes to `path` with options.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_write_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_write_with(
     op: &opendal_operator,
     path: *const c_char,
     bytes: &opendal_bytes,
     opts: *const opendal_write_options,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let bytes = core::Buffer::from(bytes);
-    let opts = if opts.is_null() {
-        core::options::WriteOptions::default()
-    } else {
-        unsafe { (&*opts).into() }
-    };
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.write_options(&path, bytes, opts).await.map(|_| ())
-    }))
+    unsafe { opendal_operator_write_with_options_cancel(op, path, bytes, opts, std::ptr::null()) }
 }
 
 /// \brief Blocking read the data from `path`.
@@ -424,40 +797,50 @@ pub unsafe extern "C" fn opendal_operator_write_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Read data from `path` with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_read_with_cancel(
+pub unsafe extern "C" fn opendal_operator_read(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_read {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    result_read(block_on_cancelable(
-        token,
-        async move { op.read(&path).await },
-    ))
+    unsafe { opendal_operator_read_with_cancel(op, path, std::ptr::null()) }
 }
 
-/// \brief Read data from `path` with options and cancellation support.
+/// \brief Blocking read the data from `path` with options.
+///
+/// Read the data out from `path` blocking by operator, using the provided
+/// `opendal_read_options` to control the behavior, e.g. range, version, or
+/// conditional headers.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to read the data out
+/// @param opts The options for the read operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_read
+/// @see opendal_read_options
+/// @see opendal_error
+/// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+/// opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+/// the operation failed and the `data` field is a nullptr.
+///
+/// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+/// After your usage of that, please call opendal_bytes_free() to free the space.
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_read_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_read_with(
     op: &opendal_operator,
     path: *const c_char,
     opts: *const opendal_read_options,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_read {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let opts = if opts.is_null() {
-        core::options::ReadOptions::default()
-    } else {
-        unsafe { (&*opts).into() }
-    };
-    let op = op.deref().clone();
-    result_read(block_on_cancelable(token, async move {
-        op.read_options(&path, opts).await
-    }))
+    unsafe { opendal_operator_read_with_options_cancel(op, path, opts, std::ptr::null()) }
 }
 
 /// \brief Blocking read the data from `path`.
@@ -496,29 +879,12 @@ pub unsafe extern "C" fn opendal_operator_read_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Create a reader with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
+pub unsafe extern "C" fn opendal_operator_reader(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_operator_reader {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move {
-        let reader = op.reader(&path).await?;
-        opendal_reader::create_async(reader).await
-    }) {
-        Ok(reader) => opendal_result_operator_reader {
-            reader: Box::into_raw(Box::new(opendal_reader::from_async(reader))),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_operator_reader {
-            reader: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_reader_with_cancel(op, path, std::ptr::null()) }
 }
 
 /// \brief Blocking create a writer for the specified path.
@@ -557,53 +923,22 @@ pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Create a writer with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_writer_with_cancel(
+pub unsafe extern "C" fn opendal_operator_writer(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_operator_writer {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.writer(&path).await }) {
-        Ok(writer) => opendal_result_operator_writer {
-            writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_operator_writer {
-            writer: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_writer_with_cancel(op, path, std::ptr::null()) }
 }
 
-/// \brief Create a writer with options and cancellation support.
+/// \brief Blocking create a writer for the specified path with options.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_writer_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_writer_with(
     op: &opendal_operator,
     path: *const c_char,
     opts: *const opendal_write_options,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_operator_writer {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let opts = if opts.is_null() {
-        core::options::WriteOptions::default()
-    } else {
-        unsafe { (&*opts).into() }
-    };
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.writer_options(&path, opts).await }) {
-        Ok(writer) => opendal_result_operator_writer {
-            writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_operator_writer {
-            writer: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_writer_with_options_cancel(op, path, opts, std::ptr::null()) }
 }
 
 /// \brief Blocking delete the object in `path`.
@@ -646,36 +981,41 @@ pub unsafe extern "C" fn opendal_operator_writer_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Delete the object in `path` with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_delete_with_cancel(
+pub unsafe extern "C" fn opendal_operator_delete(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(
-        token,
-        async move { op.delete(&path).await },
-    ))
+    unsafe { opendal_operator_delete_with_cancel(op, path, std::ptr::null()) }
 }
 
-/// \brief Delete the object in `path` with options and cancellation support.
+/// \brief Blocking delete the object in `path` with options.
+///
+/// Delete the object in `path` blocking by `op`, using the provided `opendal_delete_options`.
+/// This is similar to `opendal_operator_delete` but allows specifying a version or
+/// requesting a recursive delete.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to delete
+/// @param opts The options for the delete operation; pass NULL to use defaults
+/// @see opendal_delete_options
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_delete_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_delete_with(
     op: &opendal_operator,
     path: *const c_char,
     opts: *const opendal_delete_options,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let opts = unsafe { parse_delete_options(opts) };
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.delete_options(&path, opts).await
-    }))
+    unsafe { opendal_operator_delete_with_options_cancel(op, path, opts, std::ptr::null()) }
 }
 
 /// \brief Check whether the path exists.
@@ -715,27 +1055,13 @@ pub unsafe extern "C" fn opendal_operator_delete_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Check whether the path exists with cancellation support.
 #[no_mangle]
 #[cfg_attr(cbindgen, cbindgen::ignore)]
-pub unsafe extern "C" fn opendal_operator_is_exist_with_cancel(
+pub unsafe extern "C" fn opendal_operator_is_exist(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_is_exist {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.exists(&path).await }) {
-        Ok(e) => opendal_result_is_exist {
-            is_exist: e,
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_is_exist {
-            is_exist: false,
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_is_exist_with_cancel(op, path, std::ptr::null()) }
 }
 
 /// \brief Check whether the path exists.
@@ -775,26 +1101,12 @@ pub unsafe extern "C" fn opendal_operator_is_exist_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Check whether the path exists with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
+pub unsafe extern "C" fn opendal_operator_exists(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_exists {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.exists(&path).await }) {
-        Ok(e) => opendal_result_exists {
-            exists: e,
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_exists {
-            exists: false,
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_exists_with_cancel(op, path, std::ptr::null()) }
 }
 
 /// \brief Stat the path, return its metadata.
@@ -833,40 +1145,43 @@ pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Stat the path with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_stat_with_cancel(
+pub unsafe extern "C" fn opendal_operator_stat(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_stat {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    result_stat(block_on_cancelable(
-        token,
-        async move { op.stat(&path).await },
-    ))
+    unsafe { opendal_operator_stat_with_cancel(op, path, std::ptr::null()) }
 }
 
-/// \brief Stat the path with options and cancellation support.
+/// \brief Blocking stat the object in `path` with options.
+///
+/// Stat the object in `path` with the provided `opendal_stat_options`. This is
+/// similar to `opendal_operator_stat` but allows passing options such as
+/// `version`, `if_match`, `if_none_match`, or response header overrides.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to stat
+/// @param opts The options for the stat operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_result_stat
+/// @see opendal_stat_options
+/// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_stat_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_stat_with(
     op: &opendal_operator,
     path: *const c_char,
     opts: *const opendal_stat_options,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_stat {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let opts = if opts.is_null() {
-        core::options::StatOptions::default()
-    } else {
-        unsafe { (&*opts).into() }
-    };
-    let op = op.deref().clone();
-    result_stat(block_on_cancelable(token, async move {
-        op.stat_options(&path, opts).await
-    }))
+    unsafe { opendal_operator_stat_with_options_cancel(op, path, opts, std::ptr::null()) }
 }
 
 /// \brief Blocking list the objects in `path`.
@@ -917,49 +1232,42 @@ pub unsafe extern "C" fn opendal_operator_stat_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief List the objects in `path` with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_list_with_cancel(
+pub unsafe extern "C" fn opendal_operator_list(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_list {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.lister(&path).await }) {
-        Ok(lister) => opendal_result_list {
-            lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_list {
-            lister: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_list_with_cancel(op, path, std::ptr::null()) }
 }
 
-/// \brief List the objects in `path` with options and cancellation support.
+/// \brief Blocking list the objects in `path` with options.
+///
+/// List the objects in `path` with the provided `opendal_list_options`. This is
+/// similar to `opendal_operator_list` but allows passing options such as
+/// `recursive` to control the listing behavior.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path you want to list
+/// @param opts The options for the list operation; pass NULL to use defaults
+/// @see opendal_lister
+/// @see opendal_list_options
+/// @return Returns opendal_result_list, containing a lister and an opendal_error.
+///
+/// # Safety
+///
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_list_with_options_cancel(
+pub unsafe extern "C" fn opendal_operator_list_with(
     op: &opendal_operator,
     path: *const c_char,
     opts: *const opendal_list_options,
-    token: *const opendal_cancel_token,
 ) -> opendal_result_list {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let opts = unsafe { parse_list_options(opts) };
-    let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.lister_options(&path, opts).await }) {
-        Ok(lister) => opendal_result_list {
-            lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
-            error: std::ptr::null_mut(),
-        },
-        Err(e) => opendal_result_list {
-            lister: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    unsafe { opendal_operator_list_with_options_cancel(op, path, opts, std::ptr::null()) }
 }
 
 /// \brief Blocking create the directory in `path`.
@@ -995,19 +1303,12 @@ pub unsafe extern "C" fn opendal_operator_list_with_options_cancel(
 /// # Panic
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Create the directory in `path` with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
+pub unsafe extern "C" fn opendal_operator_create_dir(
     op: &opendal_operator,
     path: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let path = unsafe { parse_cstr(path, "path") }.to_owned();
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.create_dir(&path).await
-    }))
+    unsafe { opendal_operator_create_dir_with_cancel(op, path, std::ptr::null()) }
 }
 
 /// \brief Blocking rename the object in `path`.
@@ -1051,21 +1352,13 @@ pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
 /// # Panic
 ///
 /// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Rename the object with cancellation support.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
+pub unsafe extern "C" fn opendal_operator_rename(
     op: &opendal_operator,
     src: *const c_char,
     dest: *const c_char,
-    token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    let src = unsafe { parse_cstr(src, "src") }.to_owned();
-    let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.rename(&src, &dest).await
-    }))
+    unsafe { opendal_operator_rename_with_cancel(op, src, dest, std::ptr::null()) }
 }
 
 /// \brief Blocking copy the object in `path`.
@@ -1109,178 +1402,6 @@ pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
 /// # Panic
 ///
 /// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
-///
-/// \brief Copy the object with cancellation support.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
-    op: &opendal_operator,
-    src: *const c_char,
-    dest: *const c_char,
-    token: *const opendal_cancel_token,
-) -> *mut opendal_error {
-    let src = unsafe { parse_cstr(src, "src") }.to_owned();
-    let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
-        op.copy(&src, &dest).await.map(|_| ())
-    }))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_check_with_cancel(
-    op: &opendal_operator,
-    token: *const opendal_cancel_token,
-) -> *mut opendal_error {
-    let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move { op.check().await }))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_write(
-    op: &opendal_operator,
-    path: *const c_char,
-    bytes: &opendal_bytes,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_write_with_cancel(op, path, bytes, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_write_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    bytes: &opendal_bytes,
-    opts: *const opendal_write_options,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_write_with_options_cancel(op, path, bytes, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_read(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_read {
-    unsafe { opendal_operator_read_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_read_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    opts: *const opendal_read_options,
-) -> opendal_result_read {
-    unsafe { opendal_operator_read_with_options_cancel(op, path, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_reader(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_operator_reader {
-    unsafe { opendal_operator_reader_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_writer(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_operator_writer {
-    unsafe { opendal_operator_writer_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_writer_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    opts: *const opendal_write_options,
-) -> opendal_result_operator_writer {
-    unsafe { opendal_operator_writer_with_options_cancel(op, path, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_delete(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_delete_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_delete_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    opts: *const opendal_delete_options,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_delete_with_options_cancel(op, path, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-#[cfg_attr(cbindgen, cbindgen::ignore)]
-pub unsafe extern "C" fn opendal_operator_is_exist(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_is_exist {
-    unsafe { opendal_operator_is_exist_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_exists(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_exists {
-    unsafe { opendal_operator_exists_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_stat(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_stat {
-    unsafe { opendal_operator_stat_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_stat_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    opts: *const opendal_stat_options,
-) -> opendal_result_stat {
-    unsafe { opendal_operator_stat_with_options_cancel(op, path, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_list(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> opendal_result_list {
-    unsafe { opendal_operator_list_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_list_with(
-    op: &opendal_operator,
-    path: *const c_char,
-    opts: *const opendal_list_options,
-) -> opendal_result_list {
-    unsafe { opendal_operator_list_with_options_cancel(op, path, opts, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_create_dir(
-    op: &opendal_operator,
-    path: *const c_char,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_create_dir_with_cancel(op, path, std::ptr::null()) }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn opendal_operator_rename(
-    op: &opendal_operator,
-    src: *const c_char,
-    dest: *const c_char,
-) -> *mut opendal_error {
-    unsafe { opendal_operator_rename_with_cancel(op, src, dest, std::ptr::null()) }
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_copy(
     op: &opendal_operator,

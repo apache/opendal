@@ -1,0 +1,139 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Service Test Ghac Incoming
+# We will replace existing `service_test_ghac_legacy.yml` when we set up
+# shared workflows with another repo `opendal-ghac-service-continous-integration` with:
+# - this workflow as `service_test_ghac_trigger.yml`
+# - and the new definition at `service_test_ghac.yml`
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "core/layers/**"
+      - "core/testkit/**"
+      - "core/tests/**"
+      - "!core/core/src/docs/**"
+      - "core/services/azblob/**"
+      - "core/services/azure-common/**"
+      - "core/services/ghac/**"
+      - ".github/workflows/service_test_ghac_incoming.yml"
+      - ".github/workflows/service_test_ghac_probe.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  ghac_v2:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      TARGET_WORKFLOW: opendal-ghac-runner.yml
+      CORRELATION_ID: ghac-${{ github.run_id }}-${{ github.run_attempt }}
+      OPENDAL_REPOSITORY: ${{ github.repository }}
+      OPENDAL_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Dispatch remote GHAC test
+        uses: actions/github-script@v8
+        with:
+          # `GITHUB_TOKEN` cannot dispatch workflows in another repository.
+          # This token must have Actions read/write permission on `opendal-ghac-service-continuous-integration`.
+          github-token: ${{ secrets.GHAC_SERVICE_CI_TOKEN }}
+          script: |
+            const OWNER = 'apache';
+            const RUNNER_REPO = 'opendal-ghac-service-continuous-integration';
+            const workflow_id = process.env.TARGET_WORKFLOW;
+            const correlation_id = process.env.CORRELATION_ID;
+
+            await github.rest.actions.createWorkflowDispatch({
+              OWNER,
+              RUNNER_REPO,
+              workflow_id,
+              ref: 'main',
+              inputs: {
+                opendal_repository: process.env.OPENDAL_REPOSITORY,
+                opendal_ref: process.env.OPENDAL_REF,
+                correlation_id,
+              },
+            });
+
+            core.info(`Dispatched ${OWNER}/${RUNNER_REPO}/${workflow_id} with correlation ${correlation_id}`);
+
+      - name: Wait for remote GHAC test
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GHAC_SERVICE_CI_TOKEN }}
+          script: |
+            const { setTimeout } = require('node:timers/promises');
+
+            const REMOTE_RUN_POLL_ATTEMPTS = 180; // 10s * 120 = 1200s = 20min
+            const REMOTE_RUN_POLL_INTERVAL_MS = 10000; // 10s
+            const OWNER = 'apache';
+            const RUNNER_REPO = 'opendal-ghac-service-continuous-integration';
+
+            const workflow_id = process.env.TARGET_WORKFLOW;
+            const correlation_id = process.env.CORRELATION_ID;
+            const expectedTitle = `opendal-ghac-${correlation_id}`;
+
+            let run;
+            for (let attempt = 0; attempt < REMOTE_RUN_POLL_ATTEMPTS; attempt++) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                OWNER,
+                RUNNER_REPO,
+                workflow_id,
+                event: 'workflow_dispatch',
+                per_page: 20,
+              });
+
+              run = data.workflow_runs.find(item => item.display_title === expectedTitle);
+              if (!run) {
+                core.info(`Waiting for remote run ${expectedTitle} to appear`);
+                await setTimeout(REMOTE_RUN_POLL_INTERVAL_MS);
+                continue;
+              }
+
+              core.info(`Remote run ${run.html_url} is ${run.status}${run.conclusion ? ` / ${run.conclusion}` : ''}`);
+              if (run.status === 'completed') {
+                if (run.conclusion !== 'success') {
+                  core.setFailed(`Remote GHAC test failed with conclusion ${run.conclusion}: ${run.html_url}`);
+                }
+                return;
+              }
+
+              await setTimeout(REMOTE_RUN_POLL_INTERVAL_MS);
+            }
+
+            if (run?.html_url) {
+              core.setFailed(`Timed out waiting for remote GHAC test: ${run.html_url}`);
+            } else {
+              core.setFailed(`Timed out waiting for remote GHAC test ${expectedTitle} to appear`);
+            }

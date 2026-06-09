@@ -747,7 +747,8 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         )
     })?;
 
-    // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
+    // read status definition at https://tools.ietf.org/html/rfc2068#section-6.1
+    let mut status_parts = status.split_whitespace();
     let code = code.parse::<u16>().map_err(|err| {
         Error::new(ErrorKind::Unexpected, "parse webdav propfind status code").set_source(err)
     })?;

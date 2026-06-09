@@ -18,10 +18,8 @@
 use ::opendal as core;
 use futures_util::StreamExt;
 use std::ffi::c_void;
-use std::future::Future;
 
 use super::*;
-use crate::operator::RUNTIME;
 
 /// \brief BlockingLister is designed to list entries at given path in a blocking
 /// manner.
@@ -52,14 +50,6 @@ impl opendal_lister {
         }
     }
 
-    fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
-    where
-        F: Future<Output = core::Result<T>>,
-    {
-        let token = unsafe { cancel::clone_token(token) };
-        RUNTIME.block_on(cancel::run(token, fut))
-    }
-
     fn result_next(result: core::Result<Option<core::Entry>>) -> opendal_result_lister_next {
         match result {
             Ok(Some(e)) => opendal_result_lister_next {
@@ -86,7 +76,7 @@ impl opendal_lister {
         token: *const opendal_cancel_token,
     ) -> opendal_result_lister_next {
         let lister = self.deref_mut();
-        Self::result_next(Self::block_on_cancelable(token, async move {
+        Self::result_next(cancel::block_on_cancelable(token, async move {
             lister.next().await.transpose()
         }))
     }

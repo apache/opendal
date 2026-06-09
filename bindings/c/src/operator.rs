@@ -17,20 +17,11 @@
 
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::future::Future;
 use std::os::raw::c_char;
-use std::sync::LazyLock;
 
 use ::opendal as core;
 
 use super::*;
-
-pub(crate) static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-});
 
 /// \brief Used to access almost all OpenDAL APIs. It represents an
 /// operator that provides the unified interfaces provided by OpenDAL.
@@ -131,19 +122,6 @@ fn new_operator_result(op: core::Result<core::Operator>) -> opendal_result_opera
             error: opendal_error::new(e),
         },
     }
-}
-
-fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
-where
-    T: Send + 'static,
-    F: Future<Output = core::Result<T>> + Send + 'static,
-{
-    let token = unsafe { cancel::clone_token(token) };
-    RUNTIME
-        .block_on(RUNTIME.spawn(cancel::run(token, fut)))
-        .map_err(|err| {
-            core::Error::new(core::ErrorKind::Unexpected, "cancellable task failed").set_source(err)
-        })?
 }
 
 unsafe fn parse_cstr<'a>(ptr: *const c_char, name: &str) -> &'a str {
@@ -315,7 +293,7 @@ pub unsafe extern "C" fn opendal_operator_write_with_cancel(
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let bytes = core::Buffer::from(bytes);
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.write(&path, bytes).await.map(|_| ())
     }))
 }
@@ -339,7 +317,7 @@ pub unsafe extern "C" fn opendal_operator_write_with_options_cancel(
         unsafe { (&*opts).into() }
     };
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.write_options(&path, bytes, opts).await.map(|_| ())
     }))
 }
@@ -355,10 +333,9 @@ pub unsafe extern "C" fn opendal_operator_read_with_cancel(
 ) -> opendal_result_read {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    result_read(block_on_cancelable(
-        token,
-        async move { op.read(&path).await },
-    ))
+    result_read(cancel::block_on_cancelable_spawn(token, async move {
+        op.read(&path).await
+    }))
 }
 
 /// \brief Like `opendal_operator_read_with` with cooperative cancellation.
@@ -378,7 +355,7 @@ pub unsafe extern "C" fn opendal_operator_read_with_options_cancel(
         unsafe { (&*opts).into() }
     };
     let op = op.deref().clone();
-    result_read(block_on_cancelable(token, async move {
+    result_read(cancel::block_on_cancelable_spawn(token, async move {
         op.read_options(&path, opts).await
     }))
 }
@@ -394,7 +371,7 @@ pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
 ) -> opendal_result_operator_reader {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move {
+    match cancel::block_on_cancelable_spawn(token, async move {
         let reader = op.reader(&path).await?;
         opendal_reader::create_async(reader).await
     }) {
@@ -420,7 +397,7 @@ pub unsafe extern "C" fn opendal_operator_writer_with_cancel(
 ) -> opendal_result_operator_writer {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.writer(&path).await }) {
+    match cancel::block_on_cancelable_spawn(token, async move { op.writer(&path).await }) {
         Ok(writer) => opendal_result_operator_writer {
             writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
             error: std::ptr::null_mut(),
@@ -449,7 +426,10 @@ pub unsafe extern "C" fn opendal_operator_writer_with_options_cancel(
         unsafe { (&*opts).into() }
     };
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.writer_options(&path, opts).await }) {
+    match cancel::block_on_cancelable_spawn(
+        token,
+        async move { op.writer_options(&path, opts).await },
+    ) {
         Ok(writer) => opendal_result_operator_writer {
             writer: Box::into_raw(Box::new(opendal_writer::new_async(writer))),
             error: std::ptr::null_mut(),
@@ -472,10 +452,9 @@ pub unsafe extern "C" fn opendal_operator_delete_with_cancel(
 ) -> *mut opendal_error {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    result_error(block_on_cancelable(
-        token,
-        async move { op.delete(&path).await },
-    ))
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
+        op.delete(&path).await
+    }))
 }
 
 /// \brief Like `opendal_operator_delete_with` with cooperative cancellation.
@@ -491,7 +470,7 @@ pub unsafe extern "C" fn opendal_operator_delete_with_options_cancel(
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let opts = unsafe { parse_delete_options(opts) };
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.delete_options(&path, opts).await
     }))
 }
@@ -508,7 +487,7 @@ pub unsafe extern "C" fn opendal_operator_is_exist_with_cancel(
 ) -> opendal_result_is_exist {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.exists(&path).await }) {
+    match cancel::block_on_cancelable_spawn(token, async move { op.exists(&path).await }) {
         Ok(e) => opendal_result_is_exist {
             is_exist: e,
             error: std::ptr::null_mut(),
@@ -531,7 +510,7 @@ pub unsafe extern "C" fn opendal_operator_exists_with_cancel(
 ) -> opendal_result_exists {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.exists(&path).await }) {
+    match cancel::block_on_cancelable_spawn(token, async move { op.exists(&path).await }) {
         Ok(e) => opendal_result_exists {
             exists: e,
             error: std::ptr::null_mut(),
@@ -554,10 +533,9 @@ pub unsafe extern "C" fn opendal_operator_stat_with_cancel(
 ) -> opendal_result_stat {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    result_stat(block_on_cancelable(
-        token,
-        async move { op.stat(&path).await },
-    ))
+    result_stat(cancel::block_on_cancelable_spawn(token, async move {
+        op.stat(&path).await
+    }))
 }
 
 /// \brief Like `opendal_operator_stat_with` with cooperative cancellation.
@@ -577,7 +555,7 @@ pub unsafe extern "C" fn opendal_operator_stat_with_options_cancel(
         unsafe { (&*opts).into() }
     };
     let op = op.deref().clone();
-    result_stat(block_on_cancelable(token, async move {
+    result_stat(cancel::block_on_cancelable_spawn(token, async move {
         op.stat_options(&path, opts).await
     }))
 }
@@ -593,7 +571,7 @@ pub unsafe extern "C" fn opendal_operator_list_with_cancel(
 ) -> opendal_result_list {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.lister(&path).await }) {
+    match cancel::block_on_cancelable_spawn(token, async move { op.lister(&path).await }) {
         Ok(lister) => opendal_result_list {
             lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
             error: std::ptr::null_mut(),
@@ -618,7 +596,10 @@ pub unsafe extern "C" fn opendal_operator_list_with_options_cancel(
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let opts = unsafe { parse_list_options(opts) };
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.lister_options(&path, opts).await }) {
+    match cancel::block_on_cancelable_spawn(
+        token,
+        async move { op.lister_options(&path, opts).await },
+    ) {
         Ok(lister) => opendal_result_list {
             lister: Box::into_raw(Box::new(opendal_lister::new_async(lister))),
             error: std::ptr::null_mut(),
@@ -641,7 +622,7 @@ pub unsafe extern "C" fn opendal_operator_create_dir_with_cancel(
 ) -> *mut opendal_error {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.create_dir(&path).await
     }))
 }
@@ -659,7 +640,7 @@ pub unsafe extern "C" fn opendal_operator_rename_with_cancel(
     let src = unsafe { parse_cstr(src, "src") }.to_owned();
     let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.rename(&src, &dest).await
     }))
 }
@@ -677,7 +658,7 @@ pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
     let src = unsafe { parse_cstr(src, "src") }.to_owned();
     let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move {
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
         op.copy(&src, &dest).await.map(|_| ())
     }))
 }
@@ -691,7 +672,9 @@ pub unsafe extern "C" fn opendal_operator_check_with_cancel(
     token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
     let op = op.deref().clone();
-    result_error(block_on_cancelable(token, async move { op.check().await }))
+    result_error(cancel::block_on_cancelable_spawn(token, async move {
+        op.check().await
+    }))
 }
 
 /// \brief Blocking write raw bytes to `path`.

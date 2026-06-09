@@ -17,10 +17,8 @@
 
 use ::opendal as core;
 use std::ffi::c_void;
-use std::future::Future;
 
 use super::*;
-use crate::operator::RUNTIME;
 
 /// \brief The result type returned by opendal's writer operation.
 /// \note The opendal_writer actually owns a pointer to
@@ -45,14 +43,6 @@ impl opendal_writer {
         Self {
             inner: Box::into_raw(Box::new(writer)) as _,
         }
-    }
-
-    fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
-    where
-        F: Future<Output = core::Result<T>>,
-    {
-        let token = unsafe { cancel::clone_token(token) };
-        RUNTIME.block_on(cancel::run(token, fut))
     }
 
     fn result_write(result: core::Result<usize>) -> opendal_result_writer_write {
@@ -80,7 +70,7 @@ impl opendal_writer {
         let size = bytes.len;
         let bytes = core::Buffer::from(bytes);
         let writer = self.deref_mut();
-        Self::result_write(Self::block_on_cancelable(token, async move {
+        Self::result_write(cancel::block_on_cancelable(token, async move {
             writer.write(bytes).await?;
             Ok(size)
         }))
@@ -107,7 +97,7 @@ impl opendal_writer {
             if !ptr.is_null() {
                 let writer = (*ptr).deref_mut();
                 if let Err(e) =
-                    Self::block_on_cancelable(token, async move { writer.close().await })
+                    cancel::block_on_cancelable(token, async move { writer.close().await })
                 {
                     return opendal_error::new(e);
                 }

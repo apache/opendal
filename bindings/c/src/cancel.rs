@@ -24,6 +24,8 @@ use std::task::{Context, Poll, Waker};
 
 use ::opendal as core;
 
+use crate::runtime::RUNTIME;
+
 struct CancelState {
     cancelled: AtomicBool,
     waker: Mutex<Option<Waker>>,
@@ -157,4 +159,38 @@ where
 
 pub(crate) fn cancelled_error() -> core::Error {
     core::Error::new(core::ErrorKind::Unexpected, "operation cancelled")
+}
+
+/// Block on a cancellable future on the current runtime thread.
+///
+/// Use this for futures that capture non-`Send` borrows, such as reader/writer/lister
+/// handles accessed through `&mut self`.
+pub(crate) fn block_on_cancelable<T, F>(
+    token: *const opendal_cancel_token,
+    fut: F,
+) -> core::Result<T>
+where
+    F: Future<Output = core::Result<T>>,
+{
+    let token = unsafe { clone_token(token) };
+    RUNTIME.block_on(run(token, fut))
+}
+
+/// Block on a cancellable `Send` future by spawning it on the runtime.
+///
+/// Use this for operator-level calls where the future owns cloned `Operator` state.
+pub(crate) fn block_on_cancelable_spawn<T, F>(
+    token: *const opendal_cancel_token,
+    fut: F,
+) -> core::Result<T>
+where
+    T: Send + 'static,
+    F: Future<Output = core::Result<T>> + Send + 'static,
+{
+    let token = unsafe { clone_token(token) };
+    RUNTIME
+        .block_on(RUNTIME.spawn(run(token, fut)))
+        .map_err(|err| {
+            core::Error::new(core::ErrorKind::Unexpected, "cancellable task failed").set_source(err)
+        })?
 }

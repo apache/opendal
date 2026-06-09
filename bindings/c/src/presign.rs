@@ -16,7 +16,6 @@
 // under the License.
 
 use std::ffi::{c_char, CStr, CString};
-use std::future::Future;
 use std::time::Duration;
 
 use ::opendal as core;
@@ -26,7 +25,6 @@ use crate::cancel;
 use crate::error::opendal_error;
 use crate::opendal_cancel_token;
 use crate::operator::opendal_operator;
-use crate::operator::RUNTIME;
 
 /// \brief The key-value pair for the headers of the presigned request.
 #[repr(C)]
@@ -86,19 +84,6 @@ impl opendal_presigned_request_inner {
     }
 }
 
-fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
-where
-    T: Send + 'static,
-    F: Future<Output = core::Result<T>> + Send + 'static,
-{
-    let token = unsafe { cancel::clone_token(token) };
-    RUNTIME
-        .block_on(RUNTIME.spawn(cancel::run(token, fut)))
-        .map_err(|err| {
-            core::Error::new(core::ErrorKind::Unexpected, "cancellable task failed").set_source(err)
-        })?
-}
-
 fn result_presign(result: core::Result<ocorePresignedRequest>) -> opendal_result_presign {
     match result {
         Ok(req) => {
@@ -151,7 +136,7 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
         .to_owned();
     let duration = Duration::from_secs(expire_secs);
     let op = op.deref().clone();
-    result_presign(block_on_cancelable(token, async move {
+    result_presign(cancel::block_on_cancelable_spawn(token, async move {
         op.presign_read(&path, duration).await
     }))
 }
@@ -173,7 +158,7 @@ pub unsafe extern "C" fn opendal_operator_presign_write_with_cancel(
         .to_owned();
     let duration = Duration::from_secs(expire_secs);
     let op = op.deref().clone();
-    result_presign(block_on_cancelable(token, async move {
+    result_presign(cancel::block_on_cancelable_spawn(token, async move {
         op.presign_write(&path, duration).await
     }))
 }
@@ -195,7 +180,7 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with_cancel(
         .to_owned();
     let duration = Duration::from_secs(expire_secs);
     let op = op.deref().clone();
-    result_presign(block_on_cancelable(token, async move {
+    result_presign(cancel::block_on_cancelable_spawn(token, async move {
         op.presign_delete(&path, duration).await
     }))
 }
@@ -217,7 +202,7 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
         .to_owned();
     let duration = Duration::from_secs(expire_secs);
     let op = op.deref().clone();
-    result_presign(block_on_cancelable(token, async move {
+    result_presign(cancel::block_on_cancelable_spawn(token, async move {
         op.presign_stat(&path, duration).await
     }))
 }

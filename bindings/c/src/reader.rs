@@ -16,14 +16,12 @@
 // under the License.
 
 use std::ffi::c_void;
-use std::future::Future;
 use std::io::SeekFrom;
 
 use ::opendal as core;
 use futures_util::AsyncReadExt;
 use futures_util::AsyncSeekExt;
 
-use crate::operator::RUNTIME;
 use crate::result::opendal_result_reader_seek;
 
 use super::*;
@@ -67,14 +65,6 @@ impl opendal_reader {
         }
     }
 
-    fn block_on_cancelable<T, F>(token: *const opendal_cancel_token, fut: F) -> core::Result<T>
-    where
-        F: Future<Output = core::Result<T>>,
-    {
-        let token = unsafe { cancel::clone_token(token) };
-        RUNTIME.block_on(cancel::run(token, fut))
-    }
-
     async fn read_async_inner(reader: &mut AsyncReader, buf: &mut [u8]) -> core::Result<usize> {
         reader
             .reader
@@ -109,7 +99,7 @@ impl opendal_reader {
         assert!(!buf.is_null());
         let buf = std::slice::from_raw_parts_mut(buf, len);
         let reader = self.deref_mut();
-        Self::result_read(Self::block_on_cancelable(token, async move {
+        Self::result_read(cancel::block_on_cancelable(token, async move {
             Self::read_async_inner(reader, buf).await
         }))
     }
@@ -135,7 +125,7 @@ impl opendal_reader {
         token: *const opendal_cancel_token,
     ) -> opendal_result_reader_seek {
         let reader = self.deref_mut();
-        match Self::block_on_cancelable(token, async move {
+        match cancel::block_on_cancelable(token, async move {
             seek_async_reader(reader, offset, whence).await
         }) {
             Ok(pos) => opendal_result_reader_seek {

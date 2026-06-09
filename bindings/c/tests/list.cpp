@@ -65,11 +65,11 @@ TEST_F(OpendalListTest, ListDirTest)
     };
 
     // write must succeed
-    EXPECT_EQ(opendal_operator_write_with_cancel(this->p, path.c_str(), &data, nullptr),
+    EXPECT_EQ(opendal_operator_write(this->p, path.c_str(), &data),
         nullptr);
 
     // list must succeed since the write succeeded
-    opendal_result_list l = opendal_operator_list_with_cancel(this->p, (dname + "/").c_str(), nullptr);
+    opendal_result_list l = opendal_operator_list(this->p, (dname + "/").c_str());
     EXPECT_EQ(l.error, nullptr);
 
     opendal_lister* lister = l.lister;
@@ -77,14 +77,14 @@ TEST_F(OpendalListTest, ListDirTest)
     // start checking the lister's result
     bool found = false;
 
-    opendal_result_lister_next result = opendal_lister_next_with_cancel(lister, nullptr);
+    opendal_result_lister_next result = opendal_lister_next(lister);
     EXPECT_EQ(result.error, nullptr);
     opendal_entry* entry = result.entry;
     while (entry) {
         char* de_path = opendal_entry_path(entry);
 
         // stat must succeed
-        opendal_result_stat s = opendal_operator_stat_with_cancel(this->p, de_path, nullptr);
+        opendal_result_stat s = opendal_operator_stat(this->p, de_path);
         EXPECT_EQ(s.error, nullptr);
 
         if (!strcmp(de_path, path.c_str())) {
@@ -99,7 +99,7 @@ TEST_F(OpendalListTest, ListDirTest)
         opendal_metadata_free(s.meta);
         opendal_entry_free(entry);
 
-        result = opendal_lister_next_with_cancel(lister, nullptr);
+        result = opendal_lister_next(lister);
         EXPECT_EQ(result.error, nullptr);
         entry = result.entry;
     }
@@ -108,7 +108,7 @@ TEST_F(OpendalListTest, ListDirTest)
     EXPECT_TRUE(found);
 
     // delete
-    EXPECT_EQ(opendal_operator_delete_with_cancel(this->p, path.c_str(), nullptr),
+    EXPECT_EQ(opendal_operator_delete(this->p, path.c_str()),
         nullptr);
 
     opendal_lister_free(lister);

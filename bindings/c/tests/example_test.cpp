@@ -39,7 +39,7 @@ void simple_test()
     printf("Testing with service: %s\n", config->scheme);
 
     // Test basic operator functionality
-    opendal_error* error = opendal_operator_check_with_cancel(config->operator_instance, nullptr);
+    opendal_error* error = opendal_operator_check(config->operator_instance);
     if (error) {
         printf("Operator check failed: %d\n", error->code);
         if (error->message.data) {
@@ -69,7 +69,7 @@ void simple_test()
                 .len = strlen(test_content),
                 .capacity = strlen(test_content) };
 
-            error = opendal_operator_write_with_cancel(config->operator_instance, test_path, &data, nullptr);
+            error = opendal_operator_write(config->operator_instance, test_path, &data);
             if (error) {
                 printf("Write failed: %d\n", error->code);
                 opendal_error_free(error);
@@ -77,7 +77,7 @@ void simple_test()
                 printf("Write successful!\n");
 
                 // Read test data back
-                opendal_result_read result = opendal_operator_read_with_cancel(config->operator_instance, test_path, nullptr);
+                opendal_result_read result = opendal_operator_read(config->operator_instance, test_path);
                 if (result.error) {
                     printf("Read failed: %d\n", result.error->code);
                     opendal_error_free(result.error);
@@ -96,7 +96,7 @@ void simple_test()
                 }
 
                 // Cleanup
-                opendal_operator_delete_with_cancel(config->operator_instance, test_path, nullptr);
+                opendal_operator_delete(config->operator_instance, test_path);
             }
         } else {
             printf("Write/read not supported by this service\n");

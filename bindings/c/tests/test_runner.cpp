@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
 
     // Check operator availability - only perform list-based check if list is supported
     if (cap.list) {
-        opendal_error* check_error = opendal_operator_check_with_cancel(config->operator_instance, nullptr);
+        opendal_error* check_error = opendal_operator_check(config->operator_instance);
         if (check_error) {
             printf("Operator check failed: error code %d\n", check_error->code);
             if (check_error->message.data) {

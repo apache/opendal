@@ -48,7 +48,7 @@ struct Operator
     void write(string path, ubyte[] data) @trusted
     {
         opendal_bytes bytes = opendal_bytes(data.ptr, data.length, data.length);
-        auto error = opendal_operator_write_with_cancel(op, path.toStringz, &bytes, null);
+        auto error = opendal_operator_write(op, path.toStringz, &bytes);
         enforce(error is null, "Error writing data");
     }
 
@@ -75,7 +75,7 @@ struct Operator
 
     ubyte[] read(string path) @trusted
     {
-        auto result = opendal_operator_read_with_cancel(op, path.toStringz, null);
+        auto result = opendal_operator_read(op, path.toStringz);
         enforce(result.error is null, "Error reading data");
         scope (exit)
             opendal_bytes_free(&result.data);
@@ -84,33 +84,33 @@ struct Operator
 
     void remove(string path) @trusted
     {
-        auto error = opendal_operator_delete_with_cancel(op, path.toStringz, null);
+        auto error = opendal_operator_delete(op, path.toStringz);
         enforce(error is null, "Error deleting object");
     }
 
     bool exists(string path) @trusted
     {
-        auto result = opendal_operator_exists_with_cancel(op, path.toStringz, null);
+        auto result = opendal_operator_exists(op, path.toStringz);
         enforce(result.error is null, "Error checking existence");
         return result.exists;
     }
 
     Metadata stat(string path) @trusted
     {
-        auto result = opendal_operator_stat_with_cancel(op, path.toStringz, null);
+        auto result = opendal_operator_stat(op, path.toStringz);
         enforce(result.error is null, "Error getting metadata");
         return Metadata(result.meta);
     }
 
     Entry[] list(string path) @trusted
     {
-        auto result = opendal_operator_list_with_cancel(op, path.toStringz, null);
+        auto result = opendal_operator_list(op, path.toStringz);
         enforce(result.error is null, "Error listing objects");
 
         Entry[] entries;
         while (true)
         {
-            auto next = opendal_lister_next_with_cancel(result.lister, null);
+            auto next = opendal_lister_next(result.lister);
             if (next.entry is null)
                 break;
             entries ~= Entry(next.entry);
@@ -120,19 +120,19 @@ struct Operator
 
     void createDir(string path) @trusted
     {
-        auto error = opendal_operator_create_dir_with_cancel(op, path.toStringz, null);
+        auto error = opendal_operator_create_dir(op, path.toStringz);
         enforce(error is null, "Error creating directory");
     }
 
     void rename(string src, string dest) @trusted
     {
-        auto error = opendal_operator_rename_with_cancel(op, src.toStringz, dest.toStringz, null);
+        auto error = opendal_operator_rename(op, src.toStringz, dest.toStringz);
         enforce(error is null, "Error renaming object");
     }
 
     void copy(string src, string dest) @trusted
     {
-        auto error = opendal_operator_copy_with_cancel(op, src.toStringz, dest.toStringz, null);
+        auto error = opendal_operator_copy(op, src.toStringz, dest.toStringz);
         enforce(error is null, "Error copying object");
     }
 

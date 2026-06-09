@@ -88,6 +88,14 @@ func main() {
 }
 ```
 
+## Context Cancellation
+
+Methods ending in `WithContext` forward context cancellation to OpenDAL's native
+cancel token. When the Go context is canceled, the binding signals cancellation
+and returns `context.Canceled` or `context.DeadlineExceeded` immediately. The
+native operation may continue briefly in the background until it observes the
+cancel token.
+
 ## Run Tests
 
 ### Behavior Tests

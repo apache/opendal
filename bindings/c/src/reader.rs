@@ -17,8 +17,11 @@
 
 use std::ffi::c_void;
 use std::future::Future;
+use std::io::SeekFrom;
 
 use ::opendal as core;
+use futures_util::AsyncReadExt;
+use futures_util::AsyncSeekExt;
 
 use crate::operator::RUNTIME;
 use crate::result::opendal_result_reader_seek;
@@ -32,17 +35,16 @@ pub const OPENDAL_SEEK_END: i32 = 2;
 /// \brief The result type returned by opendal's reader operation.
 ///
 /// \note The opendal_reader actually owns a pointer to
-/// a opendal::BlockingReader, which is inside the Rust core code.
+/// a opendal::FuturesAsyncReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
-    /// The pointer to the opendal::StdReader in the Rust code.
+    /// The pointer to the opendal::FuturesAsyncReader in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
-struct AsyncReader {
-    reader: core::Reader,
-    position: u64,
+pub(crate) struct AsyncReader {
+    reader: core::FuturesAsyncReader,
 }
 
 impl opendal_reader {
@@ -54,12 +56,14 @@ impl opendal_reader {
 }
 
 impl opendal_reader {
-    pub(crate) fn new_async(reader: core::Reader) -> Self {
+    pub(crate) async fn create_async(reader: core::Reader) -> core::Result<AsyncReader> {
+        let reader = reader.into_futures_async_read(..).await?;
+        Ok(AsyncReader { reader })
+    }
+
+    pub(crate) fn from_async(reader: AsyncReader) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(AsyncReader {
-                reader,
-                position: 0,
-            })) as _,
+            inner: Box::into_raw(Box::new(reader)) as _,
         }
     }
 
@@ -72,15 +76,11 @@ impl opendal_reader {
     }
 
     async fn read_async_inner(reader: &mut AsyncReader, buf: &mut [u8]) -> core::Result<usize> {
-        let len = buf.len() as u64;
-        let data = reader
+        reader
             .reader
-            .read(reader.position..reader.position + len)
-            .await?;
-        let size = data.len().min(buf.len());
-        buf[..size].copy_from_slice(&data.to_vec()[..size]);
-        reader.position += size as u64;
-        Ok(size)
+            .read(buf)
+            .await
+            .map_err(|err| core::Error::new(core::ErrorKind::Unexpected, err.to_string()))
     }
 
     fn result_read(result: core::Result<usize>) -> opendal_result_reader_read {
@@ -131,10 +131,9 @@ impl opendal_reader {
         token: *const opendal_cancel_token,
     ) -> opendal_result_reader_seek {
         let reader = self.deref_mut();
-        match Self::block_on_cancelable(
-            token,
-            async move { seek_async_reader(reader, offset, whence) },
-        ) {
+        match Self::block_on_cancelable(token, async move {
+            seek_async_reader(reader, offset, whence).await
+        }) {
             Ok(pos) => opendal_result_reader_seek {
                 pos,
                 error: std::ptr::null_mut(),
@@ -168,19 +167,20 @@ impl opendal_reader {
     }
 }
 
-fn seek_async_reader(reader: &mut AsyncReader, offset: i64, whence: i32) -> core::Result<u64> {
-    let base = match whence {
-        _x @ OPENDAL_SEEK_SET => 0,
-        _x @ OPENDAL_SEEK_CUR => reader.position as i64,
-        _x @ OPENDAL_SEEK_END => {
-            let Some(meta) = reader.reader.metadata() else {
-                return Err(core::Error::new(
-                    core::ErrorKind::Unsupported,
-                    "seek from end requires reader metadata",
-                ));
-            };
-            meta.content_length() as i64
-        }
+async fn seek_async_reader(
+    reader: &mut AsyncReader,
+    offset: i64,
+    whence: i32,
+) -> core::Result<u64> {
+    let pos = match whence {
+        _x @ OPENDAL_SEEK_SET => SeekFrom::Start(offset.try_into().map_err(|_| {
+            core::Error::new(
+                core::ErrorKind::Unexpected,
+                "reader seek position is negative",
+            )
+        })?),
+        _x @ OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
+        _x @ OPENDAL_SEEK_END => SeekFrom::End(offset),
         _ => {
             return Err(core::Error::new(
                 core::ErrorKind::Unexpected,
@@ -188,15 +188,10 @@ fn seek_async_reader(reader: &mut AsyncReader, offset: i64, whence: i32) -> core
             ));
         }
     };
-    let position = base.checked_add(offset).ok_or_else(|| {
-        core::Error::new(core::ErrorKind::Unexpected, "reader seek position overflow")
-    })?;
-    if position < 0 {
-        return Err(core::Error::new(
-            core::ErrorKind::Unexpected,
-            "reader seek position is negative",
-        ));
-    }
-    reader.position = position as u64;
-    Ok(reader.position)
+
+    reader
+        .reader
+        .seek(pos)
+        .await
+        .map_err(|err| core::Error::new(core::ErrorKind::Unexpected, err.to_string()))
 }

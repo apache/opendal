@@ -86,6 +86,96 @@ func TestOperatorWithContextMethodsReturnCanceledContext(t *testing.T) {
 	}
 }
 
+func TestCancellableReadBufferUsesHeapForCancelableContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	buf := make([]byte, 8)
+	readBuf, apply := cancellableReadBuffer(ctx, buf)
+	if len(readBuf) != len(buf) {
+		t.Fatalf("readBuf len = %d, want %d", len(readBuf), len(buf))
+	}
+	if &readBuf[0] == &buf[0] {
+		t.Fatal("expected heap buffer for cancelable context")
+	}
+
+	readBuf[0] = 'x'
+	apply(1)
+	if buf[0] != 'x' {
+		t.Fatalf("buf[0] = %q, want %q", buf[0], 'x')
+	}
+}
+
+func TestCancellableReadBufferReusesCallerBufferForBackgroundContext(t *testing.T) {
+	buf := make([]byte, 8)
+	readBuf, apply := cancellableReadBuffer(context.Background(), buf)
+	if &readBuf[0] != &buf[0] {
+		t.Fatal("expected caller buffer for non-cancelable context")
+	}
+	apply(0)
+}
+
+func TestCancellableWriteBufferCopiesForCancelableContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	data := []byte("hello")
+	copied := cancellableWriteBuffer(ctx, data)
+	if &copied[0] == &data[0] {
+		t.Fatal("expected heap copy for cancelable context")
+	}
+	copied[0] = 'H'
+	if data[0] != 'h' {
+		t.Fatalf("data[0] = %q, want %q", data[0], 'h')
+	}
+}
+
+func TestWriterCloseWithContextPreCancelledPreservesHandle(t *testing.T) {
+	inner := &opendalWriter{}
+	w := &Writer{inner: inner}
+
+	if err := w.CloseWithContext(newCanceledContext()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CloseWithContext() error = %v, want context.Canceled", err)
+	}
+	if w.inner != inner {
+		t.Fatal("pre-cancelled close should not release writer handle")
+	}
+}
+
+func TestWriterCloseIsIdempotent(t *testing.T) {
+	w := &Writer{}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("first Close() = %v, want nil", err)
+	}
+	if err := w.CloseWithContext(context.Background()); err != nil {
+		t.Fatalf("second CloseWithContext() = %v, want nil", err)
+	}
+}
+
+func TestWriterFreeIsIdempotent(t *testing.T) {
+	w := &Writer{inner: &opendalWriter{}}
+
+	w.mu.Lock()
+	w.inner = nil
+	w.mu.Unlock()
+
+	w.free()
+	w.free()
+}
+
+func TestWriterDeferredCloseAfterPreCancelledClose(t *testing.T) {
+	inner := &opendalWriter{}
+	w := &Writer{inner: inner}
+
+	if err := w.CloseWithContext(newCanceledContext()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CloseWithContext() error = %v, want context.Canceled", err)
+	}
+	if w.inner != inner {
+		t.Fatal("pre-cancelled close should preserve writer handle for deferred close")
+	}
+}
+
 func TestIOWithContextMethodsReturnCanceledContext(t *testing.T) {
 	ctx := newCanceledContext()
 
@@ -108,21 +198,5 @@ func TestIOWithContextMethodsReturnCanceledContext(t *testing.T) {
 	}
 	if !errors.Is(lister.Error(), context.Canceled) {
 		t.Fatalf("Lister.Error() = %v, want context.Canceled", lister.Error())
-	}
-}
-
-func TestRunWithContextReturnsDeadlineExceeded(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	defer cancel()
-
-	done := make(chan struct{})
-	defer close(done)
-
-	_, err := runWithContext(ctx, func() (struct{}, error) {
-		<-done
-		return struct{}{}, nil
-	})
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("runWithContext() error = %v, want context.DeadlineExceeded", err)
 	}
 }

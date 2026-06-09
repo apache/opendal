@@ -41,17 +41,13 @@ type contextResult[T any] struct {
 	err   error
 }
 
-func runWithContext[T any](ctx context.Context, fn func() (T, error), cleanup ...func(T)) (T, error) {
-	var zero T
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return zero, err
-	}
-	return fn()
-}
-
+// runWithCancelContext forwards Go context cancellation to native OpenDAL calls.
+//
+// When the context is canceled, the native cancel token is signaled and this
+// helper returns ctx.Err() immediately. The native call may continue briefly in
+// the background until it observes cancellation. Callers that pass slice data
+// across FFI must use cancellableReadBuffer or cancellableWriteBuffer so the
+// background call does not touch caller-owned memory after this returns.
 func runWithCancelContext[T any](ctx context.Context, ffiCtx context.Context, fn func(*opendalCancelToken) (T, error), cleanup ...func(T)) (T, error) {
 	var zero T
 	if ctx == nil {
@@ -65,10 +61,10 @@ func runWithCancelContext[T any](ctx context.Context, ffiCtx context.Context, fn
 	}
 
 	token := ffiCancelTokenNew.symbol(ffiCtx)()
-	defer ffiCancelTokenFree.symbol(ffiCtx)(token)
 
 	ch := make(chan contextResult[T], 1)
 	go func() {
+		defer ffiCancelTokenFree.symbol(ffiCtx)(token)
 		value, err := fn(token)
 		ch <- contextResult[T]{value: value, err: err}
 	}()
@@ -78,21 +74,36 @@ func runWithCancelContext[T any](ctx context.Context, ffiCtx context.Context, fn
 		return result.value, result.err
 	case <-ctx.Done():
 		ffiCancelTokenCancel.symbol(ffiCtx)(token)
-		result := <-ch
-		for _, cleanup := range cleanup {
-			if cleanup != nil {
-				cleanup(result.value)
+		go func() {
+			result := <-ch
+			for _, cleanupFn := range cleanup {
+				if cleanupFn != nil {
+					cleanupFn(result.value)
+				}
 			}
-		}
+		}()
 		return zero, ctx.Err()
 	}
 }
 
-func runErrWithContext(ctx context.Context, fn func() error) error {
-	_, err := runWithContext(ctx, func() (struct{}, error) {
-		return struct{}{}, fn()
-	})
-	return err
+func cancellableReadBuffer(ctx context.Context, buf []byte) (readBuf []byte, apply func(int)) {
+	if ctx.Done() == nil || len(buf) == 0 {
+		return buf, func(int) {}
+	}
+
+	heap := make([]byte, len(buf))
+	return heap, func(n int) {
+		if n > 0 {
+			copy(buf, heap[:n])
+		}
+	}
+}
+
+func cancellableWriteBuffer(ctx context.Context, data []byte) []byte {
+	if ctx.Done() == nil || len(data) == 0 {
+		return data
+	}
+	return append([]byte(nil), data...)
 }
 
 func runErrWithCancelContext(ctx context.Context, ffiCtx context.Context, fn func(*opendalCancelToken) error) error {

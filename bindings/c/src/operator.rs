@@ -506,9 +506,12 @@ pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
 ) -> opendal_result_operator_reader {
     let path = unsafe { parse_cstr(path, "path") }.to_owned();
     let op = op.deref().clone();
-    match block_on_cancelable(token, async move { op.reader(&path).await }) {
+    match block_on_cancelable(token, async move {
+        let reader = op.reader(&path).await?;
+        opendal_reader::create_async(reader).await
+    }) {
         Ok(reader) => opendal_result_operator_reader {
-            reader: Box::into_raw(Box::new(opendal_reader::new_async(reader))),
+            reader: Box::into_raw(Box::new(opendal_reader::from_async(reader))),
             error: std::ptr::null_mut(),
         },
         Err(e) => opendal_result_operator_reader {

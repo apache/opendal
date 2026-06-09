@@ -25,10 +25,13 @@ import (
 	"io"
 	"runtime"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
 )
+
+var errWriterClosed = errors.New("writer is closed")
 
 // Write writes the given bytes to the specified path.
 //
@@ -60,6 +63,7 @@ func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) error {
 }
 
 func (op *Operator) WriteWithContext(ctx context.Context, path string, data []byte, opts ...WithWriteFn) error {
+	data = cancellableWriteBuffer(ctx, data)
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		if len(opts) == 0 {
 			return ffiOperatorWriteWithCancel.symbol(op.ctx)(op.inner, path, data, token)
@@ -365,7 +369,7 @@ func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...
 		return writer, nil
 	}, func(writer *Writer) {
 		if writer != nil {
-			ffiWriterFree.symbol(writer.ctx)(writer.inner)
+			writer.free()
 		}
 	})
 }
@@ -373,6 +377,18 @@ func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...
 type Writer struct {
 	inner *opendalWriter
 	ctx   context.Context
+	mu    sync.Mutex
+}
+
+func (w *Writer) free() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.inner == nil {
+		return
+	}
+	inner := w.inner
+	w.inner = nil
+	ffiWriterFree.symbol(w.ctx)(inner)
 }
 
 // Write writes the given bytes to the specified path.
@@ -407,8 +423,23 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 }
 
 func (w *Writer) WriteWithContext(ctx context.Context, p []byte) (n int, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	w.mu.Lock()
+	inner := w.inner
+	w.mu.Unlock()
+	if inner == nil {
+		return 0, errWriterClosed
+	}
+
+	p = cancellableWriteBuffer(ctx, p)
 	return runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (int, error) {
-		return ffiWriterWriteWithCancel.symbol(w.ctx)(w.inner, p, token)
+		return ffiWriterWriteWithCancel.symbol(w.ctx)(inner, p, token)
 	})
 }
 
@@ -424,13 +455,24 @@ func (w *Writer) CloseWithContext(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		ffiWriterFree.symbol(w.ctx)(w.inner)
 		return err
 	}
-	return runErrWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) error {
-		defer ffiWriterFree.symbol(w.ctx)(w.inner)
-		return ffiWriterCloseWithCancel.symbol(w.ctx)(w.inner, token)
+
+	w.mu.Lock()
+	if w.inner == nil {
+		w.mu.Unlock()
+		return nil
+	}
+	inner := w.inner
+	w.inner = nil
+	w.mu.Unlock()
+
+	_, err := runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (struct{}, error) {
+		closeErr := ffiWriterCloseWithCancel.symbol(w.ctx)(inner, token)
+		ffiWriterFree.symbol(w.ctx)(inner)
+		return struct{}{}, closeErr
 	})
+	return err
 }
 
 var _ io.WriteCloser = (*Writer)(nil)

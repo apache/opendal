@@ -497,11 +497,11 @@ typedef struct opendal_read_options {
  * \brief The result type returned by opendal's reader operation.
  *
  * \note The opendal_reader actually owns a pointer to
- * a opendal::BlockingReader, which is inside the Rust core code.
+ * a opendal::FuturesAsyncReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
   /**
-   * The pointer to the opendal::StdReader in the Rust code.
+   * The pointer to the opendal::FuturesAsyncReader in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;

@@ -397,8 +397,9 @@ func (r *Reader) Read(buf []byte) (int, error) {
 }
 
 func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
-	return runWithCancelContext(ctx, r.ctx, func(token *opendalCancelToken) (int, error) {
-		length := uint(len(buf))
+	readBuf, apply := cancellableReadBuffer(ctx, buf)
+	n, err := runWithCancelContext(ctx, r.ctx, func(token *opendalCancelToken) (int, error) {
+		length := uint(len(readBuf))
 		if length == 0 {
 			return 0, nil
 		}
@@ -409,7 +410,7 @@ func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
 			err       error
 		)
 		for {
-			size, err = read(r.inner, buf[totalSize:], token)
+			size, err = read(r.inner, readBuf[totalSize:], token)
 			totalSize += size
 			if size == 0 || err != nil || totalSize >= length {
 				break
@@ -420,6 +421,10 @@ func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
 		}
 		return int(totalSize), err
 	})
+	if err == nil {
+		apply(n)
+	}
+	return n, err
 }
 
 // Seek sets the offset for the next Read operation on the reader.

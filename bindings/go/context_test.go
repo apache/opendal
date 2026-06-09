@@ -165,6 +165,27 @@ func TestWriterFreeIsIdempotent(t *testing.T) {
 	w.free()
 }
 
+func TestWriterCloseShouldReleaseAfterClose(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "success", err: nil, want: true},
+		{name: "native error", err: errors.New("close failed"), want: true},
+		{name: "canceled", err: context.Canceled, want: false},
+		{name: "deadline exceeded", err: context.DeadlineExceeded, want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldReleaseWriterAfterClose(tc.err); got != tc.want {
+				t.Fatalf("shouldReleaseWriterAfterClose(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestWriterCloseReleaseRunsOnce(t *testing.T) {
 	var count int
 	var releaseOnce sync.Once

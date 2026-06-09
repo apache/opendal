@@ -479,10 +479,14 @@ func (w *Writer) CloseWithContext(ctx context.Context) error {
 	}, func(struct{}) {
 		release()
 	})
-	if err == nil {
+	if shouldReleaseWriterAfterClose(err) {
 		release()
 	}
 	return err
+}
+
+func shouldReleaseWriterAfterClose(err error) bool {
+	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
 }
 
 var _ io.WriteCloser = (*Writer)(nil)

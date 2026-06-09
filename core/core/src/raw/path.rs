@@ -17,6 +17,7 @@
 
 use crate::*;
 use std::hash::{BuildHasher, Hasher};
+use std::path::{Component, Path, PathBuf};
 
 /// build_abs_path will build an absolute path with root.
 ///
@@ -145,6 +146,35 @@ pub fn normalize_root(v: &str) -> String {
         v.push('/')
     }
     v
+}
+
+/// Join a path to a service's root. Useful for local filesystem services to
+/// reject `..` traversal in a key so path joins cannot escape `root`.
+///
+/// Services must confine operations within configured root. Local filesystem services
+/// could use this function to confine paths within configured root.
+///
+/// Expect `path` comes from `normalize_path` before calling this function.
+/// OpenDAL dispatches path to services after `normalize_path`, so services can
+/// safely assume that `path` is normalized.
+pub fn confined_join(root: &Path, path: &str) -> Result<PathBuf> {
+    let trimmed = path.trim_end_matches('/');
+
+    // `normalize_path` strips leading `/` and empty segments but
+    // intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
+    // lexical, so a key such as `../../etc/passwd` would otherwise escape the
+    // configured `root` at syscall time.
+    if Path::new(trimmed)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            "path escapes the configured root via `..`",
+        )
+        .with_context("path", path));
+    }
+    Ok(root.join(trimmed))
 }
 
 /// Get basename from path.
@@ -377,6 +407,42 @@ mod tests {
         for (name, root, input, expect) in cases {
             let actual = build_rooted_abs_path(root, input);
             assert_eq!(actual, expect, "{name}")
+        }
+    }
+
+    #[test]
+    fn test_confined_join() {
+        let root = Path::new("/root");
+        let cases = vec![
+            ("root path", "/", root.to_path_buf()),
+            ("empty path", "", root.to_path_buf()),
+            ("current path", ".", root.to_path_buf()),
+            ("input file", "def", root.join("def")),
+            ("input nested file", "abc/def", root.join("abc/def")),
+            ("input dir", "def/", root.join("def")),
+            ("input nested dir", "abc/def/", root.join("abc/def")),
+        ];
+
+        for (name, input, expect) in cases {
+            let actual = confined_join(root, input).expect(name);
+            assert_eq!(actual, expect, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_confined_join_rejects_parent_dir() {
+        let root = Path::new("/root");
+        let cases = vec![
+            ("parent dir", ".."),
+            ("parent dir file", "../def"),
+            ("nested parent dir", "abc/../def"),
+            ("trailing parent dir", "abc/.."),
+            ("trailing parent dir slash", "abc/../"),
+        ];
+
+        for (name, input) in cases {
+            let err = confined_join(root, input).expect_err(name);
+            assert_eq!(err.kind(), ErrorKind::NotFound, "{name}");
         }
     }
 

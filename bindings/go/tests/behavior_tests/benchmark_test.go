@@ -21,6 +21,7 @@ package opendal_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -137,11 +138,11 @@ func NewOpenDALReadWriter(op *opendal.Operator) ReadWriter {
 }
 
 func (rw *OpenDALReadWriter) Write(path string, data []byte) error {
-	return rw.Operator.Write(path, data)
+	return rw.Operator.Write(context.Background(), path, data)
 }
 
 func (rw *OpenDALReadWriter) Read(path string) ([]byte, error) {
-	return rw.Operator.Read(path)
+	return rw.Operator.Read(context.Background(), path)
 }
 
 func (rw *OpenDALReadWriter) Name() string {

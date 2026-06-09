@@ -32,44 +32,36 @@ import (
 type presignFunc func(op *opendalOperator, path string, expire uint64, token *opendalCancelToken) (*opendalPresignedRequest, error)
 
 // PresignRead returns a presigned HTTP request that can be used to read the object at the given path.
-func (op *Operator) PresignRead(path string, expire time.Duration) (*http.Request, error) {
-	return op.PresignReadWithContext(context.Background(), path, expire)
-}
-
-func (op *Operator) PresignReadWithContext(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
 	return op.presignContext(ctx, path, expire, func() presignFunc {
 		return ffiOperatorPresignReadWithCancel.symbol(op.ctx)
 	})
 }
 
 // PresignWrite returns a presigned HTTP request that can be used to write the object at the given path.
-func (op *Operator) PresignWrite(path string, expire time.Duration) (*http.Request, error) {
-	return op.PresignWriteWithContext(context.Background(), path, expire)
-}
-
-func (op *Operator) PresignWriteWithContext(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignWrite(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
 	return op.presignContext(ctx, path, expire, func() presignFunc {
 		return ffiOperatorPresignWriteWithCancel.symbol(op.ctx)
 	})
 }
 
 // PresignDelete returns a presigned HTTP request that can be used to delete the object at the given path.
-func (op *Operator) PresignDelete(path string, expire time.Duration) (*http.Request, error) {
-	return op.PresignDeleteWithContext(context.Background(), path, expire)
-}
-
-func (op *Operator) PresignDeleteWithContext(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignDelete(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
 	return op.presignContext(ctx, path, expire, func() presignFunc {
 		return ffiOperatorPresignDeleteWithCancel.symbol(op.ctx)
 	})
 }
 
 // PresignStat returns a presigned HTTP request that can be used to stat the object at the given path.
-func (op *Operator) PresignStat(path string, expire time.Duration) (*http.Request, error) {
-	return op.PresignStatWithContext(context.Background(), path, expire)
-}
-
-func (op *Operator) PresignStatWithContext(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignStat(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
 	return op.presignContext(ctx, path, expire, func() presignFunc {
 		return ffiOperatorPresignStatWithCancel.symbol(op.ctx)
 	})

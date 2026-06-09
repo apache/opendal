@@ -59,6 +59,8 @@ type deleteOptions struct {
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - path: The path of the file or directory to delete.
 //   - opts: Optional functional options to configure the delete operation.
 //
@@ -70,30 +72,26 @@ type deleteOptions struct {
 //
 //	func exampleDelete(op *opendal.Operator) {
 //		// Delete without options
-//		err := op.Delete("file.txt")
+//		err := op.Delete(context.Background(), "file.txt")
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //
 //		// Delete with recursive option
-//		err = op.Delete("dir/", opendal.DeleteWithRecursive(true))
+//		err = op.Delete(context.Background(), "dir/", opendal.DeleteWithRecursive(true))
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //
 //		// Delete a specific version
-//		err = op.Delete("file.txt", opendal.DeleteWithVersion("v1"))
+//		err = op.Delete(context.Background(), "file.txt", opendal.DeleteWithVersion("v1"))
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
-	return op.DeleteWithContext(context.Background(), path, opts...)
-}
-
-func (op *Operator) DeleteWithContext(ctx context.Context, path string, opts ...WithDeleteFn) error {
+func (op *Operator) Delete(ctx context.Context, path string, opts ...WithDeleteFn) error {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		if len(opts) == 0 {
 			return ffiOperatorDeleteWithCancel.symbol(op.ctx)(op.inner, path, token)

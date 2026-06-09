@@ -35,6 +35,8 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - path: The path of the file or directory to get metadata for.
 //   - opts: Optional stat options.
 //
@@ -50,7 +52,7 @@ import (
 // # Example
 //
 //	func exampleStat(op *opendal.Operator) {
-//		meta, err := op.Stat("/path/to/file")
+//		meta, err := op.Stat(context.Background(), "/path/to/file")
 //		if err != nil {
 //			if e, ok := err.(*opendal.Error); ok && e.Code() == opendal.CodeNotFound {
 //				fmt.Println("File not found")
@@ -63,11 +65,7 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
-	return op.StatWithContext(context.Background(), path, opts...)
-}
-
-func (op *Operator) StatWithContext(ctx context.Context, path string, opts ...WithStatFn) (*Metadata, error) {
+func (op *Operator) Stat(ctx context.Context, path string, opts ...WithStatFn) (*Metadata, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Metadata, error) {
 		if len(opts) == 0 {
 			meta, err := ffiOperatorStatWithCancel.symbol(op.ctx)(op.inner, path, token)
@@ -231,6 +229,8 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - path: The path of the file or directory to check.
 //
 // # Returns
@@ -241,7 +241,7 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //
 // # Example
 //
-//	exists, err := op.IsExist("path/to/file")
+//	exists, err := op.IsExist(context.Background(), "path/to/file")
 //	if err != nil {
 //		log.Fatalf("Error checking existence: %v", err)
 //	}
@@ -250,11 +250,7 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //	} else {
 //		fmt.Println("The file does not exist")
 //	}
-func (op *Operator) IsExist(path string) (bool, error) {
-	return op.IsExistWithContext(context.Background(), path)
-}
-
-func (op *Operator) IsExistWithContext(ctx context.Context, path string) (bool, error) {
+func (op *Operator) IsExist(ctx context.Context, path string) (bool, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (bool, error) {
 		return ffiOperatorIsExistWithCancel.symbol(op.ctx)(op.inner, path, token)
 	})

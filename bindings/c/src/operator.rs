@@ -1238,7 +1238,7 @@ pub unsafe extern "C" fn opendal_operator_list(
 ///
 /// # Safety
 ///
-/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+/// * The memory pointed to by `path` must contain a valid null terminator at the end of
 ///   the string.
 ///
 /// # Panic

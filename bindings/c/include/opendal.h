@@ -1097,7 +1097,13 @@ struct opendal_result_lister_next opendal_lister_next_with_cancel(struct opendal
                                                                   const struct opendal_cancel_token *token);
 
 /**
- * \brief Return the next object to be listed.
+ * \brief Return the next object to be listed
+ *
+ * Lister is an iterator of the objects under its path, this method is the same as
+ * calling next() on the iterator
+ *
+ * For examples, please see the comment section of opendal_operator_list()
+ * @see opendal_operator_list()
  */
 struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *self);
 
@@ -2029,7 +2035,7 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
  *
  * # Safety
  *
- * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ * * The memory pointed to by `path` must contain a valid null terminator at the end of
  *   the string.
  *
  * # Panic

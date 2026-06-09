@@ -36,6 +36,9 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. When the context is canceled or its
+//     deadline is exceeded, the underlying native read is canceled and Read
+//     returns ctx.Err() after the native call has stopped.
 //   - path: The path of the file to read.
 //   - opts: Optional read options.
 //
@@ -52,7 +55,7 @@ import (
 // # Example
 //
 //	func exampleRead(op *opendal.Operator) {
-//		data, err := op.Read("test")
+//		data, err := op.Read(context.Background(), "test")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -60,11 +63,7 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
-	return op.ReadWithContext(context.Background(), path, opts...)
-}
-
-func (op *Operator) ReadWithContext(ctx context.Context, path string, opts ...WithReadFn) ([]byte, error) {
+func (op *Operator) Read(ctx context.Context, path string, opts ...WithReadFn) ([]byte, error) {
 	bytes, err := runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (opendalBytes, error) {
 		return op.readWithCancel(path, token, opts...)
 	}, func(bytes opendalBytes) {
@@ -289,6 +288,8 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Reader. It governs cancellation for
+//     all subsequent Read and Seek calls on that Reader.
 //   - path: The path of the file to read.
 //
 // # Returns
@@ -300,11 +301,13 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //
 //   - This implementation does not support the `reader_with` functionality.
 //   - The returned reader allows for more controlled and efficient reading of large files.
+//   - The provided context is bound to the Reader; canceling it cancels in-flight
+//     Read and Seek calls in a blocking manner.
 //
 // # Example
 //
 //	func exampleReader(op *opendal.Operator) {
-//		r, err := op.Reader("path/to/file")
+//		r, err := op.Reader(context.Background(), "path/to/file")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -323,19 +326,16 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Reader(path string) (*Reader, error) {
-	return op.ReaderWithContext(context.Background(), path)
-}
-
-func (op *Operator) ReaderWithContext(ctx context.Context, path string) (*Reader, error) {
+func (op *Operator) Reader(ctx context.Context, path string) (*Reader, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Reader, error) {
 		inner, err := ffiOperatorReaderWithCancel.symbol(op.ctx)(op.inner, path, token)
 		if err != nil {
 			return nil, err
 		}
 		reader := &Reader{
-			inner: inner,
-			ctx:   op.ctx,
+			inner:     inner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
 		}
 		return reader, nil
 	}, func(reader *Reader) {
@@ -348,6 +348,10 @@ func (op *Operator) ReaderWithContext(ctx context.Context, path string) (*Reader
 type Reader struct {
 	inner *opendalReader
 	ctx   context.Context
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Read and Seek so the Reader keeps stdlib io interface
+	// signatures.
+	cancelCtx context.Context
 }
 
 var _ io.ReadSeekCloser = (*Reader)(nil)
@@ -392,14 +396,12 @@ var _ io.ReadSeekCloser = (*Reader)(nil)
 //	}
 //
 // Note: Always check the number of bytes read (n) as it may be less than len(buf).
+//
+// Read uses the context bound to the Reader at creation time. Canceling that
+// context cancels the in-flight read in a blocking manner.
 func (r *Reader) Read(buf []byte) (int, error) {
-	return r.ReadWithContext(context.Background(), buf)
-}
-
-func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
-	readBuf, apply := cancellableReadBuffer(ctx, buf)
-	n, err := runWithCancelContext(ctx, r.ctx, func(token *opendalCancelToken) (int, error) {
-		length := uint(len(readBuf))
+	return runWithCancelContext(r.cancelCtx, r.ctx, func(token *opendalCancelToken) (int, error) {
+		length := uint(len(buf))
 		if length == 0 {
 			return 0, nil
 		}
@@ -410,7 +412,7 @@ func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
 			err       error
 		)
 		for {
-			size, err = read(r.inner, readBuf[totalSize:], token)
+			size, err = read(r.inner, buf[totalSize:], token)
 			totalSize += size
 			if size == 0 || err != nil || totalSize >= length {
 				break
@@ -421,10 +423,6 @@ func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
 		}
 		return int(totalSize), err
 	})
-	if err == nil {
-		apply(n)
-	}
-	return n, err
 }
 
 // Seek sets the offset for the next Read operation on the reader.
@@ -468,12 +466,10 @@ func (r *Reader) ReadWithContext(ctx context.Context, buf []byte) (int, error) {
 //
 // Note: The actual new position may differ from the requested position
 // if the underlying storage system has restrictions on seeking.
+//
+// Seek uses the context bound to the Reader at creation time.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
-	return r.SeekWithContext(context.Background(), offset, whence)
-}
-
-func (r *Reader) SeekWithContext(ctx context.Context, offset int64, whence int) (int64, error) {
-	return runWithCancelContext(ctx, r.ctx, func(token *opendalCancelToken) (int64, error) {
+	return runWithCancelContext(r.cancelCtx, r.ctx, func(token *opendalCancelToken) (int64, error) {
 		return ffiReaderSeekWithCancel.symbol(r.ctx)(r.inner, offset, whence, token)
 	})
 }

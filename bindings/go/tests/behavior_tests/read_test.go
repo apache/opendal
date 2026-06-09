@@ -20,6 +20,7 @@
 package opendal_test
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -67,9 +68,9 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 func testReadWithConcurrentChunkGap(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	bs, err := op.Read(path,
+	bs, err := op.Read(context.Background(), path,
 		opendal.ReadWithConcurrent(2),
 		opendal.ReadWithChunk(1024*1024),
 		opendal.ReadWithGap(4096),
@@ -84,9 +85,9 @@ func testReadWithWriteOptions(assert *require.Assertions, op *opendal.Operator, 
 	content := genFixedBytes(1024 * 1024)
 	offset, length := genOffsetLength(uint(len(content)))
 
-	assert.Nil(op.Write(path, content, opendal.WriteWithChunk(256*1024), opendal.WriteWithConcurrent(2)))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithChunk(256*1024), opendal.WriteWithConcurrent(2)))
 
-	bs, err := op.Read(path,
+	bs, err := op.Read(context.Background(), path,
 		opendal.ReadWithRange(uint64(offset), uint64(length)),
 		opendal.ReadWithConcurrent(2),
 		opendal.ReadWithChunk(128*1024),
@@ -100,17 +101,17 @@ func testReadWithWriteOptions(assert *require.Assertions, op *opendal.Operator, 
 func testReadWithIfModifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	lastModified := meta.LastModified()
 
-	bs, err := op.Read(path, opendal.ReadWithIfModifiedSince(lastModified.Add(-time.Second)))
+	bs, err := op.Read(context.Background(), path, opendal.ReadWithIfModifiedSince(lastModified.Add(-time.Second)))
 	assert.Nil(err, "read with if-modified-since before last modified must succeed")
 	assert.Equal(content, bs, "read content")
 
-	_, err = op.Read(path, opendal.ReadWithIfModifiedSince(lastModified.Add(time.Second)))
+	_, err = op.Read(context.Background(), path, opendal.ReadWithIfModifiedSince(lastModified.Add(time.Second)))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 }
@@ -118,17 +119,17 @@ func testReadWithIfModifiedSince(assert *require.Assertions, op *opendal.Operato
 func testReadWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	lastModified := meta.LastModified()
 
-	bs, err := op.Read(path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(time.Second)))
+	bs, err := op.Read(context.Background(), path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(time.Second)))
 	assert.Nil(err, "read with if-unmodified-since after last modified must succeed")
 	assert.Equal(content, bs, "read content")
 
-	_, err = op.Read(path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(-time.Second)))
+	_, err = op.Read(context.Background(), path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(-time.Second)))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 }
@@ -136,22 +137,22 @@ func testReadWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 func testReadWithVersion(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	version, ok := meta.Version()
 	if !ok {
 		return
 	}
 
-	data, err := op.Read(path, opendal.ReadWithVersion(version))
+	data, err := op.Read(context.Background(), path, opendal.ReadWithVersion(version))
 	assert.Nil(err)
 	assert.Equal(content, data, "read content")
 
 	// After overwriting, the previous version data is still readable.
-	assert.Nil(op.Write(path, []byte("1")), "overwrite must succeed")
-	second, err := op.Read(path, opendal.ReadWithVersion(version))
+	assert.Nil(op.Write(context.Background(), path, []byte("1")), "overwrite must succeed")
+	second, err := op.Read(context.Background(), path, opendal.ReadWithVersion(version))
 	assert.Nil(err)
 	assert.Equal(content, second, "read old version content")
 }
@@ -160,9 +161,9 @@ func testReadWithRange(assert *require.Assertions, op *opendal.Operator, fixture
 	path, content, size := fixture.NewFile()
 	offset, length := genOffsetLength(size)
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	bs, err := op.Read(path, opendal.ReadWithRange(uint64(offset), uint64(length)))
+	bs, err := op.Read(context.Background(), path, opendal.ReadWithRange(uint64(offset), uint64(length)))
 	assert.Nil(err)
 	assert.Equal(length, int64(len(bs)), "read range size")
 	assert.Equal(content[offset:offset+length], bs, "read range content")
@@ -171,20 +172,20 @@ func testReadWithRange(assert *require.Assertions, op *opendal.Operator, fixture
 func testReadWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	etag, ok := meta.ETag()
 	if !ok {
 		return
 	}
 
-	_, err = op.Read(path, opendal.ReadWithIfMatch("\"invalid_etag\""))
+	_, err = op.Read(context.Background(), path, opendal.ReadWithIfMatch("\"invalid_etag\""))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(path, opendal.ReadWithIfMatch(etag))
+	bs, err := op.Read(context.Background(), path, opendal.ReadWithIfMatch(etag))
 	assert.Nil(err, "read with matching etag must succeed")
 	assert.Equal(content, bs, "read content")
 }
@@ -192,20 +193,20 @@ func testReadWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixtu
 func testReadWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	etag, ok := meta.ETag()
 	if !ok {
 		return
 	}
 
-	_, err = op.Read(path, opendal.ReadWithIfNoneMatch(etag))
+	_, err = op.Read(context.Background(), path, opendal.ReadWithIfNoneMatch(etag))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(path, opendal.ReadWithIfNoneMatch("\"invalid_etag\""))
+	bs, err := op.Read(context.Background(), path, opendal.ReadWithIfNoneMatch("\"invalid_etag\""))
 	assert.Nil(err, "read with non-matching etag must succeed")
 	assert.Equal(content, bs, "read content")
 }
@@ -213,9 +214,9 @@ func testReadWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, f
 func testReadFull(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err)
 	assert.Equal(size, uint(len(bs)), "read size")
 	assert.Equal(content, bs, "read content")
@@ -224,9 +225,9 @@ func testReadFull(assert *require.Assertions, op *opendal.Operator, fixture *fix
 func testReader(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	r, err := op.Reader(path)
+	r, err := op.Reader(context.Background(), path)
 	assert.Nil(err)
 	defer r.Close()
 	bs := make([]byte, size)
@@ -239,7 +240,7 @@ func testReader(assert *require.Assertions, op *opendal.Operator, fixture *fixtu
 func testReadNotExist(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path := fixture.NewFilePath()
 
-	_, err := op.Read(path)
+	_, err := op.Read(context.Background(), path)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 }
@@ -251,9 +252,9 @@ func testReadWithDirPath(assert *require.Assertions, op *opendal.Operator, fixtu
 
 	path := fixture.NewDirPath()
 
-	assert.Nil(op.CreateDir(path), "create must succeed")
+	assert.Nil(op.CreateDir(context.Background(), path), "create must succeed")
 
-	_, err := op.Read(path)
+	_, err := op.Read(context.Background(), path)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
@@ -261,9 +262,9 @@ func testReadWithDirPath(assert *require.Assertions, op *opendal.Operator, fixtu
 func testReadWithSpecialChars(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFileWithPath(uuid.NewString() + " !@#$%^&()_+-=;',.txt")
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err)
 	assert.Equal(size, uint(len(bs)))
 	assert.Equal(content, bs)
@@ -272,14 +273,14 @@ func testReadWithSpecialChars(assert *require.Assertions, op *opendal.Operator, 
 func testIOCopy(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	r, err := op.Reader(path)
+	r, err := op.Reader(context.Background(), path)
 	assert.Nil(err)
 
 	pathCopy := fixture.NewFilePath()
 
-	w, err := op.Writer(pathCopy)
+	w, err := op.Writer(context.Background(), pathCopy)
 	assert.Nil(err)
 
 	n, err := io.Copy(w, r)
@@ -289,7 +290,7 @@ func testIOCopy(assert *require.Assertions, op *opendal.Operator, fixture *fixtu
 	assert.Nil(r.Close(), "close reader must succeed")
 	assert.Nil(w.Close(), "close writer must succeed")
 
-	copyContent, err := op.Read(pathCopy)
+	copyContent, err := op.Read(context.Background(), pathCopy)
 	assert.Nil(err)
 	assert.Equal(size, uint(len(copyContent)), "read size")
 	assert.Equal(content, copyContent, "read content")
@@ -299,9 +300,9 @@ func testReaderSeek(assert *require.Assertions, op *opendal.Operator, fixture *f
 	path, content, size := fixture.NewFile()
 	offset, length := genOffsetLength(size)
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
-	r, err := op.Reader(path)
+	r, err := op.Reader(context.Background(), path)
 	assert.Nil(err)
 	defer r.Close()
 

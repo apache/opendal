@@ -40,6 +40,8 @@ var errWriterClosed = errors.New("writer is closed")
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native write in a blocking manner.
 //   - path: The destination path where the bytes will be written.
 //   - data: The byte slice containing the data to be written.
 //   - opts: Optional write options.
@@ -51,19 +53,14 @@ var errWriterClosed = errors.New("writer is closed")
 // # Example
 //
 //	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//		err = op.Write(context.Background(), "test", []byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) error {
-	return op.WriteWithContext(context.Background(), path, data, opts...)
-}
-
-func (op *Operator) WriteWithContext(ctx context.Context, path string, data []byte, opts ...WithWriteFn) error {
-	data = cancellableWriteBuffer(ctx, data)
+func (op *Operator) Write(ctx context.Context, path string, data []byte, opts ...WithWriteFn) error {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		if len(opts) == 0 {
 			return ffiOperatorWriteWithCancel.symbol(op.ctx)(op.inner, path, data, token)
@@ -265,6 +262,8 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - path: The path where the directory should be created.
 //
 // # Returns
@@ -285,7 +284,7 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 // # Example
 //
 //	func exampleCreateDir(op *opendal.Operator) {
-//		err = op.CreateDir("test/")
+//		err = op.CreateDir(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -293,11 +292,7 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 //
 // Note: This example assumes proper error handling and import statements.
 // The trailing slash in "test/" is important to indicate it's a directory.
-func (op *Operator) CreateDir(path string) error {
-	return op.CreateDirWithContext(context.Background(), path)
-}
-
-func (op *Operator) CreateDirWithContext(ctx context.Context, path string) error {
+func (op *Operator) CreateDir(ctx context.Context, path string) error {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		return ffiOperatorCreateDirWithCancel.symbol(op.ctx)(op.inner, path, token)
 	})
@@ -311,6 +306,8 @@ func (op *Operator) CreateDirWithContext(ctx context.Context, path string) error
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Writer. It governs cancellation for
+//     all subsequent Write and Close calls on that Writer.
 //   - path: The destination path where data will be written.
 //   - opts: Optional write options.
 //
@@ -321,7 +318,7 @@ func (op *Operator) CreateDirWithContext(ctx context.Context, path string) error
 // # Example
 //
 //	func exampleWriter(op *opendal.Operator) {
-//		writer, err := op.Writer("test/")
+//		writer, err := op.Writer(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -333,11 +330,9 @@ func (op *Operator) CreateDirWithContext(ctx context.Context, path string) error
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
-	return op.WriterWithContext(context.Background(), path, opts...)
-}
-
-func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...WithWriteFn) (*Writer, error) {
+// The provided context is bound to the Writer; canceling it cancels in-flight
+// Write and Close calls in a blocking manner.
+func (op *Operator) Writer(ctx context.Context, path string, opts ...WithWriteFn) (*Writer, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Writer, error) {
 		if len(opts) == 0 {
 			inner, err := ffiOperatorWriterWithCancel.symbol(op.ctx)(op.inner, path, token)
@@ -345,8 +340,9 @@ func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...
 				return nil, err
 			}
 			writer := &Writer{
-				inner: inner,
-				ctx:   op.ctx,
+				inner:     inner,
+				ctx:       op.ctx,
+				cancelCtx: ctx,
 			}
 			return writer, nil
 		}
@@ -363,8 +359,9 @@ func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...
 			return nil, err
 		}
 		writer := &Writer{
-			inner: inner,
-			ctx:   op.ctx,
+			inner:     inner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
 		}
 		return writer, nil
 	}, func(writer *Writer) {
@@ -377,7 +374,18 @@ func (op *Operator) WriterWithContext(ctx context.Context, path string, opts ...
 type Writer struct {
 	inner *opendalWriter
 	ctx   context.Context
-	mu    sync.Mutex
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Write and Close so the Writer keeps stdlib io interface
+	// signatures.
+	cancelCtx context.Context
+	mu        sync.Mutex
+}
+
+func (w *Writer) cancelContext() context.Context {
+	if w.cancelCtx == nil {
+		return context.Background()
+	}
+	return w.cancelCtx
 }
 
 func (w *Writer) free() {
@@ -401,17 +409,19 @@ func (w *Writer) free() {
 //
 // # Parameters
 //
-//   - path: The destination path where the bytes will be written.
-//   - data: The byte slice containing the data to be written.
+//   - p: The byte slice containing the data to be written.
 //
 // # Returns
 //
 //   - error: An error if the write operation fails, or nil if successful.
 //
+// Write uses the context bound to the Writer at creation time. Canceling that
+// context cancels the in-flight write in a blocking manner.
+//
 // # Example
 //
-//	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//	func exampleWrite(w *opendal.Writer) {
+//		_, err := w.Write([]byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -419,13 +429,7 @@ func (w *Writer) free() {
 //
 // Note: This example assumes proper error handling and import statements.
 func (w *Writer) Write(p []byte) (n int, err error) {
-	return w.WriteWithContext(context.Background(), p)
-}
-
-func (w *Writer) WriteWithContext(ctx context.Context, p []byte) (n int, err error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx := w.cancelContext()
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -437,7 +441,6 @@ func (w *Writer) WriteWithContext(ctx context.Context, p []byte) (n int, err err
 		return 0, errWriterClosed
 	}
 
-	p = cancellableWriteBuffer(ctx, p)
 	return runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (int, error) {
 		return ffiWriterWriteWithCancel.symbol(w.ctx)(inner, p, token)
 	})
@@ -446,14 +449,12 @@ func (w *Writer) WriteWithContext(ctx context.Context, p []byte) (n int, err err
 // Close finishes the write and releases the resources associated with the Writer.
 // It is important to call Close after writing all the data to ensure that the data is
 // properly flushed and written to the storage. Otherwise, the data may be lost.
+//
+// Close uses the context bound to the Writer at creation time. Canceling that
+// context cancels the in-flight close in a blocking manner; in that case the
+// underlying handle is preserved so Close can be retried.
 func (w *Writer) Close() error {
-	return w.CloseWithContext(context.Background())
-}
-
-func (w *Writer) CloseWithContext(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx := w.cancelContext()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

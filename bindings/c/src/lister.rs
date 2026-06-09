@@ -81,7 +81,13 @@ impl opendal_lister {
         }))
     }
 
-    /// \brief Return the next object to be listed.
+    /// \brief Return the next object to be listed
+    ///
+    /// Lister is an iterator of the objects under its path, this method is the same as
+    /// calling next() on the iterator
+    ///
+    /// For examples, please see the comment section of opendal_operator_list()
+    /// @see opendal_operator_list()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_next(&mut self) -> opendal_result_lister_next {
         unsafe { Self::opendal_lister_next_with_cancel(self, std::ptr::null()) }

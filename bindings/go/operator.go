@@ -33,6 +33,8 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - from: The source file path.
 //   - to: The destination file path.
 //
@@ -50,7 +52,7 @@ import (
 // # Example
 //
 //	func exampleCopy(op *operatorCopy) {
-//		err = op.Copy("path/from/file", "path/to/file")
+//		err = op.Copy(context.Background(), "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Printf("Copy operation failed: %v", err)
 //		} else {
@@ -59,11 +61,7 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Copy(src, dest string) error {
-	return op.CopyWithContext(context.Background(), src, dest)
-}
-
-func (op *Operator) CopyWithContext(ctx context.Context, src, dest string) error {
+func (op *Operator) Copy(ctx context.Context, src, dest string) error {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		return ffiOperatorCopyWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
 	})
@@ -75,6 +73,8 @@ func (op *Operator) CopyWithContext(ctx context.Context, src, dest string) error
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - from: The current file path.
 //   - to: The new file path.
 //
@@ -91,7 +91,7 @@ func (op *Operator) CopyWithContext(ctx context.Context, src, dest string) error
 // # Example
 //
 //	func exampleRename(op *opendal.Operator) {
-//		err = op.Rename("path/from/file", "path/to/file")
+//		err = op.Rename(context.Background(), "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Printf("Rename operation failed: %v", err)
 //		} else {
@@ -100,11 +100,7 @@ func (op *Operator) CopyWithContext(ctx context.Context, src, dest string) error
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Rename(src, dest string) error {
-	return op.RenameWithContext(context.Background(), src, dest)
-}
-
-func (op *Operator) RenameWithContext(ctx context.Context, src, dest string) error {
+func (op *Operator) Rename(ctx context.Context, src, dest string) error {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		return ffiOperatorRenameWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
 	})

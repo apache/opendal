@@ -44,7 +44,7 @@ import (
 // # Example
 //
 //	func exampleCheck(op *opendal.Operator) {
-//		err = op.Check()
+//		err = op.Check(context.Background())
 //		if err != nil {
 //			log.Printf("Operator check failed: %v", err)
 //		} else {
@@ -53,11 +53,7 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Check() (err error) {
-	return op.CheckWithContext(context.Background())
-}
-
-func (op *Operator) CheckWithContext(ctx context.Context) (err error) {
+func (op *Operator) Check(ctx context.Context) (err error) {
 	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
 		return ffiOperatorCheckWithCancel.symbol(op.ctx)(op.inner, token)
 	})
@@ -145,6 +141,8 @@ type listOptions struct {
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Lister. It governs cancellation for
+//     all subsequent Next calls on that Lister.
 //   - path: The starting path for listing entries.
 //   - opts: Optional functional options to configure the list operation.
 //
@@ -157,14 +155,14 @@ type listOptions struct {
 //
 //	func exampleList(op *opendal.Operator) {
 //		// List without options
-//		lister, err := op.List("test/")
+//		lister, err := op.List(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //		defer lister.Close()
 //
 //		// List with recursive option
-//		lister, err = op.List("test/", opendal.ListWithRecursive(true))
+//		lister, err = op.List(context.Background(), "test/", opendal.ListWithRecursive(true))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -180,12 +178,9 @@ type listOptions struct {
 //	}
 //
 // Note: Always check lister.Error() after the loop to catch any errors that
-// occurred during iteration.
-func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
-	return op.ListWithContext(context.Background(), path, opts...)
-}
-
-func (op *Operator) ListWithContext(ctx context.Context, path string, opts ...WithListFn) (*Lister, error) {
+// occurred during iteration. The provided context is bound to the Lister;
+// canceling it cancels in-flight Next calls in a blocking manner.
+func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (*Lister, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Lister, error) {
 		o := &listOptions{}
 		for _, opt := range opts {
@@ -207,8 +202,9 @@ func (op *Operator) ListWithContext(ctx context.Context, path string, opts ...Wi
 			return nil, err
 		}
 		return &Lister{
-			inner: listerInner,
-			ctx:   op.ctx,
+			inner:     listerInner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
 		}, nil
 	}, func(lister *Lister) {
 		if lister != nil {
@@ -248,8 +244,11 @@ func (op *Operator) ListWithContext(ctx context.Context, path string, opts ...Wi
 type Lister struct {
 	inner *opendalLister
 	ctx   context.Context
-	entry *Entry
-	err   error
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Next.
+	cancelCtx context.Context
+	entry     *Entry
+	err       error
 }
 
 // This method implements the io.Closer interface. It should be called when
@@ -300,12 +299,15 @@ func (l *Lister) Error() error {
 //		entry := lister.Entry()
 //		fmt.Println(entry.Name())
 //	}
+//
+// Next uses the context bound to the Lister at creation time. Canceling that
+// context cancels the in-flight advance in a blocking manner.
 func (l *Lister) Next() bool {
-	return l.NextWithContext(context.Background())
-}
-
-func (l *Lister) NextWithContext(ctx context.Context) bool {
-	entry, err := runWithCancelContext(ctx, l.ctx, func(token *opendalCancelToken) (*Entry, error) {
+	cancelCtx := l.cancelCtx
+	if cancelCtx == nil {
+		cancelCtx = context.Background()
+	}
+	entry, err := runWithCancelContext(cancelCtx, l.ctx, func(token *opendalCancelToken) (*Entry, error) {
 		inner, err := ffiListerNextWithCancel.symbol(l.ctx)(l.inner, token)
 		if inner == nil || err != nil {
 			return nil, err

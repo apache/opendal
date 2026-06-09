@@ -22,7 +22,6 @@ package opendal
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 )
@@ -139,22 +138,6 @@ func TestWriterCloseShouldReleaseAfterClose(t *testing.T) {
 				t.Fatalf("shouldReleaseWriterAfterClose(%v) = %v, want %v", tc.err, got, tc.want)
 			}
 		})
-	}
-}
-
-func TestWriterCloseReleaseRunsOnce(t *testing.T) {
-	var count int
-	var releaseOnce sync.Once
-	release := func() {
-		releaseOnce.Do(func() {
-			count++
-		})
-	}
-
-	release()
-	release()
-	if count != 1 {
-		t.Fatalf("release count = %d, want 1", count)
 	}
 }
 

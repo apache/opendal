@@ -231,7 +231,7 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(context.Background(), "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -290,7 +290,7 @@ func (l *Lister) Error() error {
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(context.Background(), "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}

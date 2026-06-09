@@ -468,21 +468,28 @@ func (w *Writer) Close() error {
 	w.inner = nil
 	w.mu.Unlock()
 
-	var releaseOnce sync.Once
-	release := func() {
-		releaseOnce.Do(func() {
-			ffiWriterFree.symbol(w.ctx)(inner)
-		})
-	}
-
 	_, err := runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (struct{}, error) {
 		return struct{}{}, ffiWriterCloseWithCancel.symbol(w.ctx)(inner, token)
-	}, func(struct{}) {
-		release()
 	})
 	if shouldReleaseWriterAfterClose(err) {
-		release()
+		// On success or a native error the close attempt is final, so free the
+		// underlying handle.
+		ffiWriterFree.symbol(w.ctx)(inner)
+		return err
 	}
+
+	// The close was canceled (context.Canceled/DeadlineExceeded). The native
+	// writer was not freed, so restore the handle to allow Close to be retried
+	// instead of leaking it.
+	w.mu.Lock()
+	if w.inner == nil {
+		w.inner = inner
+	} else {
+		// A concurrent operation already repopulated the handle; free ours to
+		// avoid a leak.
+		ffiWriterFree.symbol(w.ctx)(inner)
+	}
+	w.mu.Unlock()
 	return err
 }
 

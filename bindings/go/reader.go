@@ -377,7 +377,7 @@ var _ io.ReadSeekCloser = (*Reader)(nil)
 //
 // # Example
 //
-//	reader, err := op.Reader("path/to/file")
+//	reader, err := op.Reader(context.Background(), "path/to/file")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -444,7 +444,7 @@ func (r *Reader) Read(buf []byte) (int, error) {
 //
 // # Example
 //
-//	reader, err := op.Reader("path/to/file")
+//	reader, err := op.Reader(context.Background(), "path/to/file")
 //	if err != nil {
 //		log.Fatal(err)
 //	}

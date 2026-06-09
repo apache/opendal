@@ -28,4 +28,3 @@ mod writer;
 
 pub use backend::GithubBuilder as Github;
 pub use config::GithubConfig;
-

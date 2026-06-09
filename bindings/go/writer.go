@@ -467,11 +467,21 @@ func (w *Writer) CloseWithContext(ctx context.Context) error {
 	w.inner = nil
 	w.mu.Unlock()
 
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			ffiWriterFree.symbol(w.ctx)(inner)
+		})
+	}
+
 	_, err := runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (struct{}, error) {
-		closeErr := ffiWriterCloseWithCancel.symbol(w.ctx)(inner, token)
-		ffiWriterFree.symbol(w.ctx)(inner)
-		return struct{}{}, closeErr
+		return struct{}{}, ffiWriterCloseWithCancel.symbol(w.ctx)(inner, token)
+	}, func(struct{}) {
+		release()
 	})
+	if err == nil {
+		release()
+	}
 	return err
 }
 

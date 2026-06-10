@@ -19,6 +19,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::LazyLock;
 
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
@@ -88,15 +89,27 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
     Ok(())
 }
 
+// Fall back to an fs operator in a temporary directory when no test service is
+// configured, so fuzz targets exercise real code out of the box (e.g. on OSS-Fuzz).
+static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
+    if let Some(op) = init_test_service().expect("operator init must succeed") {
+        return op;
+    }
+
+    let root = std::env::temp_dir().join(format!("opendal-fuzz-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).expect("create fuzz root dir must succeed");
+    Operator::new(opendal::services::Fs::default().root(&root.to_string_lossy()))
+        .expect("operator init must succeed")
+        .finish()
+});
+
 fuzz_target!(|input: FuzzInput| {
     let _ = logforth::starter_log::stderr().try_apply();
 
-    let op = init_test_service().expect("operator init must succeed");
-    if let Some(op) = op {
-        TEST_RUNTIME.block_on(async {
-            fuzz_reader(op, input.clone())
-                .await
-                .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
-        })
-    }
+    let op = OPERATOR.clone();
+    TEST_RUNTIME.block_on(async {
+        fuzz_reader(op, input.clone())
+            .await
+            .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
+    })
 });

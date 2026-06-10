@@ -85,7 +85,7 @@ arbitrary = { version = "1.4.2", features = ["derive"] }
 libfuzzer-sys = "0.4"
 log = { workspace = true }
 logforth = { workspace = true }
-opendal = { path = "..", features = ["tests"] }
+opendal = { path = "..", features = ["tests", "services-fs"] }
 uuid = { workspace = true, features = ["v4"] }
 
 [[bin]]

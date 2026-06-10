@@ -54,5 +54,5 @@ jobs:
           cache-dependency-path: bindings/go/go.sum
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: "v2.1"
+          version: "v2.12.2"
           working-directory: bindings/go

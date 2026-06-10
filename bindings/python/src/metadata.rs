@@ -195,7 +195,14 @@ impl Metadata {
 ///
 /// The mode of an entry, indicating if it is a file or a directory.
 #[gen_stub_pyclass_enum]
-#[pyclass(eq, eq_int, hash, frozen, module = "opendal.types")]
+#[pyclass(
+    eq,
+    eq_int,
+    hash,
+    frozen,
+    module = "opendal.types",
+    skip_from_py_object
+)]
 #[pyo3(rename_all = "PascalCase")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryMode {

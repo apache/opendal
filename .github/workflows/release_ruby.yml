@@ -99,10 +99,10 @@ jobs:
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
           - os: macos-15
-            platform: arm64-darwin24
+            platform: arm64-darwin23
             rust_target: aarch64-apple-darwin
           - os: macos-26
-            platform: arm64-darwin25
+            platform: arm64-darwin23
             rust_target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}

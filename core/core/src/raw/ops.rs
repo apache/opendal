@@ -877,6 +877,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 pub struct OpCopy {
     if_not_exists: bool,
     if_match: Option<String>,
+    source_version: Option<String>,
 }
 
 impl OpCopy {
@@ -911,6 +912,19 @@ impl OpCopy {
     /// Get if_match condition.
     pub fn if_match(&self) -> Option<&str> {
         self.if_match.as_deref()
+    }
+
+    /// Set source version for the operation.
+    ///
+    /// When set, the copy operation will copy from the specified source version.
+    pub fn with_source_version(mut self, version: impl Into<String>) -> Self {
+        self.source_version = Some(version.into());
+        self
+    }
+
+    /// Get source version from the operation.
+    pub fn source_version(&self) -> Option<&str> {
+        self.source_version.as_deref()
     }
 }
 
@@ -968,6 +982,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
             OpCopy {
                 if_not_exists: value.if_not_exists,
                 if_match: value.if_match,
+                source_version: value.source_version,
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),

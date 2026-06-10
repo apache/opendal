@@ -1032,7 +1032,8 @@ pub unsafe extern "C" fn opendal_operator_list_with(
             recursive: o.recursive,
             limit,
             start_after,
-            ..Default::default()
+            versions: o.versions,
+            deleted: o.deleted,
         }
     };
     match op.deref().lister_options(path, list_opts) {
@@ -1214,6 +1215,84 @@ pub unsafe extern "C" fn opendal_operator_copy(
         .to_str()
         .expect("malformed dest");
     if let Err(err) = op.deref().copy(src, dest) {
+        opendal_error::new(err)
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+/// \brief Blocking copy the object in `path` with options.
+///
+/// Copy the object from `src` to `dest` blocking by `op`, using the provided
+/// `opendal_copy_options` to control the behavior, e.g. `if_not_exists` or
+/// `if_match` conditions.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @param opts The options for the copy operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_copy_options
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named op for example
+///
+/// // prepare your data
+/// char* data = "Hello, World!";
+/// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+/// opendal_error *error = opendal_operator_write(op, "/testpath", bytes);
+///
+/// assert(error == NULL);
+///
+/// // prepare options
+/// opendal_copy_options *opts = opendal_copy_options_new();
+/// opendal_copy_options_set_if_not_exists(opts, true);
+///
+/// // now you can copy with options!
+/// opendal_error *error = opendal_operator_copy_with(op, "/testpath", "/testpath2", opts);
+///
+/// // Assert that this succeeds
+/// assert(error == NULL);
+///
+/// // remember to free the options
+/// opendal_copy_options_free(opts);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy_with(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    opts: *const opendal_copy_options,
+) -> *mut opendal_error {
+    assert!(!src.is_null());
+    assert!(!dest.is_null());
+    let src = std::ffi::CStr::from_ptr(src)
+        .to_str()
+        .expect("malformed src");
+    let dest = std::ffi::CStr::from_ptr(dest)
+        .to_str()
+        .expect("malformed dest");
+    let copy_opts = if opts.is_null() {
+        core::options::CopyOptions::default()
+    } else {
+        core::options::CopyOptions::from(&*opts)
+    };
+    if let Err(err) = op.deref().copy_options(src, dest, copy_opts) {
         opendal_error::new(err)
     } else {
         std::ptr::null_mut()

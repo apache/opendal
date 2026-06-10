@@ -655,9 +655,7 @@ pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
     dest: *const c_char,
     token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
-    unsafe {
-        opendal_operator_copy_with_options_cancel(op, src, dest, std::ptr::null(), token)
-    }
+    unsafe { opendal_operator_copy_with_options_cancel(op, src, dest, std::ptr::null(), token) }
 }
 
 /// \brief Like `opendal_operator_copy_with` with cooperative cancellation.

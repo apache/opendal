@@ -26,10 +26,13 @@ runs:
       with:
         distribution: zulu
         java-version: 11
+    - name: Setup node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 20
     - name: Setup azurite azblob service
       shell: bash
-      working-directory: fixtures/azblob
-      run: docker compose -f docker-compose-azurite.yml up -d --wait
+      run: ./fixtures/azblob/setup_azurite.sh
     - name: Setup test bucket
       shell: bash
       run: |

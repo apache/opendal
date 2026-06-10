@@ -96,17 +96,9 @@ impl MonoiofsCore {
         }
     }
 
-    /// Join a caller-supplied key onto `self.root` while keeping the result
-    /// confined to that root.
-    ///
-    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
-    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
-    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
-    /// configured `root` at syscall time. monoiofs is a local (monoio/io_uring)
-    /// filesystem, so the host kernel resolves `..` when the path is used; we
-    /// reject any key whose components include a `..` (parent-dir) traversal.
-    ///
-    /// This mirrors the confinement added to the `fs` backend in #7684.
+    /// Reject `..` traversal in a key so it cannot escape `root`, matching the
+    /// `fs` backend (#7684). Confinement lives here because `normalize_path`
+    /// deliberately leaves `.`/`..` unresolved (RFC 0112).
     pub fn prepare_path(&self, path: &str) -> Result<PathBuf> {
         use std::path::Component;
         let trimmed = path.trim_end_matches('/');

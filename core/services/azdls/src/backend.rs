@@ -25,7 +25,7 @@ use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
+use reqsign_core::Env;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
@@ -233,13 +233,52 @@ impl AzdlsBuilder {
     }
 }
 
+/// Build the credential environment, seeding from the process environment.
+///
+/// Seeding from `env` is what lets OS-supplied credentials (e.g. AKS Workload
+/// Identity: AZURE_FEDERATED_TOKEN_FILE, AZURE_CLIENT_ID) reach the credential
+/// providers; explicitly configured values then override them.
+fn merge_credential_envs(
+    env: &impl Env,
+    account_name: Option<&str>,
+    config: &AzdlsConfig,
+) -> std::collections::HashMap<String, String> {
+    let mut envs = env.vars();
+
+    if let Some(v) = account_name {
+        envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.to_string());
+        envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.to_string());
+    }
+    if let Some(v) = &config.account_key {
+        envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
+        envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+    }
+    if let Some(v) = &config.sas_token {
+        envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+    }
+    if let Some(v) = &config.client_id {
+        envs.insert("AZURE_CLIENT_ID".to_string(), v.clone());
+    }
+    if let Some(v) = &config.client_secret {
+        envs.insert("AZURE_CLIENT_SECRET".to_string(), v.clone());
+    }
+    if let Some(v) = &config.tenant_id {
+        envs.insert("AZURE_TENANT_ID".to_string(), v.clone());
+    }
+    if let Some(v) = &config.authority_host {
+        envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
+    }
+
+    envs
+}
+
 impl Builder for AzdlsBuilder {
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {root}");
 
         // Handle endpoint, region and container name.
@@ -265,33 +304,13 @@ impl Builder for AzdlsBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let mut envs = std::collections::HashMap::new();
-
-        if let Some(v) = &account_name {
-            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.account_key {
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.client_id {
-            envs.insert("AZURE_CLIENT_ID".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.client_secret {
-            envs.insert("AZURE_CLIENT_SECRET".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.tenant_id {
-            envs.insert("AZURE_TENANT_ID".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.authority_host {
-            envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
-        }
-
         let os_env = OsEnv;
+
+        // Seed from the process environment so credential providers can read
+        // OS-supplied variables (e.g. AKS Workload Identity:
+        // AZURE_FEDERATED_TOKEN_FILE, AZURE_CLIENT_ID); explicit config wins.
+        let envs = merge_credential_envs(&os_env, account_name.as_deref(), &self.config);
+
         let info = Arc::new(AccessorInfo::default());
 
         let ctx = Context::new()
@@ -497,5 +516,75 @@ impl Access for AzdlsBackend {
             StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn env_with(pairs: &[(&str, &str)]) -> StaticEnv {
+        StaticEnv {
+            home_dir: None,
+            envs: pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn merge_credential_envs_passes_through_os_env() {
+        // OS-supplied Workload Identity variables must survive into the env map
+        // even when no explicit credentials are configured (the #7224 bug).
+        let env = env_with(&[
+            ("AZURE_FEDERATED_TOKEN_FILE", "/var/run/token"),
+            ("AZURE_CLIENT_ID", "os-client"),
+            ("AZURE_TENANT_ID", "os-tenant"),
+        ]);
+
+        let envs = merge_credential_envs(&env, None, &AzdlsConfig::default());
+
+        assert_eq!(
+            envs.get("AZURE_FEDERATED_TOKEN_FILE").map(String::as_str),
+            Some("/var/run/token")
+        );
+        assert_eq!(
+            envs.get("AZURE_CLIENT_ID").map(String::as_str),
+            Some("os-client")
+        );
+        assert_eq!(
+            envs.get("AZURE_TENANT_ID").map(String::as_str),
+            Some("os-tenant")
+        );
+    }
+
+    #[test]
+    fn merge_credential_envs_explicit_config_overrides_os_env() {
+        let env = env_with(&[
+            ("AZURE_CLIENT_ID", "os-client"),
+            ("AZURE_FEDERATED_TOKEN_FILE", "/var/run/token"),
+        ]);
+        let config = AzdlsConfig {
+            client_id: Some("cfg-client".to_string()),
+            ..Default::default()
+        };
+
+        let envs = merge_credential_envs(&env, Some("cfg-account"), &config);
+
+        // Explicit config wins.
+        assert_eq!(
+            envs.get("AZURE_CLIENT_ID").map(String::as_str),
+            Some("cfg-client")
+        );
+        assert_eq!(
+            envs.get("AZURE_STORAGE_ACCOUNT_NAME").map(String::as_str),
+            Some("cfg-account")
+        );
+        // Untouched OS variables remain available.
+        assert_eq!(
+            envs.get("AZURE_FEDERATED_TOKEN_FILE").map(String::as_str),
+            Some("/var/run/token")
+        );
     }
 }

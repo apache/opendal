@@ -233,11 +233,8 @@ impl AzdlsBuilder {
     }
 }
 
-/// Build the credential environment, seeding from the process environment.
-///
-/// Seeding from `env` is what lets OS-supplied credentials (e.g. AKS Workload
-/// Identity: AZURE_FEDERATED_TOKEN_FILE, AZURE_CLIENT_ID) reach the credential
-/// providers; explicitly configured values then override them.
+/// Build the credential env map, seeded from the process environment so OS-supplied
+/// credentials (e.g. AKS Workload Identity) reach the providers; explicit config wins.
 fn merge_credential_envs(
     env: &impl Env,
     account_name: Option<&str>,
@@ -305,10 +302,6 @@ impl Builder for AzdlsBuilder {
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
         let os_env = OsEnv;
-
-        // Seed from the process environment so credential providers can read
-        // OS-supplied variables (e.g. AKS Workload Identity:
-        // AZURE_FEDERATED_TOKEN_FILE, AZURE_CLIENT_ID); explicit config wins.
         let envs = merge_credential_envs(&os_env, account_name.as_deref(), &self.config);
 
         let info = Arc::new(AccessorInfo::default());
@@ -535,8 +528,6 @@ mod tests {
 
     #[test]
     fn merge_credential_envs_passes_through_os_env() {
-        // OS-supplied Workload Identity variables must survive into the env map
-        // even when no explicit credentials are configured (the #7224 bug).
         let env = env_with(&[
             ("AZURE_FEDERATED_TOKEN_FILE", "/var/run/token"),
             ("AZURE_CLIENT_ID", "os-client"),
@@ -572,7 +563,6 @@ mod tests {
 
         let envs = merge_credential_envs(&env, Some("cfg-account"), &config);
 
-        // Explicit config wins.
         assert_eq!(
             envs.get("AZURE_CLIENT_ID").map(String::as_str),
             Some("cfg-client")
@@ -581,7 +571,6 @@ mod tests {
             envs.get("AZURE_STORAGE_ACCOUNT_NAME").map(String::as_str),
             Some("cfg-account")
         );
-        // Untouched OS variables remain available.
         assert_eq!(
             envs.get("AZURE_FEDERATED_TOKEN_FILE").map(String::as_str),
             Some("/var/run/token")

@@ -69,6 +69,7 @@ internal struct OpenDALCapability
 
     [MarshalAs(UnmanagedType.U1)] internal byte copy;
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithIfNotExists;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithSourceVersion;
     [MarshalAs(UnmanagedType.U1)] internal byte rename;
 
     [MarshalAs(UnmanagedType.U1)] internal byte list;

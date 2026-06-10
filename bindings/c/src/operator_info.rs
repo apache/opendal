@@ -136,6 +136,22 @@ pub struct opendal_capability {
 
     /// If operator supports copy.
     pub copy: bool,
+    /// If operator supports copy with if not exists.
+    pub copy_with_if_not_exists: bool,
+    /// If operator supports copy with if match.
+    pub copy_with_if_match: bool,
+    /// If operator supports copy with source version.
+    pub copy_with_source_version: bool,
+    /// If operator supports copy can be split into multiple server-side tasks.
+    pub copy_can_multi: bool,
+    /// copy_multi_max_size is the max size supported for segmented copy tasks.
+    ///
+    /// If it is not set, this will be zero
+    pub copy_multi_max_size: usize,
+    /// copy_multi_min_size is the min size required for segmented copy tasks.
+    ///
+    /// If it is not set, this will be zero
+    pub copy_multi_min_size: usize,
 
     /// If operator supports rename.
     pub rename: bool,
@@ -148,6 +164,10 @@ pub struct opendal_capability {
     pub list_with_start_after: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
+    /// If backend supports list with versions.
+    pub list_with_versions: bool,
+    /// If backend supports list with deleted.
+    pub list_with_deleted: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -294,11 +314,19 @@ impl From<core::Capability> for opendal_capability {
             delete_with_version: value.delete_with_version,
             delete_with_recursive: value.delete_with_recursive,
             copy: value.copy,
+            copy_with_if_not_exists: value.copy_with_if_not_exists,
+            copy_with_if_match: value.copy_with_if_match,
+            copy_with_source_version: value.copy_with_source_version,
+            copy_can_multi: value.copy_can_multi,
+            copy_multi_max_size: value.copy_multi_max_size.unwrap_or(0),
+            copy_multi_min_size: value.copy_multi_min_size.unwrap_or(0),
             rename: value.rename,
             list: value.list,
             list_with_limit: value.list_with_limit,
             list_with_start_after: value.list_with_start_after,
             list_with_recursive: value.list_with_recursive,
+            list_with_versions: value.list_with_versions,
+            list_with_deleted: value.list_with_deleted,
             presign: value.presign,
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,

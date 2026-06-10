@@ -558,6 +558,7 @@ pub struct LoggingReader<R, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,
     path: String,
+    range: Option<BytesRange>,
 
     read: u64,
     inner: R,
@@ -565,14 +566,31 @@ pub struct LoggingReader<R, I: LoggingInterceptor> {
 
 impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
     fn new(info: Arc<AccessorInfo>, logger: I, path: &str, reader: R) -> Self {
+        Self::with_range(info, logger, path, None, reader)
+    }
+
+    fn with_range(
+        info: Arc<AccessorInfo>,
+        logger: I,
+        path: &str,
+        range: Option<BytesRange>,
+        reader: R,
+    ) -> Self {
         Self {
             info,
             logger,
             path: path.to_string(),
+            range,
 
             read: 0,
             inner: reader,
         }
+    }
+
+    fn range_label(&self) -> String {
+        self.range
+            .map(|range| range.to_string())
+            .unwrap_or_default()
     }
 }
 
@@ -580,11 +598,13 @@ impl<R: oio::ReadStream, I: LoggingInterceptor> oio::ReadStream for LoggingReade
     async fn read(&mut self) -> Result<Buffer> {
         match self.inner.read().await {
             Ok(bs) if bs.is_empty() => {
+                let range = self.range_label();
                 self.logger.log(
                     &self.info,
                     Operation::Read,
                     &[
                         ("path", &self.path),
+                        ("range", &range),
                         ("read", &self.read.to_string()),
                         ("size", &bs.len().to_string()),
                     ],
@@ -598,10 +618,15 @@ impl<R: oio::ReadStream, I: LoggingInterceptor> oio::ReadStream for LoggingReade
                 Ok(bs)
             }
             Err(err) => {
+                let range = self.range_label();
                 self.logger.log(
                     &self.info,
                     Operation::Read,
-                    &[("path", &self.path), ("read", &self.read.to_string())],
+                    &[
+                        ("path", &self.path),
+                        ("range", &range),
+                        ("read", &self.read.to_string()),
+                    ],
                     "failed",
                     Some(&err),
                 );
@@ -616,10 +641,11 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
         match self.inner.open(range).await {
             Ok((rp, stream)) => Ok((
                 rp,
-                Box::new(LoggingReader::new(
+                Box::new(LoggingReader::with_range(
                     self.info.clone(),
                     self.logger.clone(),
                     &self.path,
+                    Some(range),
                     stream,
                 )) as Box<dyn oio::ReadStreamDyn>,
             )),

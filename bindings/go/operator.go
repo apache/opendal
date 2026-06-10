@@ -27,42 +27,6 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-// Copy duplicates a file from the source path to the destination path.
-//
-// This function copies the contents of the file at 'from' to a new or existing file at 'to'.
-//
-// # Parameters
-//
-//   - from: The source file path.
-//   - to: The destination file path.
-//
-// # Returns
-//
-//   - error: An error if the copy operation fails, or nil if successful.
-//
-// # Behavior
-//
-//   - Both 'from' and 'to' must be file paths, not directories.
-//   - If 'to' already exists, it will be overwritten.
-//   - If 'from' and 'to' are identical, an 'IsSameFile' error will be returned.
-//   - The copy operation is idempotent; repeated calls with the same parameters will yield the same result.
-//
-// # Example
-//
-//	func exampleCopy(op *operatorCopy) {
-//		err = op.Copy("path/from/file", "path/to/file")
-//		if err != nil {
-//			log.Printf("Copy operation failed: %v", err)
-//		} else {
-//			log.Println("File copied successfully")
-//		}
-//	}
-//
-// Note: This example assumes proper error handling and import statements.
-func (op *Operator) Copy(src, dest string) error {
-	return ffiOperatorCopy.symbol(op.ctx)(op.inner, src, dest)
-}
-
 // Rename changes the name or location of a file from the source path to the destination path.
 //
 // This function moves a file from 'from' to 'to', effectively renaming or relocating it.

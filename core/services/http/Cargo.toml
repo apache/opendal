@@ -34,4 +34,4 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }

@@ -95,6 +95,30 @@ impl SwiftBuilder {
         }
         self
     }
+
+    /// Set the TempURL key for generating presigned URLs.
+    ///
+    /// This should match the `X-Account-Meta-Temp-URL-Key` or
+    /// `X-Container-Meta-Temp-URL-Key` value configured on the Swift
+    /// account or container.
+    pub fn temp_url_key(mut self, key: &str) -> Self {
+        if !key.is_empty() {
+            self.config.temp_url_key = Some(key.to_string());
+        }
+        self
+    }
+
+    /// Set the hash algorithm for TempURL signing.
+    ///
+    /// Supported values: `sha1`, `sha256`, `sha512`. Defaults to `sha256`.
+    /// The cluster must have the chosen algorithm in its
+    /// `tempurl.allowed_digests` (check `GET /info`).
+    pub fn temp_url_hash_algorithm(mut self, algo: &str) -> Self {
+        if !algo.is_empty() {
+            self.config.temp_url_hash_algorithm = Some(algo.to_string());
+        }
+        self
+    }
 }
 
 impl Builder for SwiftBuilder {
@@ -135,6 +159,12 @@ impl Builder for SwiftBuilder {
         };
 
         let token = self.config.token.unwrap_or_default();
+        let temp_url_key = self.config.temp_url_key.unwrap_or_default();
+        let has_temp_url_key = !temp_url_key.is_empty();
+        let temp_url_hash_algorithm = match &self.config.temp_url_hash_algorithm {
+            Some(algo) => TempUrlHashAlgorithm::from_str_opt(algo)?,
+            None => TempUrlHashAlgorithm::Sha256,
+        };
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
@@ -144,16 +174,44 @@ impl Builder for SwiftBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_empty: true,
+                            write_can_multi: true,
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
+                            write_with_content_type: true,
+                            write_with_content_disposition: true,
+                            write_with_content_encoding: true,
+                            write_with_cache_control: true,
                             write_with_user_metadata: true,
 
                             delete: true,
+                            delete_max_size: Some(10000),
+
+                            copy: true,
 
                             list: true,
                             list_with_recursive: true,
+
+                            presign: has_temp_url_key,
+                            presign_stat: has_temp_url_key,
+                            presign_read: has_temp_url_key,
+                            presign_write: has_temp_url_key,
 
                             shared: true,
 
@@ -165,6 +223,8 @@ impl Builder for SwiftBuilder {
                 endpoint,
                 container,
                 token,
+                temp_url_key,
+                temp_url_hash_algorithm,
             }),
         })
     }
@@ -176,18 +236,61 @@ pub struct SwiftBackend {
     core: Arc<SwiftCore>,
 }
 
+/// Reader returned by this backend.
+pub struct SwiftReader {
+    backend: SwiftBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl SwiftReader {
+    fn new(backend: SwiftBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for SwiftReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.swift_read(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for SwiftBackend {
-    type Reader = HttpBody;
-    type Writer = oio::OneShotWriter<SwiftWriter>;
+    type Reader = oio::StreamReader<SwiftReader>;
+    type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
-    type Deleter = oio::OneShotDeleter<SwiftDeleter>;
+    type Deleter = oio::BatchDeleter<SwiftDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path).await?;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(path, &args).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
@@ -203,26 +306,17 @@ impl Access for SwiftBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.swift_read(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(SwiftReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
-
-        let w = oio::OneShotWriter::new(writer);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }
@@ -230,7 +324,10 @@ impl Access for SwiftBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(SwiftDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(
+                SwiftDeleter::new(self.core.clone()),
+                self.core.info.full_capability().delete_max_size,
+            ),
         ))
     }
 
@@ -245,7 +342,40 @@ impl Access for SwiftBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let (expire, op) = args.into_parts();
+
+        let method = match &op {
+            PresignOperation::Stat(_) => http::Method::HEAD,
+            PresignOperation::Read(_, _) => http::Method::GET,
+            PresignOperation::Write(_) => http::Method::PUT,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "presign operation is not supported",
+                ));
+            }
+        };
+
+        let url = self.core.swift_temp_url(&method, path, expire)?;
+        let uri: http::Uri = url.parse().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "failed to parse presigned URL").set_source(e)
+        })?;
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            method,
+            uri,
+            http::HeaderMap::new(),
+        )))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         // cannot copy objects larger than 5 GB.
         // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
         let resp = self.core.swift_copy(from, to).await?;
@@ -253,7 +383,7 @@ impl Access for SwiftBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

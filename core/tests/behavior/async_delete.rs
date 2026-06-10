@@ -17,7 +17,7 @@
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use opendal::raw::Access;
+use opendal::layers::CapabilityOverrideLayer;
 use opendal::raw::OpDelete;
 
 use crate::*;
@@ -198,17 +198,41 @@ async fn test_blocking_remove_all_with_objects(
 
 /// Remove all under a prefix
 pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face only guarantees recursive listing for repository trees,
+            // while this case expects prefix-recursive semantics for a non-directory path.
+            return Ok(());
+        }
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
     test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
 }
 
-/// Remove all under a prefix, while the prefix itself is also an object
+/// Remove all under a prefix, while the prefix itself is also an object.
+///
+/// This test requires flat key storage where a path can be both a file
+/// and a directory prefix simultaneously (e.g., S3). Services with real
+/// directory semantics (e.g., git-based repos) cannot support this
+/// because a path cannot be both a file and a directory.
 pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
+            return Ok(());
+        }
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
     op.write(&parent, content)
         .await
         .expect("write must succeed");
+
     test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
 }
 
@@ -284,6 +308,15 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
+            return Ok(());
+        }
+    }
+
     let base = format!("delete_recursive_{}/", uuid::Uuid::new_v4());
 
     let files = [
@@ -318,7 +351,7 @@ pub async fn test_batch_delete(op: Operator) -> Result<()> {
     }
 
     cap.delete_max_size = Some(2);
-    op.inner().info().update_full_capability(|_| cap);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
 
     let mut files = Vec::new();
     for _ in 0..5 {
@@ -352,7 +385,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
     }
 
     cap.delete_max_size = Some(2);
-    op.inner().info().update_full_capability(|_| cap);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
 
     let mut files = Vec::new();
     for _ in 0..5 {

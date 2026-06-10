@@ -21,6 +21,14 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Capability API
+#[doc = include_str!("7700_capability_api.md")]
+pub mod rfc_7700_capability_api {}
+
+/// Move Read Range To Reader
+#[doc = include_str!("7660_move_read_range_to_reader.md")]
+pub mod rfc_7660_move_read_range_to_reader {}
+
 /// Object native API
 #[doc = include_str!("0041_object_native_api.md")]
 pub mod rfc_0041_object_native_api {}
@@ -277,6 +285,10 @@ pub mod rfc_6209_glob_support {}
 #[doc = include_str!("6213_options_api.md")]
 pub mod rfc_6213_options_api {}
 
+/// Cache Layer
+#[doc = include_str!("6297_cache_layer.md")]
+pub mod rfc_6297_cache_layer {}
+
 /// Simulate Layer
 #[doc = include_str!("6678_simulate_layer.md")]
 pub mod rfc_6678_simulate_layer {}
@@ -296,3 +308,7 @@ pub mod rfc_6828_core {}
 /// Route Layer
 #[doc = include_str!("7130_route_layer.md")]
 pub mod rfc_7130_route_layer {}
+
+/// Copier API
+#[doc = include_str!("7519_copier_api.md")]
+pub mod rfc_7519_copier_api {}

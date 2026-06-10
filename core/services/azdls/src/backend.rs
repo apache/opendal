@@ -21,9 +21,15 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use reqsign::AzureStorageConfig;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::DefaultCredentialProvider;
+use reqsign_azure_storage::RequestSigner;
+use reqsign_azure_storage::StaticCredentialProvider;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::Signer;
+use reqsign_core::StaticEnv;
+use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
@@ -37,11 +43,12 @@ use super::writer::AzdlsWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{
-    AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
+    AzureStorageConfig as AzureConnectionConfig, AzureStorageService,
+    azure_account_name_from_endpoint, azure_config_from_connection_string,
 };
 
-impl From<AzureStorageConfig> for AzdlsConfig {
-    fn from(config: AzureStorageConfig) -> Self {
+impl From<AzureConnectionConfig> for AzdlsConfig {
+    fn from(config: AzureConnectionConfig) -> Self {
         AzdlsConfig {
             endpoint: config.endpoint,
             account_name: config.account_name,
@@ -218,6 +225,12 @@ impl AzdlsBuilder {
 
         Ok(AzdlsConfig::from(config).into_builder())
     }
+
+    /// Enable or disable HNS (Hierarchical Namespace) for this backend.
+    pub fn enable_hns(mut self, enable: bool) -> Self {
+        self.config.enable_hns = enable;
+        self
+    }
 }
 
 impl Builder for AzdlsBuilder {
@@ -246,43 +259,91 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let config_loader = AzureStorageConfig {
-            account_name: self
-                .config
-                .account_name
-                .clone()
-                .or_else(|| azure_account_name_from_endpoint(endpoint.as_str())),
-            account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token,
-            client_id: self.config.client_id.clone(),
-            client_secret: self.config.client_secret.clone(),
-            tenant_id: self.config.tenant_id.clone(),
-            authority_host: self.config.authority_host.clone(),
-            ..Default::default()
-        };
+        let account_name = self
+            .config
+            .account_name
+            .clone()
+            .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let cred_loader = AzureStorageLoader::new(config_loader);
-        let signer = AzureStorageSigner::new();
+        let mut envs = std::collections::HashMap::new();
+
+        if let Some(v) = &account_name {
+            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
+            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.account_key {
+            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
+            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.sas_token {
+            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.client_id {
+            envs.insert("AZURE_CLIENT_ID".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.client_secret {
+            envs.insert("AZURE_CLIENT_SECRET".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.tenant_id {
+            envs.insert("AZURE_TENANT_ID".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.authority_host {
+            envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
+        }
+
+        let os_env = OsEnv;
+        let info = Arc::new(AccessorInfo::default());
+
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
+            .with_env(StaticEnv {
+                home_dir: os_env.home_dir(),
+                envs,
+            });
+
+        let mut credential = DefaultCredentialProvider::new();
+
+        if let (Some(account_name), Some(account_key)) =
+            (account_name.as_deref(), self.config.account_key.as_deref())
+        {
+            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
+                account_name,
+                account_key,
+            ));
+        }
+        if let Some(sas_token) = self.config.sas_token.as_deref() {
+            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        let signer = Signer::new(ctx, credential, RequestSigner::new());
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZDLS_SCHEME)
+                    info.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {
                             stat: true,
 
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_append: true,
                             write_can_multi: true,
                             write_with_if_none_match: true,
                             write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
 
                             create_dir: true,
+
                             delete: true,
+                            delete_with_recursive: true,
+
                             rename: true,
 
                             list: true,
@@ -292,12 +353,12 @@ impl Builder for AzdlsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 filesystem: self.config.filesystem.clone(),
                 root,
                 endpoint,
-                loader: cred_loader,
+                enable_hns: self.config.enable_hns,
                 signer,
             }),
         })
@@ -310,11 +371,53 @@ pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AzdlsReader {
+    backend: AzdlsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl AzdlsReader {
+    fn new(backend: AzdlsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for AzdlsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.azdls_read(path, range, &args).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzdlsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AzdlsReader>;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -343,19 +446,11 @@ impl Access for AzdlsBackend {
         let metadata = self.core.azdls_stat_metadata(path).await?;
         Ok(RpStat::new(metadata))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AzdlsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

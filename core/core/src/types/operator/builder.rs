@@ -142,7 +142,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Operator> {
-        crate::DEFAULT_OPERATOR_REGISTRY.load(uri)
+        OperatorRegistry::get().load(uri)
     }
 
     /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.

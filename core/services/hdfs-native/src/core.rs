@@ -31,14 +31,12 @@ pub struct HdfsNativeCore {
     pub info: Arc<AccessorInfo>,
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
-    pub enable_append: bool,
 }
 
 impl Debug for HdfsNativeCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeCore")
             .field("root", &self.root)
-            .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
     }
 }
@@ -80,19 +78,10 @@ impl HdfsNativeCore {
         Ok(metadata)
     }
 
-    pub async fn hdfs_read(
-        &self,
-        path: &str,
-        args: &OpRead,
-    ) -> Result<(hdfs_native::file::FileReader, u64, u64)> {
+    pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
-
-        let offset = args.range().offset();
-        let size = args.range().size().unwrap_or(u64::MAX);
-
-        Ok((f, offset, size))
+        self.client.read(&p).await.map_err(parse_hdfs_error)
     }
 
     pub async fn hdfs_write(
@@ -116,7 +105,6 @@ impl HdfsNativeCore {
 
         let f = if target_exists {
             if args.append() {
-                assert!(self.enable_append, "append is not enabled");
                 self.client
                     .append(&target_path)
                     .await

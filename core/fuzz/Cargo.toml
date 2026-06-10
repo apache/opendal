@@ -49,8 +49,9 @@ services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = ["opendal/services-hdfs"]
+services-hf = ["opendal/services-hf"]
 services-http = ["opendal/services-http"]
-services-huggingface = ["opendal/services-huggingface"]
+services-huggingface = ["services-hf"]
 services-ipfs = ["opendal/services-ipfs"]
 services-ipmfs = ["opendal/services-ipmfs"]
 services-memcached = ["opendal/services-memcached"]
@@ -83,7 +84,7 @@ services-webhdfs = ["opendal/services-webhdfs"]
 arbitrary = { version = "1.4.2", features = ["derive"] }
 libfuzzer-sys = "0.4"
 log = { workspace = true }
-logforth = { version = "0.29.1", features = ["starter-log"] }
+logforth = { workspace = true }
 opendal = { path = "..", features = ["tests"] }
 uuid = { workspace = true, features = ["v4"] }
 

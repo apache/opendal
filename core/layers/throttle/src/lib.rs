@@ -119,6 +119,7 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Writer = ThrottleWrapper<A::Writer>;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -140,6 +141,16 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -166,9 +177,24 @@ impl<R> ThrottleWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for ThrottleWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(ThrottleWrapper::new(stream, self.limiter.clone()))
+                as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
     }
 }
 
@@ -199,11 +225,11 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         self.inner.write(bs).await
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
-    }
-
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }

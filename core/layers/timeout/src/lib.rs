@@ -213,6 +213,7 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Writer = TimeoutWrapper<A::Writer>;
     type Lister = TimeoutWrapper<A::Lister>;
     type Deleter = TimeoutWrapper<A::Deleter>;
+    type Copier = TimeoutWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -235,9 +236,19 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.timeout(Operation::Copy, self.inner.copy(from, to, args))
-            .await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.timeout(
+            Operation::Copy,
+            self.inner.copy(from, to, args, opts.clone()),
+        )
+        .await
+        .map(|(rp, c)| (rp, TimeoutWrapper::new(c, self.io_timeout)))
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -316,10 +327,34 @@ impl<R> TimeoutWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
         Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
+    }
+}
+
+impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.open(range),
+        )
+        .await?;
+        Ok((
+            rp,
+            Box::new(TimeoutWrapper::new(stream, self.timeout)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        Self::io_timeout(
+            self.timeout,
+            Operation::Read.into_static(),
+            self.inner.read(range),
+        )
+        .await
     }
 }
 
@@ -349,12 +384,30 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        let fut = self.inner.delete(path, args);
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
         let fut = self.inner.close();
         Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        let fut = self.inner.next();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let fut = self.inner.close();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let fut = self.inner.abort();
+        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
     }
 }
 
@@ -376,6 +429,7 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
@@ -390,7 +444,10 @@ mod tests {
 
         /// This function will build a reader that always return pending.
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(MockReader)))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(MockReader),
+            ))
         }
 
         /// This function will never return.
@@ -403,13 +460,30 @@ mod tests {
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList::default(), Box::new(MockLister)))
         }
+
+        async fn copy(
+            &self,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<(RpCopy, Self::Copier)> {
+            Ok((RpCopy::default(), Box::new(MockCopier)))
+        }
     }
 
     #[derive(Debug, Clone, Default)]
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn read(&mut self) -> impl Future<Output = Result<Buffer>> {
+        fn open(
+            &self,
+            _: BytesRange,
+        ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> {
+            pending()
+        }
+
+        fn read(&self, _: BytesRange) -> impl Future<Output = Result<(RpRead, Buffer)>> {
             pending()
         }
     }
@@ -419,6 +493,36 @@ mod tests {
 
     impl oio::List for MockLister {
         fn next(&mut self) -> impl Future<Output = Result<Option<oio::Entry>>> {
+            pending()
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockDeleter;
+
+    impl oio::Delete for MockDeleter {
+        fn delete(&mut self, _: &str, _: OpDelete) -> impl Future<Output = Result<()>> {
+            pending()
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockCopier;
+
+    impl oio::Copy for MockCopier {
+        fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> {
+            pending()
+        }
+
+        fn close(&mut self) -> impl Future<Output = Result<Metadata>> {
+            pending()
+        }
+
+        fn abort(&mut self) -> impl Future<Output = Result<()>> {
             pending()
         }
     }
@@ -473,6 +577,34 @@ mod tests {
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(err.to_string().contains("timeout"))
+    }
+
+    #[tokio::test]
+    async fn test_delete_io_timeout() {
+        use oio::Delete;
+
+        let mut deleter = TimeoutWrapper::new(MockDeleter, Duration::from_secs(1));
+
+        let res = deleter.delete("test", OpDelete::default()).await;
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("timeout"));
+    }
+
+    #[tokio::test]
+    async fn test_copy_io_timeout() {
+        use oio::Copy;
+
+        let acc = TimeoutLayer::default()
+            .with_io_timeout(Duration::from_millis(100))
+            .layer(MockService);
+        let (_, mut copier) = Access::copy(&acc, "f", "t", OpCopy::default(), OpCopier::default())
+            .await
+            .unwrap();
+
+        let err = copier.next().await.unwrap_err();
+        assert!(err.to_string().contains("timeout"));
     }
 
     #[tokio::test]

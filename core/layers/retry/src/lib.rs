@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use log::warn;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -97,14 +96,15 @@ use opendal_core::*;
 /// # use opendal_core::Error;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
+/// # use opendal_layer_retry::RetryEvent;
 /// # use opendal_layer_retry::RetryInterceptor;
 /// # use opendal_layer_retry::RetryLayer;
 /// #
 /// struct MyRetryInterceptor;
 ///
 /// impl RetryInterceptor for MyRetryInterceptor {
-///     fn intercept(&self, err: &Error, dur: Duration) {
-///         // do something
+///     fn intercept(&self, event: RetryEvent<'_>) {
+///         // do something with event.op, event.err, event.retry_after, event.attempt
 ///     }
 /// }
 ///
@@ -153,7 +153,7 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// use opendal_core::Operator;
     /// use opendal_layer_retry::RetryLayer;
     ///
-    /// fn notify(_err: &opendal_core::Error, _dur: std::time::Duration) {}
+    /// fn notify(_event: opendal_layer_retry::RetryEvent<'_>) {}
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
@@ -221,6 +221,20 @@ impl<A: Access, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
     }
 }
 
+/// Context passed to [`RetryInterceptor`] before each retry sleep.
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct RetryEvent<'a> {
+    /// The operation being retried.
+    pub op: Operation,
+    /// The error that triggered the retry.
+    pub err: &'a Error,
+    /// The duration to wait before the next retry attempt.
+    pub retry_after: Duration,
+    /// 1-based retry attempt number.
+    pub attempt: u32,
+}
+
 /// RetryInterceptor is used to intercept while retry happened.
 pub trait RetryInterceptor: Send + Sync + 'static {
     /// Everytime RetryLayer is retrying, this function will be called.
@@ -229,24 +243,19 @@ pub trait RetryInterceptor: Send + Sync + 'static {
     ///
     /// just before the retry sleep.
     ///
-    /// # Inputs
-    ///
-    /// - err: The error that caused the current retry.
-    /// - dur: The duration that will sleep before next retry.
-    ///
     /// # Notes
     ///
     /// The intercept must be quick and non-blocking. No heavy IO is
     /// allowed. Otherwise, the retry will be blocked.
-    fn intercept(&self, err: &Error, dur: Duration);
+    fn intercept(&self, event: RetryEvent<'_>);
 }
 
 impl<F> RetryInterceptor for F
 where
-    F: Fn(&Error, Duration) + Send + Sync + 'static,
+    F: for<'a> Fn(RetryEvent<'a>) + Send + Sync + 'static,
 {
-    fn intercept(&self, err: &Error, dur: Duration) {
-        self(err, dur);
+    fn intercept(&self, event: RetryEvent<'_>) {
+        self(event);
     }
 }
 
@@ -254,11 +263,12 @@ where
 pub struct DefaultRetryInterceptor;
 
 impl RetryInterceptor for DefaultRetryInterceptor {
-    fn intercept(&self, err: &Error, dur: Duration) {
-        warn!(
+    fn intercept(&self, event: RetryEvent<'_>) {
+        log::warn!(
             target: "opendal::layers::retry",
-            "will retry after {}s because: {}",
-            dur.as_secs_f64(), err)
+            "will retry {:?} (attempt {}) after {}s because: {:?}",
+            event.op, event.attempt, event.retry_after.as_secs_f64(), event.err
+        );
     }
 }
 
@@ -279,90 +289,170 @@ impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
 
 impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Inner = A;
-    type Reader = RetryWrapper<RetryReader<A, A::Reader>, I>;
+    type Reader = RetryReader<A::Reader, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type Lister = RetryWrapper<A::Lister, I>;
     type Deleter = RetryWrapper<A::Deleter, I>;
+    type Copier = RetryWrapper<A::Copier, I>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let mut attempt: u32 = 0;
         { || self.inner.create_dir(path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur: Duration| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::CreateDir,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map_err(|e| e.set_persistent())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let mut attempt: u32 = 0;
         let (rp, reader) = { || self.inner.read(path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map_err(|e| e.set_persistent())?;
 
-        let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
-        let retry_wrapper = RetryWrapper::new(retry_reader, self.notify.clone(), self.builder);
-
-        Ok((rp, retry_wrapper))
+        Ok((
+            rp,
+            RetryReader::new(reader, self.notify.clone(), self.builder),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let mut attempt: u32 = 0;
         { || self.inner.write(path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Write,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let mut attempt: u32 = 0;
         { || self.inner.stat(path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Stat,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let mut attempt: u32 = 0;
         { || self.inner.delete() }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Delete,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        { || self.inner.copy(from, to, args.clone()) }
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let mut attempt: u32 = 0;
+        { || self.inner.copy(from, to, args.clone(), opts.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Copy,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
+            .map(|(rp, c)| (rp, RetryWrapper::new(c, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let mut attempt: u32 = 0;
         { || self.inner.rename(from, to, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Rename,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let mut attempt: u32 = 0;
         { || self.inner.list(path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| self.notify.intercept(err, dur))
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::List,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
             .map_err(|e| e.set_persistent())
@@ -370,43 +460,168 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
 }
 
 #[doc(hidden)]
-pub struct RetryReader<A, R> {
-    inner: Arc<A>,
-    reader: Option<R>,
-
-    path: String,
-    args: OpRead,
+pub struct RetryReader<R, I> {
+    inner: Arc<R>,
+    notify: Arc<I>,
+    builder: ExponentialBuilder,
 }
 
-impl<A, R> RetryReader<A, R> {
-    fn new(inner: Arc<A>, path: String, args: OpRead, r: R) -> Self {
+impl<R, I> RetryReader<R, I> {
+    fn new(inner: R, notify: Arc<I>, builder: ExponentialBuilder) -> Self {
         Self {
-            inner,
-            reader: Some(r),
-
-            path,
-            args,
+            inner: Arc::new(inner),
+            notify,
+            builder,
         }
     }
 }
 
-impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
+impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        use backon::Retryable;
+
+        let mut attempt: u32 = 0;
+        let (rp, stream) = { || self.inner.open(range) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|e| e.set_persistent())?;
+
+        Ok((
+            rp,
+            Box::new(RetryReadStream::new(
+                self.inner.clone(),
+                stream,
+                range,
+                self.notify.clone(),
+                self.builder,
+            )) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        use backon::Retryable;
+
+        let mut attempt: u32 = 0;
+        { || self.inner.read(range) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|e| e.set_persistent())
+    }
+}
+
+#[doc(hidden)]
+pub struct RetryReadStream<R, I> {
+    reader: Arc<R>,
+    stream: Option<Box<dyn oio::ReadStreamDyn>>,
+    range: BytesRange,
+    read: u64,
+    notify: Arc<I>,
+    builder: ExponentialBuilder,
+}
+
+impl<R, I> RetryReadStream<R, I> {
+    fn new(
+        reader: Arc<R>,
+        stream: Box<dyn oio::ReadStreamDyn>,
+        range: BytesRange,
+        notify: Arc<I>,
+        builder: ExponentialBuilder,
+    ) -> Self {
+        Self {
+            reader,
+            stream: Some(stream),
+            range,
+            read: 0,
+            notify,
+            builder,
+        }
+    }
+}
+
+impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
-        loop {
-            match self.reader.take() {
-                None => {
-                    let (_, r) = self.inner.read(&self.path, self.args.clone()).await?;
-                    self.reader = Some(r);
-                    continue;
-                }
-                Some(mut reader) => {
-                    let buf = reader.read().await?;
-                    self.reader = Some(reader);
-                    self.args.range_mut().advance(buf.len() as u64);
-                    return Ok(buf);
+        use backon::RetryableWithContext;
+
+        let reader = self.reader.clone();
+        let stream = self.stream.take();
+        let range = self.range;
+        let read = self.read;
+        let mut attempt: u32 = 0;
+
+        let ((stream, range, read), res) = {
+            |(stream, mut range, mut read): (
+                Option<Box<dyn oio::ReadStreamDyn>>,
+                BytesRange,
+                u64,
+            )| {
+                let reader = reader.clone();
+                async move {
+                    let mut stream = match stream {
+                        Some(stream) => stream,
+                        None => {
+                            range.advance(read);
+                            read = 0;
+
+                            match reader.open(range).await {
+                                Ok((_, stream)) => stream,
+                                Err(err) => return ((None, range, read), Err(err)),
+                            }
+                        }
+                    };
+
+                    let res = match stream.read().await {
+                        Ok(buf) => {
+                            if !buf.is_empty() {
+                                read += buf.len() as u64;
+                            }
+                            (Some(stream), Ok(buf))
+                        }
+                        Err(err) => (None, Err(err)),
+                    };
+
+                    ((res.0, range, read), res.1)
                 }
             }
         }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context((stream, range, read))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Read,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.stream = stream;
+        self.range = range;
+        self.read = read;
+
+        res.map_err(|err| err.set_persistent())
     }
 }
 
@@ -437,11 +652,12 @@ impl<R, I> RetryWrapper<R, I> {
     }
 }
 
-impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
+impl<R: oio::ReadStream, I: RetryInterceptor> oio::ReadStream for RetryWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -453,7 +669,15 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Read,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -466,6 +690,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let ((inner, _), res) = {
             |(mut r, bs): (R, Buffer)| async move {
@@ -477,7 +702,15 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context((inner, bs))
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -488,6 +721,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -499,7 +733,15 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -510,6 +752,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -521,7 +764,15 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -534,6 +785,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut p: P| async move {
@@ -545,7 +797,15 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::List,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -560,6 +820,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         let inner = self.take_inner()?;
         let path = path.to_string();
         let args_cloned = args.clone();
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut p: P| {
@@ -575,7 +836,13 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
-            self.notify.intercept(err, dur);
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Delete,
+                err,
+                retry_after: dur,
+                attempt,
+            });
         })
         .await;
 
@@ -587,6 +854,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
 
         let (inner, res) = {
             |mut p: P| async move {
@@ -598,7 +866,110 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context(inner)
-        .notify(|err, dur| self.notify.intercept(err, dur))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Delete,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+}
+
+impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.next().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.close().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let mut attempt: u32 = 0;
+
+        let (inner, res) = {
+            |mut c: C| async move {
+                let res = c.abort().await;
+
+                (c, res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Copy,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
         .await;
 
         self.inner = Some(inner);
@@ -613,8 +984,10 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use futures::stream;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
     use opendal_layer_logging::LoggingLayer;
-    use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
 
@@ -638,11 +1011,37 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
+    /// Reader returned by this backend.
+    pub struct MockReader {
+        backend: MockService,
+    }
+
+    impl MockReader {
+        fn new(backend: MockService, _: &str, _: OpRead) -> Self {
+            Self { backend }
+        }
+    }
+
+    impl oio::StreamRead for MockReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let backend = &self.backend;
+            let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+            let stream = MockReadStream {
+                buf: Bytes::from("Hello, World!").into(),
+                range,
+                attempt: backend.attempt.clone(),
+            };
+
+            Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        }
+    }
+
     impl Access for MockService {
-        type Reader = MockReader;
+        type Reader = oio::StreamReader<MockReader>;
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
+        type Copier = MockCopier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
@@ -655,6 +1054,7 @@ mod tests {
                 stat: true,
                 list: true,
                 list_with_recursive: true,
+                copy: true,
                 ..Default::default()
             });
 
@@ -667,14 +1067,10 @@ mod tests {
             ))
         }
 
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             Ok((
-                RpRead::new(),
-                MockReader {
-                    buf: Bytes::from("Hello, World!").into(),
-                    range: args.range(),
-                    attempt: self.attempt.clone(),
-                },
+                RpRead::default(),
+                oio::StreamReader::new(MockReader::new(self.clone(), path, args)),
             ))
         }
 
@@ -696,16 +1092,31 @@ mod tests {
             let lister = MockLister::default();
             Ok((RpList::default(), lister))
         }
+
+        async fn copy(
+            &self,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<(RpCopy, Self::Copier)> {
+            Ok((
+                RpCopy::default(),
+                MockCopier {
+                    attempt: self.attempt.clone(),
+                },
+            ))
+        }
     }
 
     #[derive(Debug, Clone, Default)]
-    struct MockReader {
+    struct MockReadStream {
         buf: Buffer,
         range: BytesRange,
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl oio::Read for MockReader {
+    impl oio::ReadStream for MockReadStream {
         async fn read(&mut self) -> Result<Buffer> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
@@ -835,12 +1246,57 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default)]
+    struct MockCopier {
+        attempt: Arc<Mutex<usize>>,
+    }
+
+    impl oio::Copy for MockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                2 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                3 => Ok(Some(8)),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from copier")
+                        .set_temporary(),
+                ),
+                5 => Ok(Some(5)),
+                6 => Ok(None),
+                _ => unreachable!(),
+            }
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::default())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
     async fn test_retry_read() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -864,10 +1320,7 @@ mod tests {
     /// This test is used to reproduce the panic issue while composing retry layer with timeout layer.
     #[tokio::test]
     async fn test_retry_write_fail_on_close() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -896,7 +1349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_list() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -919,8 +1372,97 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_retry_event_attempt_and_op() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())?
+            .layer(
+                RetryLayer::default()
+                    .with_min_delay(Duration::from_millis(1))
+                    .with_max_delay(Duration::from_millis(1))
+                    .with_notify(recorder.clone()),
+            )
+            .finish();
+
+        let r = op.reader("retryable_error").await?;
+        let mut content = Vec::new();
+        let _ = r.read_into(&mut content, ..).await?;
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Read, 1),
+                (Operation::Read, 2),
+                (Operation::Read, 1),
+            ],
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_read_stream_error_enters_retry_budget() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let backend = MockService::default();
+        let reader = RetryReader::new(
+            oio::StreamReader::new(MockReader::new(
+                backend.clone(),
+                "retryable_error",
+                OpRead::default(),
+            )),
+            Arc::new(recorder.clone()),
+            ExponentialBuilder::default()
+                .with_min_delay(Duration::from_millis(1))
+                .with_max_delay(Duration::from_millis(1)),
+        );
+
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::default()).await?;
+        let buf = oio::ReadStream::read_all(&mut stream).await?;
+
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"Hello, World!"));
+        assert_eq!(*backend.attempt.lock().unwrap(), 5);
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Read, 1),
+                (Operation::Read, 2),
+                (Operation::Read, 1),
+            ],
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_retry_batch() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let builder = MockBuilder::default();
         // set to a lower delay to make it run faster
@@ -935,6 +1477,51 @@ mod tests {
         let paths = vec!["hello", "world", "test", "batch"];
         op.delete_stream(stream::iter(paths)).await?;
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_copy() -> Result<()> {
+        setup();
+
+        #[derive(Default, Clone)]
+        struct Recorder {
+            events: Arc<Mutex<Vec<(Operation, u32)>>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, event: RetryEvent<'_>) {
+                self.events.lock().unwrap().push((event.op, event.attempt));
+            }
+        }
+
+        let recorder = Recorder::default();
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())?
+            .layer(
+                RetryLayer::default()
+                    .with_min_delay(Duration::from_millis(1))
+                    .with_max_delay(Duration::from_millis(1))
+                    .with_notify(recorder.clone()),
+            )
+            .finish();
+
+        op.copy("from", "to").await.expect("copy must succeed");
+
+        // The MockCopier returns errors on attempts 1, 2, 4 and progress
+        // on attempts 3, 5; finishing on attempt 6. The retry layer must
+        // retry `Copier::next` to drive the operation to completion.
+        assert_eq!(*builder.attempt.lock().unwrap(), 6);
+
+        let events = recorder.events.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                (Operation::Copy, 1),
+                (Operation::Copy, 2),
+                (Operation::Copy, 1),
+            ],
+        );
         Ok(())
     }
 }

@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use tokio::runtime::Handle;
 
 use crate::Operator as AsyncOperator;
+use crate::raw::PresignedRequest;
 use crate::types::IntoOperatorUri;
 use crate::*;
 
@@ -136,6 +139,25 @@ impl Operator {
         })
     }
 
+    /// Spawn a future onto the runtime's worker pool and block until it
+    /// completes.
+    ///
+    /// Unlike [`Handle::block_on`] which polls the future on the **calling**
+    /// thread's stack, this method runs the future on a tokio worker thread
+    /// (typically 8 MB stack) and only uses the calling thread to wait for
+    /// the result.  This avoids stack overflows when the async state machine
+    /// is deeply nested (e.g. HF/XET uploads driven from a JVM thread with
+    /// a 1 MB default stack).
+    fn spawn_block<F>(&self, f: F) -> Result<F::Output>
+    where
+        F: std::future::Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.handle.block_on(self.handle.spawn(f)).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "blocking task failed").set_source(err)
+        })
+    }
+
     /// Create a blocking operator from URI based configuration.
     pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Self> {
         let op = AsyncOperator::from_uri(uri)?;
@@ -164,6 +186,34 @@ impl Operator {
 
 /// # Operator blocking API.
 impl Operator {
+    /// Create a presigned request for stat.
+    ///
+    /// See [`Operator::presign_stat`] for more details.
+    pub fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_stat(path, expire))
+    }
+
+    /// Create a presigned request for read.
+    ///
+    /// See [`Operator::presign_read`] for more details.
+    pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_read(path, expire))
+    }
+
+    /// Create a presigned request for write.
+    ///
+    /// See [`Operator::presign_write`] for more details.
+    pub fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_write(path, expire))
+    }
+
+    /// Create a presigned request for delete.
+    ///
+    /// See [`Operator::presign_delete`] for more details.
+    pub fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_delete(path, expire))
+    }
+
     /// Get given path's metadata.
     ///
     /// # Behavior
@@ -244,7 +294,9 @@ impl Operator {
     /// when `test/abc` exists since the service won't have the concept of dir. There is nothing
     /// we can do about this.
     pub fn stat_options(&self, path: &str, opts: options::StatOptions) -> Result<Metadata> {
-        self.handle.block_on(self.op.stat_options(path, opts))
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.stat_options(&path, opts).await })?
     }
 
     /// Check if this path exists or not.
@@ -298,7 +350,9 @@ impl Operator {
     /// # }
     /// ```
     pub fn create_dir(&self, path: &str) -> Result<()> {
-        self.handle.block_on(self.op.create_dir(path))
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.create_dir(&path).await })?
     }
 
     /// Read the whole path into a bytes.
@@ -327,7 +381,9 @@ impl Operator {
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`blocking::Operator::reader`]
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
-        self.handle.block_on(self.op.read_options(path, opts))
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.read_options(&path, opts).await })?
     }
 
     /// Create a new reader which can read the whole path.
@@ -394,7 +450,10 @@ impl Operator {
         bs: impl Into<Buffer>,
         opts: options::WriteOptions,
     ) -> Result<Metadata> {
-        self.handle.block_on(self.op.write_options(path, bs, opts))
+        let op = self.op.clone();
+        let path = path.to_string();
+        let bs = bs.into();
+        self.spawn_block(async move { op.write_options(&path, bs, opts).await })?
     }
 
     /// Write multiple bytes into given path.
@@ -456,8 +515,42 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
-        self.handle.block_on(self.op.copy(from, to))
+    pub fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        self.copy_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Copy a file from `from` to `to` with additional options.
+    pub fn copy_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<Metadata> {
+        let op = self.op.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        self.spawn_block(async move { op.copy_options(&from, &to, opts).await })?
+    }
+
+    /// Create a copier from `from` to `to`.
+    ///
+    /// This function creates a new [`blocking::Copier`] that implements
+    /// `Iterator<Item = Result<usize>>`.
+    pub fn copier(&self, from: &str, to: &str) -> Result<blocking::Copier> {
+        self.copier_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Create a copier from `from` to `to` with additional options.
+    pub fn copier_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<blocking::Copier> {
+        let copier = self
+            .handle
+            .block_on(self.op.copier_options(from, to, opts))?;
+        Ok(blocking::Copier::new(self.handle.clone(), copier))
     }
 
     /// Rename a file from `from` to `to`.
@@ -481,7 +574,10 @@ impl Operator {
     /// # }
     /// ```
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
-        self.handle.block_on(self.op.rename(from, to))
+        let op = self.op.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        self.spawn_block(async move { op.rename(&from, &to).await })?
     }
 
     /// Delete given path.
@@ -512,7 +608,9 @@ impl Operator {
     ///
     /// - Delete not existing error won't return errors.
     pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
-        self.handle.block_on(self.op.delete_options(path, opts))
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.delete_options(&path, opts).await })?
     }
 
     /// Delete an infallible iterator of paths.
@@ -662,7 +760,9 @@ impl Operator {
     ///
     /// See [`options::ListOptions`] for the full set. Common knobs: traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     pub fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
-        self.handle.block_on(self.op.list_options(path, opts))
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.list_options(&path, opts).await })?
     }
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.

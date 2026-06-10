@@ -25,6 +25,7 @@ use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
 pub struct AzdlsConfig {
     /// Root of this backend.
     pub root: Option<String>,
@@ -58,6 +59,10 @@ pub struct AzdlsConfig {
     /// - required for client_credentials authentication
     /// - default value: `https://login.microsoftonline.com`
     pub authority_host: Option<String>,
+    /// Whether hierarchical namespace (HNS) is enabled for the storage account.
+    /// When enabled, recursive deletion can use pagination to avoid timeouts on large directories.
+    /// - default value: `false`
+    pub enable_hns: bool,
 }
 
 impl Debug for AzdlsConfig {

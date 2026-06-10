@@ -19,6 +19,7 @@ This service can be used to:
 - `endpoint`: Set the endpoint for backend.
 - `account_name`: Set the account_name for backend.
 - `account_key`: Set the account_key for backend.
+- `batch_max_operations`: Deprecated. Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit and this option is no longer needed.
 
 Refer to public API docs for more information.
 

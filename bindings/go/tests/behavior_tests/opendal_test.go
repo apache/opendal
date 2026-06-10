@@ -26,9 +26,11 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
@@ -37,12 +39,17 @@ import (
 
 var op *opendal.Operator
 
+const defaultContentMaxSize uint = 4 * 1024 * 1024
+
 func TestMain(m *testing.M) {
 	var (
 		closeFunc func()
 		err       error
 	)
-	op, closeFunc, err = newOperator()
+	op, closeFunc, err = newOperator(
+		opendal.WithTimeout(time.Minute, 10*time.Second),
+		opendal.WithRetry(),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -65,6 +72,7 @@ func TestBehavior(t *testing.T) {
 	tests = append(tests, testsDelete(cap)...)
 	tests = append(tests, testsList(cap)...)
 	tests = append(tests, testsRead(cap)...)
+	tests = append(tests, testsPresign(cap)...)
 	tests = append(tests, testsRename(cap)...)
 	tests = append(tests, testsStat(cap)...)
 	tests = append(tests, testsWrite(cap)...)
@@ -93,11 +101,10 @@ func TestBehavior(t *testing.T) {
 	}
 }
 
-func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
+func newOperator(operatorOptions ...opendal.OperatorOption) (op *opendal.Operator, closeFunc func(), err error) {
 	test := os.Getenv("OPENDAL_TEST")
 	var scheme opendal.Scheme
 	for _, s := range schemes {
-		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
 		normalizedSchemeName := strings.ReplaceAll(test, "_", "-")
 		if s.Name() != test && s.Name() != normalizedSchemeName {
 			continue
@@ -130,7 +137,7 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 		opts[strings.ToLower(strings.TrimPrefix(key, prefix))] = value
 	}
 
-	op, err = opendal.NewOperator(scheme, opts)
+	op, err = opendal.NewOperator(scheme, opts, operatorOptions...)
 	if err != nil {
 		err = fmt.Errorf("create operator must succeed: %s", err)
 	}
@@ -146,6 +153,49 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 
 func assertErrorCode(err error) opendal.ErrorCode {
 	return err.(*opendal.Error).Code()
+}
+
+// parsedOverrides is lazily parsed from OPENDAL_TEST_CAPABILITY_OVERRIDES.
+var parsedOverrides map[string]bool
+
+func getCapOverrides() map[string]bool {
+	if parsedOverrides != nil {
+		return parsedOverrides
+	}
+	raw := os.Getenv("OPENDAL_TEST_CAPABILITY_OVERRIDES")
+	parsedOverrides = make(map[string]bool)
+	if raw == "" {
+		return parsedOverrides
+	}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		v, err := strconv.ParseBool(strings.TrimSpace(kv[1]))
+		if err != nil {
+			continue
+		}
+		parsedOverrides[strings.TrimSpace(kv[0])] = v
+	}
+	return parsedOverrides
+}
+
+// isCapEnabled checks both the capability reported by the operator and any
+// test-level overrides set via OPENDAL_TEST_CAPABILITY_OVERRIDES.
+func isCapEnabled(check func() bool, name string) bool {
+	if !check() {
+		return false
+	}
+	overrides := getCapOverrides()
+	if v, ok := overrides[name]; ok {
+		return v
+	}
+	return true
 }
 
 func genBytesWithRange(min, max uint) ([]byte, uint) {
@@ -206,10 +256,7 @@ func (f *fixture) NewFile() (string, []byte, uint) {
 }
 
 func (f *fixture) NewFileWithPath(path string) (string, []byte, uint) {
-	maxSize := f.op.Info().GetFullCapability().WriteTotalMaxSize()
-	if maxSize == 0 {
-		maxSize = 4 * 1024 * 1024
-	}
+	maxSize := contentMaxSize(f.op.Info().GetFullCapability())
 	return f.NewFileWithRange(path, 1, maxSize)
 }
 
@@ -218,6 +265,14 @@ func (f *fixture) NewFileWithRange(path string, min, max uint) (string, []byte, 
 
 	content, size := genBytesWithRange(min, max)
 	return path, content, size
+}
+
+func contentMaxSize(cap *opendal.Capability) uint {
+	maxSize := cap.WriteTotalMaxSize()
+	if maxSize == 0 || maxSize > defaultContentMaxSize {
+		return defaultContentMaxSize
+	}
+	return maxSize
 }
 
 func (f *fixture) Cleanup(assert *require.Assertions) {

@@ -207,11 +207,79 @@ impl SqliteBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct SqliteReader {
+    backend: SqliteBackend,
+    path: String,
+}
+
+impl SqliteReader {
+    fn new(backend: SqliteBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for SqliteReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+
+        let (buffer, content_length) = if range.is_full() {
+            // Full read - use GET
+            match backend.core.get(&p).await? {
+                Some(bs) => {
+                    let content_length = bs.len() as u64;
+                    (bs, content_length)
+                }
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let content_length = match backend.core.get_length(&p).await? {
+                Some(v) => v,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            };
+            let content_range = range.to_content_range(content_length)?;
+
+            let buffer = if content_range.is_empty() {
+                Buffer::new()
+            } else {
+                let start: isize = content_range.start.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                let limit: isize = content_range.len().try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "range size exceeds isize::MAX")
+                        .set_source(err)
+                })?;
+                match backend.core.get_range(&p, start, Some(limit)).await? {
+                    Some((bs, _)) => bs,
+                    None => {
+                        return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
+                    }
+                }
+            };
+            (buffer, content_length as u64)
+        };
+
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for SqliteBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<SqliteReader>;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
@@ -254,32 +322,11 @@ impl Access for SqliteBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-
-        let range = args.range();
-        let buffer = if range.is_full() {
-            // Full read - use GET
-            match self.core.get(&p).await? {
-                Some(bs) => bs,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let start = range.offset() as isize;
-            let limit = match range.size() {
-                Some(size) => size as isize,
-                None => -1, // Sqlite uses -1 for end of string
-            };
-
-            match self.core.get_range(&p, start, limit).await? {
-                Some(bs) => bs,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        };
-
-        Ok((RpRead::new(), buffer))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(SqliteReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -314,6 +361,9 @@ impl Access for SqliteBackend {
 #[cfg(test)]
 mod test {
     use super::*;
+    use opendal_core::raw::oio::Read as _;
+    use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::raw::oio::Write as _;
     use sqlx::SqlitePool;
 
     async fn build_client() -> OnceCell<SqlitePool> {
@@ -357,5 +407,32 @@ mod test {
 
         assert_eq!(accessor.root, "/test/");
         assert_eq!(accessor.info.root(), Arc::from("/test/"));
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_range_from_offset_reads_to_eof() {
+        let core = SqliteCore {
+            pool: build_client().await,
+            config: Default::default(),
+            table: "test".to_string(),
+            key_field: "key".to_string(),
+            value_field: "value".to_string(),
+        };
+        let pool = core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let accessor = SqliteBackend::new(core);
+        let (_, mut writer) = accessor.write("hello", OpWrite::default()).await.unwrap();
+        writer.write(Buffer::from("hello world")).await.unwrap();
+        writer.close().await.unwrap();
+
+        let (_, reader) = accessor.read("hello", OpRead::default()).await.unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(6_u64..)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"world");
     }
 }

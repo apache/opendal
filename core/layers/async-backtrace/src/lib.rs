@@ -76,6 +76,7 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type Writer = AsyncBacktraceWrapper<A::Writer>;
     type Lister = AsyncBacktraceWrapper<A::Lister>;
     type Deleter = AsyncBacktraceWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -98,8 +99,14 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 
     #[async_backtrace::framed]
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts.clone()).await
     }
 
     #[async_backtrace::framed]
@@ -145,10 +152,26 @@ impl<R> AsyncBacktraceWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
+impl<R: oio::ReadStream> oio::ReadStream for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read> oio::Read for AsyncBacktraceWrapper<R> {
+    #[async_backtrace::framed]
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(AsyncBacktraceWrapper::new(stream)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    #[async_backtrace::framed]
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
     }
 }
 

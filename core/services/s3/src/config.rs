@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use opendal_core::Configurator;
@@ -42,7 +43,11 @@ pub struct S3Config {
     /// required.
     #[serde(alias = "aws_bucket", alias = "aws_bucket_name", alias = "bucket_name")]
     pub bucket: String,
-    /// is bucket versioning enabled for this bucket
+    /// Deprecated: S3 versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_versioning: bool,
     /// endpoint of this backend.
     ///
@@ -102,6 +107,10 @@ pub struct S3Config {
     pub external_id: Option<String>,
     /// role_session_name for this backend.
     pub role_session_name: Option<String>,
+    /// assume_role_duration_seconds for this backend.
+    pub assume_role_duration_seconds: Option<u32>,
+    /// assume_role_session_tags for this backend.
+    pub assume_role_session_tags: Option<HashMap<String, String>>,
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -115,8 +124,14 @@ pub struct S3Config {
     /// This option is used to disable the default behavior of opendal
     /// to load credential from ec2 metadata, a.k.a., IMDSv2
     pub disable_ec2_metadata: bool,
+    /// Skip signature will skip loading credentials and signing requests.
+    pub skip_signature: bool,
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
     pub allow_anonymous: bool,
     /// server_side_encryption for this backend.
     ///
@@ -175,27 +190,23 @@ pub struct S3Config {
         alias = "virtual_hosted_style_request"
     )]
     pub enable_virtual_host_style: bool,
-    /// Set maximum batch operations of this backend.
-    ///
-    /// Some compatible services have a limit on the number of operations in a batch request.
-    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
-    ///
-    /// Please tune this value based on services' document.
+    /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."
     )]
     pub batch_max_operations: Option<usize>,
-    /// Set the maximum delete size of this backend.
-    ///
-    /// Some compatible services have a limit on the number of operations in a batch request.
-    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
-    ///
-    /// Please tune this value based on services' document.
+    /// Deprecated: S3 delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."
+    )]
     pub delete_max_size: Option<usize>,
-    /// Disable stat with override so that opendal will not send stat request with override queries.
-    ///
-    /// For example, R2 doesn't support stat with `response_content_type` query.
+    /// Deprecated: S3 stat override capabilities are enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 stat override capabilities are enabled by default. Use CapabilityOverrideLayer to override them for specific endpoints."
+    )]
     pub disable_stat_with_override: bool,
     /// Checksum Algorithm to use when sending checksums in HTTP headers.
     /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.
@@ -205,12 +216,18 @@ pub struct S3Config {
     /// - "md5"
     #[serde(alias = "aws_checksum_algorithm")]
     pub checksum_algorithm: Option<String>,
-    /// Disable write with if match so that opendal will not send write request with if match headers.
-    ///
-    /// For example, Ceph RADOS S3 doesn't support write with if matched.
+    /// Deprecated: S3 write with If-Match capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 write with If-Match capability is enabled by default and this option is no longer needed."
+    )]
     pub disable_write_with_if_match: bool,
 
-    /// Enable write with append so that opendal will send write request with append headers.
+    /// Deprecated: S3 append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_write_with_append: bool,
 
     /// OpenDAL uses List Objects V2 by default to list objects.
@@ -221,6 +238,10 @@ pub struct S3Config {
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     #[serde(alias = "aws_request_payer", alias = "request_payer")]
     pub enable_request_payer: bool,
+
+    /// Default ACL for new objects.
+    /// Note that some s3 services like minio do not support this option.
+    pub default_acl: Option<String>,
 }
 
 impl Debug for S3Config {

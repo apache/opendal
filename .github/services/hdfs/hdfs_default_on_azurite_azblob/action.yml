@@ -22,14 +22,17 @@ runs:
   using: "composite"
   steps:
     - name: Setup java env
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
-        distribution: temurin
-        java-version: "11"
+        distribution: zulu
+        java-version: 11
+    - name: Setup node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 20
     - name: Setup azurite azblob service
       shell: bash
-      working-directory: fixtures/azblob
-      run: docker compose -f docker-compose-azurite.yml up -d --wait
+      run: ./fixtures/azblob/setup_azurite.sh
     - name: Setup test bucket
       shell: bash
       run: |
@@ -67,5 +70,5 @@ runs:
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_ROOT=${OPENDAL_AZBLOB_ROOT}
         OPENDAL_HDFS_NAME_NODE=wasb://${OPENDAL_AZBLOB_CONTAINER}@${OPENDAL_AZBLOB_ACCOUNT_NAME}.blob.core.windows.net
-        OPENDAL_HDFS_ENABLE_APPEND=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false
         EOF

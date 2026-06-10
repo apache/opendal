@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::sync::Arc;
+use url::Url;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -94,53 +96,73 @@ impl Builder for MemcachedBuilder {
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Access> {
-        let endpoint = self.config.endpoint.clone().ok_or_else(|| {
+        let endpoint_raw = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", MEMCACHED_SCHEME)
         })?;
-        let uri = http::Uri::try_from(&endpoint).map_err(|err| {
+
+        let url_str = if !endpoint_raw.contains("://") {
+            Cow::Owned(format!("tcp://{}", endpoint_raw))
+        } else {
+            Cow::Borrowed(endpoint_raw.as_str())
+        };
+
+        let parsed = Url::parse(&url_str).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", MEMCACHED_SCHEME)
-                .with_context("endpoint", &endpoint)
+                .with_context("endpoint", &endpoint_raw)
                 .set_source(err)
         })?;
 
-        match uri.scheme_str() {
-            // If scheme is none, we will use tcp by default.
-            None => (),
-            Some(scheme) => {
-                // We only support tcp by now.
-                if scheme != "tcp" {
+        let endpoint = match parsed.scheme() {
+            "tcp" => {
+                let host = parsed.host_str().ok_or_else(|| {
+                    Error::new(ErrorKind::ConfigInvalid, "tcp endpoint doesn't have host")
+                        .with_context("service", MEMCACHED_SCHEME)
+                        .with_context("endpoint", &endpoint_raw)
+                })?;
+                let port = parsed.port().ok_or_else(|| {
+                    Error::new(ErrorKind::ConfigInvalid, "tcp endpoint doesn't have port")
+                        .with_context("service", MEMCACHED_SCHEME)
+                        .with_context("endpoint", &endpoint_raw)
+                })?;
+                Endpoint::Tcp(format!("{host}:{port}"))
+            }
+
+            #[cfg(unix)]
+            "unix" => {
+                let path = parsed.path();
+                if path.is_empty() {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
-                        "endpoint is using invalid scheme",
+                        "unix endpoint doesn't have path",
                     )
                     .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint)
-                    .with_context("scheme", scheme.to_string()));
+                    .with_context("endpoint", &endpoint_raw));
                 }
+                Endpoint::Unix(path.to_string())
+            }
+
+            #[cfg(not(unix))]
+            "unix" => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "unix socket is not supported on this platform",
+                )
+                .with_context("service", MEMCACHED_SCHEME)
+                .with_context("endpoint", &endpoint_raw));
+            }
+
+            scheme => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "endpoint is using invalid scheme, only tcp and unix are supported",
+                )
+                .with_context("service", MEMCACHED_SCHEME)
+                .with_context("endpoint", &endpoint_raw)
+                .with_context("scheme", scheme));
             }
         };
-
-        let host = if let Some(host) = uri.host() {
-            host.to_string()
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have host")
-                    .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint),
-            );
-        };
-        let port = if let Some(port) = uri.port_u16() {
-            port
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have port")
-                    .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint),
-            );
-        };
-        let endpoint = format!("{host}:{port}",);
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
@@ -193,11 +215,45 @@ impl MemcachedBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct MemcachedReader {
+    backend: MemcachedBackend,
+    path: String,
+}
+
+impl MemcachedReader {
+    fn new(backend: MemcachedBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for MemcachedReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for MemcachedBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<MemcachedReader>;
     type Writer = MemcachedWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
@@ -218,14 +274,11 @@ impl Access for MemcachedBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(MemcachedReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

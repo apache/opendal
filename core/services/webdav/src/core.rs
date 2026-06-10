@@ -93,6 +93,8 @@ pub struct WebdavCore {
     pub user_metadata_prefix: String,
     /// XML namespace URI for user metadata properties.
     pub user_metadata_uri: String,
+    /// Skip automatic parent directory creation before writes.
+    pub disable_create_dir: bool,
 }
 
 impl Debug for WebdavCore {
@@ -102,6 +104,7 @@ impl Debug for WebdavCore {
             .field("root", &self.root)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
+            .field("disable_create_dir", &self.disable_create_dir)
             .finish_non_exhaustive()
     }
 }
@@ -606,27 +609,23 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                     }
                 }
             }
-            Ok(Event::Text(ref e)) => {
-                if current_prop_key.is_some() {
-                    // Text content - add directly (no escaping needed)
-                    let text_str = String::from_utf8_lossy(e.as_ref());
-                    current_prop_value.push_str(&text_str);
-                }
+            Ok(Event::Text(ref e)) if current_prop_key.is_some() => {
+                // Text content - add directly (no escaping needed)
+                let text_str = String::from_utf8_lossy(e.as_ref());
+                current_prop_value.push_str(&text_str);
             }
-            Ok(Event::GeneralRef(ref e)) => {
-                if current_prop_key.is_some() {
-                    // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
-                    let entity_name = String::from_utf8_lossy(e.as_ref());
-                    let decoded = match entity_name.as_ref() {
-                        "lt" => "<",
-                        "gt" => ">",
-                        "amp" => "&",
-                        "quot" => "\"",
-                        "apos" => "'",
-                        _ => "", // Unknown entity, skip
-                    };
-                    current_prop_value.push_str(decoded);
-                }
+            Ok(Event::GeneralRef(ref e)) if current_prop_key.is_some() => {
+                // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
+                let entity_name = String::from_utf8_lossy(e.as_ref());
+                let decoded = match entity_name.as_ref() {
+                    "lt" => "<",
+                    "gt" => ">",
+                    "amp" => "&",
+                    "quot" => "\"",
+                    "apos" => "'",
+                    _ => "", // Unknown entity, skip
+                };
+                current_prop_value.push_str(decoded);
             }
             Ok(Event::End(ref e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
@@ -679,11 +678,9 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                     status_text.clear();
                 }
             }
-            Ok(Event::Text(ref e)) => {
-                if in_status {
-                    let text_str = String::from_utf8_lossy(e.as_ref());
-                    status_text.push_str(&text_str);
-                }
+            Ok(Event::Text(ref e)) if in_status => {
+                let text_str = String::from_utf8_lossy(e.as_ref());
+                status_text.push_str(&text_str);
             }
             Ok(Event::End(ref e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
@@ -739,15 +736,28 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         status,
     } = propstat;
 
-    if let [_, code, text] = status.splitn(3, ' ').collect::<Vec<_>>()[..3] {
-        // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
-        let code = code.parse::<u16>().unwrap();
-        if code >= 400 {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                format!("propfind response is unexpected: {code} {text}"),
-            ));
-        }
+    let mut status_parts = status.split_whitespace();
+    status_parts
+        .next()
+        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "propfind response status is missing"))?;
+    let code = status_parts.next().ok_or_else(|| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "propfind response status code is missing",
+        )
+    })?;
+
+    // read status definition at https://tools.ietf.org/html/rfc2068#section-6.1
+    let status_parts = status.split_whitespace();
+    let code = code.parse::<u16>().map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "parse webdav propfind status code").set_source(err)
+    })?;
+    if code >= 400 {
+        let text = status_parts.collect::<Vec<_>>().join(" ");
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("propfind response is unexpected: {code} {text}"),
+        ));
     }
 
     let mode: EntryMode = if resourcetype.value == Some(ResourceType::Collection) {
@@ -758,7 +768,10 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     let mut m = Metadata::new(mode);
 
     if let Some(v) = getcontentlength {
-        m.set_content_length(v.parse::<u64>().unwrap());
+        let content_length = v.parse::<u64>().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
+        })?;
+        m.set_content_length(content_length);
     }
 
     if let Some(v) = getcontenttype {
@@ -821,6 +834,19 @@ mod tests {
 
     use super::*;
 
+    fn new_propstat(status: &str, getcontentlength: Option<&str>) -> Propstat {
+        Propstat {
+            status: status.to_string(),
+            prop: Prop {
+                getlastmodified: "Tue, 01 May 2022 06:39:47 GMT".to_string(),
+                getetag: None,
+                getcontentlength: getcontentlength.map(str::to_string),
+                getcontenttype: None,
+                resourcetype: ResourceTypeContainer { value: None },
+            },
+        }
+    }
+
     #[test]
     fn test_propstat() {
         let xml = r#"<D:propstat>
@@ -850,6 +876,22 @@ mod tests {
         );
 
         assert_eq!(propstat.status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn test_parse_propstat_rejects_invalid_status_code() {
+        for status in ["HTTP/1.1 abc OK", "HTTP/1.1 99999 OK", "HTTP/1.1", "broken"] {
+            assert!(parse_propstat(&new_propstat(status, None)).is_err());
+        }
+    }
+
+    #[test]
+    fn test_parse_propstat_rejects_invalid_content_length() {
+        for content_length in ["abc", "18446744073709551616"] {
+            assert!(
+                parse_propstat(&new_propstat("HTTP/1.1 200 OK", Some(content_length))).is_err()
+            );
+        }
     }
 
     #[test]

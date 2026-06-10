@@ -104,6 +104,13 @@ pub struct ReadOptions {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
 
+    /// Known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    pub content_length_hint: Option<u64>,
+
     /// Set `concurrent` for the operation.
     ///
     /// OpenDAL by default to read file without concurrent. This is not efficient for cases when users
@@ -187,6 +194,13 @@ pub struct ReaderOptions {
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
+
+    /// Known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    pub content_length_hint: Option<u64>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -532,4 +546,56 @@ pub struct CopyOptions {
     /// This operation provides a way to ensure copy operations only create new resources
     /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
     pub if_not_exists: bool,
+
+    /// Sets the condition that copy operation will succeed only if the destination
+    /// currently has the given ETag.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the existing
+    ///   destination object's ETag matches the given value.
+    pub if_match: Option<String>,
+
+    /// Copy from a specific source object version.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_version`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will read from the specified source
+    ///   version instead of the current source object.
+    /// - Destination behavior follows normal copy semantics.
+    pub source_version: Option<String>,
+
+    /// Known content length of the source object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning copy operations. It must not be used as an object
+    /// identity or consistency condition.
+    pub source_content_length_hint: Option<u64>,
+
+    /// Sets concurrent copy operations for this copier.
+    ///
+    /// This is a best-effort execution option. Services that cannot split copy
+    /// into concurrent server-side tasks can ignore it.
+    pub concurrent: usize,
+
+    /// Sets chunk size for segmented copy operations.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_can_multi`],
+    /// [`Capability::copy_multi_min_size`] and
+    /// [`Capability::copy_multi_max_size`] before using this feature.
+    ///
+    /// This is a best-effort execution option. Services that support
+    /// server-side segmented copy can use it as the target size for each copy
+    /// step. Services that cannot split copy operations can ignore it.
+    pub chunk: Option<usize>,
 }

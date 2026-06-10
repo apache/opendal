@@ -36,6 +36,9 @@ pub use write::*;
 mod list;
 pub use list::Lister;
 
+mod copy;
+pub use copy::Copier;
+
 mod delete;
 pub use delete::*;
 
@@ -43,7 +46,6 @@ mod execute;
 pub use execute::*;
 
 mod operator;
-pub use operator::DEFAULT_OPERATOR_REGISTRY;
 pub use operator::IntoOperatorUri;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;

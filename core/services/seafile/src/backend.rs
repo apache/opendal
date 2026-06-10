@@ -162,6 +162,7 @@ impl Builder for SeafileBuilder {
                     am.set_scheme(SEAFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
+                            create_dir: true,
                             stat: true,
 
                             read: true,
@@ -197,14 +198,59 @@ pub struct SeafileBackend {
     core: Arc<SeafileCore>,
 }
 
+/// Reader returned by this backend.
+pub struct SeafileReader {
+    backend: SeafileBackend,
+    path: String,
+}
+
+impl SeafileReader {
+    fn new(backend: SeafileBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for SeafileReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let resp = backend.core.download_file(path, range).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for SeafileBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<SeafileReader>;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        self.core.create_dir(path).await?;
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -223,22 +269,11 @@ impl Access for SeafileBackend {
 
         metadata.map(RpStat::new)
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.download_file(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(SeafileReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

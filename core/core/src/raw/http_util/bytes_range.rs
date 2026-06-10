@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::ops::Bound;
+use std::ops::Range;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
@@ -75,10 +76,17 @@ impl BytesRange {
     ///
     /// # Panics
     ///
-    /// Panic if input `n` is larger than the size of the range.
+    /// Panic if advancing the offset would overflow or if input `n` is larger
+    /// than the size of the range.
     pub fn advance(&mut self, n: u64) {
-        self.0 += n;
-        self.1 = self.1.map(|size| size - n);
+        self.0 = self
+            .0
+            .checked_add(n)
+            .expect("BytesRange::advance overflow: offset + n exceeds u64::MAX");
+        self.1 = self.1.map(|size| {
+            size.checked_sub(n)
+                .expect("BytesRange::advance underflow: n exceeds range size")
+        });
     }
 
     /// Check if this range is full of this content.
@@ -98,7 +106,11 @@ impl BytesRange {
         (
             Bound::Included(self.0),
             match self.1 {
-                Some(size) => Bound::Excluded(self.0 + size),
+                Some(size) => Bound::Excluded(
+                    self.0
+                        .checked_add(size)
+                        .expect("BytesRange::to_range overflow: offset + size exceeds u64::MAX"),
+                ),
                 None => Bound::Unbounded,
             },
         )
@@ -106,13 +118,84 @@ impl BytesRange {
 
     /// Convert bytes range into rust range with usize.
     pub fn to_range_as_usize(self) -> impl RangeBounds<usize> {
+        let offset: usize = self
+            .0
+            .try_into()
+            .expect("BytesRange::to_range_as_usize: offset exceeds usize::MAX");
         (
-            Bound::Included(self.0 as usize),
+            Bound::Included(offset),
             match self.1 {
-                Some(size) => Bound::Excluded((self.0 + size) as usize),
+                Some(size) => {
+                    let end: usize = self
+                        .0
+                        .checked_add(size)
+                        .expect(
+                            "BytesRange::to_range_as_usize overflow: offset + size exceeds u64::MAX",
+                        )
+                        .try_into()
+                        .expect(
+                            "BytesRange::to_range_as_usize: offset + size exceeds usize::MAX",
+                        );
+                    Bound::Excluded(end)
+                }
                 None => Bound::Unbounded,
             },
         )
+    }
+
+    /// Convert bytes range into a checked content slice range.
+    pub fn to_content_range(self, content_length: usize) -> Result<Range<usize>> {
+        if self.1 == Some(0) {
+            return Ok(0..0);
+        }
+
+        if self.0 >= content_length as u64 && self.1.is_none() {
+            return Ok(content_length..content_length);
+        }
+
+        let offset: usize = self.0.try_into().map_err(|_| {
+            Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                .with_operation("BytesRange::to_content_range")
+                .with_context("offset", self.0)
+                .with_context("content_length", content_length)
+        })?;
+
+        match self.1 {
+            Some(size) => {
+                let end = self
+                    .0
+                    .checked_add(size)
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                            .with_operation("BytesRange::to_content_range")
+                            .with_context("offset", self.0)
+                            .with_context("size", size)
+                            .with_context("content_length", content_length)
+                    })?
+                    .try_into()
+                    .map_err(|_| {
+                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                            .with_operation("BytesRange::to_content_range")
+                            .with_context("offset", self.0)
+                            .with_context("size", size)
+                            .with_context("content_length", content_length)
+                    })?;
+
+                if end > content_length {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range exceeds content length",
+                    )
+                    .with_operation("BytesRange::to_content_range")
+                    .with_context("offset", self.0)
+                    .with_context("size", size)
+                    .with_context("content_length", content_length));
+                }
+
+                Ok(offset..end)
+            }
+            None => Ok(offset..content_length),
+        }
     }
 }
 
@@ -120,7 +203,14 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.1 {
             None => write!(f, "{}-", self.0),
-            Some(size) => write!(f, "{}-{}", self.0, self.0 + size - 1),
+            // A zero-size range can't be represented as a valid HTTP Range.
+            Some(0) => Err(std::fmt::Error),
+            Some(size) => write!(
+                f,
+                "{}-{}",
+                self.0,
+                self.0.checked_add(size - 1).ok_or(std::fmt::Error)?
+            ),
         }
     }
 }
@@ -173,6 +263,14 @@ impl FromStr for BytesRange {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
+            if end < start {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "header range is invalid: end is less than start",
+                )
+                .with_operation("BytesRange::from_str")
+                .with_context("value", value));
+            }
             Ok(BytesRange::new(start, Some(end - start + 1)))
         }
     }
@@ -185,12 +283,12 @@ where
     fn from(range: T) -> Self {
         let offset = match range.start_bound().cloned() {
             Bound::Included(n) => n,
-            Bound::Excluded(n) => n + 1,
+            Bound::Excluded(n) => n.saturating_add(1),
             Bound::Unbounded => 0,
         };
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset),
-            Bound::Excluded(n) => Some(n - offset),
+            Bound::Included(n) => Some(n.saturating_add(1).saturating_sub(offset)),
+            Bound::Excluded(n) => Some(n.saturating_sub(offset)),
             Bound::Unbounded => None,
         };
 
@@ -201,6 +299,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bytes_range_display_zero_size() {
+        // Zero-size at offset 0
+        let range = BytesRange::new(0, Some(0));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+
+        // Zero-size at nonzero offset
+        let range = BytesRange::new(5, Some(0));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+    }
 
     #[test]
     fn test_bytes_range_to_string() {
@@ -256,5 +365,114 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bytes_range_from_str_invalid_end_less_than_start() {
+        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0"];
+
+        for input in cases {
+            let result: Result<BytesRange> = input.parse();
+            assert!(
+                result.is_err(),
+                "expected error for invalid range {input}, got {result:?}"
+            );
+        }
+    }
+
+    #[allow(clippy::reversed_empty_ranges)]
+    #[test]
+    fn test_bytes_range_from_range_bounds_underflow() {
+        // Invalid ranges where end < start should produce zero-size ranges
+        // rather than underflowing.
+        assert_eq!(BytesRange::new(100, Some(0)), BytesRange::from(100..50));
+        assert_eq!(BytesRange::new(10, Some(0)), BytesRange::from(10..=5));
+        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..0));
+        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..=0));
+    }
+
+    #[test]
+    fn test_bytes_range_from_range_bounds_u64_max() {
+        // Boundary cases near u64::MAX must not overflow.
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(..=u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(..u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(1, Some(u64::MAX.saturating_sub(1))),
+            BytesRange::from(1..=u64::MAX)
+        );
+        // Excluded start at u64::MAX must not overflow.
+        assert_eq!(
+            BytesRange::new(u64::MAX, None),
+            BytesRange::from((u64::MAX)..)
+        );
+    }
+
+    #[test]
+    fn test_bytes_range_display_overflow() {
+        // offset=u64::MAX, size=2 would overflow in Display (u64::MAX + 1)
+        let range = BytesRange::new(u64::MAX, Some(2));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::to_range overflow")]
+    fn test_bytes_range_to_range_overflow() {
+        let range = BytesRange::new(u64::MAX, Some(1));
+        let _ = range.to_range();
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::to_range_as_usize")]
+    fn test_bytes_range_to_range_as_usize_overflow() {
+        let range = BytesRange::new(u64::MAX, Some(1));
+        let _ = range.to_range_as_usize();
+    }
+
+    #[test]
+    fn test_bytes_range_to_content_range() -> Result<()> {
+        assert_eq!(BytesRange::new(2, Some(4)).to_content_range(10)?, 2..6);
+        assert_eq!(BytesRange::new(2, None).to_content_range(10)?, 2..10);
+        assert_eq!(BytesRange::new(10, None).to_content_range(10)?, 10..10);
+        assert_eq!(BytesRange::new(20, None).to_content_range(10)?, 10..10);
+        assert_eq!(
+            BytesRange::new(u64::MAX, None).to_content_range(10)?,
+            10..10
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)).to_content_range(10)?,
+            0..0
+        );
+
+        let err = BytesRange::new(8, Some(4))
+            .to_content_range(10)
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = BytesRange::new(u64::MAX, Some(1))
+            .to_content_range(10)
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::advance overflow")]
+    fn test_bytes_range_advance_offset_overflow() {
+        let mut range = BytesRange::new(u64::MAX, None);
+        range.advance(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::advance underflow")]
+    fn test_bytes_range_advance_size_underflow() {
+        let mut range = BytesRange::new(0, Some(1));
+        range.advance(2);
     }
 }

@@ -96,7 +96,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          routeBasePath: "/",
+          routeBasePath: "docs",
           sidebarPath: require.resolve("./docs/sidebars.js"),
           editUrl: "https://github.com/apache/opendal/tree/main/website/",
           showLastUpdateAuthor: true,
@@ -137,10 +137,6 @@ const config = {
       {
         redirects: [
           {
-            from: "/docs/vision",
-            to: "/vision",
-          },
-          {
             from: "/discord",
             to: "https://discord.com/invite/XQy8yGR2dg",
           },
@@ -149,6 +145,20 @@ const config = {
             to: "https://lists.apache.org/list.html?dev@opendal.apache.org",
           },
         ],
+        // The landing page now owns "/", so docs moved from "/" to "/docs/".
+        // Keep every legacy doc URL working by redirecting the old prefix-less
+        // path to its new /docs/ location. The docs home ("/docs/") is excluded
+        // so it never collides with the landing page at "/".
+        createRedirects(existingPath) {
+          if (existingPath.startsWith("/docs/") && existingPath !== "/docs/") {
+            const legacy = existingPath.replace(/^\/docs\//, "/");
+            // Avoid colliding with root-level pages that are not docs.
+            if (legacy !== "/download/") {
+              return [legacy];
+            }
+          }
+          return undefined;
+        },
       },
     ],
     require.resolve("docusaurus-lunr-search"),
@@ -273,7 +283,8 @@ const config = {
       // image: 'img/opendal-social-card.jpg',
       colorMode: {
         defaultMode: "light",
-        disableSwitch: true,
+        disableSwitch: false,
+        respectPrefersColorScheme: true,
       },
       navbar: {
         logo: {

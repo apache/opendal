@@ -22,8 +22,11 @@ use std::sync::Arc;
 use bytes::BufMut;
 use futures::TryStreamExt;
 
-use crate::raw::Access;
+use crate::raw::Access as _;
+use crate::raw::BytesRange;
 use crate::raw::ConcurrentTasks;
+use crate::raw::RpRead;
+use crate::raw::oio::Read as _;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -93,6 +96,20 @@ pub struct Reader {
     ctx: Arc<ReadContext>,
 }
 
+struct FetchReadInput {
+    ctx: Arc<ReadContext>,
+    range_idx: usize,
+    range: BytesRange,
+}
+
+struct FetchReadOutput {
+    range_idx: usize,
+    offset: u64,
+    size: u64,
+    rp: RpRead,
+    buffer: Buffer,
+}
+
 impl Reader {
     /// Create a new reader.
     ///
@@ -103,6 +120,15 @@ impl Reader {
     /// in crate only.
     pub(crate) fn new(ctx: ReadContext) -> Self {
         Reader { ctx: Arc::new(ctx) }
+    }
+
+    /// Get complete object metadata observed by this reader.
+    ///
+    /// This method doesn't perform I/O. It returns `None` if no read has
+    /// observed complete object metadata yet, or if the underlying service
+    /// doesn't return metadata while opening read operations.
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.ctx.metadata()
     }
 
     /// Read give range from reader into [`Buffer`].
@@ -137,52 +163,139 @@ impl Reader {
 
     /// Fetch specific ranges from reader.
     ///
-    /// This operation try to merge given ranges into a list of
+    /// This operation tries to merge given ranges into a list of
     /// non-overlapping ranges. Users may also specify a `gap` to merge
-    /// close ranges.
+    /// close ranges. Merged ranges will be split by `chunk`, then executed
+    /// with `concurrent` and `prefetch`.
     ///
     /// The returning `Buffer` may share the same underlying memory without
     /// any extra copy.
     pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
-        let merged_ranges = self.merge_ranges(ranges.clone());
-
-        #[derive(Clone)]
-        struct FetchInput {
-            reader: Reader,
-            range: Range<u64>,
+        if ranges.is_empty() {
+            return Ok(vec![]);
         }
 
+        let mut bufs = vec![Buffer::new(); ranges.len()];
+        let ranges = ranges
+            .into_iter()
+            .enumerate()
+            .filter(|(_, range)| range.start < range.end)
+            .collect::<Vec<_>>();
+        if ranges.is_empty() {
+            return Ok(bufs);
+        }
+
+        let merged_ranges =
+            self.merge_ranges(ranges.iter().map(|(_, range)| range.clone()).collect());
+        let merged_bufs = self.fetch_merged_ranges(&merged_ranges).await?;
+
+        for (output_idx, range) in ranges {
+            let idx = merged_ranges.partition_point(|v| v.start <= range.start) - 1;
+            let start = range.start - merged_ranges[idx].start;
+            let end = range.end - merged_ranges[idx].start;
+            bufs[output_idx] = merged_bufs[idx].slice(start as usize..end as usize);
+        }
+
+        Ok(bufs)
+    }
+
+    async fn fetch_merged_ranges(&self, ranges: &[Range<u64>]) -> Result<Vec<Buffer>> {
+        let inputs = self.plan_fetch_reads(ranges);
+        let mut parts = (0..ranges.len())
+            .map(|_| Vec::new())
+            .collect::<Vec<Vec<(u64, Buffer)>>>();
         let mut tasks = ConcurrentTasks::new(
             self.ctx.accessor().info().executor(),
             self.ctx.options().concurrent(),
             self.ctx.options().prefetch(),
-            |input: FetchInput| {
+            |input: FetchReadInput| {
                 Box::pin(async move {
-                    let FetchInput { range, reader } = input.clone();
-                    (input, reader.read(range).await)
+                    let ctx = input.ctx.clone();
+                    let range = input.range;
+                    let range_idx = input.range_idx;
+
+                    let offset = range.offset();
+                    let size = range
+                        .size()
+                        .expect("fetch planner must only create bounded ranges");
+                    let result = match ctx.reader().read(range).await {
+                        Ok((rp, buffer)) => Ok(FetchReadOutput {
+                            range_idx,
+                            offset,
+                            size,
+                            rp,
+                            buffer,
+                        }),
+                        Err(err) => Err(err),
+                    };
+
+                    (input, result)
                 })
             },
         );
 
-        for range in merged_ranges.clone() {
-            let reader = self.clone();
-            tasks.execute(FetchInput { reader, range }).await?;
+        for input in inputs {
+            tasks.execute(input).await?;
+            while tasks.has_result() {
+                let output = tasks
+                    .next()
+                    .await
+                    .transpose()?
+                    .expect("task result must exist");
+                self.push_fetch_output(&mut parts, output)?;
+            }
         }
 
-        let mut merged_bufs = vec![];
-        while let Some(b) = tasks.next().await {
-            merged_bufs.push(b?);
+        while let Some(output) = tasks.next().await.transpose()? {
+            self.push_fetch_output(&mut parts, output)?;
         }
 
-        let mut bufs = Vec::with_capacity(ranges.len());
-        for range in ranges {
-            let idx = merged_ranges.partition_point(|v| v.start <= range.start) - 1;
-            let start = range.start - merged_ranges[idx].start;
-            let end = range.end - merged_ranges[idx].start;
-            bufs.push(merged_bufs[idx].slice(start as usize..end as usize));
+        Ok(parts
+            .into_iter()
+            .map(|mut v| {
+                v.sort_unstable_by_key(|(offset, _)| *offset);
+                v.into_iter().flat_map(|(_, buffer)| buffer).collect()
+            })
+            .collect())
+    }
+
+    fn plan_fetch_reads(&self, ranges: &[Range<u64>]) -> Vec<FetchReadInput> {
+        let chunk = self.ctx.options().chunk().map(|v| v as u64);
+        let mut inputs = Vec::with_capacity(ranges.len());
+
+        for (range_idx, range) in ranges.iter().enumerate() {
+            let mut offset = range.start;
+            while offset < range.end {
+                let remaining = range.end - offset;
+                let size = chunk.map_or(remaining, |v| remaining.min(v));
+                inputs.push(FetchReadInput {
+                    ctx: self.ctx.clone(),
+                    range_idx,
+                    range: BytesRange::new(offset, Some(size)),
+                });
+                offset += size;
+            }
         }
 
-        Ok(bufs)
+        inputs
+    }
+
+    fn push_fetch_output(
+        &self,
+        parts: &mut [Vec<(u64, Buffer)>],
+        output: FetchReadOutput,
+    ) -> Result<()> {
+        if output.buffer.len() as u64 != output.size {
+            return Err(
+                Error::new(ErrorKind::Unexpected, "reader got unexpected data size")
+                    .with_context("expect", output.size)
+                    .with_context("actual", output.buffer.len() as u64),
+            );
+        }
+
+        self.ctx.observe_read_response(output.rp);
+        parts[output.range_idx].push((output.offset, output.buffer));
+        Ok(())
     }
 
     /// Merge given ranges into a list of non-overlapping ranges.
@@ -190,14 +303,14 @@ impl Reader {
         let gap = self.ctx.options().gap().unwrap_or(1024 * 1024) as u64;
         // We don't care about the order of range with same start, they
         // will be merged in the next step.
-        ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
+        ranges.sort_unstable_by_key(|a| a.start);
 
         // We know that this vector will have at most element
         let mut merged = Vec::with_capacity(ranges.len());
         let mut cur = ranges[0].clone();
 
         for range in ranges.into_iter().skip(1) {
-            if range.start <= cur.end + gap {
+            if range.start <= cur.end.saturating_add(gap) {
                 // There is an overlap or the gap is small enough to merge
                 cur.end = cur.end.max(range.end);
             } else {
@@ -428,15 +541,96 @@ impl Reader {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::time::Duration;
+
     use bytes::Bytes;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngExt};
 
     use super::*;
     use crate::Operator;
     use crate::raw::*;
     use crate::services;
+
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (_, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            reader,
+        ))
+    }
+
+    struct MockRangeReader {
+        content: Bytes,
+        ranges: Arc<Mutex<Vec<BytesRange>>>,
+    }
+
+    impl MockRangeReader {
+        fn new(content: Bytes, ranges: Arc<Mutex<Vec<BytesRange>>>) -> Self {
+            Self { content, ranges }
+        }
+    }
+
+    impl oio::Read for MockRangeReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            Err(Error::new(ErrorKind::Unsupported, "open is not supported"))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            let size = range
+                .size()
+                .ok_or_else(|| Error::new(ErrorKind::Unexpected, "range must be bounded"))?;
+            if size == 0 {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "zero-size raw read must not be called",
+                ));
+            }
+
+            self.ranges.lock().unwrap().push(range);
+
+            let start = range.offset() as usize;
+            let end = start + size as usize;
+            if range.offset() == 0 && range.size() == Some(4) {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            if end > self.content.len() {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range exceeds content length",
+                ));
+            }
+
+            Ok((
+                RpRead::default(),
+                Buffer::from(self.content.slice(start..end)),
+            ))
+        }
+    }
+
+    fn new_mock_reader(
+        content: Bytes,
+        options: crate::raw::OpReader,
+        ranges: Arc<Mutex<Vec<BytesRange>>>,
+    ) -> Reader {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        Reader::new(ReadContext::new(
+            op.into_inner(),
+            "test_file".to_string(),
+            OpRead::new(),
+            options,
+            Box::new(MockRangeReader::new(content, ranges)),
+        ))
+    }
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
@@ -448,24 +642,83 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
 
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_reader_metadata_after_read() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader("test").await?;
+        assert_eq!(reader.metadata(), None);
+
+        let buf = reader.read(4..8).await?;
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let meta = reader.metadata().expect("metadata must be observed");
+        assert_eq!(meta.content_length(), 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_metadata_updates_reader_metadata() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader("test").await?;
+        let mut stream = reader.clone().into_stream(4..8).await?;
+
+        let stream_meta = stream.metadata().await?;
+        assert_eq!(stream_meta.content_length(), 10);
+
+        let bufs: Vec<_> = stream.try_collect().await?;
+        let buf: Buffer = bufs.into_iter().flatten().collect();
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let reader_meta = reader.metadata().expect("reader metadata must be observed");
+        assert_eq!(reader_meta.content_length(), 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_stream_metadata_updates_reader_metadata() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader_with("test").chunk(2).await?;
+        let mut stream = reader.clone().into_stream(4..8).await?;
+
+        let stream_meta = stream.metadata().await?;
+        assert_eq!(stream_meta.content_length(), 10);
+
+        let bufs: Vec<_> = stream.try_collect().await?;
+        let buf: Buffer = bufs.into_iter().flatten().collect();
+        assert_eq!(&buf.to_vec(), b"oWor");
+
+        let reader_meta = reader.metadata().expect("reader metadata must be observed");
+        assert_eq!(reader_meta.content_length(), 10);
+
+        Ok(())
+    }
+
     fn gen_random_bytes() -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let size = rng.random_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
     }
 
     fn gen_fixed_bytes(size: usize) -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
@@ -599,6 +852,73 @@ mod tests {
                 content[range.start as usize..range.end as usize]
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_empty_ranges() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader(path).await.unwrap();
+        let result = reader
+            .fetch(vec![])
+            .await
+            .expect("fetch with empty ranges must not panic");
+        assert!(result.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_skips_zero_length_ranges() -> Result<()> {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let reader = new_mock_reader(
+            Bytes::from_static(b"abcdef"),
+            OpReader::new(),
+            calls.clone(),
+        );
+
+        let bufs = reader.fetch(vec![0..0, 1..3, 5..5]).await?;
+
+        assert!(bufs[0].is_empty());
+        assert_eq!(bufs[1].to_bytes(), b"bc".as_slice());
+        assert!(bufs[2].is_empty());
+        assert_eq!(*calls.lock().unwrap(), vec![BytesRange::new(1, Some(2))]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_plans_merged_ranges_with_chunk() -> Result<()> {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let reader = new_mock_reader(
+            Bytes::from_static(b"abcdef"),
+            OpReader::new()
+                .with_gap(1)
+                .with_chunk(4)
+                .with_concurrent(2)
+                .with_prefetch(1),
+            calls.clone(),
+        );
+
+        let bufs = reader.fetch(vec![0..2, 3..6]).await?;
+
+        assert_eq!(bufs[0].to_bytes(), b"ab".as_slice());
+        assert_eq!(bufs[1].to_bytes(), b"def".as_slice());
+
+        let mut calls = calls.lock().unwrap().clone();
+        calls.sort_by_key(|range| range.offset());
+        assert_eq!(
+            calls,
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(4, Some(2))]
+        );
+
         Ok(())
     }
 }

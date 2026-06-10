@@ -526,9 +526,9 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-        let range = args.range();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (range, args, opts) = opts.into();
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         let r = Reader::new(context);
         let buf = r.read(range.to_range()).await?;
         Ok(buf)
@@ -636,7 +636,8 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
-        let context = ReadContext::new(acc, path, args, opts);
+        let (_, reader) = acc.read(&path, args.clone()).await?;
+        let context = ReadContext::new(acc, path, args, opts, reader);
         Ok(Reader::new(context))
     }
 
@@ -923,13 +924,19 @@ impl Operator {
     /// ```
     /// # use opendal_core::Result;
     /// # use opendal_core::Operator;
+    /// # use opendal_core::options;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
-    ///     .writer_with("path/to/file")
-    ///     .chunk(4 * 1024 * 1024)
-    ///     .concurrent(8)
+    ///     .writer_options(
+    ///         "path/to/file",
+    ///         options::WriteOptions {
+    ///             chunk: Some(4 * 1024 * 1024),
+    ///             concurrent: 8,
+    ///           ..Default::default()
+    ///         },
+    ///     )
     ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
@@ -983,42 +990,15 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn copy(&self, from: &str, to: &str) -> Result<()> {
-        let from = normalize_path(from);
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        self.copy_options(from, to, options::CopyOptions::default())
+            .await
+    }
 
-        if !validate_path(&from, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "from path is a directory")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("from", from),
-            );
-        }
-
-        let to = normalize_path(to);
-
-        if !validate_path(&to, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "to path is a directory")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("to", to),
-            );
-        }
-
-        if from == to {
-            return Err(
-                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
-                    .with_operation("Operator::copy")
-                    .with_context("service", self.info().scheme())
-                    .with_context("from", from)
-                    .with_context("to", to),
-            );
-        }
-
-        self.inner().copy(&from, &to, OpCopy::new()).await?;
-
-        Ok(())
+    /// Create a copier from `from` to `to`.
+    pub async fn copier(&self, from: &str, to: &str) -> Result<Copier> {
+        self.copier_options(from, to, options::CopyOptions::default())
+            .await
     }
 
     /// Copy a file from `from` to `to` with additional options.
@@ -1026,7 +1006,8 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and `source_version` is not set,
+    ///   an `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1048,7 +1029,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+    pub fn copy_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopy<impl Future<Output = Result<Metadata>>> {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
@@ -1060,12 +1045,30 @@ impl Operator {
         )
     }
 
+    /// Create a copier from `from` to `to` with additional options.
+    pub fn copier_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopier<impl Future<Output = Result<Copier>>> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            from,
+            (options::CopyOptions::default(), to),
+            Self::copier_inner,
+        )
+    }
+
     /// Copy a file from `from` to `to` with additional options.
     ///
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and `source_version` is not set,
+    ///   an `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1093,7 +1096,7 @@ impl Operator {
         from: &str,
         to: &str,
         opts: impl Into<options::CopyOptions>,
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         let from = normalize_path(from);
         let to = normalize_path(to);
         let opts = opts.into();
@@ -1101,11 +1104,25 @@ impl Operator {
         Self::copy_inner(self.inner().clone(), from, (opts, to)).await
     }
 
+    /// Create a copier from `from` to `to` with additional options.
+    pub async fn copier_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: impl Into<options::CopyOptions>,
+    ) -> Result<Copier> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+        let opts = opts.into();
+
+        Self::copier_inner(self.inner().clone(), from, (opts, to)).await
+    }
+
     async fn copy_inner(
         acc: Accessor,
         from: String,
         (opts, to): (options::CopyOptions, String),
-    ) -> Result<()> {
+    ) -> Result<Metadata> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
@@ -1124,7 +1141,7 @@ impl Operator {
             );
         }
 
-        if from == to {
+        if from == to && opts.source_version.is_none() {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copy")
@@ -1134,12 +1151,51 @@ impl Operator {
             );
         }
 
-        let mut op = OpCopy::new();
-        if opts.if_not_exists {
-            op = op.with_if_not_exists(true);
+        let mut copier = Self::copier_inner(acc, from, (opts, to)).await?;
+        match copier.close().await {
+            Ok(meta) => Ok(meta),
+            Err(err) => {
+                let _ = copier.abort().await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn copier_inner(
+        acc: Accessor,
+        from: String,
+        (opts, to): (options::CopyOptions, String),
+    ) -> Result<Copier> {
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", from),
+            );
         }
 
-        acc.copy(&from, &to, op).await.map(|_| ())
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to && opts.source_version.is_none() {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("Operator::copier")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", &from)
+                    .with_context("to", &to),
+            );
+        }
+
+        let (args, opts) = opts.into();
+        Copier::create(acc, &from, &to, args, opts).await
     }
 
     /// Rename a file from `from` to `to`.
@@ -1167,7 +1223,7 @@ impl Operator {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
-                    .with_operation("Operator::move_")
+                    .with_operation(Operation::Rename)
                     .with_context("service", self.info().scheme())
                     .with_context("from", from),
             );
@@ -1178,7 +1234,7 @@ impl Operator {
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
-                    .with_operation("Operator::move_")
+                    .with_operation(Operation::Rename)
                     .with_context("service", self.info().scheme())
                     .with_context("to", to),
             );
@@ -1187,7 +1243,7 @@ impl Operator {
         if from == to {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
-                    .with_operation("Operator::move_")
+                    .with_operation(Operation::Rename)
                     .with_context("service", self.info().scheme())
                     .with_context("from", from)
                     .with_context("to", to),
@@ -1948,8 +2004,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_read, _) = opts.into();
-        let op = OpPresign::new(op_read, expire);
+        let (range, op_read, _) = opts.into();
+        let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = acc.presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }

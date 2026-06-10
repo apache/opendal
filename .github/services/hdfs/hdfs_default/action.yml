@@ -31,5 +31,5 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HDFS_ROOT=/tmp/opendal/
         OPENDAL_HDFS_NAME_NODE=default
-        OPENDAL_HDFS_ENABLE_APPEND=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false
         EOF

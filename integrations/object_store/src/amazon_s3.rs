@@ -66,7 +66,7 @@ impl OpendalStore {
                     source: Box::new(err),
                 })?;
             if r {
-                s3 = s3.allow_anonymous();
+                s3 = s3.skip_signature();
             }
         }
 

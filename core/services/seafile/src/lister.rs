@@ -56,9 +56,11 @@ impl oio::PageList for SeafileLister {
                         );
 
                         let entry = if info.type_field == "file" {
-                            let meta = Metadata::new(EntryMode::FILE)
-                                .with_last_modified(Timestamp::from_second(info.mtime)?)
-                                .with_content_length(info.size.unwrap_or(0));
+                            let mut meta = Metadata::new(EntryMode::FILE)
+                                .with_last_modified(Timestamp::from_second(info.mtime)?);
+                            if let Some(size) = info.size {
+                                meta.set_content_length(size);
+                            }
                             Entry::new(&rel_path, meta)
                         } else {
                             let path = format!("{rel_path}/");

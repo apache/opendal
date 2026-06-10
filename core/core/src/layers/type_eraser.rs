@@ -23,7 +23,7 @@ use crate::*;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///
-/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::Read>`).
+/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::ReadStream>`).
 ///
 /// # Notes
 ///
@@ -56,6 +56,7 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
     type Writer = oio::Writer;
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -87,5 +88,18 @@ impl<A: Access> LayeredAccess for TypeEraseAccessor<A> {
             .list(path, args)
             .await
             .map(|(rp, p)| (rp, Box::new(p) as oio::Lister))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner
+            .copy(from, to, args, opts)
+            .await
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Copier))
     }
 }

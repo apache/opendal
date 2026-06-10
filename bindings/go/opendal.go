@@ -165,7 +165,7 @@ type Operator struct {
 //   - error: An error if initialization fails, or nil if successful.
 //
 // Note: Remember to call Close() on the returned Operator when it's no longer needed.
-func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) {
+func NewOperator(scheme Scheme, opts OperatorOptions, operatorOptions ...OperatorOption) (op *Operator, err error) {
 	err = scheme.LoadOnce()
 	if err != nil {
 		return
@@ -195,7 +195,27 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 		}
 	}
 
-	inner, err := ffiOperatorNew.symbol(ctx)(scheme, options)
+	config := &operatorConfig{}
+	for _, operatorOption := range operatorOptions {
+		if operatorOption == nil {
+			continue
+		}
+		err = operatorOption.apply(config)
+		if err != nil {
+			return
+		}
+	}
+
+	var inner *opendalOperator
+	layers := ffiOperatorLayersNew.symbol(ctx)()
+	defer ffiOperatorLayersFree.symbol(ctx)(layers)
+	for _, layer := range config.layers {
+		err = layer.apply(ctx, layers)
+		if err != nil {
+			return
+		}
+	}
+	inner, err = ffiOperatorNewWithLayers.symbol(ctx)(scheme, options, layers)
 	if err != nil {
 		return
 	}

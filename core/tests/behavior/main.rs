@@ -34,6 +34,9 @@ mod async_write;
 // External dependencies
 use libtest_mimic::Arguments;
 use libtest_mimic::Trial;
+use logforth::append::Testing;
+use logforth::filter::env_filter::EnvFilterBuilder;
+use logforth::layout::TextLayout;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
 use opendal::*;
@@ -63,11 +66,12 @@ fn main() -> anyhow::Result<()> {
 
     // Don't init logging while building operator which may break cargo
     // nextest output
-    let _ = tracing_subscriber::fmt()
-        .pretty()
-        .with_test_writer()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
+    let _ = logforth::starter_log::builder()
+        .dispatch(|d| {
+            d.filter(EnvFilterBuilder::from_default_env().build())
+                .append(Testing::default().with_layout(TextLayout::default()))
+        })
+        .try_apply();
 
     let conclusion = libtest_mimic::run(&args, tests);
 

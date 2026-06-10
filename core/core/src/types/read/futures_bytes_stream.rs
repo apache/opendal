@@ -54,6 +54,15 @@ impl FuturesBytesStream {
             buf: Buffer::new(),
         })
     }
+
+    /// Get metadata for this stream.
+    ///
+    /// Calling this method opens the underlying read request if needed.
+    /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
+    /// return metadata while opening the read operation.
+    pub async fn metadata(&mut self) -> Result<Metadata> {
+        self.stream.metadata().await
+    }
 }
 
 impl Stream for FuturesBytesStream {
@@ -87,15 +96,26 @@ mod tests {
 
     use super::*;
 
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (_, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            reader,
+        ))
+    }
+
     #[tokio::test]
     async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
         let v = FuturesBytesStream::new(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
@@ -113,12 +133,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         let s = FuturesBytesStream::new(ctx, 4..8).await?;
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();
@@ -138,12 +153,14 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new().with_concurrent(3).with_chunk(1),
-        ));
+        let ctx = Arc::new(
+            new_read_context(
+                acc,
+                "test",
+                OpReader::new().with_concurrent(3).with_chunk(1),
+            )
+            .await?,
+        );
 
         let s = FuturesBytesStream::new(ctx, 4..8).await?;
         let bufs: Vec<Bytes> = s.try_collect().await.unwrap();

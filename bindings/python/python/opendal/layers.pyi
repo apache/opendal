@@ -22,6 +22,24 @@ import builtins
 import typing
 
 @typing.final
+class CapabilityOverrideLayer(Layer):
+    r"""A layer that overrides the full capability exposed by an operator."""
+
+    def __new__(cls, overrides: builtins.str) -> CapabilityOverrideLayer:
+        r"""
+        Create a new CapabilityOverrideLayer from capability override entries.
+
+        Parameters
+        ----------
+        overrides : str
+            Comma-separated capability override entries.
+
+        Returns
+        -------
+        CapabilityOverrideLayer
+        """
+
+@typing.final
 class ConcurrentLimitLayer(Layer):
     r"""
     A layer that limits the number of concurrent operations.

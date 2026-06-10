@@ -143,6 +143,7 @@ impl oio::MultipartWrite for S3Writer {
                     part_number,
                     etag,
                     checksum,
+                    size: None,
                 })
             }
             _ => Err(parse_error(resp)),
@@ -179,7 +180,7 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self
             .core
-            .s3_complete_multipart_upload(&self.path, upload_id, parts)
+            .s3_complete_multipart_upload(&self.path, upload_id, parts, &self.op)
             .await?;
 
         let status = resp.status();

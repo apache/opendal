@@ -69,6 +69,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type Writer = ErrorContextWrapper<A::Writer>;
     type Lister = ErrorContextWrapper<A::Lister>;
     type Deleter = ErrorContextWrapper<A::Deleter>;
+    type Copier = ErrorContextWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -83,22 +84,19 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let range = args.range();
         self.inner
             .read(path, args)
             .await
             .map(|(rp, r)| {
                 (
                     rp,
-                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), r)
-                        .with_range(range),
+                    ErrorContextWrapper::new(self.info.scheme(), path.to_string(), r),
                 )
             })
             .map_err(|err| {
                 err.with_operation(Operation::Read)
                     .with_context("service", self.info.scheme())
                     .with_context("path", path)
-                    .with_context("range", range.to_string())
             })
     }
 
@@ -119,13 +117,28 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.copy(from, to, args).await.map_err(|err| {
-            err.with_operation(Operation::Copy)
-                .with_context("service", self.info.scheme())
-                .with_context("from", from)
-                .with_context("to", to)
-        })
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner
+            .copy(from, to, args, opts)
+            .await
+            .map(|(rp, p)| {
+                (
+                    rp,
+                    ErrorContextWrapper::new(self.info.scheme(), to.to_string(), p),
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Copy)
+                    .with_context("service", self.info.scheme())
+                    .with_context("from", from)
+                    .with_context("to", to)
+            })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -210,9 +223,49 @@ impl<T> ErrorContextWrapper<T> {
         self.range = range;
         self
     }
+
+    fn read_error(&self, err: Error) -> Error {
+        err.with_operation(Operation::Read)
+            .with_context("service", self.scheme)
+            .with_context("path", &self.path)
+            .with_context("range", self.range.to_string())
+            .with_context("read", self.processed.to_string())
+    }
 }
 
 impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.inner
+            .open(range)
+            .await
+            .map(|(rp, stream)| {
+                (
+                    rp,
+                    Box::new(
+                        ErrorContextWrapper::new(self.scheme, self.path.clone(), stream)
+                            .with_range(range),
+                    ) as Box<dyn oio::ReadStreamDyn>,
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Read)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+                    .with_context("range", range.to_string())
+            })
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await.map_err(|err| {
+            err.with_operation(Operation::Read)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+                .with_context("range", range.to_string())
+        })
+    }
+}
+
+impl<T: oio::ReadStream> oio::ReadStream for ErrorContextWrapper<T> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
@@ -220,13 +273,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
             .inspect(|bs| {
                 self.processed += bs.len() as u64;
             })
-            .map_err(|err| {
-                err.with_operation(Operation::Read)
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-                    .with_context("range", self.range.to_string())
-                    .with_context("read", self.processed.to_string())
-            })
+            .map_err(|err| self.read_error(err))
     }
 }
 
@@ -299,6 +346,41 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
             err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("deleted", self.processed.to_string())
+        })
+    }
+}
+
+impl<T: oio::Copy> oio::Copy for ErrorContextWrapper<T> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner
+            .next()
+            .await
+            .inspect(|size| {
+                self.processed += size.unwrap_or_default() as u64;
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Copy)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+                    .with_context("copied", self.processed.to_string())
+            })
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+                .with_context("copied", self.processed.to_string())
+        })
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+                .with_context("copied", self.processed.to_string())
         })
     }
 }

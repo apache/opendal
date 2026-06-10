@@ -33,7 +33,7 @@ use super::core::Manager;
 use super::deleter::FtpDeleter;
 use super::err::format_ftp_error;
 use super::lister::FtpLister;
-use super::reader::FtpReader;
+use super::reader::FtpReadStream;
 use super::writer::FtpWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -190,11 +190,40 @@ impl Debug for FtpBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct FtpReader {
+    backend: FtpBackend,
+    path: String,
+}
+
+impl FtpReader {
+    fn new(backend: FtpBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for FtpReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
+        let rp = RpRead::default();
+        let stream = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for FtpBackend {
-    type Reader = FtpReader;
+    type Reader = oio::StreamReader<FtpReader>;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info()
@@ -242,12 +271,11 @@ impl Access for FtpBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let ftp_stream = self.core.ftp_connect(Operation::Read).await?;
-
-        let reader = FtpReader::new(ftp_stream, path.to_string(), args).await?;
-        Ok((RpRead::new(), reader))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(FtpReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {

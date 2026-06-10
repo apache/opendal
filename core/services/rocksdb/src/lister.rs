@@ -25,7 +25,7 @@ use super::core::*;
 
 pub struct RocksdbLister {
     root: String,
-    iter: IntoIter<String>,
+    iter: IntoIter<(String, u64)>,
 }
 
 impl RocksdbLister {
@@ -41,7 +41,7 @@ impl RocksdbLister {
 
 impl oio::List for RocksdbLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if let Some(key) = self.iter.next() {
+        if let Some((key, value_len)) = self.iter.next() {
             let path = build_rel_path(&self.root, &key);
 
             // Determine if it's a file or directory based on trailing slash
@@ -50,7 +50,11 @@ impl oio::List for RocksdbLister {
             } else {
                 EntryMode::FILE
             };
-            let entry = oio::Entry::new(&path, Metadata::new(mode));
+            let mut metadata = Metadata::new(mode);
+            if metadata.mode().is_file() {
+                metadata.set_content_length(value_len);
+            }
+            let entry = oio::Entry::new(&path, metadata);
             return Ok(Some(entry));
         }
 

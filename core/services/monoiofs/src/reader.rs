@@ -18,8 +18,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use bytes::BytesMut;
-use futures::SinkExt;
 use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -27,37 +25,30 @@ use monoio::fs::OpenOptions;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 
 enum ReaderRequest {
     Read {
-        pos: u64,
-        buf: BytesMut,
-        tx: oneshot::Sender<Result<BytesMut>>,
+        offset: u64,
+        buf: Box<[u8]>,
+        tx: oneshot::Sender<Result<(usize, Box<[u8]>)>>,
     },
 }
 
+/// Reader returned by this backend.
 pub struct MonoiofsReader {
     core: Arc<MonoiofsCore>,
     tx: mpsc::UnboundedSender<ReaderRequest>,
-    pos: u64,
-    end_pos: Option<u64>,
 }
 
 impl MonoiofsReader {
-    pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf, range: BytesRange) -> Result<Self> {
+    pub async fn new(core: Arc<MonoiofsCore>, path: PathBuf) -> Result<Self> {
         let (open_result_tx, open_result_rx) = oneshot::channel();
         let (tx, rx) = mpsc::unbounded();
         core.spawn(move || Self::worker_entrypoint(path, rx, open_result_tx))
             .await;
         core.unwrap(open_result_rx.await)?;
-        Ok(Self {
-            core,
-            tx,
-            pos: range.offset(),
-            end_pos: range.size().map(|size| range.offset() + size),
-        })
+        Ok(Self { core, tx })
     }
 
     /// entrypoint of worker task that runs in context of monoio
@@ -91,13 +82,11 @@ impl MonoiofsReader {
                 break;
             };
             match req {
-                ReaderRequest::Read { pos, buf, tx } => {
-                    let (result, buf) = file.read_at(buf, pos).await;
-                    // buf.len() will be set to n by monoio if read
-                    // successfully, so n is dropped
-                    let result = result.map(move |_| buf).map_err(new_std_io_error);
+                ReaderRequest::Read { offset, buf, tx } => {
+                    let (result, buf) = file.read_at(buf, offset).await;
+                    let result = result.map(move |n| (n, buf)).map_err(new_std_io_error);
                     // discard the result if send failed due to
-                    // MonoiofsReader::read cancelled
+                    // MonoiofsReader::read_at cancelled
                     let _ = tx.send(result);
                 }
             }
@@ -105,43 +94,27 @@ impl MonoiofsReader {
     }
 }
 
-impl oio::Read for MonoiofsReader {
+impl oio::PositionRead for MonoiofsReader {
     /// Send read request to worker thread and wait for result. Actual
     /// read happens in [`MonoiofsReader::worker_entrypoint`] running
     /// on worker thread.
-    async fn read(&mut self) -> Result<Buffer> {
-        if let Some(end_pos) = self.end_pos {
-            if self.pos >= end_pos {
-                return Ok(Buffer::new());
-            }
+    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
         }
-
-        // allocate and resize buffer
-        let mut buf = self.core.buf_pool.get();
-        let size = self
-            .end_pos
-            .map_or(BUFFER_SIZE, |end_pos| (end_pos - self.pos) as usize);
-        // set capacity of buf to exact size to avoid excessive read
-        buf.reserve(size);
-        let _ = buf.split_off(size);
 
         // send read request to worker thread and wait for result
         let (tx, rx) = oneshot::channel();
-        self.core.unwrap(
-            self.tx
-                .send(ReaderRequest::Read {
-                    pos: self.pos,
-                    buf,
-                    tx,
-                })
-                .await,
-        );
-        let mut buf = self.core.unwrap(rx.await)?;
+        self.core
+            .unwrap(self.tx.unbounded_send(ReaderRequest::Read {
+                offset,
+                buf: vec![0; size].into_boxed_slice(),
+                tx,
+            }));
+        let (n, buf) = self.core.unwrap(rx.await)?;
 
-        // advance cursor if read successfully
-        self.pos += buf.len() as u64;
-        let buffer = Buffer::from(buf.split().freeze());
-        self.core.buf_pool.put(buf);
-        Ok(buffer)
+        let mut buf = Vec::from(buf);
+        buf.truncate(n);
+        Ok(Buffer::from(buf))
     }
 }

@@ -31,6 +31,7 @@ on:
       - "bindings/**"
       - "integrations/**"
       - "website/**"
+      - ".github/actions/setup-ocaml/**"
       - ".github/workflows/docs.yml"
 
 concurrency:
@@ -39,9 +40,9 @@ concurrency:
 
 env:
   # This is the toolchain used by docs.rs
-  # 
-  # Check this page for updating: https://docs.rs/crate/opendal/0.54.1/builds
-  RUST_DOC_TOOLCHAIN: nightly-2025-10-12
+  #
+  # Check this page for updating: https://docs.rs/crate/opendal/latest/builds
+  RUST_DOC_TOOLCHAIN: nightly-2026-04-30
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 
@@ -65,8 +66,8 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build OpenDAL doc
         working-directory: core
@@ -88,12 +89,12 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build and test
         working-directory: bindings/java
-        run: mvn javadoc:javadoc
+        run: ./mvnw javadoc:javadoc
 
       - name: Upload docs
         uses: actions/upload-artifact@v6
@@ -107,7 +108,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 8
           run_install: false
@@ -149,7 +150,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
@@ -245,8 +246,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Haskell toolchain (ghc-9.2.8)
+      - name: Install Haskell build tools
         run: |
+          sudo apt-get update
+          sudo apt-get install -y alex happy
+      - name: Setup Haskell toolchain (ghc-9.2.8)
+        env:
+          GHCUP_INSTALL_BASE_PREFIX: ${{ runner.temp }}
+        run: |
+          export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
+          echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set
@@ -313,15 +322,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
-      - name: Cache OPAM dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.opam
-          key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
-          restore-keys: |
-            ${{ runner.os }}-opam-doc-
-            ${{ runner.os }}-opam-
 
       - name: Cache Dune build artifacts
         uses: actions/cache@v5
@@ -471,7 +471,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 8
           run_install: false
@@ -577,7 +577,8 @@ jobs:
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4.0.0
-        if: ${{ (github.event_name == 'push' && github.ref_name == 'main') || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) }}
+        # Keep the public root site pinned to main; tag builds are published below.
+        if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
@@ -627,16 +628,22 @@ jobs:
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        uses: burnett01/rsync-deployments@0c902521b8b9135f0dae7841a01d7d3b19629cb2
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
-        with:
-          switches: -avzr
-          path: website/build/
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-${{ github.ref_name }}/
-          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
-          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
-          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
-          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+        shell: bash
+        env:
+          NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+          NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}
+          NIGHTLIES_RSYNC_PORT: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+        run: |
+          mkdir -p "${HOME}/.ssh"
+          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          chmod 0600 "${HOME}/.ssh/nightlies_rsync"
+          rsync -avzr \
+            -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
+            website/build/ \
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ github.ref_name }}/"
 
       - name: Clear build
         run: rm -rf ./website/build
@@ -648,13 +655,19 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        uses: burnett01/rsync-deployments@0c902521b8b9135f0dae7841a01d7d3b19629cb2
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
-        with:
-          switches: -avzr --delete
-          path: website/build/
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-stable/
-          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
-          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
-          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
-          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+        shell: bash
+        env:
+          NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+          NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}
+          NIGHTLIES_RSYNC_PORT: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+        run: |
+          mkdir -p "${HOME}/.ssh"
+          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          chmod 0600 "${HOME}/.ssh/nightlies_rsync"
+          rsync -avzr --delete \
+            -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
+            website/build/ \
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-stable/"

@@ -22,10 +22,10 @@ runs:
   using: "composite"
   steps:
     - name: Setup java env
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
-        distribution: temurin
-        java-version: "11"
+        distribution: zulu
+        java-version: 11
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3
@@ -64,5 +64,5 @@ runs:
         CLASSPATH=${CLASSPATH}
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_NAME_NODE=s3a://test
-        OPENDAL_HDFS_ENABLE_APPEND=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false
         EOF

@@ -93,17 +93,18 @@ pub struct MonoiofsBackend {
 }
 
 impl Access for MonoiofsBackend {
-    type Reader = MonoiofsReader;
+    type Reader = oio::PositionReader<MonoiofsReader>;
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = self.core.prepare_path(path);
+        let path = self.core.prepare_path(path)?;
         let meta = self
             .core
             .dispatch(move || monoio::fs::metadata(path))
@@ -123,11 +124,10 @@ impl Access for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path);
-        let reader = MonoiofsReader::new(self.core.clone(), path, args.range()).await?;
-        Ok((RpRead::default(), reader))
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = self.core.prepare_path(path)?;
+        let reader = MonoiofsReader::new(self.core.clone(), path).await?;
+        Ok((RpRead::default(), oio::PositionReader::new(reader)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -144,7 +144,7 @@ impl Access for MonoiofsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.core.prepare_path(from);
+        let from = self.core.prepare_path(from)?;
         // ensure file exists
         self.core
             .dispatch({
@@ -162,7 +162,7 @@ impl Access for MonoiofsBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let path = self.core.prepare_path(path);
+        let path = self.core.prepare_path(path)?;
         self.core
             .dispatch(move || monoio::fs::create_dir_all(path))
             .await
@@ -170,8 +170,14 @@ impl Access for MonoiofsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.core.prepare_path(from);
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let from = self.core.prepare_path(from)?;
         // ensure file exists
         self.core
             .dispatch({
@@ -223,6 +229,6 @@ impl Access for MonoiofsBackend {
             })
             .await
             .map_err(new_std_io_error)?;
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 }

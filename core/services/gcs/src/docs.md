@@ -22,6 +22,8 @@ This service can be used to:
 - `service_account`: name of Service Account
 - `predefined_acl`: Predefined ACL for GCS
 - `default_storage_class`: Default storage class for GCS
+- `skip_signature`: Skip loading credentials and signing requests.
+- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
 
 Refer to public API docs for more information. For authentication related options, read on.
 
@@ -36,7 +38,7 @@ OpenDAL supports the following authentication options:
 4. Fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
    - Only works when running inside Google Cloud.
    - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
-5. A custom `TokenLoader` via `GcsBuilder.customized_token_loader()`
+5. A custom credential provider chain via `GcsBuilder.credential_provider_chain()`
 
 Notes:
 

@@ -142,7 +142,6 @@ impl oio::PageList for S3ListerV1 {
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
-                meta.set_content_md5(etag.trim_matches('"'));
             }
             meta.set_content_length(object.size);
 
@@ -252,7 +251,6 @@ impl oio::PageList for S3ListerV2 {
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
-                meta.set_content_md5(etag.trim_matches('"'));
             }
             meta.set_content_length(object.size);
 
@@ -372,7 +370,6 @@ impl oio::PageList for S3ObjectVersionsLister {
 
             if let Some(etag) = version_object.etag {
                 meta.set_etag(&etag);
-                meta.set_content_md5(etag.trim_matches('"'));
             }
 
             let entry = oio::Entry::new(&path, meta);
@@ -386,7 +383,7 @@ impl oio::PageList for S3ObjectVersionsLister {
                     path = "/".to_owned();
                 }
 
-                let mut meta = Metadata::new(EntryMode::FILE);
+                let mut meta = Metadata::new(EntryMode::from_path(&path));
                 meta.set_version(&delete_marker.version_id);
                 meta.set_is_deleted(true);
                 meta.set_is_current(delete_marker.is_latest);

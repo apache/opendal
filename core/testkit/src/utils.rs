@@ -21,9 +21,25 @@ use std::sync::LazyLock;
 
 use opendal_core::Operator;
 use opendal_core::Result;
+use opendal_core::layers::CapabilityOverrideLayer;
 use opendal_layer_logging::LoggingLayer;
 use opendal_layer_retry::RetryLayer;
 use opendal_layer_timeout::TimeoutLayer;
+use sha2::Digest;
+use sha2::Sha256;
+
+const OPENDAL_TEST_CAPABILITY_OVERRIDES: &str = "OPENDAL_TEST_CAPABILITY_OVERRIDES";
+
+pub(crate) fn sha256_digest(data: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = Sha256::digest(data);
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
+}
 
 /// TEST_RUNTIME is the runtime used for running tests.
 pub static TEST_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
@@ -73,7 +89,11 @@ pub fn init_test_service() -> Result<Option<Operator>> {
 
     // string-based scheme uses a hyphen ('-') as the connector
     let scheme = scheme.replace('_', "-");
-    let op = Operator::via_iter(scheme, cfg).expect("must succeed");
+    let mut op = Operator::via_iter(scheme, cfg).expect("must succeed");
+
+    if let Ok(overrides) = env::var(OPENDAL_TEST_CAPABILITY_OVERRIDES) {
+        op = op.layer(CapabilityOverrideLayer::from_overrides(&overrides)?);
+    }
 
     let op = op
         .layer(LoggingLayer::default())

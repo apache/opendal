@@ -1,0 +1,415 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import React, { useState } from "react";
+import Link from "@docusaurus/Link";
+import { useBaseUrlUtils } from "@docusaurus/useBaseUrl";
+import CodeBlock from "@theme/CodeBlock";
+import CodeTabs from "./CodeTabs";
+import styles from "./styles.module.css";
+import {
+  REPO_URL,
+  DOCS_URL,
+  DISCORD_URL,
+  heroStats,
+  codeSamples,
+  valueProps,
+  capabilityThemes,
+  usedBy,
+  USERS_LIST_URL,
+  serviceGroups,
+  bindings,
+  layers,
+} from "./data";
+
+export function Hero() {
+  return (
+    <header className={styles.hero}>
+      <div className={`${styles.heroGrid} odl-grid-bg`} aria-hidden="true" />
+      <div className="odl-container">
+        <div className={styles.heroInner}>
+          <div>
+            <span className="odl-eyebrow">
+              Apache OpenDAL™ — Open Data Access Layer
+            </span>
+            <h1 className={styles.heroTitle}>
+              One Layer,
+              <br />
+              <span className={styles.heroTitleAccent}>All Storage.</span>
+            </h1>
+            <p className={styles.heroLede}>
+              One zero-cost Operator for object storage, file systems, databases
+              and more — in the language you already ship.
+            </p>
+            <div className={styles.heroActions}>
+              <Link
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                to={DOCS_URL}
+              >
+                Get started <span className={styles.btnArrow}>→</span>
+              </Link>
+              <Link
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                to={REPO_URL}
+              >
+                View on GitHub
+              </Link>
+            </div>
+            <div className={styles.heroStats}>
+              {heroStats.map((stat) => (
+                <div className={styles.heroStat} key={stat.label}>
+                  <span className={styles.heroStatValue}>{stat.value}</span>
+                  <span className={styles.heroStatLabel}>{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className={styles.heroAside}>
+            <CodeTabs samples={codeSamples} title="quickstart" equalize />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function UsedBy() {
+  const { withBaseUrl } = useBaseUrlUtils();
+  return (
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Used by</span>
+          <h2 className={styles.sectionTitle}>
+            Powering AI, analytics, and real-time data
+          </h2>
+          <p className={styles.sectionLede}>
+            OpenDAL runs in production across the open-source ecosystem. These
+            are some of the projects that build on it.
+          </p>
+        </div>
+        <ul className={styles.logoWall}>
+          {usedBy.map((u) => (
+            <li key={u.name}>
+              <Link className={styles.logoItem} to={u.href} title={u.name}>
+                <img
+                  className={styles.logoMark}
+                  src={withBaseUrl(u.icon)}
+                  alt=""
+                  width="28"
+                  height="28"
+                  loading="lazy"
+                />
+                <span className={styles.logoName}>{u.name}</span>
+              </Link>
+            </li>
+          ))}
+          <li>
+            <Link className={styles.addLogo} to={USERS_LIST_URL}>
+              + add your logo
+            </Link>
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+export function ValueProps() {
+  return (
+    <section className={styles.section}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Why OpenDAL</span>
+          <h2 className={styles.sectionTitle}>
+            A storage layer you can build production on.
+          </h2>
+          <p className={styles.sectionLede}>
+            OpenDAL turns one vision — <em>One Layer, All Storage</em> — into a
+            practical foundation for applications, libraries and data systems.
+          </p>
+        </div>
+        <div className={`${styles.valueGrid} ${styles.reveal}`}>
+          {valueProps.map((v) => (
+            <article className={styles.valueCard} key={v.index}>
+              <span className={styles.valueIndex}>{v.index}</span>
+              <h3 className={styles.valueCardTitle}>{v.title}</h3>
+              <p className={styles.valueCardBody}>{v.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function Capabilities() {
+  const [active, setActive] = useState(capabilityThemes[0]);
+  return (
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Capabilities</span>
+          <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
+          <p className={styles.sectionLede}>
+            One Operator is a full toolkit for real-world data — read and write
+            at scale, recover from failures, and work with files — the same way
+            on every backend.
+          </p>
+        </div>
+        <div className={styles.capabilityExplorer}>
+          <ul className={styles.capabilityNav}>
+            {capabilityThemes.map((theme) => {
+              const selected = active.title === theme.title;
+              return (
+                <li key={theme.title}>
+                  <Link
+                    className={`${styles.capabilityItem} ${
+                      selected ? styles.capabilityItemActive : ""
+                    }`}
+                    to={theme.doc}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-current={selected ? "true" : undefined}
+                    onMouseEnter={() => setActive(theme)}
+                    onFocus={() => setActive(theme)}
+                  >
+                    <span className={styles.capabilityText}>
+                      <span className={styles.capabilityItemTitle}>
+                        {theme.title}
+                      </span>
+                      <span className={styles.capabilityItemBlurb}>
+                        {theme.blurb}
+                      </span>
+                    </span>
+                    <span className={styles.capabilityArrow} aria-hidden="true">
+                      ↗
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className={styles.capabilityPreview}>
+            <div className={styles.codeWindow}>
+              <div className={styles.windowBar}>
+                <div className={styles.windowDots} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className={styles.windowTitle}>{active.title}</span>
+              </div>
+              <div className={`${styles.codeBody} ${styles.capabilityCodeBody}`}>
+                <div className={styles.capabilityCodeFade} key={active.title}>
+                  <CodeBlock language="rust">{active.code}</CodeBlock>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function Services() {
+  const { withBaseUrl } = useBaseUrlUtils();
+  return (
+    <section className={styles.section}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Services</span>
+          <h2 className={styles.sectionTitle}>
+            50+ storage services, one interface.
+          </h2>
+          <p className={styles.sectionLede}>
+            Enable only the backends your application needs. The Operator
+            contract stays identical across every one.
+          </p>
+        </div>
+        <div className={`${styles.serviceGroups} ${styles.reveal}`}>
+          {serviceGroups.map((group) => (
+            <div className={styles.serviceGroup} key={group.category}>
+              <h3 className={styles.serviceGroupTitle}>{group.category}</h3>
+              <div className={styles.serviceChips}>
+                {group.services.map((s) => (
+                  <span className={styles.serviceChip} key={s.name}>
+                    <img
+                      src={withBaseUrl(s.icon)}
+                      alt=""
+                      width="15"
+                      height="15"
+                      loading="lazy"
+                    />
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className={styles.servicesFoot}>
+          <Link
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            to={DOCS_URL}
+          >
+            Browse all services <span className={styles.btnArrow}>→</span>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function Bindings() {
+  const { withBaseUrl } = useBaseUrlUtils();
+  return (
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Bindings</span>
+          <h2 className={styles.sectionTitle}>Ship it in your language.</h2>
+          <p className={styles.sectionLede}>
+            Each binding exposes the same OpenDAL service model while following
+            its own ecosystem's conventions.
+          </p>
+        </div>
+        <div className={`${styles.bindingGrid} ${styles.reveal}`}>
+          {bindings.map((b) => (
+            <div className={styles.bindingCard} key={b.name}>
+              <img
+                src={withBaseUrl(b.icon)}
+                alt=""
+                width="30"
+                height="30"
+                loading="lazy"
+              />
+              <span className={styles.bindingName}>{b.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function Layers() {
+  const [active, setActive] = useState(layers[0]);
+  return (
+    <section className={styles.section}>
+      <div className="odl-container">
+        <div className={styles.sectionHead}>
+          <span className="odl-eyebrow">Layers</span>
+          <h2 className={styles.sectionTitle}>
+            Production behavior, composed — not coded.
+          </h2>
+          <p className={styles.sectionLede}>
+            Stack cross-cutting concerns as reusable layers. The order is
+            explicit and the core stays zero-cost.
+          </p>
+        </div>
+        <div className={styles.layerExplorer}>
+          <div className={styles.layerGrid}>
+            {layers.map((l) => {
+              const selected = active.name === l.name;
+              return (
+                <Link
+                  key={l.name}
+                  className={`${styles.layerItem} ${
+                    selected ? styles.layerItemActive : ""
+                  }`}
+                  to={l.doc}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-current={selected ? "true" : undefined}
+                  onMouseEnter={() => setActive(l)}
+                  onFocus={() => setActive(l)}
+                >
+                  <span className={styles.layerName}>{l.name}</span>
+                  <span className={styles.layerDesc}>{l.desc}</span>
+                </Link>
+              );
+            })}
+          </div>
+          <div className={styles.capabilityPreview}>
+            <div className={styles.codeWindow}>
+              <div className={styles.windowBar}>
+                <div className={styles.windowDots} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className={styles.windowTitle}>{active.name}</span>
+              </div>
+              <div className={`${styles.codeBody} ${styles.layerCodeBody}`}>
+                <div className={styles.capabilityCodeFade} key={active.name}>
+                  <CodeBlock language="rust">{active.code}</CodeBlock>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function FinalCta() {
+  return (
+    <section className={`${styles.section} ${styles.sectionSubtle}`}>
+      <div className="odl-container">
+        <div className={styles.finalCta}>
+          <div className={`${styles.finalCtaInner} ${styles.finalCenter}`}>
+            <span className={`odl-eyebrow ${styles.finalEyebrow}`}>
+              Start building
+            </span>
+            <h2 className={styles.finalCtaTitle}>
+              One layer for all your storage.
+            </h2>
+            <p className={styles.finalCtaLede}>
+              Join the infrastructure builders, platform teams and application
+              developers accessing data freely, painlessly and efficiently.
+            </p>
+            <div className={styles.finalCtaActions}>
+              <Link
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                to={DOCS_URL}
+              >
+                Get started <span className={styles.btnArrow}>→</span>
+              </Link>
+              <Link
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                to={REPO_URL}
+              >
+                Star on GitHub
+              </Link>
+              <Link
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                to={DISCORD_URL}
+              >
+                Join Discord
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

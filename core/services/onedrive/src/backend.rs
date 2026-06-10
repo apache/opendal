@@ -34,11 +34,54 @@ pub struct OnedriveBackend {
     pub core: Arc<OneDriveCore>,
 }
 
+/// Reader returned by this backend.
+pub struct OnedriveReader {
+    backend: OnedriveBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl OnedriveReader {
+    fn new(backend: OnedriveBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for OnedriveReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let response = backend
+            .core
+            .onedrive_get_content(path, range, &args)
+            .await?;
+        let (rp, stream) = match response.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, response.headers())?),
+                response.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = response.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for OnedriveBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<OnedriveReader>;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -62,19 +105,11 @@ impl Access for OnedriveBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let response = self.core.onedrive_get_content(path, &args).await?;
-        match response.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), response.into_body()))
-            }
-            _ => {
-                let (part, mut body) = response.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OnedriveReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -95,10 +130,16 @@ impl Access for OnedriveBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let monitor_url = self.core.initialize_copy(from, to).await?;
         self.core.wait_until_complete(monitor_url).await?;
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

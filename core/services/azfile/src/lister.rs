@@ -74,10 +74,12 @@ impl oio::PageList for AzfileLister {
         }
 
         for file in results.entries.file {
-            let meta = Metadata::new(EntryMode::FILE)
+            let mut meta = Metadata::new(EntryMode::FILE)
                 .with_etag(file.properties.etag)
-                .with_content_length(file.properties.content_length.unwrap_or(0))
                 .with_last_modified(Timestamp::parse_rfc2822(&file.properties.last_modified)?);
+            if let Some(size) = file.properties.content_length {
+                meta.set_content_length(size);
+            }
             let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
             ctx.entries.push_back(oio::Entry::new(&path, meta));
         }

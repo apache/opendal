@@ -159,6 +159,7 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     type Writer = A::Writer;
     type Lister = ImmutableDir;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -170,6 +171,16 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -228,10 +239,12 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use super::*;
     use futures::TryStreamExt;
     use log::debug;
-
-    use super::*;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
 
     #[derive(Debug)]
     struct MockService;
@@ -241,6 +254,7 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
@@ -253,9 +267,18 @@ mod tests {
         Operator::from_inner(Arc::new(MockService)).layer(layer)
     }
 
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
     async fn test_list() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -285,7 +308,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scan() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -317,7 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_dir() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [
@@ -367,7 +390,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_walk_top_down_dir() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [

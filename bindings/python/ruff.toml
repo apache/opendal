@@ -29,6 +29,9 @@ skip-magic-trailing-comma = false
 
 [lint]
 extend-select = ["D400"]
+ignore = [
+  "W505", # generate code contains long line
+]
 select = [
   "ANN",    # flake8-annotations
   "B",      # flake8-bugbear

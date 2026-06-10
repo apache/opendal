@@ -104,15 +104,27 @@ impl WebdavBuilder {
         self
     }
 
-    /// Enable user metadata support via WebDAV PROPPATCH.
+    /// Disable automatic parent directory creation before write operations.
     ///
-    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
-    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
-    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
+    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
+    /// This requires PROPFIND support to check directory existence.
+    ///
+    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
+    /// or don't require explicit directory creation. Enable this option to skip
+    /// the MKCOL calls and write files directly.
     ///
     /// Default: false
-    pub fn enable_user_metadata(mut self, enable: bool) -> Self {
-        self.config.enable_user_metadata = enable;
+    pub fn disable_create_dir(mut self, disable: bool) -> Self {
+        self.config.disable_create_dir = disable;
+        self
+    }
+
+    /// Deprecated: WebDAV user metadata capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."
+    )]
+    pub fn enable_user_metadata(self, _enable: bool) -> Self {
         self
     }
 
@@ -193,12 +205,12 @@ impl Builder for WebdavBuilder {
 
                         write: true,
                         write_can_empty: true,
-                        write_with_user_metadata: self.config.enable_user_metadata,
+                        write_with_user_metadata: true,
 
                         create_dir: true,
                         delete: true,
 
-                        copy: !self.config.disable_copy,
+                        copy: true,
 
                         rename: true,
 
@@ -225,6 +237,7 @@ impl Builder for WebdavBuilder {
                 .config
                 .user_metadata_uri
                 .unwrap_or_else(|| DEFAULT_USER_METADATA_URI.to_string()),
+            disable_create_dir: self.config.disable_create_dir,
         });
         Ok(WebdavBackend { core })
     }
@@ -236,11 +249,54 @@ pub struct WebdavBackend {
     core: Arc<WebdavCore>,
 }
 
+/// Reader returned by this backend.
+pub struct WebdavReader {
+    backend: WebdavBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl WebdavReader {
+    fn new(backend: WebdavBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for WebdavReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.webdav_get(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for WebdavBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<WebdavReader>;
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -255,27 +311,18 @@ impl Access for WebdavBackend {
         let metadata = self.core.webdav_stat(path).await?;
         Ok(RpStat::new(metadata))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.webdav_get(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(WebdavReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // Ensure parent path exists
-        self.core.webdav_mkcol(get_parent(path)).await?;
+        // Ensure parent path exists (unless disabled for servers that don't support PROPFIND)
+        if !self.core.disable_create_dir {
+            self.core.webdav_mkcol(get_parent(path)).await?;
+        }
 
         Ok((
             RpWrite::default(),
@@ -297,13 +344,19 @@ impl Access for WebdavBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.webdav_copy(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

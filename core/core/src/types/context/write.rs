@@ -210,16 +210,28 @@ mod tests {
     use bytes::BufMut;
     use bytes::Bytes;
     use log::debug;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
     use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::thread_rng;
+    use rand::{Rng, RngExt, rng};
     use sha2::Digest;
     use sha2::Sha256;
 
     use super::*;
     use crate::raw::oio::Write;
+
+    fn sha256_digest(data: impl AsRef<[u8]>) -> String {
+        use std::fmt::Write;
+
+        let digest = Sha256::digest(data);
+        let mut output = String::with_capacity(digest.len() * 2);
+        for byte in digest {
+            write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+        }
+        output
+    }
 
     struct MockWriter {
         buf: Arc<Mutex<Vec<u8>>>,
@@ -248,15 +260,20 @@ mod tests {
         }
     }
 
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
     async fn test_exact_buf_writer_short_write() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; 5];
         rng.fill_bytes(&mut expected);
 
@@ -280,20 +297,13 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
     #[tokio::test]
     async fn test_inexact_buf_writer_large_write() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -305,7 +315,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; 15];
         rng.fill_bytes(&mut expected);
 
@@ -318,20 +328,13 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
     #[tokio::test]
     async fn test_inexact_buf_writer_combine_small() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -343,7 +346,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let mut new_content = |size| {
@@ -368,20 +371,13 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
     #[tokio::test]
     async fn test_inexact_buf_writer_queue_remaining() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -393,7 +389,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let mut new_content = |size| {
@@ -420,26 +416,19 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
     #[tokio::test]
     async fn test_fuzz_exact_buf_writer() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let buffer_size = rng.gen_range(1..10);
+        let buffer_size = rng.random_range(1..10);
         let mut writer = WriteGenerator::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
@@ -451,7 +440,7 @@ mod tests {
         debug!("test_fuzz_exact_buf_writer: buffer size: {buffer_size}");
 
         for _ in 0..1000 {
-            let size = rng.gen_range(1..20);
+            let size = rng.random_range(1..20);
             debug!("test_fuzz_exact_buf_writer: write size: {size}");
             let mut content = vec![0; size];
             rng.fill_bytes(&mut content);
@@ -468,10 +457,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -482,11 +468,7 @@ mod tests {
     /// everything at once.
     #[tokio::test]
     async fn test_exact_buf_writer_large_buffer_splits_into_chunks() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let chunk_size = 10;
         let large_buffer_size = 25; // 2.5x chunk_size
@@ -502,7 +484,7 @@ mod tests {
             true, // exact mode
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; large_buffer_size];
         rng.fill_bytes(&mut expected);
 
@@ -520,10 +502,7 @@ mod tests {
         // Verify all data was written
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
 
         // Verify that writes were split into chunks (except possibly the last one)
         let write_sizes = write_sizes.lock().await;

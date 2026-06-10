@@ -48,6 +48,36 @@ impl VercelArtifactsBuilder {
         self.config.access_token = Some(access_token.to_string());
         self
     }
+
+    /// Set the endpoint for the Vercel artifacts API.
+    ///
+    /// Default: `https://api.vercel.com`
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        if !endpoint.is_empty() {
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+        }
+        self
+    }
+
+    /// Set the Vercel team ID.
+    ///
+    /// When set, the `teamId` query parameter is appended to all requests.
+    pub fn team_id(mut self, team_id: &str) -> Self {
+        if !team_id.is_empty() {
+            self.config.team_id = Some(team_id.to_string());
+        }
+        self
+    }
+
+    /// Set the Vercel team slug.
+    ///
+    /// When set, the `slug` query parameter is appended to all requests.
+    pub fn team_slug(mut self, team_slug: &str) -> Self {
+        if !team_slug.is_empty() {
+            self.config.team_slug = Some(team_slug.to_string());
+        }
+        self
+    }
 }
 
 impl Builder for VercelArtifactsBuilder {
@@ -68,14 +98,36 @@ impl Builder for VercelArtifactsBuilder {
                 ..Default::default()
             });
 
-        match self.config.access_token.clone() {
-            Some(access_token) => Ok(VercelArtifactsBackend {
-                core: Arc::new(VercelArtifactsCore {
-                    info: Arc::new(info),
-                    access_token,
-                }),
-            }),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
+        let access_token = self
+            .config
+            .access_token
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "access_token not set"))?;
+
+        let endpoint = self
+            .config
+            .endpoint
+            .unwrap_or_else(|| "https://api.vercel.com".to_string());
+
+        let mut query_params = Vec::new();
+        if let Some(team_id) = &self.config.team_id {
+            query_params.push(format!("teamId={team_id}"));
         }
+        if let Some(slug) = &self.config.team_slug {
+            query_params.push(format!("slug={slug}"));
+        }
+        let query_string = if query_params.is_empty() {
+            String::new()
+        } else {
+            format!("?{}", query_params.join("&"))
+        };
+
+        Ok(VercelArtifactsBackend {
+            core: Arc::new(VercelArtifactsCore {
+                info: Arc::new(info),
+                access_token,
+                endpoint,
+                query_string,
+            }),
+        })
     }
 }

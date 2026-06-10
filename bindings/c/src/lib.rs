@@ -39,13 +39,23 @@ pub use error::opendal_error;
 mod lister;
 pub use lister::opendal_lister;
 
+mod layer;
+pub use layer::opendal_operator_layers;
+
 mod metadata;
 pub use metadata::opendal_metadata;
+pub use metadata::opendal_metadata_user_metadata;
+pub use metadata::opendal_metadata_user_metadata_pair;
 
 mod operator;
 pub use operator::opendal_operator;
 
 mod operator_info;
+
+mod presign;
+pub use presign::opendal_http_header_pair;
+pub use presign::opendal_presigned_request;
+pub use presign::opendal_result_presign;
 
 mod result;
 pub use result::opendal_result_exists;
@@ -62,7 +72,14 @@ pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
+pub use types::opendal_copy_options;
+pub use types::opendal_delete_options;
+pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
+pub use types::opendal_read_options;
+pub use types::opendal_stat_options;
+pub use types::opendal_write_options;
+pub use types::opendal_write_user_metadata_pair;
 
 mod entry;
 pub use entry::opendal_entry;

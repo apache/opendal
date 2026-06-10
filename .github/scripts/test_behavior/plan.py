@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp"]
+LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
@@ -82,6 +82,8 @@ class Hint:
     binding_java: bool = field(default=False, init=False)
     # Is binding python affected?
     binding_python: bool = field(default=False, init=False)
+    # Is binding ruby affected?
+    binding_ruby: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
     # Is binding go affected?
@@ -90,6 +92,8 @@ class Hint:
     binding_c: bool = field(default=False, init=False)
     # Is binding cpp affected?
     binding_cpp: bool = field(default=False, init=False)
+    # Is binding dotnet affected?
+    binding_dotnet: bool = field(default=False, init=False)
     # Is integration object_store affected ?
     integration_object_store: bool = field(default=False, init=False)
 
@@ -153,12 +157,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             and not p.startswith("core/core/src/docs/")
         ):
             hint.core = True
-            hint.binding_java = True
-            hint.binding_python = True
-            hint.binding_nodejs = True
-            hint.binding_go = True
-            hint.binding_c = True
-            hint.binding_cpp = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
             for integration in INTEGRATIONS:
                 setattr(hint, f"integration_{integration}", True)
             hint.all_service = True
@@ -175,7 +175,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_go = True
             hint.all_service = True
 
-        # cpp affected  
+        # cpp affected
         if p.startswith("bindings/cpp/"):
             hint.binding_cpp = True
             hint.all_service = True
@@ -267,9 +267,53 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
-    # Remove hdfs cases for java and go.
+    # Remove invalid cases for java.
     if language == "java":
-        cases = [v for v in cases if v["service"] != "hdfs"]
+        cases = [v for v in cases if v["service"] not in [
+            "compfs",
+            # FIXME: Re-enable hf after https://github.com/apache/opendal/issues/7367 is fixed.
+            "hf",
+            "hdfs",
+            "hdfs_native",
+            "monoiofs",
+            "rocksdb",
+        ]]
+
+    # Remove invalid cases for dotnet.
+    if language == "dotnet":
+        cases = [v for v in cases if v["service"] not in [
+            "hdfs",
+            "hdfs_native",
+            "rocksdb",
+        ]]
+
+    # Remove invalid cases for go.
+    if language == "go":
+        cases = [v for v in cases if v["service"] not in [
+            # opendal-go-services doesn't provide TOS yet.
+            "tos",
+        ]]
+    
+    # Enable integrated services (cases) for ruby.
+    # Ruby binding only integrates some services. Read more in bindings/ruby/Cargo.toml
+    if language == "ruby":
+        cases = [v for v in cases if v["service"] in [
+            "azblob",
+            "azdls",
+            "cos",
+            "fs",
+            "gcs",
+            "ghac",
+            "http",
+            "ipmfs",
+            "memory",
+            "obs",
+            "oss",
+            "s3",
+            "webdav",
+            "webhdfs",
+            "azfile",
+        ]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

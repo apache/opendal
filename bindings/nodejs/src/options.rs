@@ -230,6 +230,7 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
             if_none_match: value.if_none_match,
             if_modified_since,
             if_unmodified_since,
+            content_length_hint: None,
             override_content_type: value.content_type,
             override_cache_control: value.cache_control,
             override_content_disposition: value.content_disposition,
@@ -344,6 +345,7 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
             if_none_match: value.if_none_match,
             if_modified_since,
             if_unmodified_since,
+            content_length_hint: None,
         }
     }
 }

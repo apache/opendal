@@ -99,9 +99,12 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Enable versioning support for OneDrive
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
+    /// Deprecated: OneDrive versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 }
@@ -132,14 +135,14 @@ impl Builder for OnedriveBuilder {
 
                 stat: true,
                 stat_with_if_none_match: true,
-                stat_with_version: self.config.enable_versioning,
+                stat_with_version: true,
 
                 delete: true,
                 create_dir: true,
 
                 list: true,
                 list_with_limit: true,
-                list_with_versions: self.config.enable_versioning,
+                list_with_versions: true,
 
                 shared: true,
 

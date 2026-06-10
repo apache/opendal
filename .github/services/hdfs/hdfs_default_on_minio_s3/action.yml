@@ -21,15 +21,12 @@ description: 'Behavior test for hdfs default on minio s3'
 runs:
   using: "composite"
   steps:
-    - name: Setup java env
-      uses: actions/setup-java@v5
-      with:
-        distribution: zulu
-        java-version: 11
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3
+
       run: docker compose -f docker-compose-minio.yml up -d --wait
+
     - name: Setup test bucket
       shell: bash
       env:
@@ -37,18 +34,32 @@ runs:
         AWS_SECRET_ACCESS_KEY: "minioadmin"
         AWS_EC2_METADATA_DISABLED: "true"
       run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-    - name: Setup
+
+    - name: Setup hadoop
+      uses: ./.github/actions/setup-hadoop
+      with:
+        need-hadoop: true
+
+    - name: Setup Hadoop AWS S3 connector
       shell: bash
       run: |
-        curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+        curl --location \
+          --silent \
+          --show-error \
+          --fail \
+          --output ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-aws-3.3.5.jar \
+          https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.5/hadoop-aws-3.3.5.jar
 
-        export HADOOP_HOME="/home/runner/hadoop-3.3.5"
+        curl --location \
+          --silent \
+          --show-error \
+          --fail \
+          --output ${HADOOP_HOME}/share/hadoop/common/lib/aws-java-sdk-bundle-1.12.653.jar \
+          https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.653/aws-java-sdk-bundle-1.12.653.jar
 
-        curl -LsSf -o ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-aws-3.3.5.jar https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.5/hadoop-aws-3.3.5.jar
-        curl -LsSf -o ${HADOOP_HOME}/share/hadoop/common/lib/aws-java-sdk-bundle-1.12.653.jar https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.653/aws-java-sdk-bundle-1.12.653.jar
-
-        export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
-
+    - name: Setup Hadoop AWS S3 connector env
+      shell: bash
+      run: |
         mkdir -p /tmp/hdfs
 
         pushd ${HADOOP_HOME}
@@ -60,9 +71,6 @@ runs:
         cp ./fixtures/hdfs/minio-s3-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV
-        HADOOP_HOME=${HADOOP_HOME}
-        CLASSPATH=${CLASSPATH}
-        LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_NAME_NODE=s3a://test
         OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false
         EOF

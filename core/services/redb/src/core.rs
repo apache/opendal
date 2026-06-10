@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use opendal_core::*;
+use redb::ReadableDatabase;
 
 #[derive(Clone)]
 pub struct RedbCore {

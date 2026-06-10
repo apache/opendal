@@ -74,9 +74,14 @@ pub struct AzblobCopier {
 
 impl oio::BlockCopy for AzblobCopier {
     async fn source_metadata(&self) -> Result<Metadata> {
+        let mut args = OpStat::default();
+        if let Some(version) = self.args.source_version() {
+            args = args.with_version(version);
+        }
+
         let resp = self
             .core
-            .azblob_get_blob_properties(&self.from, &OpStat::default())
+            .azblob_get_blob_properties(&self.from, &args)
             .await?;
 
         match resp.status() {
@@ -107,7 +112,13 @@ impl oio::BlockCopy for AzblobCopier {
     async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
         let resp = self
             .core
-            .azblob_put_block_from_url(&self.from, &self.to, block_id, range)
+            .azblob_put_block_from_url(
+                &self.from,
+                &self.to,
+                self.args.source_version(),
+                block_id,
+                range,
+            )
             .await?;
 
         match resp.status() {

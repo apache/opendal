@@ -16,6 +16,7 @@
 // under the License.
 
 use std::mem;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -95,14 +96,28 @@ impl MonoiofsCore {
         }
     }
 
-    /// join root and path
-    pub fn prepare_path(&self, path: &str) -> PathBuf {
-        self.root.join(path.trim_end_matches('/'))
+    /// Reject `..` traversal in a key so it cannot escape `root`, matching the
+    /// `fs` backend (#7684). Confinement lives here because `normalize_path`
+    /// deliberately leaves `.`/`..` unresolved (RFC 0112).
+    pub fn prepare_path(&self, path: &str) -> Result<PathBuf> {
+        use std::path::Component;
+        let trimmed = path.trim_end_matches('/');
+        if Path::new(trimmed)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir))
+        {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "path escapes the configured root via `..`",
+            )
+            .with_context("path", path));
+        }
+        Ok(self.root.join(trimmed))
     }
 
     /// join root and path, create parent dirs
     pub async fn prepare_write_path(&self, path: &str) -> Result<PathBuf> {
-        let path = self.prepare_path(path);
+        let path = self.prepare_path(path)?;
         let parent = path
             .parent()
             .ok_or_else(|| {
@@ -308,5 +323,41 @@ mod tests {
     async fn test_monoio_multi_thread_dispatch_panic() {
         let core = new_core(4);
         dispatch_panic(core).await;
+    }
+
+    #[tokio::test]
+    async fn test_prepare_path_rejects_parent_dir() {
+        let core = Arc::new(MonoiofsCore::new(PathBuf::from("/data/root"), 1, 1024));
+        for key in ["../etc/passwd", "../../etc/passwd", "a/../../b", "a/.."] {
+            let err = core.prepare_path(key).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "key should be rejected: {key}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_prepare_path_allows_normal_keys() {
+        let core = Arc::new(MonoiofsCore::new(PathBuf::from("/data/root"), 1, 1024));
+        // Normal keys, `.` (CurDir), and trailing slashes resolve unchanged.
+        assert_eq!(
+            core.prepare_path("a/b.txt").unwrap(),
+            PathBuf::from("/data/root/a/b.txt")
+        );
+        assert_eq!(
+            core.prepare_path("a/b/").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        assert_eq!(
+            core.prepare_path("./a/b").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        // A key containing `..` only as a substring of a name is not a traversal.
+        assert_eq!(
+            core.prepare_path("a..b").unwrap(),
+            PathBuf::from("/data/root/a..b")
+        );
     }
 }

@@ -251,6 +251,30 @@ func (c *Capability) Copy() bool {
 	return c.inner.copy == 1
 }
 
+func (c *Capability) CopyWithIfNotExists() bool {
+	return c.inner.copyWithIfNotExists == 1
+}
+
+func (c *Capability) CopyWithIfMatch() bool {
+	return c.inner.copyWithIfMatch == 1
+}
+
+func (c *Capability) CopyWithSourceVersion() bool {
+	return c.inner.copyWithSourceVersion == 1
+}
+
+func (c *Capability) CopyCanMulti() bool {
+	return c.inner.copyCanMulti == 1
+}
+
+func (c *Capability) CopyMultiMaxSize() uint {
+	return c.inner.copyMultiMaxSize
+}
+
+func (c *Capability) CopyMultiMinSize() uint {
+	return c.inner.copyMultiMinSize
+}
+
 func (c *Capability) Rename() bool {
 	return c.inner.rename == 1
 }
@@ -269,6 +293,14 @@ func (c *Capability) ListWithStartAfter() bool {
 
 func (c *Capability) ListWithRecursive() bool {
 	return c.inner.listWithRecursive == 1
+}
+
+func (c *Capability) ListWithVersions() bool {
+	return c.inner.listWithVersions == 1
+}
+
+func (c *Capability) ListWithDeleted() bool {
+	return c.inner.listWithDeleted == 1
 }
 
 func (c *Capability) Presign() bool {

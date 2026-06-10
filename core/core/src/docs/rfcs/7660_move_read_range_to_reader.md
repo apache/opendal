@@ -220,11 +220,14 @@ they need for wrapping and cloning.
 - `read(range)` reads one bounded planner range and returns exactly one
   materialized `Buffer`.
 
-`read` is not a syscall-style partial read. Backends should not return a short
-buffer just because one underlying syscall or network read returned fewer bytes
-than requested. For a valid bounded planner range, `read` should either return
-the complete range content or return an error. The complete layer can still
-enforce the final length check.
+This is the adapter-level `oio::Read` contract. Native services usually
+implement either `StreamRead::open` or `PositionRead::read_at`; `StreamReader`
+and `PositionReader` then provide the full `oio::Read` contract.
+
+`read` is not a syscall-style partial read. `oio::Read` implementations should
+not return a short buffer just because one underlying syscall or network read
+returned fewer bytes than requested. For a valid bounded planner range, `read`
+should either return the complete range content or return an error.
 
 The public `Reader::read` can still accept a large user range. The core planner
 must not blindly pass that large range to raw `read`. It should choose between
@@ -313,13 +316,14 @@ pub struct ReadContext {
 
 `acc`, `path`, and `args` are still useful for planning, especially when
 OpenDAL needs `stat` to resolve unbounded ranges for chunked reads or
-`AsyncSeek` adapters. Actual range I/O should go through `reader.open`,
-`reader.read`, or `reader.fetch`, not through repeated `acc.read` calls.
+`AsyncSeek` adapters. Actual raw range I/O should go through `reader.open` or
+`reader.read`, not through repeated `acc.read` calls.
 
 `Reader::metadata()` remains cache-only. The cache is updated from `RpRead`
-returned by `Access::read`, `open`, `read`, or `fetch`. Lazy backends may return
-`RpRead::default()` from `Access::read` and fill metadata after the first range
-operation.
+returned by `Access::read`, `open`, or `read`. Lazy backends may return
+`RpRead::default()` from `Access::read` and fill metadata after the first raw
+range operation. Public `Reader::fetch` observes metadata from the planned raw
+`read` calls it executes.
 
 ## Layers
 
@@ -433,8 +437,9 @@ This keeps object-store behavior unchanged.
 
 ### Memory and database-like services
 
-Services that already have the data content in memory can store the content or
-lookup key in their raw reader. `read(range)` can slice bounded ranges directly.
+Services that already have the data content in memory can implement
+`StreamRead` by opening a stream over the selected slice. Their
+`StreamReader` adapter will provide bounded `read(range)`.
 
 ### Handle based services
 
@@ -571,9 +576,9 @@ can be implemented.
 
 `object_store` exposes both single-range and multi-range reads through
 `get_range` and `get_ranges`. OpenDAL's public `Reader::fetch` serves a similar
-user-facing purpose. This RFC places the raw batch primitive on the raw reader,
-where both object-store requests and file-handle positioned reads can be
-implemented.
+user-facing purpose. The accepted raw contract does not expose a batch
+primitive; public fetch is planned by core and executed through bounded raw
+`read(range)` calls.
 
 # Unresolved questions
 
@@ -581,8 +586,8 @@ implemented.
 
 The initial implementation can preserve current public behavior by batching
 merged ranges according to `OpReader::concurrent`. We should benchmark whether
-the default policy should prefer one large `raw.fetch` call, several batches, or
-one task per merged range for different backend classes.
+the default policy should prefer fewer larger bounded raw reads or one task per
+merged range for different backend classes.
 
 ## Native preferred read size
 

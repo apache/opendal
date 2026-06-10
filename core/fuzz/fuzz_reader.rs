@@ -89,8 +89,6 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
     Ok(())
 }
 
-// Fall back to an fs operator in a temporary directory when no test service is
-// configured, so fuzz targets exercise real code out of the box (e.g. on OSS-Fuzz).
 static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
     if let Some(op) = init_test_service().expect("operator init must succeed") {
         return op;

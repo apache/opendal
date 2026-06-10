@@ -241,6 +241,13 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 //		// Process the entry
 //		fmt.Println(entry.Name())
 //	}
+//
+// Lister iterates directory entries.
+//
+// After a cancelled Next the handle remains valid and can be closed without
+// leaking resources, but the iterator's internal position is unspecified.
+// Callers should discard a Lister that had an operation cancelled and open a
+// new one rather than continuing to call Next.
 type Lister struct {
 	inner *opendalLister
 	ctx   context.Context

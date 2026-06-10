@@ -104,7 +104,17 @@ signals OpenDAL's native cancel token and then blocks until the native call
 actually returns before reporting `context.Canceled` or
 `context.DeadlineExceeded`. Waiting for the native call to finish guarantees the
 underlying buffers and handles are no longer in use by native code once the call
-returns, so they can be safely reused or closed.
+returns.
+
+After a cancellation the streaming handles (`Reader`, `Writer`, `Lister`) are
+still alive and can be closed without leaking resources, but their internal
+stream state is unspecified (e.g. the read position may have advanced
+partially). Callers should **discard** a handle that had an operation cancelled
+and open a new one rather than attempting to resume from the same handle.
+
+`Writer.Close` may be retried after a cancelled close, but success is not
+guaranteed because the underlying `core::Writer::close` future is not
+documented as resumable.
 
 ## Run Tests
 

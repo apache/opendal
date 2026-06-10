@@ -153,6 +153,28 @@ func TestWriterDeferredCloseAfterPreCancelledClose(t *testing.T) {
 	}
 }
 
+// TestInFlightCancellationBlocksUntilNativeReturns verifies the blocking
+// cancellation contract: the binding must not return to the caller before the
+// native FFI call finishes.
+//
+// This test only exercises the pre-cancel fast path (ctx already done before
+// the FFI call starts) because a true in-flight test requires a live backend
+// (e.g. OPENDAL_TEST=s3) to produce a long-running native call that can be
+// interrupted mid-way. Running the behavior suite with a timeout context and
+// asserting the goroutine count does not increase is a recommended integration
+// check before release.
+func TestPreCancelReturnsCanceled(t *testing.T) {
+	ctx := newCanceledContext()
+
+	op := &Operator{}
+	if _, err := op.Read(ctx, "path"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Read with pre-cancelled ctx = %v, want context.Canceled", err)
+	}
+	if err := op.Write(ctx, "path", []byte("x")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Write with pre-cancelled ctx = %v, want context.Canceled", err)
+	}
+}
+
 func TestIOHandleMethodsUseBoundCanceledContext(t *testing.T) {
 	ctx := newCanceledContext()
 

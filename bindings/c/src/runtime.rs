@@ -18,6 +18,11 @@
 use std::sync::LazyLock;
 
 /// Shared Tokio runtime used to bridge blocking C callers to async OpenDAL APIs.
+///
+/// Every blocking C call uses `RUNTIME.block_on(...)` on the calling thread.
+/// Calling any blocking OpenDAL C function from inside an existing Tokio
+/// runtime thread will panic, because `block_on` cannot be nested.  This is
+/// the same constraint as the old `blocking::Operator` API.
 pub(crate) static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

@@ -149,8 +149,9 @@ where
     match token {
         Some(token) => {
             tokio::select! {
-                result = fut => result,
+                biased;
                 _ = token.cancelled() => Err(cancelled_error()),
+                result = fut => result,
             }
         }
         None => fut.await,

@@ -371,6 +371,16 @@ func (op *Operator) Writer(ctx context.Context, path string, opts ...WithWriteFn
 	})
 }
 
+// Writer implements io.WriteCloser.
+//
+// Writer is not safe for concurrent use. Callers must not call Write, Close, or
+// free concurrently. The mutex protects only the idempotent-close check; it
+// does not protect the native handle from concurrent FFI calls.
+//
+// After a cancelled Write or Close the handle remains valid and the same
+// operation may be retried, but the writer's internal stream state is
+// unspecified. Callers that need reliable delivery should discard the Writer
+// and open a new one when a cancellation occurs.
 type Writer struct {
 	inner *opendalWriter
 	ctx   context.Context
@@ -481,14 +491,12 @@ func (w *Writer) Close() error {
 	// The close was canceled (context.Canceled/DeadlineExceeded). The native
 	// writer was not freed, so restore the handle to allow Close to be retried
 	// instead of leaking it.
+	//
+	// Note: re-closing after a cancelled close is best-effort. opendal does
+	// not document core::Writer::close() as resumable, so the retry may or may
+	// not succeed depending on the backend and how far the first attempt got.
 	w.mu.Lock()
-	if w.inner == nil {
-		w.inner = inner
-	} else {
-		// A concurrent operation already repopulated the handle; free ours to
-		// avoid a leak.
-		ffiWriterFree.symbol(w.ctx)(inner)
-	}
+	w.inner = inner
 	w.mu.Unlock()
 	return err
 }

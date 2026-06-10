@@ -252,7 +252,7 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //	}
 func (op *Operator) IsExist(ctx context.Context, path string) (bool, error) {
 	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (bool, error) {
-		return ffiOperatorIsExistWithCancel.symbol(op.ctx)(op.inner, path, token)
+		return ffiOperatorExistsWithCancel.symbol(op.ctx)(op.inner, path, token)
 	})
 }
 
@@ -305,9 +305,11 @@ var ffiOperatorStatWithOptionsCancel = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorIsExistWithCancel = newFFI(ffiOpts{
-	sym:    "opendal_operator_is_exist_with_cancel",
-	rType:  &typeResultIsExist,
+// ffiOperatorExistsWithCancel binds opendal_operator_exists_with_cancel, the
+// non-deprecated replacement for opendal_operator_is_exist_with_cancel.
+var ffiOperatorExistsWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_exists_with_cancel",
+	rType:  &typeResultExists,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (bool, error) {
 	return func(op *opendalOperator, path string, token *opendalCancelToken) (bool, error) {
@@ -315,7 +317,7 @@ var ffiOperatorIsExistWithCancel = newFFI(ffiOpts{
 		if err != nil {
 			return false, err
 		}
-		var result resultIsExist
+		var result resultExists
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
@@ -325,7 +327,7 @@ var ffiOperatorIsExistWithCancel = newFFI(ffiOpts{
 		if result.error != nil {
 			return false, parseError(ctx, result.error)
 		}
-		return result.is_exist == 1, nil
+		return result.exists == 1, nil
 	}
 })
 

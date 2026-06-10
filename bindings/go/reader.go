@@ -345,6 +345,12 @@ func (op *Operator) Reader(ctx context.Context, path string) (*Reader, error) {
 	})
 }
 
+// Reader implements io.ReadSeekCloser.
+//
+// After a cancelled Read or Seek the handle remains valid and can be closed
+// without leaking resources, but its internal stream position is unspecified.
+// Callers should discard a Reader that had an operation cancelled and open a
+// new one rather than attempting to resume reading from the same handle.
 type Reader struct {
 	inner *opendalReader
 	ctx   context.Context

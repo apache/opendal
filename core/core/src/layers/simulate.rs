@@ -180,12 +180,8 @@ impl<A: Access> SimulateAccessor<A> {
             cap.list_with_recursive,
             self.config.list_recursive,
         ) {
-            // Backend supports recursive list, forward to the backend.
-            //
-            // We still apply the same prefix handling as the non-recursive
-            // arm below: when the path has no trailing slash, list the parent
-            // and filter by the path prefix so that listing `dir/file`
-            // returns sibling entries sharing that prefix.
+            // Match the non-recursive arm: for a non-trailing-slash path, list
+            // the parent and prefix-filter so prefix-siblings aren't dropped.
             (_, true, _) => {
                 if path.ends_with('/') {
                     let (rp, p) = self.inner.list(path, forward).await?;
@@ -372,10 +368,8 @@ mod tests {
     use crate::EntryMode;
     use crate::Metadata;
 
-    /// A backend that natively supports recursive list and follows WebDAV
-    /// `Depth: infinity` semantics: a list of `path` returns `path` itself
-    /// plus everything strictly under `path/`. Listing a file path therefore
-    /// returns only that file, never its prefix-siblings.
+    /// Native-recursive backend with WebDAV `Depth: infinity` semantics: a file
+    /// path lists only that file and its subtree, not prefix-siblings.
     #[derive(Debug)]
     struct NativeRecursiveService {
         entries: Vec<String>,
@@ -405,11 +399,8 @@ mod tests {
                 .iter()
                 .filter(|key| {
                     if path.is_empty() || path.ends_with('/') {
-                        // Directory: return the whole subtree rooted at `path`.
                         key.starts_with(path)
                     } else {
-                        // File path: WebDAV `Depth: infinity` returns only the
-                        // file itself plus anything strictly under `path/`.
                         *key == path || key.starts_with(&format!("{path}/"))
                     }
                 })
@@ -453,15 +444,8 @@ mod tests {
         paths
     }
 
-    /// Regression test for a native-recursive list dropping prefix-siblings
-    /// when the list path has no trailing slash.
-    ///
-    /// Listing `dir/file` (no trailing slash) recursively must return both
-    /// `dir/file` and its prefix-sibling `dir/file2`, the same way the
-    /// non-recursive arm and the simulated-recursive arm already behave.
-    /// Before the fix the native-recursive arm forwarded `dir/file` directly
-    /// to the backend, whose `Depth: infinity` walk returns only `dir/file`,
-    /// silently dropping `dir/file2`.
+    /// Recursively listing `dir/file` (no trailing slash) must keep its
+    /// prefix-sibling `dir/file2`, not just the file itself.
     #[tokio::test]
     async fn test_native_recursive_list_no_trailing_slash_keeps_prefix_siblings() {
         let srv = NativeRecursiveService {

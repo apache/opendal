@@ -63,6 +63,8 @@ RbSys::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
     arm64-linux
     arm64-darwin
     arm64-darwin23
+    arm64-darwin24
+    arm64-darwin25
   ]
 
   # Override Ruby version requirement for native gems

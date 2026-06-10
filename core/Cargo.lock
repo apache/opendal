@@ -1140,12 +1140,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bincode"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd6a120d2e16b3e1b4a24bd70f23b12d3e16b81f113364a26935f8db7245452d"
-
-[[package]]
 name = "bindgen"
 version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3454,7 +3448,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3db80d5dece93adb7ad709c84578794724a9cba342a7e566c3551c7ec626789"
 dependencies = [
  "anyhow",
- "bincode 1.3.3",
+ "bincode",
  "bytes",
  "cfg-if 1.0.4",
  "foyer-tokio",
@@ -6590,7 +6584,7 @@ dependencies = [
 name = "opendal-layer-foyer"
 version = "0.57.0"
 dependencies = [
- "bincode 3.0.0",
+ "bincode",
  "foyer",
  "opendal-core",
  "serde",

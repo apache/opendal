@@ -295,6 +295,8 @@ mod tests {
         stat_calls: AtomicUsize,
         open_calls: AtomicUsize,
         read_calls: AtomicUsize,
+        last_stat_args: Mutex<Option<OpStat>>,
+        last_read_args: Mutex<Option<OpRead>>,
     }
 
     impl MockReadState {
@@ -304,6 +306,8 @@ mod tests {
                 stat_calls: AtomicUsize::new(0),
                 open_calls: AtomicUsize::new(0),
                 read_calls: AtomicUsize::new(0),
+                last_stat_args: Mutex::new(None),
+                last_read_args: Mutex::new(None),
             }
         }
 
@@ -379,12 +383,14 @@ mod tests {
             am.into()
         }
 
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &str, args: OpStat) -> Result<RpStat> {
             self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
+            *self.state.last_stat_args.lock().unwrap() = Some(args);
             Ok(RpStat::new(self.state.metadata()))
         }
 
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+            *self.state.last_read_args.lock().unwrap() = Some(args);
             Ok((
                 self.state.rp_read(),
                 MockReadReader {
@@ -443,6 +449,28 @@ mod tests {
         assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_cache_fill_preserves_read_args() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let args = OpRead::default().with_version("v1").with_if_match("etag-1");
+        let (_, reader) = LayeredAccess::read(&accessor, "test", args).await.unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        stream.read_all().await.unwrap();
+
+        let stat_args = state.last_stat_args.lock().unwrap().clone().unwrap();
+        assert_eq!(stat_args.version(), Some("v1"));
+        assert_eq!(stat_args.if_match(), Some("etag-1"));
+
+        let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
+        assert_eq!(read_args.version(), Some("v1"));
+        assert_eq!(read_args.if_match(), Some("etag-1"));
     }
 
     #[tokio::test]

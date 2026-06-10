@@ -248,6 +248,41 @@ impl OneDriveCore {
         Ok(decoded_response.value)
     }
 
+    pub(crate) fn onedrive_list_request(
+        &self,
+        path: &str,
+        limit: Option<usize>,
+    ) -> Result<Request<Buffer>> {
+        let item_url = self.onedrive_item_url(path, true);
+        // The drive root must be addressed as `root/children`: the path-based form
+        // `root:/children` addresses an item named "children" instead.
+        let mut url = if item_url == Self::DRIVE_ROOT_URL {
+            format!("{item_url}/children?{GENERAL_SELECT_PARAM}")
+        } else {
+            format!("{item_url}:/children?{GENERAL_SELECT_PARAM}")
+        };
+        if let Some(limit) = limit {
+            url += &format!("&$top={limit}");
+        }
+
+        Request::get(&url)
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
+
+    pub(crate) async fn onedrive_list(
+        &self,
+        path: &str,
+        limit: Option<usize>,
+    ) -> Result<Response<Buffer>> {
+        let mut request = self.onedrive_list_request(path, limit)?;
+
+        self.sign(&mut request).await?;
+
+        self.info.http_client().send(request).await
+    }
+
     pub(crate) async fn onedrive_get_next_list_page(&self, url: &str) -> Result<Response<Buffer>> {
         let mut request = Request::get(url)
             .extension(Operation::List)
@@ -685,5 +720,127 @@ impl OneDriveSigner {
             .insert(header::AUTHORIZATION, auth_header_content);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use futures::stream;
+    use http::StatusCode;
+    use opendal_core::raw::oio::List;
+
+    use super::super::lister::OneDriveLister;
+    use super::*;
+
+    const ROOT_STAT_RESPONSE: &str = r#"{"id":"0","name":"root","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":0,"parentReference":{"path":"","driveId":"d","id":"p"},"folder":{"childCount":1}}"#;
+    const ROOT_CHILDREN_RESPONSE: &str = r#"{"value":[{"id":"1","name":"test.txt","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":5,"parentReference":{"path":"/drive/root:","driveId":"d","id":"p"},"file":{"mimeType":"text/plain"}}]}"#;
+
+    #[derive(Clone)]
+    struct MockHttpClient;
+
+    impl HttpFetch for MockHttpClient {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let url = req.uri().to_string();
+            let root_url = OneDriveCore::DRIVE_ROOT_URL;
+
+            let (status, body) = if url == format!("{root_url}/children?{GENERAL_SELECT_PARAM}") {
+                (StatusCode::OK, ROOT_CHILDREN_RESPONSE)
+            } else if url == root_url {
+                (StatusCode::OK, ROOT_STAT_RESPONSE)
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error":{"code":"itemNotFound","message":"Item not found"}}"#,
+                )
+            };
+
+            let data = Bytes::from_static(body.as_bytes());
+            let size = data.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .header(header::CONTENT_LENGTH, size)
+                .body(HttpBody::new(
+                    stream::iter(vec![Ok(Buffer::from(data))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
+    }
+
+    fn test_core(root: &str) -> Arc<OneDriveCore> {
+        let info = AccessorInfo::default();
+        info.set_scheme("onedrive").set_root(root);
+        info.update_http_client(|_| HttpClient::with(MockHttpClient));
+        let info = Arc::new(info);
+
+        let mut signer = OneDriveSigner::new(info.clone());
+        signer.access_token = "token".to_string();
+        signer.expires_in = Timestamp::MAX;
+
+        Arc::new(OneDriveCore {
+            info,
+            root: root.to_string(),
+            signer: Arc::new(Mutex::new(signer)),
+        })
+    }
+
+    #[test]
+    fn list_request_for_root_targets_drive_root_children() {
+        let core = test_core("/");
+        let request = core.onedrive_list_request("/", None).unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}/children?{}",
+                OneDriveCore::DRIVE_ROOT_URL,
+                GENERAL_SELECT_PARAM
+            )
+        );
+    }
+
+    #[test]
+    fn list_request_for_nested_path_uses_path_addressing() {
+        let core = test_core("/");
+        let request = core.onedrive_list_request("foo/", Some(10)).unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}:/foo:/children?{}&$top=10",
+                OneDriveCore::DRIVE_ROOT_URL,
+                GENERAL_SELECT_PARAM
+            )
+        );
+    }
+
+    #[test]
+    fn list_request_for_root_under_custom_root_uses_path_addressing() {
+        let core = test_core("/base/");
+        let request = core.onedrive_list_request("", None).unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}:/base:/children?{}",
+                OneDriveCore::DRIVE_ROOT_URL,
+                GENERAL_SELECT_PARAM
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn list_root_returns_entries() {
+        let core = test_core("/");
+        let lister = OneDriveLister::new("/".to_string(), core, &OpList::default());
+        let mut lister = oio::PageLister::new(lister);
+
+        let mut entries = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            entries.push(entry);
+        }
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].mode(), EntryMode::DIR);
+        assert_eq!(entries[1].path(), "test.txt");
+        assert_eq!(entries[1].mode(), EntryMode::FILE);
     }
 }

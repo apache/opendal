@@ -36,7 +36,10 @@ impl Buffer {
     pub fn into_bytes(self, py: Python) -> PyResult<Py<PyAny>> {
         let buffer = self.into_py_any(py)?;
 
-        unsafe { Py::<PyAny>::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr())) }
+        unsafe {
+            Bound::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr()))
+                .map(Bound::unbind)
+        }
     }
 
     /// Consume self to build a bytes

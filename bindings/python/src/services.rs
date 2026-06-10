@@ -56,7 +56,8 @@ submit! {
     hash,
     frozen,
     name = "Scheme",
-    module = "opendal.services"
+    module = "opendal.services",
+    from_py_object
 )]
 #[pyo3(rename_all = "PascalCase")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -497,6 +497,9 @@ impl GcsCore {
 
         let mut url = QueryPairsWriter::new(&url);
 
+        if let Some(version) = args.source_version() {
+            url = url.push("sourceGeneration", &percent_encode_path(version));
+        }
         if args.if_not_exists() {
             url = url.push("ifGenerationMatch", "0");
         }

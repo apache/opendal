@@ -121,15 +121,16 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
         )))
     }
 
-    /// Invoke the `read` operation on the specified path, returns a
-    /// [`Reader`][crate::Reader] if operate successful.
+    /// Invoke the `read` operation on the specified path, returns a raw
+    /// reader if operate successful.
     ///
     /// Require [`Capability::read`]
     ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check mode.
-    /// - The returning content length may be smaller than the range specified.
+    /// - Range I/O is selected by the returned reader's `open` or `read`
+    ///   operation.
     fn read(
         &self,
         path: &str,

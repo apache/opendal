@@ -85,10 +85,12 @@ pub struct S3Copier {
 
 impl oio::MultipartCopy for S3Copier {
     async fn source_metadata(&self) -> Result<Metadata> {
-        let resp = self
-            .core
-            .s3_head_object(&self.from, OpStat::default())
-            .await?;
+        let mut args = OpStat::default();
+        if let Some(version) = self.args.source_version() {
+            args = args.with_version(version);
+        }
+
+        let resp = self.core.s3_head_object(&self.from, args).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -173,6 +175,7 @@ impl oio::MultipartCopy for S3Copier {
             .s3_upload_part_copy_request(S3UploadPartCopyRequest {
                 from: &self.from,
                 to: &self.to,
+                source_version: self.args.source_version(),
                 upload_id,
                 part_number,
                 range,

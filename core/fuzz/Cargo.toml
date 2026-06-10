@@ -89,6 +89,11 @@ opendal = { path = "..", features = ["tests", "services-fs"] }
 uuid = { workspace = true, features = ["v4"] }
 
 [[bin]]
+name = "fuzz_path"
+path = "fuzz_path.rs"
+test = false
+
+[[bin]]
 name = "fuzz_reader"
 path = "fuzz_reader.rs"
 test = false

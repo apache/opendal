@@ -280,6 +280,7 @@ export const serviceGroups = [
       { name: "fs", icon: "/img/services/opendal.svg" },
       { name: "hdfs", icon: "/img/services/hadoop.ico" },
       { name: "alluxio", icon: "/img/services/alluxio.svg" },
+      { name: "goosefs", icon: "/img/services/goosefs.svg" },
       { name: "lakefs", icon: "/img/services/lakefs.ico" },
       { name: "ipfs", icon: "/img/services/ipfs.ico" },
       { name: "dbfs", icon: "/img/services/databricks.png" },

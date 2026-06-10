@@ -29,10 +29,11 @@ use super::config::SftpConfig;
 use super::core::SftpCore;
 use super::deleter::SftpDeleter;
 use super::error::is_not_found;
+use super::error::is_sftp_failure;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::lister::SftpLister;
-use super::reader::SftpReader;
+use super::reader::SftpReadStream;
 use super::utils::to_metadata;
 use super::writer::SftpWriter;
 use opendal_core::raw::*;
@@ -115,11 +116,12 @@ impl SftpBuilder {
         self
     }
 
-    /// set enable_copy for sftp backend.
-    /// It requires the server supports copy-file extension.
-    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
-        self.config.enable_copy = enable_copy;
-
+    /// Deprecated: SFTP copy capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "SFTP copy capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_copy(self, _enable_copy: bool) -> Self {
         self
     }
 }
@@ -172,6 +174,7 @@ impl Builder for SftpBuilder {
 
                 write: true,
                 write_can_multi: true,
+                write_with_if_not_exists: true,
 
                 create_dir: true,
                 delete: true,
@@ -179,7 +182,7 @@ impl Builder for SftpBuilder {
                 list: true,
                 list_with_limit: true,
 
-                copy: self.config.enable_copy,
+                copy: true,
                 rename: true,
 
                 shared: true,
@@ -207,11 +210,57 @@ pub struct SftpBackend {
     pub core: Arc<SftpCore>,
 }
 
+/// Reader returned by this backend.
+pub struct SftpReader {
+    backend: SftpBackend,
+    path: String,
+}
+
+impl SftpReader {
+    fn new(backend: SftpBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for SftpReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let client = backend.core.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&backend.core.root);
+
+        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+
+        let mut f = client
+            .open(path.as_path())
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if range.offset() != 0 {
+            f.seek(SeekFrom::Start(range.offset()))
+                .await
+                .map_err(new_std_io_error)?;
+        }
+
+        let rp = RpRead::default();
+        let stream = SftpReadStream::new(client, f, range.size());
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for SftpBackend {
-    type Reader = SftpReader;
+    type Reader = oio::StreamReader<SftpReader>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -249,29 +298,10 @@ impl Access for SftpBackend {
 
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        if args.range().offset() != 0 {
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
-
         Ok((
             RpRead::default(),
-            SftpReader::new(client, f, args.range().size()),
+            oio::StreamReader::new(SftpReader::new(self.clone(), path, args)),
         ))
     }
 
@@ -287,14 +317,35 @@ impl Access for SftpBackend {
         let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
 
         let mut option = client.options();
-        option.create(true);
+        if op.if_not_exists() {
+            option.create_new(true);
+        } else {
+            option.create(true);
+        }
+
         if op.append() {
             option.append(true);
         } else {
             option.write(true).truncate(true);
         }
 
-        let file = option.open(path).await.map_err(parse_sftp_error)?;
+        let res = option.open(&path).await;
+        let file = match res {
+            Ok(f) => f,
+            Err(e) if op.if_not_exists() && is_sftp_failure(&e) => {
+                // OpenSSH returns Failure for create_new if file exists.
+                // We perform a post-check to confirm if it was a ConditionNotMatch.
+                if fs.metadata(&path).await.is_ok() {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file already exists, doesn't match the condition if_not_exists",
+                    )
+                    .set_source(e));
+                }
+                return Err(parse_sftp_error(e));
+            }
+            Err(e) => return Err(parse_sftp_error(e)),
+        };
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
     }
@@ -331,7 +382,13 @@ impl Access for SftpBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let client = self.core.connect().await?;
 
         let mut fs = client.fs();
@@ -351,7 +408,7 @@ impl Access for SftpBackend {
             .await
             .map_err(parse_sftp_error)?;
 
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {

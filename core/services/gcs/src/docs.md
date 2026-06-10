@@ -22,6 +22,8 @@ This service can be used to:
 - `service_account`: name of Service Account
 - `predefined_acl`: Predefined ACL for GCS
 - `default_storage_class`: Default storage class for GCS
+- `skip_signature`: Skip loading credentials and signing requests.
+- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
 
 Refer to public API docs for more information. For authentication related options, read on.
 

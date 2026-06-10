@@ -314,18 +314,31 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn cos_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
-        let req = Request::put(&url)
+        let mut req = Request::put(&url)
             .extension(Operation::Copy)
-            .header("x-cos-copy-source", &source)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .header("x-cos-copy-source", &source);
+
+        // For a bucket which has never enabled versioning, x-cos-forbid-overwrite
+        // tells COS to reject the copy when the destination object already exists.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/10881
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         let req = self.sign(req).await?;
 
@@ -615,6 +628,9 @@ pub struct CommonPrefix {
 #[serde(default, rename_all = "PascalCase")]
 pub struct ListObjectsOutputContent {
     pub key: String,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
     pub size: u64,
 }
 
@@ -718,6 +734,23 @@ mod tests {
         assert_eq!(
             out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
             [9, 10],
+        );
+        assert_eq!(
+            out.contents
+                .iter()
+                .map(|v| v.last_modified.clone())
+                .collect::<Vec<String>>(),
+            ["2015-07-01T02:11:19.775Z", "2015-07-01T02:11:19.775Z"],
+        );
+        assert_eq!(
+            out.contents
+                .iter()
+                .map(|v| v.etag.clone())
+                .collect::<Vec<Option<String>>>(),
+            [
+                Some("\"a72e382246ac83e86bd203389849e71d\"".to_string()),
+                Some("\"a72e382246ac83e86bd203389849e71d\"".to_string()),
+            ],
         );
         assert_eq!(
             out.common_prefixes

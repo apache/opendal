@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
@@ -293,9 +292,11 @@ impl Builder for AzdlsBuilder {
         }
 
         let os_env = OsEnv;
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -319,20 +320,24 @@ impl Builder for AzdlsBuilder {
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZDLS_SCHEME)
+                    info.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {
                             stat: true,
 
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_append: true,
                             write_can_multi: true,
                             write_with_if_none_match: true,
                             write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
 
                             create_dir: true,
 
@@ -348,7 +353,7 @@ impl Builder for AzdlsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 filesystem: self.config.filesystem.clone(),
                 root,
@@ -366,11 +371,53 @@ pub struct AzdlsBackend {
     core: Arc<AzdlsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AzdlsReader {
+    backend: AzdlsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl AzdlsReader {
+    fn new(backend: AzdlsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for AzdlsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.azdls_read(path, range, &args).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzdlsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AzdlsReader>;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -399,19 +446,11 @@ impl Access for AzdlsBackend {
         let metadata = self.core.azdls_stat_metadata(path).await?;
         Ok(RpStat::new(metadata))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azdls_read(path, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AzdlsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

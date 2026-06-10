@@ -245,10 +245,11 @@ where
     S::Permit: Unpin,
 {
     type Inner = A;
-    type Reader = ConcurrentLimitWrapper<A::Reader, S::Permit>;
+    type Reader = ConcurrentLimitReader<A::Reader, S>;
     type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
     type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
     type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
+    type Copier = ConcurrentLimitWrapper<A::Copier, S::Permit>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -261,12 +262,10 @@ where
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let permit = self.semaphore.acquire().await;
-
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
+            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, self.semaphore.clone())))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -276,6 +275,27 @@ where
             .write(path, args)
             .await
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let permit = self.semaphore.acquire().await;
+
+        self.inner
+            .copy(from, to, args, opts.clone())
+            .await
+            .map(|(rp, c)| (rp, ConcurrentLimitWrapper::new(c, permit)))
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let _permit = self.semaphore.acquire().await;
+
+        self.inner.rename(from, to, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -304,6 +324,37 @@ where
 }
 
 #[doc(hidden)]
+pub struct ConcurrentLimitReader<R, S> {
+    inner: R,
+    semaphore: S,
+}
+
+impl<R, S> ConcurrentLimitReader<R, S> {
+    fn new(inner: R, semaphore: S) -> Self {
+        Self { inner, semaphore }
+    }
+}
+
+impl<R: oio::Read, S: ConcurrentLimitSemaphore> oio::Read for ConcurrentLimitReader<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let permit = self.semaphore.acquire().await;
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(ConcurrentLimitWrapper::new(stream, permit)) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.read(range).await
+    }
+}
+
+#[doc(hidden)]
 pub struct ConcurrentLimitWrapper<R, P> {
     inner: R,
 
@@ -320,9 +371,21 @@ impl<R, P> ConcurrentLimitWrapper<R, P> {
     }
 }
 
-impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
+    for ConcurrentLimitWrapper<R, P>
+{
     async fn read(&mut self) -> Result<Buffer> {
         self.inner.read().await
+    }
+}
+
+impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.inner.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
     }
 }
 
@@ -358,10 +421,25 @@ impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
     }
 }
 
+impl<C: oio::Copy, P: Send + Sync + 'static + Unpin> oio::Copy for ConcurrentLimitWrapper<C, P> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner.next().await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use opendal_core::Operator;
+    use opendal_core::OperatorBuilder;
     use opendal_core::services;
     use std::sync::Arc;
     use std::time::Duration;
@@ -395,6 +473,260 @@ mod tests {
             completed.is_ok(),
             "operation should proceed once permit is released"
         );
+    }
+
+    #[tokio::test]
+    async fn operation_semaphore_limits_copy_and_rename() {
+        #[derive(Clone, Debug)]
+        struct CopyRenameBackend {
+            info: Arc<AccessorInfo>,
+        }
+
+        impl Access for CopyRenameBackend {
+            type Reader = ();
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = oio::Copier;
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn copy(
+                &self,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+                _: OpCopier,
+            ) -> Result<(RpCopy, Self::Copier)> {
+                Ok((RpCopy::default(), Box::new(())))
+            }
+
+            async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+                Ok(RpRename::default())
+            }
+        }
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
+        let info = Arc::new(AccessorInfo::default());
+        info.set_native_capability(Capability {
+            copy: true,
+            rename: true,
+            ..Default::default()
+        });
+        let op = OperatorBuilder::new(CopyRenameBackend { info })
+            .layer(layer)
+            .finish();
+
+        let permit = semaphore.clone().acquire_owned(1).await;
+
+        let copy = timeout(Duration::from_millis(50), op.copy("from", "to")).await;
+        assert!(copy.is_err(), "copy should wait for the operation permit");
+
+        let rename = timeout(Duration::from_millis(50), op.rename("from", "to")).await;
+        assert!(
+            rename.is_err(),
+            "rename should wait for the operation permit"
+        );
+
+        drop(permit);
+
+        timeout(Duration::from_millis(50), op.copy("from", "to"))
+            .await
+            .expect("copy should proceed once permit is released")
+            .expect("copy should succeed");
+        timeout(Duration::from_millis(50), op.rename("from", "to"))
+            .await
+            .expect("rename should proceed once permit is released")
+            .expect("rename should succeed");
+    }
+
+    #[tokio::test]
+    async fn operation_semaphore_held_until_copier_dropped() {
+        #[derive(Clone, Debug)]
+        struct CopierBackend {
+            info: Arc<AccessorInfo>,
+        }
+
+        impl Access for CopierBackend {
+            type Reader = ();
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = oio::Copier;
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn copy(
+                &self,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+                _: OpCopier,
+            ) -> Result<(RpCopy, Self::Copier)> {
+                Ok((RpCopy::default(), Box::new(())))
+            }
+
+            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+            }
+        }
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
+        let info = Arc::new(AccessorInfo::default());
+        info.set_native_capability(Capability {
+            copy: true,
+            stat: true,
+            ..Default::default()
+        });
+        let op = OperatorBuilder::new(CopierBackend { info })
+            .layer(layer)
+            .finish();
+
+        let copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
+            .await
+            .expect("copier setup should not block")
+            .expect("copier should be created");
+
+        // The permit is held by the live copier, so concurrent operations
+        // must time out until the copier is dropped.
+        let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            blocked.is_err(),
+            "stat should wait while the copier holds the permit"
+        );
+
+        drop(copier);
+
+        timeout(Duration::from_millis(50), op.stat("any"))
+            .await
+            .expect("stat should proceed once the copier is dropped")
+            .expect("stat should succeed");
+    }
+
+    #[tokio::test]
+    async fn concurrent_chunked_read_with_http_limit() {
+        use opendal_core::raw::*;
+
+        struct EchoFetcher;
+
+        impl HttpFetch for EchoFetcher {
+            async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+                let data = req.into_body();
+                let len = data.len() as u64;
+                let body =
+                    HttpBody::new(Box::pin(stream::once(async move { Ok(data) })), Some(len));
+                Ok(http::Response::builder()
+                    .status(http::StatusCode::OK)
+                    .body(body)
+                    .unwrap())
+            }
+        }
+
+        #[derive(Clone, Debug)]
+        struct HttpBackend {
+            info: Arc<AccessorInfo>,
+            content: Buffer,
+        }
+
+        /// Reader returned by this backend.
+        pub struct HttpReader {
+            backend: HttpBackend,
+        }
+
+        impl HttpReader {
+            fn new(backend: HttpBackend, _: &str, _: OpRead) -> Self {
+                Self { backend }
+            }
+        }
+
+        impl oio::StreamRead for HttpReader {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let backend = &self.backend;
+                let start = range.offset() as usize;
+                let data = match range.size() {
+                    Some(sz) => backend.content.slice(start..start + sz as usize),
+                    None => backend.content.slice(start..),
+                };
+                let req = http::Request::get("http://fake").body(data).unwrap();
+                let resp = backend.info.http_client().fetch(req).await?;
+                let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+                let stream = resp.into_body();
+
+                Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+            }
+        }
+
+        impl Access for HttpBackend {
+            type Reader = oio::StreamReader<HttpReader>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = oio::Copier;
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+                Ok((
+                    RpRead::default(),
+                    oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
+                ))
+            }
+
+            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+                Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
+                ))
+            }
+
+            async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+            async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+            async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+        }
+
+        let content = Buffer::from(vec![0u8; 4096]);
+        let info = Arc::new(AccessorInfo::default());
+        info.update_http_client(|_| HttpClient::with(EchoFetcher));
+
+        let op = OperatorBuilder::new(HttpBackend {
+            info,
+            content: content.clone(),
+        })
+        .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2))
+        .finish();
+
+        // chunk=256 ⇒ 16 HTTP requests, concurrent=4, but only 2 HTTP permits.
+        let result = timeout(Duration::from_secs(5), async {
+            op.reader_with("test")
+                .chunk(256)
+                .concurrent(4)
+                .await
+                .expect("reader must build")
+                .read(..)
+                .await
+        })
+        .await;
+
+        let buf = result
+            .expect("read must not deadlock (timeout)")
+            .expect("read must succeed");
+        assert_eq!(buf.to_bytes(), content.to_bytes());
     }
 
     #[tokio::test]

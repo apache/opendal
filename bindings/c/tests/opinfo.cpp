@@ -92,6 +92,6 @@ TEST_F(OpendalOperatorInfoTest, InfoTest)
     EXPECT_TRUE(!strcmp(root, this->root.c_str()));
 
     // remember to free the strings
-    free(scheme);
-    free(root);
+    opendal_string_free(scheme);
+    opendal_string_free(root);
 }

@@ -223,11 +223,56 @@ pub struct B2Backend {
     core: Arc<B2Core>,
 }
 
+/// Reader returned by this backend.
+pub struct B2Reader {
+    backend: B2Backend,
+    path: String,
+    args: OpRead,
+}
+
+impl B2Reader {
+    fn new(backend: B2Backend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for B2Reader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend
+            .core
+            .download_file_by_name(path, range, &args)
+            .await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for B2Backend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<B2Reader>;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -247,24 +292,11 @@ impl Access for B2Backend {
         let meta = parse_file_info(&file_info);
         Ok(RpStat::new(meta))
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .download_file_by_name(path, args.range(), &args)
-            .await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(B2Reader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -296,7 +328,13 @@ impl Access for B2Backend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let file_info = self.core.get_file_info(from, None).await?;
 
         let source_file_id = file_info.file_id;
@@ -310,7 +348,7 @@ impl Access for B2Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }
@@ -344,7 +382,7 @@ impl Access for B2Backend {
                     parts.headers,
                 )))
             }
-            PresignOperation::Read(_) => {
+            PresignOperation::Read(_, _) => {
                 let resp = self
                     .core
                     .get_download_authorization(path, args.expire())

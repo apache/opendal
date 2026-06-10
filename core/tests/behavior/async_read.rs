@@ -22,8 +22,6 @@ use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
 use reqwest::Url;
-use sha2::Digest;
-use sha2::Sha256;
 use tokio::time::sleep;
 
 use crate::*;
@@ -37,6 +35,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_full,
             test_read_range,
             test_reader,
+            test_buffer_stream_metadata,
+            test_buffer_stream_metadata_with_concurrent,
+            test_futures_bytes_stream_metadata,
+            test_futures_bytes_stream_metadata_with_concurrent,
             test_reader_with_if_match,
             test_reader_with_if_none_match,
             test_reader_with_if_modified_since,
@@ -82,11 +84,7 @@ pub async fn test_read_full(op: Operator) -> anyhow::Result<()> {
 
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     Ok(())
 }
@@ -107,11 +105,8 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
         .to_bytes();
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!(
-            "{:x}",
-            Sha256::digest(&content[offset as usize..(offset + length) as usize])
-        ),
+        sha256_digest(&bs),
+        sha256_digest(&content[offset as usize..(offset + length) as usize]),
         "read content"
     );
 
@@ -129,11 +124,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     // Reader.
     let bs = op.reader(&path).await?.read(..).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     // Bytes Stream
     let bs = op
@@ -147,11 +138,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
         })
         .await?;
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     // Futures Reader
     let mut futures_reader = op
@@ -162,9 +149,175 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     let mut bs = Vec::new();
     futures_reader.read_to_end(&mut bs).await?;
     assert_eq!(size, bs.len(), "read size");
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
+
+    Ok(())
+}
+
+/// BufferStream should return complete object metadata before reading if supported.
+pub async fn test_buffer_stream_metadata(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader(&path)
+        .await?
+        .into_stream(start as u64..end as u64)
+        .await?;
+
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    let bs: Vec<_> = stream.try_collect().await?;
+    let bs: Buffer = bs.into_iter().flatten().collect();
+    assert_eq!(bs.len(), end - start, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
+        sha256_digest(bs.to_bytes()),
+        sha256_digest(&content[start..end]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// BufferStream should return complete object metadata with concurrent reads if supported.
+pub async fn test_buffer_stream_metadata_with_concurrent(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader_with(&path)
+        .chunk(128)
+        .concurrent(4)
+        .await?
+        .into_stream(start as u64..end as u64)
+        .await?;
+
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    let bs: Vec<_> = stream.try_collect().await?;
+    let bs: Buffer = bs.into_iter().flatten().collect();
+    assert_eq!(bs.len(), end - start, "read size");
+    assert_eq!(
+        sha256_digest(bs.to_bytes()),
+        sha256_digest(&content[start..end]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// FuturesBytesStream should return complete object metadata before reading if supported.
+pub async fn test_futures_bytes_stream_metadata(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader(&path)
+        .await?
+        .into_bytes_stream(start as u64..end as u64)
+        .await?;
+
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    let bs = stream
+        .try_fold(Vec::new(), |mut acc, chunk| {
+            acc.extend_from_slice(&chunk);
+            async { Ok(acc) }
+        })
+        .await?;
+    assert_eq!(bs.len(), end - start, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        sha256_digest(&content[start..end]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// FuturesBytesStream should return complete object metadata with concurrent reads if supported.
+pub async fn test_futures_bytes_stream_metadata_with_concurrent(
+    op: Operator,
+) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let start = 128;
+    let end = 640;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut stream = op
+        .reader_with(&path)
+        .chunk(128)
+        .concurrent(4)
+        .await?
+        .into_bytes_stream(start as u64..end as u64)
+        .await?;
+
+    match stream.metadata().await {
+        Ok(meta) => assert_eq!(
+            meta.content_length(),
+            content.len() as u64,
+            "metadata content length"
+        ),
+        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    let bs = stream
+        .try_fold(Vec::new(), |mut acc, chunk| {
+            acc.extend_from_slice(&chunk);
+            async { Ok(acc) }
+        })
+        .await?;
+    assert_eq!(bs.len(), end - start, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        sha256_digest(&content[start..end]),
         "read content"
     );
 
@@ -392,11 +545,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
 
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     Ok(())
 }
@@ -610,7 +759,7 @@ pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
     let bs = op.read("normal_file.txt").await?.to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -626,7 +775,7 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> anyhow
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -643,7 +792,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> 
         .to_bytes();
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
@@ -697,7 +846,7 @@ pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result
 
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -727,7 +876,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -759,7 +908,7 @@ pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::R
 
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -792,7 +941,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );

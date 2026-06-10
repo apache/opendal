@@ -40,7 +40,12 @@ all-features = true
 default = ["reqwest-rustls-tls", "executors-tokio"]
 
 # Enable reqwest rustls tls support.
-reqwest-rustls-tls = ["reqwest/rustls-tls"]
+reqwest-rustls-tls = ["reqwest/rustls"]
+
+# Enable reqwest rustls tls support without selecting a crypto provider.
+# The downstream binary is responsible for installing a `rustls`
+# `CryptoProvider` (e.g. `ring` or `aws-lc-rs`) before issuing requests.
+reqwest-rustls-no-provider-tls = ["reqwest/rustls-no-provider"]
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
@@ -71,11 +76,12 @@ http = { workspace = true }
 http-body = "1"
 jiff = { version = "0.2.17", features = ["serde"] }
 log = { workspace = true }
-md-5 = "0.10"
+md-5 = "0.11.0"
 mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqwest = { version = "0.12.24", features = [
+reqsign-core = { version = "3.0.0", default-features = false }
+reqwest = { version = "0.13.2", features = [
   "stream",
 ], default-features = false }
 serde = { workspace = true, features = ["derive"] }
@@ -91,6 +97,8 @@ moka = { version = "0.12", optional = true, features = ["sync"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]

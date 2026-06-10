@@ -115,7 +115,8 @@ impl opendal_error {
     pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw(ptr));
+                let mut err = Box::from_raw(ptr);
+                opendal_bytes::opendal_bytes_free(&mut err.message);
             }
         }
     }

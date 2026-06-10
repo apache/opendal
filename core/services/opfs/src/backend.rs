@@ -15,14 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::sync::Arc;
 
-use web_sys::FileSystemGetDirectoryOptions;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::File;
+use web_sys::FileSystemWritableFileStream;
 
-use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
+use super::core::OpfsCore;
+use super::deleter::OpfsDeleter;
+use super::error::*;
+use super::lister::OpfsLister;
+use super::reader::OpfsReadStream;
 use super::utils::*;
+use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -32,44 +39,137 @@ pub struct OpfsBuilder {
     pub(super) config: OpfsConfig,
 }
 
+impl OpfsBuilder {
+    /// Set root directory for this backend.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+        self
+    }
+}
+
 impl Builder for OpfsBuilder {
     type Config = OpfsConfig;
 
     fn build(self) -> Result<impl Access> {
-        Ok(OpfsBackend {})
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let core = Arc::new(OpfsCore::new(root));
+        Ok(OpfsBackend { core })
     }
 }
 
 /// OPFS Service backend
-#[derive(Default, Debug, Clone)]
-pub struct OpfsBackend {}
+#[derive(Debug, Clone)]
+pub struct OpfsBackend {
+    core: Arc<OpfsCore>,
+}
+
+/// Reader returned by this backend.
+pub struct OpfsReader {
+    backend: OpfsBackend,
+    path: String,
+}
+
+impl OpfsReader {
+    fn new(backend: OpfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for OpfsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let p = build_abs_path(&backend.core.root, path);
+        let handle = get_file_handle(&p, false).await?;
+        let rp = RpRead::default();
+        let stream = OpfsReadStream::new(handle, range);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
 
 impl Access for OpfsBackend {
-    type Reader = ();
+    type Reader = oio::StreamReader<OpfsReader>;
 
-    type Writer = ();
+    type Writer = OpfsWriter;
 
-    type Lister = ();
+    type Lister = OpfsLister;
 
-    type Deleter = ();
+    type Deleter = oio::OneShotDeleter<OpfsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let info = AccessorInfo::default();
-        info.set_scheme(OPFS_SCHEME);
-        info.set_name("opfs");
-        info.set_root("/");
-        info.set_native_capability(Capability {
-            create_dir: true,
-            ..Default::default()
-        });
-        Arc::new(info)
+        self.core.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.core.root, path);
+
+        if p.ends_with('/') {
+            get_directory_handle(&p, false).await?;
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // File: get metadata via getFile().
+        let handle = get_file_handle(&p, false).await?;
+        let file: File = JsFuture::from(handle.get_file())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
+
+        let mut meta = Metadata::new(EntryMode::FILE);
+        meta.set_content_length(file.size() as u64);
+        if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
+            meta.set_last_modified(t);
+        }
+
+        Ok(RpStat::new(meta))
+    }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OpfsReader::new(self.clone(), path, args)),
+        ))
+    }
+
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_abs_path(&self.core.root, path);
+        let dir = get_directory_handle(&p, false).await?;
+
+        Ok((RpList::default(), OpfsLister::new(dir, path.to_string())))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let opt = FileSystemGetDirectoryOptions::new();
-        opt.set_create(true);
-        get_directory_handle(path, &opt).await?;
+        debug_assert!(path != "/", "root path should be handled upstream");
+        let p = build_abs_path(&self.core.root, path);
+        get_directory_handle(&p, true).await?;
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.core.root, path);
+        let handle = get_file_handle(&p, true).await?;
+        let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
+
+        Ok((RpWrite::default(), OpfsWriter::new(stream)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(OpfsDeleter::new(self.core.clone())),
+        ))
     }
 }

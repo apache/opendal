@@ -20,6 +20,7 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 use sha2::{Digest, Sha512};
 use std::io::BufReader;
+use std::io::Read;
 
 mod package;
 
@@ -102,9 +103,16 @@ fn archive_and_checksum(package: &package::Package, files: &[&str]) -> anyhow::R
         let tarball = std::fs::File::open(&tarball)?;
         let mut reader = BufReader::new(tarball);
         let mut hasher = Sha512::new();
-        std::io::copy(&mut reader, &mut hasher)?;
+        let mut buf = [0; 8 * 1024];
+        loop {
+            let n = reader.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
         let digest = hasher.finalize();
-        let checksum_lines = format!("{digest:x}  {filename}");
+        let checksum_lines = format!("{}  {filename}", format_digest_hex(digest));
 
         let checksum = workspace_dir()
             .join("dist")
@@ -113,4 +121,15 @@ fn archive_and_checksum(package: &package::Package, files: &[&str]) -> anyhow::R
     }
 
     Ok(())
+}
+
+fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = digest.as_ref();
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
 }

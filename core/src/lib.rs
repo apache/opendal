@@ -94,6 +94,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-foundationdb")]
     opendal_service_foundationdb::register_foundationdb_service(registry);
 
+    #[cfg(feature = "services-foyer")]
+    opendal_service_foyer::register_foyer_service(registry);
+
     #[cfg(feature = "services-fs")]
     opendal_service_fs::register_fs_service(registry);
 
@@ -111,6 +114,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-github")]
     opendal_service_github::register_github_service(registry);
+
+    #[cfg(feature = "services-goosefs")]
+    opendal_service_goosefs::register_goosefs_service(registry);
 
     #[cfg(feature = "services-gridfs")]
     opendal_service_gridfs::register_gridfs_service(registry);
@@ -205,6 +211,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-tikv")]
     opendal_service_tikv::register_tikv_service(registry);
 
+    #[cfg(feature = "services-tos")]
+    opendal_service_tos::register_tos_service(registry);
+
     #[cfg(feature = "services-upyun")]
     opendal_service_upyun::register_upyun_service(registry);
 
@@ -231,7 +240,7 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 }
 
 #[cfg(feature = "auto-register-services")]
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn register_default_operator_registry() {
     init_default_registry();
 }
@@ -271,6 +280,8 @@ pub mod services {
     pub use opendal_service_etcd::*;
     #[cfg(feature = "services-foundationdb")]
     pub use opendal_service_foundationdb::*;
+    #[cfg(feature = "services-foyer")]
+    pub use opendal_service_foyer::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
@@ -283,6 +294,8 @@ pub mod services {
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
+    #[cfg(feature = "services-goosefs")]
+    pub use opendal_service_goosefs::*;
     #[cfg(feature = "services-gridfs")]
     pub use opendal_service_gridfs::*;
     #[cfg(feature = "services-hdfs")]
@@ -349,6 +362,8 @@ pub mod services {
     pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-tos")]
+    pub use opendal_service_tos::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-artifacts")]

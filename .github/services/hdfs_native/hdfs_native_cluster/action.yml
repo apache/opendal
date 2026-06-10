@@ -31,5 +31,4 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HDFS_NATIVE_ROOT=/tmp/opendal/
         OPENDAL_HDFS_NATIVE_NAME_NODE=hdfs://localhost:8020
-        OPENDAL_HDFS_NATIVE_ENABLE_APPEND=true
         EOF

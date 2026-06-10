@@ -60,27 +60,62 @@ impl SqliteCore {
         Ok(value.map(Buffer::from))
     }
 
-    pub async fn get_range(
-        &self,
-        path: &str,
-        start: isize,
-        limit: isize,
-    ) -> Result<Option<Buffer>> {
+    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
         let pool = self.get_client().await?;
-        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            "SELECT SUBSTR(`{}`, {}, {}) FROM `{}` WHERE `{}` = $1 LIMIT 1",
-            self.value_field,
-            start + 1,
-            limit,
-            self.table,
-            self.key_field
+
+        let value: Option<i64> = sqlx::query_scalar(&format!(
+            "SELECT LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+            self.value_field, self.table, self.key_field
         ))
         .bind(path)
         .fetch_optional(pool)
         .await
         .map_err(parse_sqlite_error)?;
 
-        Ok(value.map(Buffer::from))
+        value
+            .map(|v| {
+                v.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
+                        .set_source(err)
+                })
+            })
+            .transpose()
+    }
+
+    pub async fn get_range(
+        &self,
+        path: &str,
+        start: isize,
+        limit: Option<isize>,
+    ) -> Result<Option<(Buffer, u64)>> {
+        let pool = self.get_client().await?;
+        let query = match limit {
+            Some(limit) => format!(
+                "SELECT SUBSTR(`{}`, {}, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                self.value_field,
+                start + 1,
+                limit,
+                self.value_field,
+                self.table,
+                self.key_field
+            ),
+            None => format!(
+                "SELECT SUBSTR(`{}`, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                self.value_field,
+                start + 1,
+                self.value_field,
+                self.table,
+                self.key_field
+            ),
+        };
+
+        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(&query)
+            .bind(path)
+            .fetch_optional(pool)
+            .await
+            .map_err(parse_sqlite_error)?;
+
+        Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {

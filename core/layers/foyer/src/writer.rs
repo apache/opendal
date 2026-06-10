@@ -70,13 +70,16 @@ impl<A: Access> oio::Write for Writer<A> {
         let buffer = self.buf.clone().collect();
         let metadata = self.w.close().await?;
         if !self.skip_cache {
-            self.inner.cache.insert(
-                FoyerKey {
-                    path: self.path.clone(),
-                    version: metadata.version().map(|v| v.to_string()),
-                },
-                FoyerValue(buffer),
-            );
+            let key = FoyerKey {
+                path: self.path.clone(),
+                version: metadata.version().map(|v| v.to_string()),
+            };
+            self.inner.cache.insert(key.clone(), FoyerValue(buffer));
+            self.inner
+                .deleted_keys
+                .lock()
+                .expect("deleted keys lock poisoned")
+                .remove(&key);
         }
         Ok(metadata)
     }

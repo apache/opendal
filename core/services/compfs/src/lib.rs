@@ -24,7 +24,6 @@ mod config;
 mod core;
 mod deleter;
 mod lister;
-mod reader;
 mod writer;
 
 pub use backend::CompfsBuilder as Compfs;

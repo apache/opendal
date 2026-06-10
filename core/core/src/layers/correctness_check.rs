@@ -81,6 +81,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = CheckWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -147,6 +148,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_not_exists",
             ));
         }
+        if args.if_match().is_some() && !capability.write_with_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Write,
+                "if_match",
+            ));
+        }
         if let Some(if_none_match) = args.if_none_match() {
             if !capability.write_with_if_none_match {
                 let mut err =
@@ -208,6 +216,39 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
             let deleter = CheckWrapper::new(deleter, self.info.clone());
             (rp, deleter)
         })
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let capability = self.info.full_capability();
+        if args.if_not_exists() && !capability.copy_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "if_not_exists",
+            ));
+        }
+        if args.if_match().is_some() && !capability.copy_with_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "if_match",
+            ));
+        }
+        if args.source_version().is_some() && !capability.copy_with_source_version {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_version",
+            ));
+        }
+
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -276,6 +317,7 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
@@ -290,7 +332,10 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), Box::new(bytes::Bytes::new())))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(MockReader),
+            ))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -303,6 +348,18 @@ mod tests {
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             Ok((RpDelete::default(), Box::new(MockDeleter)))
+        }
+    }
+
+    struct MockReader;
+
+    impl oio::Read for MockReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            Ok((RpRead::default(), Box::new(Buffer::new())))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Ok((RpRead::default(), Buffer::new()))
         }
     }
 

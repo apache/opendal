@@ -153,6 +153,7 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             if_none_match: opts.if_none_match,
             if_modified_since: opts.if_modified_since.map(Into::into),
             if_unmodified_since: opts.if_unmodified_since.map(Into::into),
+            content_length_hint: None,
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
@@ -171,6 +172,7 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             if_none_match: opts.if_none_match,
             if_modified_since: opts.if_modified_since.map(Into::into),
             if_unmodified_since: opts.if_unmodified_since.map(Into::into),
+            content_length_hint: None,
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
@@ -278,6 +280,35 @@ impl From<StatOptions> for ocore::options::StatOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+        }
+    }
+}
+
+#[pyclass(module = "opendal")]
+#[derive(Default, Debug)]
+pub struct DeleteOptions {
+    pub version: Option<String>,
+    pub recursive: Option<bool>,
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for DeleteOptions {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let dict = downcast_kwargs(obj)?;
+
+        Ok(Self {
+            version: extract_optional(&dict, "version")?,
+            recursive: extract_optional(&dict, "recursive")?,
+        })
+    }
+}
+
+impl From<DeleteOptions> for ocore::options::DeleteOptions {
+    fn from(opts: DeleteOptions) -> Self {
+        Self {
+            version: opts.version,
+            recursive: opts.recursive.unwrap_or(false),
         }
     }
 }

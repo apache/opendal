@@ -152,6 +152,7 @@ impl LayeredAccess for RouteAccessor {
     type Writer = oio::Writer;
     type Lister = oio::Lister;
     type Deleter = RouteDeleter;
+    type Copier = oio::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -169,8 +170,14 @@ impl LayeredAccess for RouteAccessor {
         self.select(path).write(path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.select(from).copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.select(from).copy(from, to, args, opts.clone()).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {

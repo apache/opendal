@@ -32,10 +32,10 @@ all-features = true
 
 [dependencies]
 futures = { workspace = true }
-hotpath = "0.9.2"
+hotpath = "0.16.0"
 http = { workspace = true }
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.55.0" }
+opendal-core = { path = "../../core", version = "0.57.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

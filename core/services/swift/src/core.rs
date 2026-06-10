@@ -21,6 +21,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use hmac::Hmac;
+use hmac::KeyInit;
 use hmac::Mac;
 use http::Method;
 use http::Request;

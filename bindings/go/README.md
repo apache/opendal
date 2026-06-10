@@ -301,9 +301,9 @@ geomean         343.6        12.40       -96.39%
     - [x] Writer -- implement as `io.WriteCloser`
 - [x] Delete
 - [x] CreateDir
-- [ ] Lister
+- [x] Lister
     - [x] Entry
-    - [ ] Metadata -- Need support from the C binding
+    - [x] Metadata
 - [x] Copy
 - [x] Rename
 - [x] Presign

@@ -21,12 +21,13 @@ mod full;
 mod writer;
 
 use std::{
+    collections::HashSet,
     future::Future,
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
-use foyer::{Code, CodeError, HybridCache};
+use foyer::{Code, HybridCache, Result as FoyerResult};
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -61,14 +62,14 @@ impl Deref for FoyerValue {
 }
 
 impl Code for FoyerValue {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
         let len = self.0.len() as u64;
         writer.write_all(&len.to_le_bytes())?;
         std::io::copy(&mut self.0.clone(), writer)?;
         Ok(())
     }
 
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
     where
         Self: Sized,
     {
@@ -98,13 +99,13 @@ impl Code for FoyerValue {
 /// ```no_run
 /// use opendal_core::{Operator, services::Memory};
 /// use opendal_layer_foyer::FoyerLayer;
-/// use foyer::{HybridCacheBuilder, Engine};
+/// use foyer::HybridCacheBuilder;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let cache = HybridCacheBuilder::new()
 ///     .memory(64 * 1024 * 1024) // 64MB memory cache
 ///     .with_shards(4)
-///     .storage(Engine::Large(Default::default()))
+///     .storage()
 ///     .build()
 ///     .await?;
 ///
@@ -162,6 +163,7 @@ impl<A: Access> Layer<A> for FoyerLayer {
                 accessor,
                 cache,
                 size_limit: self.size_limit.clone(),
+                deleted_keys: Mutex::new(HashSet::new()),
             }),
         }
     }
@@ -172,6 +174,7 @@ pub(crate) struct Inner<A: Access> {
     pub(crate) accessor: A,
     pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
     pub(crate) size_limit: Range<usize>,
+    pub(crate) deleted_keys: Mutex<HashSet<FoyerKey>>,
 }
 
 #[derive(Debug)]
@@ -181,10 +184,11 @@ pub struct FoyerAccessor<A: Access> {
 
 impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     type Inner = A;
-    type Reader = Buffer;
+    type Reader = full::FullReader<A>;
     type Writer = Writer<A>;
     type Lister = A::Lister;
     type Deleter = Deleter<A>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner.accessor
@@ -195,9 +199,15 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        full::FullReader::new(self.inner.clone(), self.inner.size_limit.clone())
-            .read(path, args)
-            .await
+        Ok((
+            RpRead::default(),
+            full::FullReader::new(
+                self.inner.clone(),
+                self.inner.size_limit.clone(),
+                path.to_string(),
+                args,
+            ),
+        ))
     }
 
     fn write(
@@ -222,6 +232,16 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
         }
     }
 
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.accessor.copy(from, to, args, opts).await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.accessor.list(path, args).await
     }
@@ -232,12 +252,19 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder, LargeEngineOptions,
-        RecoverMode,
+        BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
+        FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::{Operator, services::Memory};
+    use opendal_core::raw::Access;
+    use opendal_core::raw::Layer as _;
+    use opendal_core::raw::LayeredAccess;
+    use opendal_core::raw::oio::Read as _;
+    use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::{Buffer, Operator, services::Memory};
     use size::consts::MiB;
     use std::io::Cursor;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
     use crate::error::extract_err;
@@ -251,6 +278,173 @@ mod tests {
         vec![i; 63 * 1024]
     }
 
+    async fn memory_cache() -> HybridCache<FoyerKey, FoyerValue> {
+        HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage()
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[derive(Debug)]
+    struct MockReadState {
+        data: Buffer,
+        stat_calls: AtomicUsize,
+        open_calls: AtomicUsize,
+        read_calls: AtomicUsize,
+    }
+
+    impl MockReadState {
+        fn new(data: Buffer) -> Self {
+            Self {
+                data,
+                stat_calls: AtomicUsize::new(0),
+                open_calls: AtomicUsize::new(0),
+                read_calls: AtomicUsize::new(0),
+            }
+        }
+
+        fn metadata(&self) -> Metadata {
+            Metadata::new(EntryMode::FILE).with_content_length(self.data.len() as _)
+        }
+
+        fn rp_read(&self) -> RpRead {
+            RpRead::new(self.metadata())
+        }
+
+        fn read_range(&self, range: BytesRange) -> Buffer {
+            self.data.slice(range.to_range_as_usize())
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockReadAccessor {
+        state: Arc<MockReadState>,
+    }
+
+    impl MockReadAccessor {
+        fn new(data: impl Into<Buffer>) -> Self {
+            Self {
+                state: Arc::new(MockReadState::new(data.into())),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockReadReader {
+        state: Arc<MockReadState>,
+    }
+
+    impl oio::Read for MockReadReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.state.open_calls.fetch_add(1, Ordering::Relaxed);
+            let buffer = self.state.read_range(range);
+            Ok((
+                self.state.rp_read(),
+                Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.state.read_calls.fetch_add(1, Ordering::Relaxed);
+            if range.size().is_none() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "mock reader requires a bounded read range",
+                ));
+            }
+
+            Ok((self.state.rp_read(), self.state.read_range(range)))
+        }
+    }
+
+    impl Access for MockReadAccessor {
+        type Reader = MockReadReader;
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let am = AccessorInfo::default();
+            am.set_scheme("mock").set_native_capability(Capability {
+                read: true,
+                stat: true,
+                ..Default::default()
+            });
+
+            am.into()
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(RpStat::new(self.state.metadata()))
+        }
+
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+            Ok((
+                self.state.rp_read(),
+                MockReadReader {
+                    state: self.state.clone(),
+                },
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_open_fallback_preserves_stream() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..1)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"0123456789");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_open_fills_cache() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"456");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+    }
+
     #[tokio::test]
     async fn test() {
         let dir = tempfile::tempdir().unwrap();
@@ -258,11 +452,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(10)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -313,11 +511,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(1024 * 1024)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -372,7 +574,7 @@ mod tests {
     #[test]
     fn test_error() {
         let e = Error::new(ErrorKind::NotFound, "not found");
-        let fe = FoyerError::other(e);
+        let fe = FoyerError::new(FoyerErrorKind::External, "external error").with_source(e);
         let oe = extract_err(fe);
         assert_eq!(oe.kind(), ErrorKind::NotFound);
     }

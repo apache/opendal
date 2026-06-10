@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
@@ -209,9 +208,11 @@ impl Builder for AzfileBuilder {
         }
 
         let os_env = OsEnv;
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -232,8 +233,7 @@ impl Builder for AzfileBuilder {
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZFILE_SCHEME)
+                    info.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -254,7 +254,7 @@ impl Builder for AzfileBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 root,
                 endpoint,
@@ -271,11 +271,50 @@ pub struct AzfileBackend {
     core: Arc<AzfileCore>,
 }
 
+/// Reader returned by this backend.
+pub struct AzfileReader {
+    backend: AzfileBackend,
+    path: String,
+}
+
+impl AzfileReader {
+    fn new(backend: AzfileBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for AzfileReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let resp = backend.core.azfile_read(path, range).await?;
+
+        let status = resp.status();
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for AzfileBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<AzfileReader>;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -330,19 +369,11 @@ impl Access for AzfileBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azfile_read(path, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(AzfileReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

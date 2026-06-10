@@ -21,6 +21,7 @@ use opendal::blocking;
 use opendal::options;
 use opendal::services;
 use rand::prelude::*;
+use rand::rng;
 
 fn main() {
     let mut c = Criterion::default().configure_from_args();
@@ -71,7 +72,7 @@ fn bench_vs_fs(c: &mut Criterion) {
 }
 
 fn prepare() -> String {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut content = vec![0; 16 * 1024 * 1024];
     rng.fill_bytes(&mut content);
 

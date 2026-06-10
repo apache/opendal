@@ -25,6 +25,7 @@ use futures::Stream;
 use futures::ready;
 
 use crate::raw::oio::Read as _;
+use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
 use crate::*;
 
@@ -34,7 +35,7 @@ use crate::*;
 /// StreamingReader is good for small memory footprint and optimized for latency.
 pub struct StreamingReader {
     generator: ReadGenerator,
-    reader: Option<oio::Reader>,
+    reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
 impl StreamingReader {
@@ -47,14 +48,36 @@ impl StreamingReader {
             reader: None,
         }
     }
+
+    async fn prepare_metadata(&mut self) -> Result<()> {
+        if self.generator.metadata().is_some() {
+            return Ok(());
+        }
+
+        if self.reader.is_none() {
+            self.reader = self.generator.next_reader().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn metadata(&mut self) -> Result<Metadata> {
+        self.prepare_metadata().await?;
+
+        self.generator
+            .metadata()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
+    }
 }
 
-impl oio::Read for StreamingReader {
+impl oio::ReadStream for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
                 self.reader = self.generator.next_reader().await?;
             }
+
             let Some(r) = self.reader.as_mut() else {
                 return Ok(Buffer::new());
             };
@@ -71,12 +94,21 @@ impl oio::Read for StreamingReader {
     }
 }
 
+struct ChunkedReadInput {
+    ctx: Arc<ReadContext>,
+    range: BytesRange,
+    reader: Option<Box<dyn oio::ReadStreamDyn>>,
+}
+
 /// ChunkedReader will read the file in chunks.
 ///
 /// ChunkedReader is good for concurrent read and optimized for throughput.
 pub struct ChunkedReader {
-    generator: ReadGenerator,
-    tasks: ConcurrentTasks<oio::Reader, Buffer>,
+    ctx: Arc<ReadContext>,
+    offset: u64,
+    remaining: Option<u64>,
+    opened: Option<ChunkedReadInput>,
+    tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
 
@@ -91,29 +123,105 @@ impl ChunkedReader {
             ctx.accessor().info().executor(),
             ctx.options().concurrent(),
             ctx.options().prefetch(),
-            |mut r: oio::Reader| {
-                Box::pin(async {
-                    match r.read_all().await {
-                        Ok(buf) => (r, Ok(buf)),
-                        Err(err) => (r, Err(err)),
-                    }
+            |mut input: ChunkedReadInput| {
+                Box::pin(async move {
+                    let result = if let Some(mut reader) = input.reader.take() {
+                        reader.read_all().await
+                    } else {
+                        match input.ctx.reader().read(input.range).await {
+                            Ok((rp, buffer)) => {
+                                input.ctx.observe_read_response(rp);
+                                Ok(buffer)
+                            }
+                            Err(err) => Err(err),
+                        }
+                    };
+                    (input, result)
                 })
             },
         );
-        let generator = ReadGenerator::new(ctx, range.offset(), range.size());
         Self {
-            generator,
+            ctx,
+            offset: range.offset(),
+            remaining: range.size(),
+            opened: None,
             tasks,
             done: false,
         }
     }
+
+    async fn prepare_metadata(&mut self) -> Result<()> {
+        if self.ctx.metadata().is_some() {
+            return Ok(());
+        }
+
+        if self.opened.is_none() {
+            if let Some(range) = self.next_range() {
+                let (rp, reader) = self.ctx.reader().open(range).await?;
+                self.ctx.observe_read_response(rp);
+                self.opened = Some(ChunkedReadInput {
+                    ctx: self.ctx.clone(),
+                    range,
+                    reader: Some(reader),
+                });
+            } else {
+                self.done = true;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn metadata(&mut self) -> Result<Metadata> {
+        self.prepare_metadata().await?;
+
+        self.ctx
+            .metadata()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
+    }
+
+    /// Generate the next range to read, advancing internal state.
+    fn next_range(&mut self) -> Option<BytesRange> {
+        if self.remaining == Some(0) {
+            return None;
+        }
+
+        let next_offset = self.offset;
+        let next_size = match self.remaining {
+            None => {
+                self.remaining = Some(0);
+                None
+            }
+            Some(remaining) => {
+                let read_size = self
+                    .ctx
+                    .options()
+                    .chunk()
+                    .map_or(remaining, |chunk| remaining.min(chunk as u64));
+                self.offset += read_size;
+                self.remaining = Some(remaining - read_size);
+                Some(read_size)
+            }
+        };
+
+        Some(BytesRange::new(next_offset, next_size))
+    }
 }
 
-impl oio::Read for ChunkedReader {
+impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(r) = self.generator.next_reader().await? {
-                self.tasks.execute(r).await?;
+            if let Some(input) = self.opened.take() {
+                self.tasks.execute(input).await?;
+            } else if let Some(range) = self.next_range() {
+                self.tasks
+                    .execute(ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                        reader: None,
+                    })
+                    .await?;
             } else {
                 self.done = true;
                 break;
@@ -122,7 +230,12 @@ impl oio::Read for ChunkedReader {
                 break;
             }
         }
-        Ok(self.tasks.next().await.transpose()?.unwrap_or_default())
+
+        let Some(buffer) = self.tasks.next().await.transpose()? else {
+            return Ok(Buffer::new());
+        };
+
+        Ok(buffer)
     }
 }
 
@@ -130,6 +243,7 @@ impl oio::Read for ChunkedReader {
 ///
 /// `BufferStream` implements `Stream` trait.
 pub struct BufferStream {
+    ctx: Arc<ReadContext>,
     /// # Notes to maintainers
     ///
     /// The underlying reader is either a StreamingReader or a ChunkedReader.
@@ -140,6 +254,7 @@ pub struct BufferStream {
     state: State,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
@@ -154,12 +269,19 @@ impl BufferStream {
         );
 
         let reader = if ctx.options().chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(ctx, BytesRange::new(offset, size)))
+            TwoWays::Two(ChunkedReader::new(
+                ctx.clone(),
+                BytesRange::new(offset, size),
+            ))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, BytesRange::new(offset, size)))
+            TwoWays::One(StreamingReader::new(
+                ctx.clone(),
+                BytesRange::new(offset, size),
+            ))
         };
 
         Self {
+            ctx,
             state: State::Idle(Some(reader)),
         }
     }
@@ -174,14 +296,44 @@ impl BufferStream {
     ) -> Result<Self> {
         let reader = if ctx.options().chunk().is_some() {
             let range = ctx.parse_into_range(range).await?;
-            TwoWays::Two(ChunkedReader::new(ctx, range.into()))
+            TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, range.into()))
+            TwoWays::One(StreamingReader::new(ctx.clone(), range.into()))
         };
 
         Ok(Self {
+            ctx,
             state: State::Idle(Some(reader)),
         })
+    }
+
+    /// Get metadata for this stream.
+    ///
+    /// Calling this method opens the underlying read request if needed.
+    /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
+    /// return metadata while opening the read operation.
+    pub async fn metadata(&mut self) -> Result<Metadata> {
+        if let Some(metadata) = self.ctx.metadata() {
+            return Ok(metadata.clone());
+        }
+
+        match std::mem::replace(&mut self.state, State::Idle(None)) {
+            State::Idle(reader) => {
+                let mut reader = reader.expect("reader must exist while idle");
+                let prepared = match &mut reader {
+                    TwoWays::One(v) => v.metadata().await,
+                    TwoWays::Two(v) => v.metadata().await,
+                };
+                self.state = State::Idle(Some(reader));
+                prepared
+            }
+            State::Reading(fut) => {
+                self.state = State::Reading(fut);
+                self.ctx.metadata().cloned().ok_or_else(|| {
+                    Error::new(ErrorKind::Unsupported, "read metadata is not available")
+                })
+            }
+        }
     }
 }
 
@@ -226,15 +378,26 @@ mod tests {
 
     use super::*;
 
+    async fn new_read_context(
+        acc: crate::raw::Accessor,
+        path: &str,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let args = crate::raw::OpRead::new();
+        let (_, reader) = acc.read(path, args.clone()).await?;
+        Ok(ReadContext::new(
+            acc,
+            path.to_string(),
+            args,
+            options,
+            reader,
+        ))
+    }
+
     #[tokio::test]
     async fn test_trait() -> Result<()> {
         let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
         let v = BufferStream::create(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
@@ -252,12 +415,7 @@ mod tests {
         .await?;
 
         let acc = op.into_inner();
-        let ctx = Arc::new(ReadContext::new(
-            acc,
-            "test".to_string(),
-            OpRead::new(),
-            OpReader::new(),
-        ));
+        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
 
         let s = BufferStream::create(ctx, 4..8).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();

@@ -88,12 +88,17 @@ impl Entry {
     }
 
     /// Get metadata of entry.
-    pub(crate) fn metadata(&self) -> &Metadata {
+    pub fn metadata(&self) -> &Metadata {
         &self.meta
     }
 
     /// Get mutable metadata of entry.
-    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
+    pub fn metadata_mut(&mut self) -> &mut Metadata {
         &mut self.meta
+    }
+
+    /// Consume this entry to get its path and metadata.
+    pub fn into_parts(self) -> (String, Metadata) {
+        (self.path, self.meta)
     }
 }

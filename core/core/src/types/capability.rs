@@ -17,6 +17,9 @@
 
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 /// Capability defines the supported operations and their constraints for a storage Operator.
 ///
 /// # Overview
@@ -62,7 +65,8 @@ use std::fmt::Debug;
 /// - Metadata Results: Returning metadata capabilities (e.g., `stat_has_content_length`)
 ///
 /// All capability fields are public and can be accessed directly.
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Capability {
     /// Indicates if the operator supports metadata retrieval operations.
     pub stat: bool,
@@ -152,6 +156,16 @@ pub struct Capability {
     pub copy: bool,
     /// Indicates if conditional copy operations with if-not-exists are supported.
     pub copy_with_if_not_exists: bool,
+    /// Indicates if conditional copy operations with if-match are supported.
+    pub copy_with_if_match: bool,
+    /// Indicates if copy operations from a specific source version are supported.
+    pub copy_with_source_version: bool,
+    /// Indicates if copy operations can be split into multiple server-side tasks.
+    pub copy_can_multi: bool,
+    /// Maximum size supported for segmented copy tasks.
+    pub copy_multi_max_size: Option<usize>,
+    /// Minimum size required for segmented copy tasks.
+    pub copy_multi_min_size: Option<usize>,
 
     /// Indicates if rename operations are supported.
     pub rename: bool,

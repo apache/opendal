@@ -224,7 +224,8 @@ fn intern_copy(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    Ok(op.copy(&source_path, &target_path)?)
+    op.copy(&source_path, &target_path)?;
+    Ok(())
 }
 
 /// # Safety

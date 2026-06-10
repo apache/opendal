@@ -84,6 +84,7 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
         opendal::services::SQLITE_SCHEME,
         opendal::services::SWIFT_SCHEME,
         opendal::services::TIKV_SCHEME,
+        opendal::services::TOS_SCHEME,
         opendal::services::UPYUN_SCHEME,
         opendal::services::VERCEL_ARTIFACTS_SCHEME,
         opendal::services::WEBDAV_SCHEME,

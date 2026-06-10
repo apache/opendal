@@ -1,3 +1,90 @@
+# Upgrade to v0.57
+
+## Public API
+
+### Read response metadata
+
+Read operations can now expose metadata returned by the underlying service while opening the read response. `Reader::metadata()` returns the complete object metadata already observed by this reader, and `BufferStream::metadata()` can open the read response and return metadata before the response body is consumed.
+
+`Operator::read`, `read_with`, and `read_options` still return `Buffer`.
+
+### Copy APIs return `Metadata`
+
+`Operator::copy`, `copy_options`, `copy_with`, and their blocking equivalents now return `Metadata` instead of `()`, matching write completion behavior.
+
+Out-of-tree raw services and layers that implement copy must migrate to the new copier flow:
+
+- `Access::copy` returns `(RpCopy, Self::Copier)`.
+- `Access` implementations define a `type Copier`.
+- `oio::Copy::close` returns the server-side completion `Metadata`.
+
+### `RetryInterceptor::intercept` takes `RetryEvent`
+
+`RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
+
+### HTTP metrics include `service_operation`
+
+HTTP metrics emitted by the metrics layers now include a `service_operation` label for backend-specific request names such as `GetObject` or `UploadPart`. Metrics consumers and dashboards that assume the previous HTTP metric label set must be updated.
+
+## Raw API
+
+### `RpRead` carries optional `Metadata`
+
+`RpRead` now carries optional complete object `Metadata` observed while opening a read operation. The old size/range fields have been removed.
+
+Out-of-tree services should return:
+
+- `RpRead::new(metadata)` when the read response natively provides metadata.
+- `RpRead::default()` when the service does not provide read metadata.
+
+The `metadata.content_length()` value must describe the full object size, even for range reads.
+
+## Services
+
+### `allow_anonymous` renamed to `skip_signature`
+
+S3-compatible services now use `skip_signature` to describe requests that bypass credential loading and request signing:
+
+- For S3, OSS, and GCS, `allow_anonymous` is kept as a deprecated compatibility alias. New code should use `skip_signature()` on builders or `skip_signature = true` in config.
+- For TOS, migrate from `allow_anonymous(true)` / `allow_anonymous = true` to `skip_signature()` / `skip_signature = true`.
+- For GCS, the behavior changed from fallback-on-credential-error to an unconditional signing bypass. If requests should be signed, do not set either `skip_signature` or the deprecated `allow_anonymous` alias.
+
+### Hugging Face `repo_type` is required
+
+The Hugging Face service no longer defaults `repo_type` to `model`. Set it explicitly when constructing the service:
+
+```diff
+ let builder = opendal_service_hf::Hf::default()
++    .repo_type("model")
+     .repo_id("username/repo");
+```
+
+For config maps and environment-driven setup, add `repo_type = "model"` or the correct repository type: `model`, `dataset`, `space`, or `bucket`.
+
+The service also adds a `download_mode` option. The default is `xet`; set `download_mode = "http"` to force plain HTTP downloads.
+
+### TOS versioning option removed
+
+`TosBuilder::enable_versioning` and `TosConfig::enable_versioning` have been removed. TOS now declares versioned stat/read/delete capabilities natively.
+
+# Upgrade to v0.56
+
+## Public API
+
+### Deprecated HTTP client builder hooks removed
+
+The long-deprecated `http_client` customization hooks on service builders have been removed. Configure custom HTTP behavior with the layered HTTP client APIs instead of mutating service builders directly.
+
+### `TimeoutLayer::with_speed` removed
+
+`TimeoutLayer::with_speed` has been removed after a deprecation cycle. Use `with_io_timeout` to enforce per-IO deadlines instead.
+
+## Raw API
+
+### Test helpers moved to `opendal_testkit`
+
+The old `opendal::raw::tests` module has been split into the standalone `opendal-testkit` crate. If you maintain out-of-tree services or integrations, replace imports from `opendal::raw::tests` with `opendal::tests` or depend on `opendal-testkit` directly.
+
 # Upgrade to v0.55
 
 ## Public API

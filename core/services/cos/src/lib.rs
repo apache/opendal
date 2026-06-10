@@ -18,9 +18,22 @@
 /// Default scheme for cos service.
 pub const COS_SCHEME: &str = "cos";
 
+/// Alternative scheme for cos service.
+///
+/// `cosn://` is the canonical Hadoop / EMR URI scheme used by many
+/// big-data ecosystems (Spark, Hive, Flink, etc.) to access Tencent Cloud
+/// COS. OpenDAL accepts it as an alias of `cos://` so that existing
+/// workloads can switch to OpenDAL without changing their URIs.
+pub const COSN_SCHEME: &str = "cosn";
+
 /// Register this service into the given registry.
+///
+/// Both the canonical `cos` scheme and the Hadoop-compatible `cosn`
+/// alias are registered so that URIs like `cos://bucket/key` and
+/// `cosn://bucket/key` are both resolvable to this backend.
 pub fn register_cos_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Cos>(COS_SCHEME);
+    registry.register::<Cos>(COSN_SCHEME);
 }
 
 mod backend;

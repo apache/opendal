@@ -22,7 +22,9 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
+use reqsign_aliyun_oss::AssumeRoleCredentialProvider;
 use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
+use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
 use reqsign_aliyun_oss::EnvCredentialProvider;
 use reqsign_aliyun_oss::RequestSigner;
 use reqsign_aliyun_oss::StaticCredentialProvider;
@@ -33,7 +35,6 @@ use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::OSS_SCHEME;
 use super::config::OssConfig;
@@ -111,10 +112,12 @@ impl OssBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: OSS versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OSS versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -287,29 +290,38 @@ impl OssBuilder {
         self
     }
 
-    /// Set maximum batch operations of this backend.
+    /// Deprecated: OSS delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "OSS delete batch capability is enabled by default and this option is no longer needed."
     )]
-    pub fn batch_max_operations(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
-
+    pub fn batch_max_operations(self, _delete_max_size: usize) -> Self {
         self
     }
 
-    /// Set maximum delete operations of this backend.
-    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
+    /// Deprecated: OSS delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OSS delete batch capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn delete_max_size(self, _delete_max_size: usize) -> Self {
+        self
+    }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
-        self
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 
     /// Set role_arn for this backend.
@@ -359,6 +371,15 @@ impl OssBuilder {
 
         self
     }
+
+    /// Set external_id for this backend.
+    pub fn external_id(mut self, v: &str) -> Self {
+        if !v.is_empty() {
+            self.config.external_id = Some(v.to_string())
+        }
+
+        self
+    }
 }
 
 enum AddressingStyle {
@@ -390,6 +411,9 @@ impl Builder for OssBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
+
+        #[allow(deprecated)]
+        let skip_signature = self.config.skip_signature || self.config.allow_anonymous;
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
@@ -474,53 +498,76 @@ impl Builder for OssBuilder {
             assume_role = assume_role.with_role_session_name(role_session_name.clone());
         }
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
             });
 
-        let mut provider = ProvideCredentialChain::new()
-            .push(EnvCredentialProvider::new())
-            .push(assume_role);
-
-        if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.access_key_secret) {
-            let static_provider = if let Some(token) = self.config.security_token.as_deref() {
+        let static_provider = if let (Some(ak), Some(sk)) =
+            (&self.config.access_key_id, &self.config.access_key_secret)
+        {
+            Some(if let Some(token) = self.config.security_token.as_deref() {
                 StaticCredentialProvider::new(ak, sk).with_security_token(token)
             } else {
                 StaticCredentialProvider::new(ak, sk)
-            };
-            provider = provider.push_front(static_provider);
+            })
+        } else {
+            None
+        };
+
+        let mut provider = ProvideCredentialChain::new();
+        if let Some(static_provider) = static_provider {
+            provider = provider.push(static_provider);
+        }
+        let mut provider = provider
+            .push(EnvCredentialProvider::new())
+            .push(EcsRamRoleCredentialProvider::new())
+            .push(assume_role);
+
+        if let Some(role_arn) = &self.config.role_arn {
+            let mut assume_role_with_ak = AssumeRoleCredentialProvider::new()
+                .with_base_provider(provider)
+                .with_role_arn(role_arn.clone());
+
+            if let Some(role_session_name) = &self.config.role_session_name {
+                assume_role_with_ak =
+                    assume_role_with_ak.with_role_session_name(role_session_name.clone());
+            }
+            if let Some(external_id) = &self.config.external_id {
+                assume_role_with_ak = assume_role_with_ak.with_external_id(external_id.clone());
+            }
+            if let Some(sts_endpoint) = &self.config.sts_endpoint {
+                assume_role_with_ak = assume_role_with_ak.with_sts_endpoint(sts_endpoint.clone());
+            }
+
+            provider = ProvideCredentialChain::new().push(assume_role_with_ak);
         }
 
         let request_signer = RequestSigner::new(bucket);
         let signer = Signer::new(ctx, provider, request_signer);
 
-        let delete_max_size = self
-            .config
-            .delete_max_size
-            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-
         Ok(OssBackend {
             core: Arc::new(OssCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(OSS_SCHEME)
+                    info.set_scheme(OSS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_with_version: self.config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,
-                            read_with_version: self.config.enable_versioning,
+                            read_with_version: true,
                             read_with_if_modified_since: true,
                             read_with_if_unmodified_since: true,
 
@@ -531,8 +578,8 @@ impl Builder for OssBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
-                            // TODO: set this to false while version has been enabled.
-                            write_with_if_not_exists: !self.config.enable_versioning,
+                            write_with_content_encoding: true,
+                            write_with_if_not_exists: true,
 
                             // The min multipart size of OSS is 100 KiB.
                             //
@@ -549,8 +596,8 @@ impl Builder for OssBuilder {
                             write_with_user_metadata: true,
 
                             delete: true,
-                            delete_with_version: self.config.enable_versioning,
-                            delete_max_size: Some(delete_max_size),
+                            delete_with_version: true,
+                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
 
                             copy: true,
 
@@ -558,8 +605,8 @@ impl Builder for OssBuilder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: self.config.enable_versioning,
-                            list_with_deleted: self.config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,
@@ -571,14 +618,14 @@ impl Builder for OssBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 root,
                 bucket: bucket.to_owned(),
                 endpoint,
                 host,
                 presign_endpoint,
-                allow_anonymous: self.config.allow_anonymous,
+                skip_signature,
                 signer,
                 server_side_encryption,
                 server_side_encryption_key_id,
@@ -593,11 +640,54 @@ pub struct OssBackend {
     core: Arc<OssCore>,
 }
 
+/// Reader returned by this backend.
+pub struct OssReader {
+    backend: OssBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl OssReader {
+    fn new(backend: OssBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for OssReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.oss_get_object(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for OssBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<OssReader>;
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -622,22 +712,11 @@ impl Access for OssBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.oss_get_object(path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(OssReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -686,12 +765,18 @@ impl Access for OssBackend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.oss_copy_object(from, to).await?;
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }
@@ -700,7 +785,9 @@ impl Access for OssBackend {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
-            PresignOperation::Read(v) => self.core.oss_get_object_request(path, true, v),
+            PresignOperation::Read(range, v) => {
+                self.core.oss_get_object_request(path, true, *range, v)
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)

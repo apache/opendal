@@ -86,3 +86,13 @@ impl From<Operation> for String {
         v.into_static().to_string()
     }
 }
+
+/// A service-specific operation name attached to HTTP requests.
+///
+/// While [`Operation`] describes the OpenDAL-level operation (e.g., read, write, list),
+/// `ServiceOperation` describes the specific backend API call being made as a supplement.
+///
+/// Services attach this as an HTTP request extension so that observability layers
+/// can provide finer-grained breakdowns of HTTP traffic.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct ServiceOperation(pub &'static str);

@@ -47,6 +47,12 @@ class NotFound(builtins.Exception):
 class PermissionDenied(builtins.Exception):
     r"""Permission denied."""
 
+class RangeNotSatisfied(builtins.Exception):
+    r"""Range not satisfied."""
+
+class RateLimited(builtins.Exception):
+    r"""Rate limited."""
+
 class Unexpected(builtins.Exception):
     r"""Unexpected errors."""
 

@@ -25,6 +25,7 @@ pub fn register_azblob_service(registry: &opendal_core::OperatorRegistry) {
 
 mod backend;
 mod config;
+mod copier;
 pub mod core;
 mod deleter;
 mod error;

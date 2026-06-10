@@ -27,8 +27,6 @@ import subprocess
 def classifier_to_target(classifier: str) -> str:
     if classifier == "osx-aarch_64":
         return "aarch64-apple-darwin"
-    if classifier == "osx-x86_64":
-        return "x86_64-apple-darwin"
     if classifier == "linux-x86_64":
         return "x86_64-unknown-linux-gnu"
     if classifier == "windows-x86_64":
@@ -38,8 +36,6 @@ def classifier_to_target(classifier: str) -> str:
 
 def get_cargo_artifact_name(classifier: str) -> str:
     if classifier == "osx-aarch_64":
-        return "libopendal_dotnet.dylib"
-    if classifier == "osx-x86_64":
         return "libopendal_dotnet.dylib"
     if classifier == "linux-x86_64":
         return "libopendal_dotnet.so"

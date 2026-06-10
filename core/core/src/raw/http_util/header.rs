@@ -175,8 +175,8 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
         m.set_content_encoding(v);
     }
 
-    if let Some(v) = parse_content_range(headers)? {
-        m.set_content_range(v);
+    if let Some(v) = parse_content_range(headers)?.and_then(|v| v.size()) {
+        m.set_content_length(v);
     }
 
     if let Some(v) = parse_etag(headers)? {

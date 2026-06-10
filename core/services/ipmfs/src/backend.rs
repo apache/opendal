@@ -37,11 +37,48 @@ pub struct IpmfsBackend {
     pub core: Arc<IpmfsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct IpmfsReader {
+    backend: IpmfsBackend,
+    path: String,
+}
+
+impl IpmfsReader {
+    fn new(backend: IpmfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for IpmfsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let resp = backend.core.ipmfs_read(path, range).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (RpRead::default(), resp.into_body()),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for IpmfsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<IpmfsReader>;
     type Writer = oio::OneShotWriter<IpmfsWriter>;
     type Lister = oio::PageLister<IpmfsLister>;
     type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -89,22 +126,11 @@ impl Access for IpmfsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.ipmfs_read(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(IpmfsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

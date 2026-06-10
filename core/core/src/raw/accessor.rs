@@ -66,6 +66,8 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
     type Lister: oio::List;
     /// Deleter is the associated deleter returned in `delete` operation.
     type Deleter: oio::Delete;
+    /// Copier is the associated copier returned in `copy` operation.
+    type Copier: oio::Copy;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -119,15 +121,16 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
         )))
     }
 
-    /// Invoke the `read` operation on the specified path, returns a
-    /// [`Reader`][crate::Reader] if operate successful.
+    /// Invoke the `read` operation on the specified path, returns a raw
+    /// reader if operate successful.
     ///
     /// Require [`Capability::read`]
     ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check mode.
-    /// - The returning content length may be smaller than the range specified.
+    /// - Range I/O is selected by the returned reader's `open` or `read`
+    ///   operation.
     fn read(
         &self,
         path: &str,
@@ -212,8 +215,9 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
         from: &str,
         to: &str,
         args: OpCopy,
-    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
-        let (_, _, _) = (from, to, args);
+        opts: OpCopier,
+    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
+        let (_, _, _, _) = (from, to, args, opts);
 
         ready(Err(Error::new(
             ErrorKind::Unsupported,
@@ -298,7 +302,8 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-    ) -> BoxedFuture<'a, Result<RpCopy>>;
+        opts: OpCopier,
+    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>>;
     /// Dyn version of [`Accessor::rename`]
     fn rename_dyn<'a>(
         &'a self,
@@ -321,6 +326,7 @@ where
             Writer = oio::Writer,
             Lister = oio::Lister,
             Deleter = oio::Deleter,
+            Copier = oio::Copier,
         >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {
@@ -372,8 +378,9 @@ where
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-    ) -> BoxedFuture<'a, Result<RpCopy>> {
-        Box::pin(self.copy(from, to, args))
+        opts: OpCopier,
+    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>> {
+        Box::pin(self.copy(from, to, args, opts))
     }
 
     fn rename_dyn<'a>(
@@ -399,6 +406,7 @@ impl Access for dyn AccessDyn {
     type Writer = oio::Writer;
     type Deleter = oio::Deleter;
     type Lister = oio::Lister;
+    type Copier = oio::Copier;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info_dyn()
@@ -428,8 +436,14 @@ impl Access for dyn AccessDyn {
         self.list_dyn(path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.copy_dyn(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.copy_dyn(from, to, args, opts).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -447,6 +461,7 @@ impl Access for () {
     type Writer = ();
     type Lister = ();
     type Deleter = ();
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let ai = AccessorInfo::default();
@@ -468,6 +483,7 @@ impl<T: Access + ?Sized> Access for Arc<T> {
     type Writer = T::Writer;
     type Lister = T::Lister;
     type Deleter = T::Deleter;
+    type Copier = T::Copier;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.as_ref().info()
@@ -518,8 +534,9 @@ impl<T: Access + ?Sized> Access for Arc<T> {
         from: &str,
         to: &str,
         args: OpCopy,
-    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
-        async move { self.as_ref().copy(from, to, args).await }
+        opts: OpCopier,
+    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
+        async move { self.as_ref().copy(from, to, args, opts).await }
     }
 
     fn rename(

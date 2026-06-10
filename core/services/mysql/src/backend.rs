@@ -25,6 +25,7 @@ use super::MYSQL_SCHEME;
 use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
+use super::lister::MysqlLister;
 use super::writer::MysqlWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -164,6 +165,8 @@ impl MysqlBackend {
         info.set_root("/");
         info.set_native_capability(Capability {
             read: true,
+            list: true,
+            list_with_recursive: true,
             stat: true,
             write: true,
             write_can_empty: true,
@@ -186,11 +189,45 @@ impl MysqlBackend {
     }
 }
 
+/// Reader returned by this backend.
+pub struct MysqlReader {
+    backend: MysqlBackend,
+    path: String,
+}
+
+impl MysqlReader {
+    fn new(backend: MysqlBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for MysqlReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let p = build_abs_path(&backend.root, path);
+        let bs = match backend.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in mysql")),
+        };
+        let content = bs.slice(range.to_content_range(bs.len())?);
+        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        Ok((
+            RpRead::new(metadata),
+            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
+        ))
+    }
+}
+
 impl Access for MysqlBackend {
-    type Reader = Buffer;
+    type Reader = oio::StreamReader<MysqlReader>;
     type Writer = MysqlWriter;
-    type Lister = ();
+    type Lister = oio::HierarchyLister<MysqlLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
@@ -211,14 +248,11 @@ impl Access for MysqlBackend {
             }
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in mysql")),
-        };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(MysqlReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -231,5 +265,12 @@ impl Access for MysqlBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(MysqlDeleter::new(self.core.clone(), self.root.clone())),
         ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister =
+            MysqlLister::new(self.core.clone(), self.root.clone(), path.to_string()).await?;
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+        Ok((RpList::default(), lister))
     }
 }

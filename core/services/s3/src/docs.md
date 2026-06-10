@@ -29,8 +29,16 @@ This service can be used to:
 - `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
 - `disable_config_load`: Disable aws config load from env.
 - `enable_virtual_host_style`: Enable virtual host style.
-- `disable_write_with_if_match`: Disable write with if match.
 - `enable_request_payer`: Enable the request payer for backend.
+- `skip_signature`: Skip loading credentials and signing requests.
+- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
+- `batch_max_operations`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
+- `delete_max_size`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
+- `disable_stat_with_override`: Deprecated. S3 stat override capabilities are enabled by default and this option is no longer needed.
+- `disable_write_with_if_match`: Deprecated. S3 write with If-Match capability is enabled by default and this option is no longer needed.
+- `enable_versioning`: Deprecated. S3 versioning capability is enabled by default and this option is no longer needed.
+- `enable_write_with_append`: Deprecated. S3 append capability is enabled by default and this option is no longer needed.
+- `default_acl`: Define the default access control list (ACL) when creating a new object. Note that some s3 services like minio do not support this option.
 
 Refer to [`S3Builder`]'s public API docs for more information.
 
@@ -233,6 +241,36 @@ async fn main() -> Result<()> {
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
+
+    Ok(())
+}
+```
+
+### S3 with default ACL
+
+```rust,no_run
+use log::info;
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut builder = S3::default()
+      // Setup builders
+      .root("/path/to/dir")
+      .bucket("test")
+      .region("us-east-1")
+      .endpoint("https://s3.amazonaws.com")
+      .access_key_id("access_key_id")
+      .secret_access_key("secret_access_key")
+      // Enable public-read ACL
+      .default_acl("public-read");
+
+    let op = Operator::new(builder)?.finish();
+    info!("operator: {:?}", op);
+
+    // New objects will be created with public-read ACL
 
     Ok(())
 }

@@ -58,7 +58,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 8
           run_install: false

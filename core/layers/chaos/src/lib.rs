@@ -86,7 +86,7 @@ impl<A: Access> Layer<A> for ChaosLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
-            rng: StdRng::from_entropy(),
+            rng: Arc::new(Mutex::new(rand::make_rng())),
             error_ratio: self.error_ratio,
         }
     }
@@ -96,7 +96,7 @@ impl<A: Access> Layer<A> for ChaosLayer {
 #[derive(Debug)]
 pub struct ChaosAccessor<A> {
     inner: A,
-    rng: StdRng,
+    rng: Arc<Mutex<StdRng>>,
 
     error_ratio: f64,
 }
@@ -107,20 +107,33 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .await
-            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                ChaosReader::new(r, Arc::clone(&self.rng), self.error_ratio),
+            )
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -141,10 +154,10 @@ pub struct ChaosReader<R> {
 }
 
 impl<R> ChaosReader<R> {
-    fn new(inner: R, rng: StdRng, error_ratio: f64) -> Self {
+    fn new(inner: R, rng: Arc<Mutex<StdRng>>, error_ratio: f64) -> Self {
         Self {
             inner,
-            rng: Arc::new(Mutex::new(rng)),
+            rng,
             error_ratio,
         }
     }
@@ -152,8 +165,8 @@ impl<R> ChaosReader<R> {
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
     fn i_feel_lucky(&self) -> bool {
-        let point = self.rng.lock().unwrap().gen_range(0..=100);
-        point >= (self.error_ratio * 100.0) as i32
+        let point: u32 = self.rng.lock().unwrap().random_range(0..100);
+        point >= (self.error_ratio * 100.0) as u32
     }
 
     fn unexpected_eof() -> Error {
@@ -163,10 +176,33 @@ impl<R> ChaosReader<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for ChaosReader<R> {
+impl<R: oio::ReadStream> oio::ReadStream for ChaosReader<R> {
     async fn read(&mut self) -> Result<Buffer> {
         if self.i_feel_lucky() {
             self.inner.read().await
+        } else {
+            Err(Self::unexpected_eof())
+        }
+    }
+}
+
+impl<R: oio::Read> oio::Read for ChaosReader<R> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        if self.i_feel_lucky() {
+            let (rp, stream) = self.inner.open(range).await?;
+            Ok((
+                rp,
+                Box::new(ChaosReader::new(stream, self.rng.clone(), self.error_ratio))
+                    as Box<dyn oio::ReadStreamDyn>,
+            ))
+        } else {
+            Err(Self::unexpected_eof())
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        if self.i_feel_lucky() {
+            self.inner.read(range).await
         } else {
             Err(Self::unexpected_eof())
         }

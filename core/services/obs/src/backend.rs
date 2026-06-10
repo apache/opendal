@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqsign_huaweicloud_obs::EnvCredentialProvider;
 use reqsign_huaweicloud_obs::RequestSigner;
 use reqsign_huaweicloud_obs::StaticCredentialProvider;
@@ -122,10 +121,12 @@ impl ObsBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: OBS versioning capability is not controlled by service config.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OBS versioning capability is not controlled by this option and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 }
@@ -175,9 +176,11 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(OsEnv);
 
         let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
@@ -201,8 +204,7 @@ impl Builder for ObsBuilder {
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(OBS_SCHEME)
+                    info.set_scheme(OBS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -251,7 +253,7 @@ impl Builder for ObsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket,
                 root,
@@ -268,11 +270,54 @@ pub struct ObsBackend {
     core: Arc<ObsCore>,
 }
 
+/// Reader returned by this backend.
+pub struct ObsReader {
+    backend: ObsBackend,
+    path: String,
+    args: OpRead,
+}
+
+impl ObsReader {
+    fn new(backend: ObsBackend, path: &str, args: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+            args,
+        }
+    }
+}
+
+impl oio::StreamRead for ObsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let args = self.args.clone();
+        let resp = backend.core.obs_get_object(path, range, &args).await?;
+
+        let status = resp.status();
+
+        let (rp, stream) = match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                resp.into_body(),
+            ),
+            _ => {
+                let (part, mut body) = resp.into_parts();
+                let buf = body.to_buffer().await?;
+                return Err(parse_error(Response::from_parts(part, buf)));
+            }
+        };
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 impl Access for ObsBackend {
-    type Reader = HttpBody;
+    type Reader = oio::StreamReader<ObsReader>;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -317,22 +362,11 @@ impl Access for ObsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.obs_get_object(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok((
+            RpRead::default(),
+            oio::StreamReader::new(ObsReader::new(self.clone(), path, args)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -363,13 +397,19 @@ impl Access for ObsBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.obs_copy_object(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }
@@ -377,10 +417,7 @@ impl Access for ObsBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v),
-            PresignOperation::Read(v) => {
-                self.core
-                    .obs_get_object_request(path, BytesRange::default(), v)
-            }
+            PresignOperation::Read(range, v) => self.core.obs_get_object_request(path, *range, v),
             PresignOperation::Write(v) => {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())

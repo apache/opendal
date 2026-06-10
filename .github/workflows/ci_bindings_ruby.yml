@@ -40,13 +40,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        ruby-version: ["3.2", "3.3", "3.4"]
 
     env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
       BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
@@ -56,8 +51,8 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+          working-directory: bindings/ruby
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -67,7 +62,7 @@ jobs:
         run: |
           cargo clippy -- -D warnings
 
-      - name: Run tests and lint
+      - name: Run lint
         working-directory: bindings/ruby
         run: |
-          bundle exec rake
+          bundle exec rake standard

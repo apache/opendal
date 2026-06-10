@@ -42,7 +42,7 @@ impl Debug for DbfsCore {
         f.debug_struct("DbfsCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("token", &self.token)
+            .field("token", &"<redacted>")
             .finish_non_exhaustive()
     }
 }

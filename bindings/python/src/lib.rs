@@ -64,7 +64,13 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         m,
         "layers",
-        [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
+        [
+            Layer,
+            CapabilityOverrideLayer,
+            RetryLayer,
+            ConcurrentLimitLayer,
+            MimeGuessLayer
+        ]
     )?;
 
     // Types module
@@ -79,6 +85,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ReadOptions>()?;
     m.add_class::<ListOptions>()?;
     m.add_class::<StatOptions>()?;
+    m.add_class::<DeleteOptions>()?;
 
     // Exceptions module
     add_pyexceptions!(
@@ -96,7 +103,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
             NotADirectory,
             AlreadyExists,
             IsSameFile,
-            ConditionNotMatch
+            ConditionNotMatch,
+            RateLimited,
+            RangeNotSatisfied,
         ]
     )?;
     Ok(())

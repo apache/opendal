@@ -58,9 +58,9 @@ use probe::probe_lazy;
 ///
 /// ### For Reader
 ///
-/// 1. reader_read_start, arguments: path
-/// 2. reader_read_ok, arguments: path, length
-/// 3. reader_read_error, arguments: path
+/// 1. reader_read_start, arguments: path, range
+/// 2. reader_read_ok, arguments: path, range, length
+/// 3. reader_read_error, arguments: path, range
 ///
 /// ### For Writer
 ///
@@ -163,6 +163,7 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     type Writer = DtraceLayerWrapper<A::Writer>;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -201,6 +202,20 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
         result
     }
 
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let c_from = CString::new(from).unwrap();
+        probe_lazy!(opendal, copy_start, c_from.as_ptr());
+        let result = self.inner.copy(from, to, args, opts).await;
+        probe_lazy!(opendal, copy_end, c_from.as_ptr());
+        result
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, stat_start, c_path.as_ptr());
@@ -234,28 +249,130 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
 pub struct DtraceLayerWrapper<R> {
     inner: R,
     path: String,
+    range: Option<BytesRange>,
 }
 
 impl<R> DtraceLayerWrapper<R> {
     fn new(inner: R, path: &String) -> Self {
+        Self::with_range(inner, path, None)
+    }
+
+    fn with_range(inner: R, path: &String, range: Option<BytesRange>) -> Self {
         Self {
             inner,
             path: path.to_string(),
+            range,
+        }
+    }
+
+    fn range_label(&self) -> String {
+        self.range
+            .map(|range| range.to_string())
+            .unwrap_or_default()
+    }
+}
+
+impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
+    async fn read(&mut self) -> Result<Buffer> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_range = CString::new(self.range_label()).unwrap();
+        probe_lazy!(
+            opendal,
+            reader_read_start,
+            c_path.as_ptr(),
+            c_range.as_ptr()
+        );
+        match self.inner.read().await {
+            Ok(bs) => {
+                probe_lazy!(
+                    opendal,
+                    reader_read_ok,
+                    c_path.as_ptr(),
+                    c_range.as_ptr(),
+                    bs.remaining()
+                );
+                Ok(bs)
+            }
+            Err(e) => {
+                probe_lazy!(
+                    opendal,
+                    reader_read_error,
+                    c_path.as_ptr(),
+                    c_range.as_ptr()
+                );
+                Err(e)
+            }
         }
     }
 }
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
-    async fn read(&mut self) -> Result<Buffer> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let c_path = CString::new(self.path.clone()).unwrap();
-        probe_lazy!(opendal, reader_read_start, c_path.as_ptr());
-        match self.inner.read().await {
-            Ok(bs) => {
-                probe_lazy!(opendal, reader_read_ok, c_path.as_ptr(), bs.remaining());
-                Ok(bs)
+        let c_range = CString::new(range.to_string()).unwrap();
+        probe_lazy!(
+            opendal,
+            reader_read_start,
+            c_path.as_ptr(),
+            c_range.as_ptr()
+        );
+        match self.inner.open(range).await {
+            Ok((rp, stream)) => {
+                probe_lazy!(
+                    opendal,
+                    reader_read_ok,
+                    c_path.as_ptr(),
+                    c_range.as_ptr(),
+                    0
+                );
+                Ok((
+                    rp,
+                    Box::new(DtraceLayerWrapper::with_range(
+                        stream,
+                        &self.path,
+                        Some(range),
+                    )) as Box<dyn oio::ReadStreamDyn>,
+                ))
             }
             Err(e) => {
-                probe_lazy!(opendal, reader_read_error, c_path.as_ptr());
+                probe_lazy!(
+                    opendal,
+                    reader_read_error,
+                    c_path.as_ptr(),
+                    c_range.as_ptr()
+                );
+                Err(e)
+            }
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_range = CString::new(range.to_string()).unwrap();
+        probe_lazy!(
+            opendal,
+            reader_read_start,
+            c_path.as_ptr(),
+            c_range.as_ptr()
+        );
+        match self.inner.read(range).await {
+            Ok((rp, buffer)) => {
+                probe_lazy!(
+                    opendal,
+                    reader_read_ok,
+                    c_path.as_ptr(),
+                    c_range.as_ptr(),
+                    buffer.len()
+                );
+                Ok((rp, buffer))
+            }
+            Err(e) => {
+                probe_lazy!(
+                    opendal,
+                    reader_read_error,
+                    c_path.as_ptr(),
+                    c_range.as_ptr()
+                );
                 Err(e)
             }
         }

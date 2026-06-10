@@ -16,6 +16,7 @@
 # under the License.
 
 import unittest
+from unittest.mock import patch
 
 from plan import plan
 
@@ -59,6 +60,10 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue(result["components"]["binding_java"])
         self.assertTrue(len(result["binding_java"]) > 0)
 
+    def test_binding_java_excludes_hf(self):
+        result = plan(["bindings/java/pom.xml"])
+        cases = [v["service"] for target in result["binding_java"] for v in target["cases"]]
+        self.assertFalse("hf" in cases)
 
     def test_integration_object_store(self):
         result = plan(["integrations/object_store/Cargo.toml"])
@@ -69,7 +74,6 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["integration_object_store"][0]["cases"]]
         # Should contain fs
         self.assertTrue("fs" in cases)
-
 
 if __name__ == "__main__":
     unittest.main()

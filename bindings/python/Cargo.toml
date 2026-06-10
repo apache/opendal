@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
-version = "0.47.0"
+version = "0.47.2"
 
 [features]
 default = [
@@ -59,6 +59,7 @@ services-all = [
   'services-dropbox',
   'services-ftp',
   'services-gdrive',
+  'services-goosefs',
   'services-gridfs',
   'services-hf',
   'services-ipfs',
@@ -78,6 +79,7 @@ services-all = [
   'services-sqlite',
   'services-swift',
   'services-upyun',
+  'services-tos',
   'services-vercel-artifacts',
   'services-yandex-disk',
 ]
@@ -109,6 +111,7 @@ services-etcd = [
 services-foundationdb = [
   "opendal/services-foundationdb",
 ] # FIXME EXCLUDED: this service needs preinstalled fdb library
+services-foyer = ["opendal/services-foyer"]
 services-fs = ["opendal/services-fs"]
 services-ftp = ["opendal/services-ftp"]
 services-gcs = ["opendal/services-gcs"]
@@ -117,6 +120,7 @@ services-ghac = ["opendal/services-ghac"]
 services-github = [
   "opendal/services-github",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
+services-goosefs = ["opendal/services-goosefs"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = [
   "opendal/services-hdfs",
@@ -168,6 +172,7 @@ services-swift = ["opendal/services-swift"]
 services-tikv = [
   "opendal/services-tikv",
 ] # FIXME EXCLUDED: this service needs protoc
+services-tos = ["opendal/services-tos"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-vercel-blob = [
@@ -184,7 +189,7 @@ abi3 = ["pyo3/abi3-py311"]
 [target.'cfg(not(windows))'.features]
 services-all = ["services-sftp"]
 
-# Conditionally include sftp only on non-windows targets
+# Conditionally include hdfs-native only on non-arm targets
 [target.'cfg(not(target_arch = "arm"))'.features]
 services-all = ["services-hdfs-native"]
 

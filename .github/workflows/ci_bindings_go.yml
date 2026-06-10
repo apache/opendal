@@ -51,6 +51,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: bindings/go/go.mod
+          cache-dependency-path: bindings/go/go.sum
       - uses: golangci/golangci-lint-action@v9
         with:
           version: "v2.1"

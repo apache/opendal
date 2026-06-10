@@ -27,7 +27,7 @@ version = "0.57.0"
 all-features = true
 
 [dependencies]
-http = "1.1"
+http = "1.4"
 log = "0.4"
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 serde = { version = "1", features = ["derive"] }

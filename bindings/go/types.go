@@ -186,6 +186,12 @@ var (
 			&ffi.TypeUint8,   // delete_with_version
 			&ffi.TypeUint8,   // delete_with_recursive
 			&ffi.TypeUint8,   // copy
+			&ffi.TypeUint8,   // copy_with_if_not_exists
+			&ffi.TypeUint8,   // copy_with_if_match
+			&ffi.TypeUint8,   // copy_with_source_version
+			&ffi.TypeUint8,   // copy_can_multi
+			&ffi.TypePointer, // copy_multi_max_size
+			&ffi.TypePointer, // copy_multi_min_size
 			&ffi.TypeUint8,   // rename
 			&ffi.TypeUint8,   // list
 			&ffi.TypeUint8,   // list_with_limit
@@ -243,6 +249,12 @@ type opendalCapability struct {
 	deleteWithVersion                  uint8
 	deleteWithRecursive                uint8
 	copy                               uint8
+	copyWithIfNotExists                uint8
+	copyWithIfMatch                    uint8
+	copyWithSourceVersion              uint8
+	copyCanMulti                       uint8
+	copyMultiMaxSize                   uint
+	copyMultiMinSize                   uint
 	rename                             uint8
 	list                               uint8
 	listWithLimit                      uint8
@@ -358,6 +370,8 @@ type opendalListOptions struct{}
 type opendalDeleteOptions struct{}
 
 type opendalReadOptions struct{}
+
+type opendalCopyOptions struct{}
 
 type opendalWriteOptions struct{}
 

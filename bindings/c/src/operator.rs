@@ -655,11 +655,32 @@ pub unsafe extern "C" fn opendal_operator_copy_with_cancel(
     dest: *const c_char,
     token: *const opendal_cancel_token,
 ) -> *mut opendal_error {
+    unsafe {
+        opendal_operator_copy_with_options_cancel(op, src, dest, std::ptr::null(), token)
+    }
+}
+
+/// \brief Like `opendal_operator_copy_with` with cooperative cancellation.
+///
+/// Pass NULL for `token` to block until completion.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy_with_options_cancel(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    opts: *const opendal_copy_options,
+    token: *const opendal_cancel_token,
+) -> *mut opendal_error {
     let src = unsafe { parse_cstr(src, "src") }.to_owned();
     let dest = unsafe { parse_cstr(dest, "dest") }.to_owned();
+    let copy_opts = if opts.is_null() {
+        core::options::CopyOptions::default()
+    } else {
+        unsafe { (&*opts).into() }
+    };
     let op = op.deref().clone();
     result_error(cancel::block_on_cancelable_spawn(token, async move {
-        op.copy(&src, &dest).await.map(|_| ())
+        op.copy_options(&src, &dest, copy_opts).await.map(|_| ())
     }))
 }
 
@@ -1392,6 +1413,67 @@ pub unsafe extern "C" fn opendal_operator_copy(
     dest: *const c_char,
 ) -> *mut opendal_error {
     unsafe { opendal_operator_copy_with_cancel(op, src, dest, std::ptr::null()) }
+}
+
+/// \brief Blocking copy the object in `path` with options.
+///
+/// Copy the object from `src` to `dest` blocking by `op`, using the provided
+/// `opendal_copy_options` to control the behavior, e.g. `if_not_exists` or
+/// `if_match` conditions.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @param opts The options for the copy operation; pass NULL to use defaults
+/// @see opendal_operator
+/// @see opendal_copy_options
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator, named op for example
+///
+/// // prepare your data
+/// char* data = "Hello, World!";
+/// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+/// opendal_error *error = opendal_operator_write(op, "/testpath", bytes);
+///
+/// assert(error == NULL);
+///
+/// // prepare options
+/// opendal_copy_options *opts = opendal_copy_options_new();
+/// opendal_copy_options_set_if_not_exists(opts, true);
+///
+/// // now you can copy with options!
+/// opendal_error *error = opendal_operator_copy_with(op, "/testpath", "/testpath2", opts);
+///
+/// // Assert that this succeeds
+/// assert(error == NULL);
+///
+/// // remember to free the options
+/// opendal_copy_options_free(opts);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copy_with(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    opts: *const opendal_copy_options,
+) -> *mut opendal_error {
+    unsafe { opendal_operator_copy_with_options_cancel(op, src, dest, opts, std::ptr::null()) }
 }
 
 #[no_mangle]

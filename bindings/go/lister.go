@@ -26,52 +26,6 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-// Check verifies if the operator is functioning correctly.
-//
-// This function performs a health check on the operator by sending a `list` request
-// to the root path. It returns any errors encountered during this process.
-//
-// # Returns
-//
-//   - error: An error if the check fails, or nil if the operator is working correctly.
-//
-// # Details
-//
-// The check is performed by attempting to list the contents of the root directory.
-// This operation tests the basic functionality of the operator, including
-// connectivity and permissions.
-//
-// # Example
-//
-//	func exampleCheck(op *opendal.Operator) {
-//		err = op.Check()
-//		if err != nil {
-//			log.Printf("Operator check failed: %v", err)
-//		} else {
-//			log.Println("Operator is functioning correctly")
-//		}
-//	}
-//
-// Note: This example assumes proper error handling and import statements.
-func (op *Operator) Check() (err error) {
-	ds, err := op.List("/")
-	if err != nil {
-		return
-	}
-	defer func() {
-		closeErr := ds.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}()
-	ds.Next()
-	err = ds.Error()
-	if err, ok := err.(*Error); ok && err.Code() == CodeNotFound {
-		return nil
-	}
-	return
-}
-
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
 //
 // WithListFn is a functional option for the List operation.

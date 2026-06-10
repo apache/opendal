@@ -82,7 +82,7 @@ jobs:
         run: python build.py --classifier ${{ matrix.classifier }}
 
       - name: Upload native artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.classifier }}
           path: bindings/dotnet/target/native/${{ matrix.classifier }}/${{ matrix.artifact }}
@@ -105,7 +105,7 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Download native artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: native-*
           merge-multiple: true
@@ -140,7 +140,7 @@ jobs:
         run: dotnet pack OpenDAL/OpenDAL.csproj -c Release -o artifacts/package --version-suffix "${{ steps.version.outputs.VERSION_SUFFIX }}"
 
       - name: Upload NuGet package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-package
           path: bindings/dotnet/artifacts/package/*.nupkg
@@ -163,7 +163,7 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Download NuGet package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: dotnet-package
           path: bindings/dotnet/artifacts/package

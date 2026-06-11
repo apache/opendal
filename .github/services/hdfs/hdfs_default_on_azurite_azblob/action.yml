@@ -28,6 +28,8 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
+      with:
+        connector-azurite: true
 
     - name: Setup azurite azblob service
       shell: bash
@@ -39,23 +41,6 @@ runs:
         az storage container create \
             --name test \
             --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-
-    - name: Setup HDFS azurite
-      shell: bash
-      run: |
-        curl --location \
-          --silent \
-          --show-error \
-          --fail \
-          --output ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-azure-3.3.5.jar \
-          https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-azure/3.3.5/hadoop-azure-3.3.5.jar
-
-        curl --location \
-          --silent \
-          --show-error \
-          --fail \
-          --output ${HADOOP_HOME}/share/hadoop/common/lib/azure-storage-7.0.1.jar \
-          https://repo1.maven.org/maven2/com/microsoft/azure/azure-storage/7.0.1/azure-storage-7.0.1.jar
 
     - name: Setup HDFS azurite env
       shell: bash

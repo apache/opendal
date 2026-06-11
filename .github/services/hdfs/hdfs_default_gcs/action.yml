@@ -32,16 +32,8 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-
-    - name: Setup Haddop GCS connector
-      shell: bash
-      run: |
-        curl --location \
-          --silent \
-          --show-error \
-          --fail \
-          --output ${HADOOP_HOME}/share/hadoop/common/lib/gcs-connector-hadoop3-2.2.19-shaded.jar \
-          https://github.com/GoogleCloudDataproc/hadoop-connectors/releases/download/v2.2.19/gcs-connector-hadoop3-2.2.19-shaded.jar
+      with:
+        connector-gcs: true
 
     - name: Setup Haddop GCS connector env
       shell: bash

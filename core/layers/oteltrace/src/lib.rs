@@ -23,6 +23,7 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opentelemetry::Context as TraceContext;

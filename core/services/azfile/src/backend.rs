@@ -40,6 +40,7 @@ use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{
@@ -239,6 +240,7 @@ impl Builder for AzfileBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_with_user_metadata: true,

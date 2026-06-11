@@ -27,6 +27,7 @@ use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReadStream;
 use super::writer::HdfsWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

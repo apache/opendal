@@ -56,6 +56,7 @@ use crate::lister::S3Listers;
 use crate::lister::S3ObjectVersionsLister;
 use crate::writer::S3Writer;
 use crate::writer::S3Writers;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -940,6 +941,7 @@ impl Builder for S3Builder {
                             read_with_override_content_disposition: true,
                             read_with_override_content_type: true,
                             read_with_version: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

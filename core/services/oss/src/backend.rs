@@ -46,6 +46,7 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -564,6 +565,7 @@ impl Builder for OssBuilder {
                             stat_with_version: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,

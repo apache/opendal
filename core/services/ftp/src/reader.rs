@@ -22,6 +22,7 @@ use futures::AsyncReadExt;
 
 use super::core::Manager;
 use super::err::format_ftp_error;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

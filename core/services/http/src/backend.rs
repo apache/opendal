@@ -26,6 +26,7 @@ use super::HTTP_SCHEME;
 use super::config::HttpConfig;
 use super::core::HttpCore;
 use super::error::parse_error;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -137,6 +138,7 @@ impl Builder for HttpBuilder {
                 stat_with_if_none_match: true,
 
                 read: true,
+                read_with_suffix: true,
 
                 read_with_if_match: true,
                 read_with_if_none_match: true,

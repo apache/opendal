@@ -27,6 +27,7 @@ use super::deleter::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

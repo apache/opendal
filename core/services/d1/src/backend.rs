@@ -23,6 +23,7 @@ use super::config::D1Config;
 use super::core::*;
 use super::deleter::D1Deleter;
 use super::writer::D1Writer;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use log::debug;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

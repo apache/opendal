@@ -21,6 +21,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemFileHandle;
 
 use super::error::*;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

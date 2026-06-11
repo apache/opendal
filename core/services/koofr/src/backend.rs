@@ -35,6 +35,7 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -153,6 +154,7 @@ impl Builder for KoofrBuilder {
                             create_dir: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

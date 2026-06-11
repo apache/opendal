@@ -23,6 +23,7 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::Context;
@@ -213,6 +214,7 @@ impl Builder for ObsBuilder {
                             stat_with_if_none_match: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,

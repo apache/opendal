@@ -40,6 +40,7 @@ use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{
@@ -327,6 +328,7 @@ impl Builder for AzdlsBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
                             read_with_if_match: true,
                             read_with_if_none_match: true,
                             read_with_if_modified_since: true,

@@ -21,6 +21,7 @@ use goosefs_sdk::io::GoosefsFileReader as SdkReader;
 
 use super::core::GoosefsCore;
 use super::error::parse_error;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

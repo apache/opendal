@@ -40,6 +40,7 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -246,6 +247,7 @@ impl Builder for CosBuilder {
                             stat_with_version: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,

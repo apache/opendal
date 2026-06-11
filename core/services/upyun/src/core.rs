@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::header;
 use md5::Digest;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use serde::Deserialize;

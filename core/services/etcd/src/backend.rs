@@ -29,6 +29,7 @@ use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
 use super::lister::EtcdLister;
 use super::writer::EtcdWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

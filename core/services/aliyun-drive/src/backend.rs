@@ -32,6 +32,7 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -152,6 +153,7 @@ impl Builder for AliyunDriveBuilder {
                             stat: true,
                             create_dir: true,
                             read: true,
+                            read_with_suffix: true,
                             write: true,
                             write_can_multi: true,
                             // The min multipart size of AliyunDrive is 100 KiB.

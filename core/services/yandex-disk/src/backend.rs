@@ -31,6 +31,7 @@ use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -105,6 +106,7 @@ impl Builder for YandexDiskBuilder {
                             create_dir: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

@@ -21,6 +21,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -163,6 +164,7 @@ impl Builder for LakefsBuilder {
                             list: true,
 
                             read: true,
+                            read_with_suffix: true,
                             write: true,
                             delete: true,
                             copy: true,

@@ -86,6 +86,7 @@ use std::task::ready;
 use futures::Stream;
 use futures::StreamExt;
 use http::StatusCode;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

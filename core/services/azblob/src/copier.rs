@@ -26,6 +26,7 @@ use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_VERSION_ID;
 use super::error::parse_error;
 use super::writer::AzblobWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::oio::BlockCopy;
 use opendal_core::raw::*;
 use opendal_core::*;

@@ -30,6 +30,7 @@ use super::core::GhacCore;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -162,6 +163,7 @@ impl Builder for GhacBuilder {
                         stat: true,
 
                         read: true,
+                        read_with_suffix: true,
 
                         write: true,
                         write_can_multi: true,

@@ -26,6 +26,7 @@ use super::config::SqliteConfig;
 use super::core::SqliteCore;
 use super::deleter::SqliteDeleter;
 use super::writer::SqliteWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;

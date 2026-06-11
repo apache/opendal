@@ -27,6 +27,7 @@ use std::task::Poll;
 
 use futures::Stream;
 use futures::StreamExt;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use tracing::Instrument;

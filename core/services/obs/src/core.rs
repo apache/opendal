@@ -27,6 +27,7 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::Signer;

@@ -36,6 +36,7 @@ use super::lister::SftpLister;
 use super::reader::SftpReadStream;
 use super::utils::to_metadata;
 use super::writer::SftpWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

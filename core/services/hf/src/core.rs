@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

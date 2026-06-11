@@ -21,7 +21,6 @@
 
 use std::collections::HashMap;
 use std::future::IntoFuture;
-use std::ops::RangeBounds;
 
 use crate::raw::*;
 use crate::*;
@@ -254,6 +253,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// - `..` means read bytes in range `[0, n)` of file.
     /// - `0..1024` and `..1024` means read bytes in range `[0, 1024)` of file
     /// - `1024..` means read bytes in range `[1024, n)` of file
+    /// - `BytesRange::suffix(1024)` means read the last `min(1024, n)` bytes of file
     ///
     /// ```
     /// # use opendal_core::Result;
@@ -264,7 +264,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn range(mut self, range: impl RangeBounds<u64>) -> Self {
+    pub fn range(mut self, range: impl Into<BytesRange>) -> Self {
         self.args.range = range.into();
         self
     }

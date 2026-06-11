@@ -22,6 +22,7 @@ use super::config::CacacheConfig;
 use super::core::CacacheCore;
 use super::deleter::CacacheDeleter;
 use super::writer::CacacheWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

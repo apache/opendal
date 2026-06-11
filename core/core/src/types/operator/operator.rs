@@ -530,7 +530,7 @@ impl Operator {
         let (_, reader) = acc.read(&path, args.clone()).await?;
         let context = ReadContext::new(acc, path, args, opts, reader);
         let r = Reader::new(context);
-        let buf = r.read(range.to_range()).await?;
+        let buf = r.read(range).await?;
         Ok(buf)
     }
 

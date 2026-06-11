@@ -23,6 +23,7 @@ use super::config::RedbConfig;
 use super::core::*;
 use super::deleter::RedbDeleter;
 use super::writer::RedbWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

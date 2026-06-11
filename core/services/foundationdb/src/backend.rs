@@ -25,6 +25,7 @@ use super::config::FoundationdbConfig;
 use super::core::*;
 use super::deleter::FoundationdbDeleter;
 use super::writer::FoundationdbWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

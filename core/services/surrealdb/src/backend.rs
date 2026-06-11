@@ -25,6 +25,7 @@ use super::config::SurrealdbConfig;
 use super::core::*;
 use super::deleter::SurrealdbDeleter;
 use super::writer::SurrealdbWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

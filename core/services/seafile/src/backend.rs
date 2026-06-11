@@ -34,6 +34,7 @@ use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -166,6 +167,7 @@ impl Builder for SeafileBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

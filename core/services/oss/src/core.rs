@@ -41,6 +41,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::core::constants::X_OSS_FORBID_OVERWRITE;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

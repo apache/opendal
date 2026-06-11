@@ -33,6 +33,7 @@ use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -104,6 +105,7 @@ impl Builder for VercelBlobBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

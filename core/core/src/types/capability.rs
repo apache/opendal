@@ -105,6 +105,8 @@ pub struct Capability {
     pub read_with_override_content_type: bool,
     /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
+    /// Indicates if suffix read operations are supported.
+    pub read_with_suffix: bool,
 
     /// Indicates if the operator supports write operations.
     pub write: bool,

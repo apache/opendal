@@ -48,6 +48,7 @@ use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -353,6 +354,7 @@ impl Builder for GcsBuilder {
                             stat_with_if_none_match: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,

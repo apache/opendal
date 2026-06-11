@@ -37,6 +37,7 @@ use sha1::Sha1;
 use sha2::Sha256;
 use sha2::Sha512;
 
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -32,6 +32,7 @@ use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -127,6 +128,7 @@ impl Builder for GithubBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             create_dir: true,
 

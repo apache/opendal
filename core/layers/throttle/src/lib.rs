@@ -29,6 +29,7 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

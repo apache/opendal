@@ -35,6 +35,7 @@ use super::err::format_ftp_error;
 use super::lister::FtpLister;
 use super::reader::FtpReadStream;
 use super::writer::FtpWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

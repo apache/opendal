@@ -23,6 +23,7 @@ use super::core::*;
 use super::deleter::SledDeleter;
 use super::lister::SledLister;
 use super::writer::SledWriter;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -52,6 +52,7 @@ use opendal::options::CopyOptions;
 use opendal::options::ReaderOptions;
 use opendal::options::StatOptions;
 use opendal::raw::percent_decode_path;
+use opendal::BytesRange;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
@@ -216,7 +217,12 @@ impl OpendalStore {
                     .await
             }
             Some(GetRange::Offset(offset)) => reader.into_bytes_stream(*offset..).into_send().await,
-            Some(GetRange::Suffix(_)) => unreachable!("suffix range needs object metadata"),
+            Some(GetRange::Suffix(suffix)) => {
+                reader
+                    .into_bytes_stream(BytesRange::suffix(*suffix))
+                    .into_send()
+                    .await
+            }
             None => reader.into_bytes_stream(..).into_send().await,
         }
         .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
@@ -518,15 +524,13 @@ impl ObjectStore for OpendalStore {
                 .await;
         }
 
-        if !matches!(options.range.as_ref(), Some(GetRange::Suffix(_))) {
-            match self
-                .get_opts_without_stat(location, &raw_location, &options)
-                .await
-            {
-                Ok(result) => return Ok(result),
-                Err(object_store::Error::NotSupported { .. }) => {}
-                Err(err) => return Err(err),
-            }
+        match self
+            .get_opts_without_stat(location, &raw_location, &options)
+            .await
+        {
+            Ok(result) => return Ok(result),
+            Err(object_store::Error::NotSupported { .. }) => {}
+            Err(err) => return Err(err),
         }
 
         self.get_opts_with_stat(location, &raw_location, &options)
@@ -1188,7 +1192,7 @@ mod tests {
         // Reset counter
         stat_count.store(0, Ordering::SeqCst);
 
-        // Test 5: get_opts should still call stat() for suffix range reads
+        // Test 5: get_opts should NOT call stat() for suffix range reads
         let opts = object_store::GetOptions {
             range: Some(object_store::GetRange::Suffix(6)),
             ..Default::default()
@@ -1198,9 +1202,10 @@ mod tests {
         assert_eq!(ret.range, 7..value.len() as u64);
         let data = ret.bytes().await.unwrap();
         assert_eq!(Bytes::from_static(b"world!"), data);
-        assert!(
-            stat_count.load(Ordering::SeqCst) > 0,
-            "get_opts should call stat() for suffix range reads"
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "get_opts should not call stat() for suffix range reads"
         );
 
         // Cleanup

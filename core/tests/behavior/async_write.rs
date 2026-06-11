@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -46,6 +47,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_if_not_exists,
             test_write_with_if_match,
             test_write_with_user_metadata,
+            test_write_with_expires,
             test_write_returns_metadata,
             test_writer_write,
             test_writer_write_with_overwrite,
@@ -245,6 +247,27 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
         *resp_meta,
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+/// Write a single file with expires should expire the object.
+pub async fn test_write_with_expires(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_with_expires {
+        return Ok(());
+    }
+
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write_with(&path, content)
+        .expires(Duration::from_secs(1))
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }

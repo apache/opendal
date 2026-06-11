@@ -199,10 +199,10 @@ impl RedisCore {
         Ok(result.map(Buffer::from))
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
         let mut conn = self.conn().await?;
         let value = value.to_vec();
-        if let Some(dur) = self.default_ttl {
+        if let Some(dur) = expires.or(self.default_ttl) {
             let _: () = conn
                 .set_ex(key, value, dur.as_secs())
                 .await

@@ -195,6 +195,7 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),
+            expires: None,
         }
     }
 }

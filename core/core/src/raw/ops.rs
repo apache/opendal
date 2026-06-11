@@ -688,6 +688,7 @@ pub struct OpWrite {
     if_none_match: Option<String>,
     if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
+    expires: Option<Duration>,
 }
 
 impl OpWrite {
@@ -815,6 +816,17 @@ impl OpWrite {
     pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
         self.user_metadata.as_ref()
     }
+
+    /// Set the expiration duration of the op.
+    pub fn with_expires(mut self, expires: Duration) -> Self {
+        self.expires = Some(expires);
+        self
+    }
+
+    /// Get the expiration duration from the op.
+    pub fn expires(&self) -> Option<Duration> {
+        self.expires
+    }
 }
 
 /// Args for `writer` operation.
@@ -866,6 +878,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 if_none_match: value.if_none_match,
                 if_not_exists: value.if_not_exists,
                 user_metadata: value.user_metadata,
+                expires: value.expires,
             },
             OpWriter { chunk: value.chunk },
         )

@@ -196,6 +196,7 @@ impl MemcachedBackend {
             stat: true,
             write: true,
             write_can_empty: true,
+            write_with_expires: true,
             delete: true,
             shared: true,
             ..Default::default()
@@ -281,9 +282,12 @@ impl Access for MemcachedBackend {
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), MemcachedWriter::new(self.core.clone(), p)))
+        Ok((
+            RpWrite::new(),
+            MemcachedWriter::new(self.core.clone(), p, args),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

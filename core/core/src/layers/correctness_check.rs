@@ -166,6 +166,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 return Err(err);
             }
         }
+        if args.expires().is_some() && !capability.write_with_expires {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Write,
+                "expires",
+            ));
+        }
 
         self.inner.write(path, args).await
     }
@@ -481,6 +488,24 @@ mod tests {
             ..Default::default()
         });
         let res = op.writer_with("path").append(true).await;
+        assert!(res.is_ok());
+
+        let res = op
+            .write_with("path", "".as_bytes())
+            .expires(Duration::from_secs(60))
+            .await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            write: true,
+            write_with_expires: true,
+            ..Default::default()
+        });
+        let res = op
+            .write_with("path", "".as_bytes())
+            .expires(Duration::from_secs(60))
+            .await;
         assert!(res.is_ok());
     }
 

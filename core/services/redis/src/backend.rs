@@ -289,6 +289,7 @@ impl RedisBackend {
             delete: true,
             stat: true,
             write_can_empty: true,
+            write_with_expires: true,
             shared: true,
             ..Default::default()
         });
@@ -407,9 +408,9 @@ impl Access for RedisBackend {
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p)))
+        Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p, args)))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

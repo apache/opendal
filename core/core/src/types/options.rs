@@ -17,7 +17,7 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::raw::{BytesRange, Timestamp};
+use crate::raw::{BytesRange, Duration, Timestamp};
 use std::collections::HashMap;
 
 /// Options for delete operations.
@@ -419,6 +419,21 @@ pub struct WriteOptions {
     /// User metadata provides a way to attach custom metadata to objects during write operations.
     /// This metadata can be retrieved later when reading the object.
     pub user_metadata: Option<HashMap<String, String>>,
+
+    /// Sets a duration after which the written object should expire.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_expires`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the target object will expire after the provided duration.
+    /// - Services without native expiration support will return an unsupported error.
+    /// - If a service also has a configured default TTL, this per-write value takes precedence.
+    ///
+    /// This operation is useful for cache-like backends such as Redis and Memcached.
+    pub expires: Option<Duration>,
 
     /// Sets If-Match header for this write request.
     ///

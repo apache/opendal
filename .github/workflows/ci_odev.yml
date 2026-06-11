@@ -76,6 +76,9 @@ jobs:
 
       - name: Generate Java bindings code
         run: cargo run --manifest-path=dev/Cargo.toml -- generate -l java
+
+      - name: Generate services documentation data
+        run: cargo run --manifest-path=dev/Cargo.toml -- generate -l docs
       - run: cargo fmt --manifest-path bindings/python/Cargo.toml --all
 
       - name: Check diff

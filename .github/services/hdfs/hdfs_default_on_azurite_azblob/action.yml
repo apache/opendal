@@ -21,15 +21,17 @@ description: 'Behavior test for hdfs default over azurite azblob'
 runs:
   using: "composite"
   steps:
-    - name: Setup node
-      uses: actions/setup-node@v6
-      with:
-        node-version: 20
-
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
       with:
         connector-azurite: true
+
+    - name: Setup node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 20
+        cache: 'npm'
+        cache-dependency-path: fixtures/azblob/setup_azurite.sh
 
     - name: Setup azurite azblob service
       shell: bash

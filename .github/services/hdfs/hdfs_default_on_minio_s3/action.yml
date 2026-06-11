@@ -64,7 +64,7 @@ runs:
         ./bin/hadoop credential create fs.s3a.secret.key -value minioadmin -provider localjceks://file/tmp/hdfs/s3.jceks
         popd
 
-        cp ./fixtures/hdfs/minio-s3-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
+        cp ${{ github.workspace }}/fixtures/hdfs/minio-s3-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HDFS_NAME_NODE=s3a://test

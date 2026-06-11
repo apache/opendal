@@ -46,7 +46,7 @@ runs:
     - name: Setup Haddop GCS connector env
       shell: bash
       run: |
-        cp ./fixtures/hdfs/gcs-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
+        cp ${{ github.workspace }}/fixtures/hdfs/gcs-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HDFS_ROOT=${OPENDAL_GCS_ROOT}

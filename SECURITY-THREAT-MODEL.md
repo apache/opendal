@@ -73,10 +73,14 @@ An OpenDAL deployment has these participants:
 | End user of the host application | Out of OpenDAL's direct model. The host application must authenticate, authorize, and sanitize end-user requests before calling OpenDAL. |
 | Network attacker | Out of scope unless the report shows OpenDAL weakened the configured transport. TLS and proxy policy are delegated to the HTTP client and host environment. |
 
-OpenDAL has no principal model. A single `Operator` has the authority granted by
-its configured backend credentials and root. Every operation through that
-`Operator` has the same OpenDAL-level authority.
+OpenDAL doesn't use principal model. A `Operator` takes control of a backend service by user-provided credentials, root and other configurations. Every operation via an
+`Operator` instance shares the same OpenDAL-level authority.
+A typical interaction will be:
 
+Trusted service <-> Backend <-> Operator <-> Host Application <-> End user
+                 |                        |
+                 |------------------------|
+                    OpenDAL code surface
 ## 4. Security Boundary
 
 OpenDAL's security boundary is the public library boundary plus the internal
@@ -102,7 +106,9 @@ Examples:
 OpenDAL does not decide whether a host application's end user is allowed to use
 a path. The host application owns that policy. However, once the host
 application passes a path into OpenDAL, OpenDAL must not accidentally map it to
-a different backend location than its own API contract describes.
+OpenDAL does not care whether a host application's end user has permissions for a path access. A host application decides what and how to interact with data and path with a configured service via an `Operator` instance. In another word, if 
+a host application passes a path into OpenDAL, OpenDAL must not map it to
+a different backend location than that backend's API contract describes. e.g. when passing `/path` to an `Fs` operator, OpenDAL should only access `/path`.
 
 ### 4.2 Local resource boundary
 
@@ -188,7 +194,7 @@ mixes it with another operator's credentials, that is in scope.
 ### 4.6 Response handling robustness
 
 OpenDAL trusts the configured backend for semantic correctness: object bytes,
-ETags, metadata, listing order, backend authz decisions, and durability claims
+ETags, metadata, listing order, backend authentication and authorization decisions, and durability claims
 belong to the backend.
 
 OpenDAL is still responsible for handling backend responses without violating
@@ -256,7 +262,7 @@ Examples:
 OpenDAL does not provide cryptographic authentication of backend bytes.
 Applications that need end-to-end integrity must add it above OpenDAL.
 
-### 5.3 Host application authn/authz
+### 5.3 Host application authentication and authorization
 
 OpenDAL does not authenticate end users, authorize per-user access, or decide
 whether end-user input is allowed to become an OpenDAL path, endpoint, metadata

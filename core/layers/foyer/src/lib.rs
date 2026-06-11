@@ -411,6 +411,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_full_reader_open_suffix_range() {
+        let cache = memory_cache().await;
+        let accessor = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .layer(MockReadAccessor::new("0123456789"));
+        let state = accessor.inner.accessor.state.clone();
+
+        let (_, reader) = LayeredAccess::read(&accessor, "test", OpRead::default())
+            .await
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::suffix(4)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"6789");
+        assert_eq!(state.stat_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(state.open_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(state.read_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
     async fn test_full_reader_open_fallback_preserves_stream() {
         let cache = memory_cache().await;
         let accessor = FoyerLayer::new(cache)

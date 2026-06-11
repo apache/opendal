@@ -47,12 +47,12 @@ use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
 use opendal::Buffer;
+use opendal::BytesRange;
 use opendal::Writer;
 use opendal::options::CopyOptions;
 use opendal::options::ReaderOptions;
 use opendal::options::StatOptions;
 use opendal::raw::percent_decode_path;
-use opendal::BytesRange;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 

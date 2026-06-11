@@ -78,7 +78,10 @@ pub fn parse_op_read(args: &OpRead, range: BytesRange) -> Result<GetOptions> {
     }
 
     match range {
-        BytesRange::Range { offset: 0, size: None } => {}
+        BytesRange::Range {
+            offset: 0,
+            size: None,
+        } => {}
         BytesRange::Range { offset, size } => match size {
             Some(size) => {
                 let end = offset.checked_add(size).ok_or_else(|| {

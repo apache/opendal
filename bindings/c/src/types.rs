@@ -20,8 +20,9 @@ use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 
 use opendal::options;
-use opendal::raw::{BytesRange, Timestamp};
+use opendal::raw::Timestamp;
 use opendal::Buffer;
+use opendal::BytesRange;
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///

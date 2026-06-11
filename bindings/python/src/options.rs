@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{self as ocore, raw::BytesRange};
+use opendal::{self as ocore, BytesRange};
 use pyo3::Borrowed;
 use pyo3::FromPyObject;
 use pyo3::PyAny;

@@ -469,6 +469,15 @@ typedef struct opendal_read_options {
    */
   uintptr_t gap;
   /**
+   * Whether `content_length_hint` has been set.
+   */
+  bool has_content_length_hint;
+  /**
+   * Known content length of the object, used as an execution hint to avoid
+   * extra metadata requests while planning reads.
+   */
+  uint64_t content_length_hint;
+  /**
    * Override the response Content-Type header (presign only); NULL means unset.
    */
   const char *override_content_type;
@@ -2453,6 +2462,11 @@ void opendal_read_options_set_range(struct opendal_read_options *opts,
                                     uint64_t length);
 
 /**
+ * \brief Set the read range to start at `offset` and extend to the end of the file.
+ */
+void opendal_read_options_set_range_from(struct opendal_read_options *opts, uint64_t offset);
+
+/**
  * \brief Set the version of the object to read.
  */
 void opendal_read_options_set_version(struct opendal_read_options *opts, const char *version);
@@ -2494,6 +2508,16 @@ void opendal_read_options_set_chunk(struct opendal_read_options *opts, uintptr_t
  * \brief Set gap size.
  */
 void opendal_read_options_set_gap(struct opendal_read_options *opts, uintptr_t gap);
+
+/**
+ * \brief Set the known content length of the object.
+ *
+ * This is an execution hint that allows OpenDAL to avoid extra metadata
+ * requests while planning reads. It must not be used as an object identity
+ * or consistency condition.
+ */
+void opendal_read_options_set_content_length_hint(struct opendal_read_options *opts,
+                                                  uint64_t content_length_hint);
 
 /**
  * \brief Set the override Content-Type (presign only).

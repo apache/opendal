@@ -19,8 +19,6 @@ name: Setup Hadoop
 description: 'Prepare hadoop binary and env'
 
 inputs:
-  need-hadoop:
-    description: "This setup needs hadoop or not"
 
 runs:
   using: "composite"
@@ -34,24 +32,23 @@ runs:
     - name: Cache hadoop
       id: cache-hadoop
       uses: actions/cache@v5
-      if: inputs.need-hadoop == 'true'
       with:
-        path: /home/runner/hadoop-3.3.5
+        path: ${{ runner.temp }}/hadoop-3.3.5
         key: cache-hadoop-3.3.5
 
     - name: Build hadoop if not cached
-      if: steps.cache-hadoop.outputs.cache-hit != 'true' && inputs.need-hadoop == 'true'
+      if: steps.cache-hadoop.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -e
         curl --location --silent --show-error --fail \
           https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz \
-          | tar --gzip --extract --file=- --directory=/home/runner
+          | tar --gzip --extract --file=- --directory=${{ runner.temp }}
 
     - name: Setup hadoop env
       shell: bash
       run: |
-        export HADOOP_HOME=/home/runner/hadoop-3.3.5
+        export HADOOP_HOME=${{ runner.temp }}/hadoop-3.3.5
         echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
         echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${HADOOP_HOME}/lib/native" >> $GITHUB_ENV

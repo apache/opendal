@@ -32,8 +32,6 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-      with:
-        need-hadoop: true
 
     - name: Setup Haddop GCS connector
       shell: bash
@@ -47,7 +45,7 @@ runs:
 
     - name: Setup Haddop GCS connector env
       shell: bash
-        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
+      run: |
         cp ./fixtures/hdfs/gcs-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV

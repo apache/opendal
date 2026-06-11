@@ -28,8 +28,6 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-      with:
-        need-hadoop: true
 
     - name: Setup azurite azblob service
       shell: bash
@@ -72,7 +70,6 @@ runs:
         ./bin/hadoop credential create fs.azure.account.key.${OPENDAL_AZBLOB_ACCOUNT_NAME}.blob.core.windows.net -value ${OPENDAL_AZBLOB_ACCOUNT_KEY} -provider localjceks://file/tmp/hdfs/azurite-wasb.jceks
         popd
 
-        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
         cp ./fixtures/hdfs/azurite-azblob-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV

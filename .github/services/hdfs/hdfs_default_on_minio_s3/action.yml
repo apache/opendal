@@ -24,8 +24,7 @@ runs:
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3
-
-      run: docker compose -f docker-compose-minio.yml up -d --wait
+      run: docker compose --file docker-compose-minio.yml up --quiet-pull --detach --wait
 
     - name: Setup test bucket
       shell: bash
@@ -37,8 +36,6 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-      with:
-        need-hadoop: true
 
     - name: Setup Hadoop AWS S3 connector
       shell: bash
@@ -67,7 +64,6 @@ runs:
         ./bin/hadoop credential create fs.s3a.secret.key -value minioadmin -provider localjceks://file/tmp/hdfs/s3.jceks
         popd
 
-        cp ./fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml
         cp ./fixtures/hdfs/minio-s3-core-site.xml ${HADOOP_HOME}/etc/hadoop/core-site.xml
 
         cat << EOF >> $GITHUB_ENV

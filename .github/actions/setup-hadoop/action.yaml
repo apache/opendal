@@ -41,12 +41,12 @@ runs:
         distribution: zulu
         java-version: 11
 
-    - name: Cache hadoop
+    - name: Restore hadoop cache
       id: cache-hadoop
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
         path: ${{ runner.temp }}/hadoop-3.3.5
-        key: cache-hadoop-3.3.5
+        key: cache-hadoop-3.3.5-v1
 
     - name: Build hadoop if not cached
       if: steps.cache-hadoop.outputs.cache-hit != 'true'
@@ -56,18 +56,29 @@ runs:
           https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz \
           | tar --gzip --extract --file=- --directory=${{ runner.temp }}
 
+    - name: Store hadoop cache
+      if: steps.cache-hadoop.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ runner.temp }}/hadoop-3.3.5
+        key: cache-hadoop-3.3.5-v1
+
     - name: Cached hadoop connectors
       id: cache-hadoop-connectors
       uses: actions/cache@v5
       with:
         path: ${{ runner.temp }}/downloaded-connectors
-        key: cache-hadoop-connectors-${{ case(inputs.connector-aws == 'true', 'aws', '') }}-${{ case(inputs.connector-gcs == 'true', 'gcs', '') }}-${{ case(inputs.connector-azurite == 'true', 'azurite', '') }}
+        key: cache-hadoop-connectors-${{ case(inputs.connector-aws == 'true', 'aws', '') }}-${{ case(inputs.connector-gcs == 'true', 'gcs', '') }}-${{ case(inputs.connector-azurite == 'true', 'azurite', '') }}-v1
+
+    - name: Prepare folders for hadoop connectors
+      if: steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
+      shell: bash
+      run: mkdir -p ${{ runner.temp }}/downloaded-connectors
 
     - name: Download Hadoop AWS connector
-      if: ${{ inputs.connector-aws }} == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
+      if: inputs.connector-aws == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        mkdir -p ${{ runner.temp }}/downloaded-connectors
         curl --location \
           --silent \
           --show-error \
@@ -83,10 +94,9 @@ runs:
           https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.653/aws-java-sdk-bundle-1.12.653.jar
 
     - name: Download Hadoop GCS connector
-      if: ${{ inputs.connector-gcs }} == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
+      if: inputs.connector-gcs == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        mkdir -p ${{ runner.temp }}/downloaded-connectors
         curl --location \
           --silent \
           --show-error \
@@ -95,10 +105,9 @@ runs:
           https://github.com/GoogleCloudDataproc/hadoop-connectors/releases/download/v2.2.19/gcs-connector-hadoop3-2.2.19-shaded.jar
 
     - name: Download Hadoop Azurite connector
-      if: ${{ inputs.connector-azurite }} == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
+      if: inputs.connector-azurite == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        mkdir -p ${{ runner.temp }}/downloaded-connectors
         curl --location \
           --silent \
           --show-error \
@@ -113,12 +122,23 @@ runs:
           --output ${{ runner.temp }}/downloaded-connectors/azure-storage-7.0.1.jar \
           https://repo1.maven.org/maven2/com/microsoft/azure/azure-storage/7.0.1/azure-storage-7.0.1.jar
 
+    - name: Examine downloaded connectors
+      shell: bash
+      run: |
+        # useful for debugging downloads or cache
+        ls -alh ${{ runner.temp }}/downloaded-connectors
+
     - name: Setup hadoop env
       shell: bash
       run: |
         export HADOOP_HOME=${{ runner.temp }}/hadoop-3.3.5
-        cp -r ${{ runner.temp }}/downloaded-connectors/* ${HADOOP_HOME}/share/hadoop/common/lib/
+
+        if [ -n "$(ls -A "${{ runner.temp }}/downloaded-connectors" 2>/dev/null)" ]; then
+          cp "${{ runner.temp }}/downloaded-connectors"/* "${HADOOP_HOME}/share/hadoop/common/lib/"
+        fi
+
         echo "HADOOP_HOME=${HADOOP_HOME}" >> $GITHUB_ENV
         echo "CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${HADOOP_HOME}/lib/native" >> $GITHUB_ENV
+
         cp ${{ github.workspace }}/fixtures/hdfs/hdfs-site.xml ${HADOOP_HOME}/etc/hadoop/hdfs-site.xml

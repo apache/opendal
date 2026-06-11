@@ -166,7 +166,6 @@ impl Builder for SeafileBuilder {
                             stat: true,
 
                             read: true,
-                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

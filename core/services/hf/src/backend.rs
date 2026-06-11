@@ -224,7 +224,6 @@ impl Builder for HfBuilder {
             am.set_scheme(HF_SCHEME).set_native_capability(Capability {
                 stat: true,
                 read: true,
-                read_with_suffix: true,
                 write: token.is_some(),
                 delete: token.is_some(),
                 delete_max_size: Some(100),
@@ -381,7 +380,6 @@ pub(super) mod test_utils {
         let info = AccessorInfo::default();
         info.set_scheme("hf").set_native_capability(Capability {
             read: true,
-            read_with_suffix: true,
             write: true,
             delete: true,
             ..Default::default()

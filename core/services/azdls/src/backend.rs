@@ -327,7 +327,6 @@ impl Builder for AzdlsBuilder {
                             stat: true,
 
                             read: true,
-                            read_with_suffix: true,
                             read_with_if_match: true,
                             read_with_if_none_match: true,
                             read_with_if_modified_since: true,

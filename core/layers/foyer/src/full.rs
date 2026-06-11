@@ -69,8 +69,8 @@ impl<A: Access> FullReader<A> {
         RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as _))
     }
 
-    fn slice_full_object(buffer: &Buffer, range: BytesRange) -> Buffer {
-        buffer.slice(range.to_range_as_usize())
+    fn slice_full_object(buffer: &Buffer, range: BytesRange) -> Result<Buffer> {
+        Ok(buffer.slice(range.to_content_range(buffer.len())?))
     }
 
     fn is_deleted(&self, key: &FoyerKey) -> bool {
@@ -178,7 +178,7 @@ impl<A: Access> FullReader<A> {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = Self::slice_full_object(&buffer, range)?;
                 Ok((rp, buffer))
             }
             None => self.fallback_read(range).await,
@@ -191,7 +191,7 @@ impl<A: Access> oio::Read for FullReader<A> {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = Self::slice_full_object(&buffer, range)?;
                 Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
             }
             None => self.fallback_open(range).await,

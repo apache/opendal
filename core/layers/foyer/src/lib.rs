@@ -395,6 +395,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_full_reader_suffix_range() {
+        let cache = memory_cache().await;
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache))
+            .finish();
+        op.write("test", Buffer::from("0123456789")).await.unwrap();
+
+        let reader = op.reader("test").await.unwrap();
+        let buf = reader.read(BytesRange::suffix(4)).await.unwrap();
+
+        assert_eq!(buf.to_vec(), b"6789");
+    }
+
+    #[tokio::test]
     async fn test_full_reader_open_fallback_preserves_stream() {
         let cache = memory_cache().await;
         let accessor = FoyerLayer::new(cache)

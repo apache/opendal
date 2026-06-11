@@ -18,6 +18,12 @@
 name: Setup Hadoop
 description: 'Prepare hadoop binary and env'
 
+inputs:
+  connector-aws:
+    description: 'Downloads AWS connector.'
+    required: false
+    default: 'false'
+
 runs:
   using: "composite"
   steps:
@@ -41,6 +47,24 @@ runs:
         curl --location --silent --show-error --fail \
           https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz \
           | tar --gzip --extract --file=- --directory=${{ runner.temp }}
+
+    - name: Download Hadoop AWS connector
+      if: ${{ inputs.connector-aws }} == 'true'
+      shell: bash
+      run: |
+        curl --location \
+          --silent \
+          --show-error \
+          --fail \
+          --output ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-aws-3.3.5.jar \
+          https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.5/hadoop-aws-3.3.5.jar
+
+        curl --location \
+          --silent \
+          --show-error \
+          --fail \
+          --output ${HADOOP_HOME}/share/hadoop/common/lib/aws-java-sdk-bundle-1.12.653.jar \
+          https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.653/aws-java-sdk-bundle-1.12.653.jar
 
     - name: Setup hadoop env
       shell: bash

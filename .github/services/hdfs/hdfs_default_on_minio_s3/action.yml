@@ -36,23 +36,8 @@ runs:
 
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-
-    - name: Setup Hadoop AWS S3 connector
-      shell: bash
-      run: |
-        curl --location \
-          --silent \
-          --show-error \
-          --fail \
-          --output ${HADOOP_HOME}/share/hadoop/common/lib/hadoop-aws-3.3.5.jar \
-          https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.5/hadoop-aws-3.3.5.jar
-
-        curl --location \
-          --silent \
-          --show-error \
-          --fail \
-          --output ${HADOOP_HOME}/share/hadoop/common/lib/aws-java-sdk-bundle-1.12.653.jar \
-          https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.653/aws-java-sdk-bundle-1.12.653.jar
+      with:
+        connector-aws: true
 
     - name: Setup Hadoop AWS S3 connector env
       shell: bash

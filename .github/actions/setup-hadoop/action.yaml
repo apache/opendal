@@ -61,7 +61,7 @@ runs:
       uses: actions/cache@v5
       with:
         path: ${{ runner.temp }}/downloaded-connectors
-        key: cache-hadoop-connectors-${{ case(inputs.connector-aws, 'aws', '') }}-${{ case(inputs.connector-gcs, 'gcs', '') }}-${{ case(inputs.connector-azurite, 'azurite', '') }}
+        key: cache-hadoop-connectors-${{ case(inputs.connector-aws == 'true', 'aws', '') }}-${{ case(inputs.connector-gcs == 'true', 'gcs', '') }}-${{ case(inputs.connector-azurite == 'true', 'azurite', '') }}
 
     - name: Download Hadoop AWS connector
       if: ${{ inputs.connector-aws }} == 'true' && steps.cache-hadoop-connectors.outputs.cache-hit != 'true'

@@ -69,7 +69,7 @@ An OpenDAL deployment has these participants:
 | --- | --- |
 | Host application | Trusted caller that creates `Builder`s, supplies config, applies `Layer`s, and decides which end-user input may reach OpenDAL. |
 | OpenDAL | In-process library that normalizes public API inputs, builds service requests, signs requests when configured, parses service responses, and returns data or errors. |
-| Storage backend | Trusted service selected by the host application. It owns backend-side authz, object bytes, metadata, consistency, and durability. |
+| Storage backend | A trusted service that the host application use. e.g., An OpenDAL uses connects to S3, or a database uses OpenDAL communicates with Google Cloud. OpenDAL trusts a trusted service for backend-side authentication, object bytes, metadata, consistency, and durability. |
 | End user of the host application | Out of OpenDAL's direct model. The host application must authenticate, authorize, and sanitize end-user requests before calling OpenDAL. |
 | Network attacker | Out of scope unless the report shows OpenDAL weakened the configured transport. TLS and proxy policy are delegated to the HTTP client and host environment. |
 

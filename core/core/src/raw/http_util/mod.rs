@@ -66,9 +66,6 @@ pub use error::new_request_credential_error;
 pub use error::new_request_sign_error;
 pub use error::with_error_response_context;
 
-mod bytes_range;
-pub use bytes_range::BytesRange;
-
 mod bytes_content_range;
 pub use bytes_content_range::BytesContentRange;
 

@@ -90,6 +90,7 @@ impl Builder for VercelArtifactsBuilder {
                 stat: true,
 
                 read: true,
+                read_with_suffix: true,
 
                 write: true,
 

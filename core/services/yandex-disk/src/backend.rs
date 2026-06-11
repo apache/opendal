@@ -105,6 +105,7 @@ impl Builder for YandexDiskBuilder {
                             create_dir: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
                             write_can_empty: true,

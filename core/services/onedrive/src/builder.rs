@@ -121,6 +121,7 @@ impl Builder for OnedriveBuilder {
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,
+                read_with_suffix: true,
                 read_with_if_none_match: true,
 
                 write: true,

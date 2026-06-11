@@ -147,6 +147,7 @@ impl Builder for PcloudBuilder {
                             create_dir: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
 

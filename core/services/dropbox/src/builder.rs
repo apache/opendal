@@ -157,6 +157,7 @@ impl Builder for DropboxBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             write: true,
 

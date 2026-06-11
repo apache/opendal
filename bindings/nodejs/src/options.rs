@@ -16,7 +16,8 @@
 // under the License.
 
 use napi::bindgen_prelude::BigInt;
-use opendal::raw::{BytesRange, Timestamp};
+use opendal::BytesRange;
+use opendal::raw::Timestamp;
 use std::collections::HashMap;
 
 #[napi(object)]

@@ -67,6 +67,9 @@ pub use error::Result;
 mod capability;
 pub use capability::Capability;
 
+mod bytes_range;
+pub use bytes_range::BytesRange;
+
 pub mod options;
 
 mod context;

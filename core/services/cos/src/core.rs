@@ -35,6 +35,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use opendal_core::Buffer;
+use opendal_core::BytesRange;
 use opendal_core::Result;
 use opendal_core::raw::*;
 

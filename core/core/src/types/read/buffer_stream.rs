@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -42,7 +41,7 @@ impl StreamingReader {
     /// Create a new streaming reader.
     #[inline]
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
-        let generator = ReadGenerator::new(ctx, range.offset(), range.size());
+        let generator = ReadGenerator::new(ctx, range);
         Self {
             generator,
             reader: None,
@@ -288,17 +287,19 @@ impl BufferStream {
 
     /// Create a new buffer stream with given range bound.
     ///
-    /// If users is going to perform chunked read but the read size is unknown, we will parse
-    /// into range first.
+    /// If users is going to perform chunked read but the read size is unknown, we will parse into
+    /// range first.
     pub(crate) async fn create(
         ctx: Arc<ReadContext>,
-        range: impl RangeBounds<u64>,
+        range: impl Into<BytesRange>,
     ) -> Result<Self> {
+        let range = range.into();
         let reader = if ctx.options().chunk().is_some() {
             let range = ctx.parse_into_range(range).await?;
             TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
         } else {
-            TwoWays::One(StreamingReader::new(ctx.clone(), range.into()))
+            let range = ctx.resolve_range_for_stream(range).await?;
+            TwoWays::One(StreamingReader::new(ctx.clone(), range))
         };
 
         Ok(Self {

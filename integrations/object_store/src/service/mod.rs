@@ -107,6 +107,7 @@ impl Access for ObjectStoreService {
                 stat_with_if_match: true,
                 stat_with_if_unmodified_since: true,
                 read: true,
+                read_with_suffix: true,
                 write: true,
                 delete: true,
                 list: true,

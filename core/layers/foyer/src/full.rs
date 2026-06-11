@@ -18,12 +18,12 @@
 use std::sync::Arc;
 
 use opendal_core::Buffer;
+use opendal_core::BytesRange;
 use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::Access;
-use opendal_core::raw::BytesRange;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;

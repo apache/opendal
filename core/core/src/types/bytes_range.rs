@@ -25,7 +25,7 @@ use std::str::FromStr;
 
 use crate::*;
 
-/// BytesRange(offset, size) carries a range of content.
+/// BytesRange carries a range of content.
 ///
 /// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
 ///
@@ -34,18 +34,29 @@ use crate::*;
 /// ```text
 /// Range: bytes=<range-start>-
 /// Range: bytes=<range-start>-<range-end>
+/// Range: bytes=-<suffix-length>
 /// ```
-///
-/// # Notes
-///
-/// We don't support tailing read like `Range: bytes=-<range-end>`
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
-pub struct BytesRange(
-    /// Offset of the range.
-    u64,
-    /// Size of the range.
-    Option<u64>,
-);
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BytesRange {
+    /// Read from `offset` with optional `size`.
+    Range {
+        /// Offset of the range.
+        offset: u64,
+        /// Size of the range.
+        size: Option<u64>,
+    },
+    /// Read the last `size` bytes.
+    Suffix {
+        /// Size of the suffix range.
+        size: u64,
+    },
+}
+
+impl Default for BytesRange {
+    fn default() -> Self {
+        BytesRange::new(0, None)
+    }
+}
 
 impl BytesRange {
     /// Create a new `BytesRange`
@@ -59,17 +70,33 @@ impl BytesRange {
     /// - size=None => `bytes=<offset>-`, read from `<offset>` until the end
     /// - size=Some(1024) => `bytes=<offset>-<offset + 1024>`, read 1024 bytes starting from the `<offset>`
     pub fn new(offset: u64, size: Option<u64>) -> Self {
-        BytesRange(offset, size)
+        BytesRange::Range { offset, size }
+    }
+
+    /// Create a suffix `BytesRange` that reads the last `size` bytes.
+    pub fn suffix(size: u64) -> Self {
+        BytesRange::Suffix { size }
     }
 
     /// Get offset of BytesRange.
     pub fn offset(&self) -> u64 {
-        self.0
+        match self {
+            BytesRange::Range { offset, .. } => *offset,
+            BytesRange::Suffix { .. } => 0,
+        }
     }
 
     /// Get size of BytesRange.
     pub fn size(&self) -> Option<u64> {
-        self.1
+        match self {
+            BytesRange::Range { size, .. } => *size,
+            BytesRange::Suffix { size } => Some(*size),
+        }
+    }
+
+    /// Returns true if this range is a suffix range.
+    pub fn is_suffix(&self) -> bool {
+        matches!(self, BytesRange::Suffix { .. })
     }
 
     /// Advance the range by `n` bytes.
@@ -79,21 +106,35 @@ impl BytesRange {
     /// Panic if advancing the offset would overflow or if input `n` is larger
     /// than the size of the range.
     pub fn advance(&mut self, n: u64) {
-        self.0 = self
-            .0
-            .checked_add(n)
-            .expect("BytesRange::advance overflow: offset + n exceeds u64::MAX");
-        self.1 = self.1.map(|size| {
-            size.checked_sub(n)
-                .expect("BytesRange::advance underflow: n exceeds range size")
-        });
+        match self {
+            BytesRange::Range { offset, size } => {
+                *offset = offset
+                    .checked_add(n)
+                    .expect("BytesRange::advance overflow: offset + n exceeds u64::MAX");
+                *size = size.map(|size| {
+                    size.checked_sub(n)
+                        .expect("BytesRange::advance underflow: n exceeds range size")
+                });
+            }
+            BytesRange::Suffix { size } => {
+                *size = size
+                    .checked_sub(n)
+                    .expect("BytesRange::advance underflow: n exceeds suffix size");
+            }
+        }
     }
 
     /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.
     pub fn is_full(&self) -> bool {
-        self.0 == 0 && self.1.is_none()
+        matches!(
+            self,
+            BytesRange::Range {
+                offset: 0,
+                size: None
+            }
+        )
     }
 
     /// Convert bytes range into Range header.
@@ -103,11 +144,18 @@ impl BytesRange {
 
     /// Convert bytes range into rust range.
     pub fn to_range(&self) -> impl RangeBounds<u64> {
+        let (offset, size) = match self {
+            BytesRange::Range { offset, size } => (*offset, *size),
+            BytesRange::Suffix { .. } => {
+                panic!("BytesRange::to_range is not supported for suffix ranges")
+            }
+        };
+
         (
-            Bound::Included(self.0),
-            match self.1 {
+            Bound::Included(offset),
+            match size {
                 Some(size) => Bound::Excluded(
-                    self.0
+                    offset
                         .checked_add(size)
                         .expect("BytesRange::to_range overflow: offset + size exceeds u64::MAX"),
                 ),
@@ -118,16 +166,21 @@ impl BytesRange {
 
     /// Convert bytes range into rust range with usize.
     pub fn to_range_as_usize(self) -> impl RangeBounds<usize> {
-        let offset: usize = self
-            .0
+        let (range_offset, range_size) = match self {
+            BytesRange::Range { offset, size } => (offset, size),
+            BytesRange::Suffix { .. } => {
+                panic!("BytesRange::to_range_as_usize is not supported for suffix ranges")
+            }
+        };
+
+        let offset: usize = range_offset
             .try_into()
             .expect("BytesRange::to_range_as_usize: offset exceeds usize::MAX");
         (
             Bound::Included(offset),
-            match self.1 {
+            match range_size {
                 Some(size) => {
-                    let end: usize = self
-                        .0
+                    let end: usize = range_offset
                         .checked_add(size)
                         .expect(
                             "BytesRange::to_range_as_usize overflow: offset + size exceeds u64::MAX",
@@ -145,30 +198,50 @@ impl BytesRange {
 
     /// Convert bytes range into a checked content slice range.
     pub fn to_content_range(self, content_length: usize) -> Result<Range<usize>> {
-        if self.1 == Some(0) {
+        let (range_offset, range_size) = match self {
+            BytesRange::Range { offset, size } => (offset, size),
+            BytesRange::Suffix { size } => {
+                let content_length = content_length as u64;
+                let start = content_length.saturating_sub(size);
+                let start: usize = start.try_into().map_err(|_| {
+                    Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                        .with_operation("BytesRange::to_content_range")
+                        .with_context("size", size)
+                        .with_context("content_length", content_length)
+                })?;
+                let end: usize = content_length.try_into().map_err(|_| {
+                    Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
+                        .with_operation("BytesRange::to_content_range")
+                        .with_context("size", size)
+                        .with_context("content_length", content_length)
+                })?;
+                return Ok(start..end);
+            }
+        };
+
+        if range_size == Some(0) {
             return Ok(0..0);
         }
 
-        if self.0 >= content_length as u64 && self.1.is_none() {
+        if range_offset >= content_length as u64 && range_size.is_none() {
             return Ok(content_length..content_length);
         }
 
-        let offset: usize = self.0.try_into().map_err(|_| {
+        let offset: usize = range_offset.try_into().map_err(|_| {
             Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
                 .with_operation("BytesRange::to_content_range")
-                .with_context("offset", self.0)
+                .with_context("offset", range_offset)
                 .with_context("content_length", content_length)
         })?;
 
-        match self.1 {
+        match range_size {
             Some(size) => {
-                let end = self
-                    .0
+                let end = range_offset
                     .checked_add(size)
                     .ok_or_else(|| {
                         Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
                             .with_operation("BytesRange::to_content_range")
-                            .with_context("offset", self.0)
+                            .with_context("offset", range_offset)
                             .with_context("size", size)
                             .with_context("content_length", content_length)
                     })?
@@ -176,7 +249,7 @@ impl BytesRange {
                     .map_err(|_| {
                         Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
                             .with_operation("BytesRange::to_content_range")
-                            .with_context("offset", self.0)
+                            .with_context("offset", range_offset)
                             .with_context("size", size)
                             .with_context("content_length", content_length)
                     })?;
@@ -187,7 +260,7 @@ impl BytesRange {
                         "range exceeds content length",
                     )
                     .with_operation("BytesRange::to_content_range")
-                    .with_context("offset", self.0)
+                    .with_context("offset", range_offset)
                     .with_context("size", size)
                     .with_context("content_length", content_length));
                 }
@@ -201,16 +274,19 @@ impl BytesRange {
 
 impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.1 {
-            None => write!(f, "{}-", self.0),
+        match *self {
+            BytesRange::Range { offset, size: None } => write!(f, "{offset}-"),
             // A zero-size range can't be represented as a valid HTTP Range.
-            Some(0) => Err(std::fmt::Error),
-            Some(size) => write!(
+            BytesRange::Range { size: Some(0), .. } => Err(std::fmt::Error),
+            BytesRange::Range {
+                offset,
+                size: Some(size),
+            } => write!(
                 f,
-                "{}-{}",
-                self.0,
-                self.0.checked_add(size - 1).ok_or(std::fmt::Error)?
+                "{offset}-{}",
+                offset.checked_add(size - 1).ok_or(std::fmt::Error)?
             ),
+            BytesRange::Suffix { size } => write!(f, "-{size}"),
         }
     }
 }
@@ -253,12 +329,7 @@ impl FromStr for BytesRange {
             ))
         } else if v[0].is_empty() {
             // -<suffix-length>
-            Err(Error::new(
-                ErrorKind::Unexpected,
-                "header range with tailing is not supported",
-            )
-            .with_operation("BytesRange::from_str")
-            .with_context("value", value))
+            Ok(BytesRange::suffix(v[1].parse().map_err(parse_int_error)?))
         } else {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
@@ -292,7 +363,7 @@ where
             Bound::Unbounded => None,
         };
 
-        BytesRange(offset, size)
+        BytesRange::new(offset, size)
     }
 }
 
@@ -321,6 +392,9 @@ mod tests {
 
         let h = BytesRange::new(1024, Some(1024));
         assert_eq!(h.to_string(), "1024-2047");
+
+        let h = BytesRange::suffix(1024);
+        assert_eq!(h.to_string(), "-1024");
     }
 
     #[test]
@@ -333,6 +407,9 @@ mod tests {
 
         let h = BytesRange::new(1024, Some(1024));
         assert_eq!(h.to_header(), "bytes=1024-2047");
+
+        let h = BytesRange::suffix(1024);
+        assert_eq!(h.to_header(), "bytes=-1024");
     }
 
     #[test]
@@ -351,6 +428,7 @@ mod tests {
             ("range-start", "bytes=123-", BytesRange::new(123, None)),
             ("range", "bytes=123-124", BytesRange::new(123, Some(2))),
             ("one byte", "bytes=0-0", BytesRange::new(0, Some(1))),
+            ("suffix", "bytes=-123", BytesRange::suffix(123)),
             (
                 "lower case header",
                 "bytes=0-0",
@@ -438,6 +516,11 @@ mod tests {
     fn test_bytes_range_to_content_range() -> Result<()> {
         assert_eq!(BytesRange::new(2, Some(4)).to_content_range(10)?, 2..6);
         assert_eq!(BytesRange::new(2, None).to_content_range(10)?, 2..10);
+        assert_eq!(BytesRange::suffix(4).to_content_range(10)?, 6..10);
+        assert_eq!(BytesRange::suffix(10).to_content_range(10)?, 0..10);
+        assert_eq!(BytesRange::suffix(20).to_content_range(10)?, 0..10);
+        assert_eq!(BytesRange::suffix(0).to_content_range(10)?, 10..10);
+        assert_eq!(BytesRange::suffix(4).to_content_range(0)?, 0..0);
         assert_eq!(BytesRange::new(10, None).to_content_range(10)?, 10..10);
         assert_eq!(BytesRange::new(20, None).to_content_range(10)?, 10..10);
         assert_eq!(
@@ -473,6 +556,20 @@ mod tests {
     #[should_panic(expected = "BytesRange::advance underflow")]
     fn test_bytes_range_advance_size_underflow() {
         let mut range = BytesRange::new(0, Some(1));
+        range.advance(2);
+    }
+
+    #[test]
+    fn test_bytes_range_advance_suffix() {
+        let mut range = BytesRange::suffix(4);
+        range.advance(2);
+        assert_eq!(range, BytesRange::suffix(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::advance underflow")]
+    fn test_bytes_range_advance_suffix_underflow() {
+        let mut range = BytesRange::suffix(1);
         range.advance(2);
     }
 }

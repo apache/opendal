@@ -163,6 +163,7 @@ impl Builder for LakefsBuilder {
                             list: true,
 
                             read: true,
+                            read_with_suffix: true,
                             write: true,
                             delete: true,
                             copy: true,

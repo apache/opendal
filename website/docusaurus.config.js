@@ -162,6 +162,8 @@ const config = {
       },
     ],
     require.resolve("docusaurus-lunr-search"),
+    // Generates the /services section from data/services.json.
+    require.resolve("./plugins/services-docs-plugin"),
     // This plugin will download all images to local and rewrite the url in html.
     require.resolve("./plugins/image-ssr-plugin"),
     [
@@ -303,6 +305,11 @@ const config = {
             label: "Docs",
           },
           {
+            to: "/services",
+            label: "Services",
+            position: "right",
+          },
+          {
             to: "/blog",
             label: "Blog",
             position: "right",
@@ -385,7 +392,7 @@ const config = {
       prism: {
         theme: themes.github,
         darkTheme: themes.dracula,
-        additionalLanguages: ["rust", "java", "groovy"],
+        additionalLanguages: ["rust", "java", "groovy", "python"],
       },
       zoom: {
         selector: "img:not(a img)",

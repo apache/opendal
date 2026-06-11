@@ -23,7 +23,6 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::Context;

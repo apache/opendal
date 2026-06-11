@@ -31,7 +31,6 @@ use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

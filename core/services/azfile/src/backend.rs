@@ -40,7 +40,6 @@ use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{

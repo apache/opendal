@@ -28,7 +28,6 @@ use super::lister::GoosefsLister;
 use super::reader::GoosefsReadStream;
 use super::writer::GoosefsWriter;
 use super::writer::GoosefsWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

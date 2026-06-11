@@ -20,7 +20,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

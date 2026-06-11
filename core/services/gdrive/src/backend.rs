@@ -31,7 +31,6 @@ use super::error::parse_error;
 use super::lister::GdriveFlatLister;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

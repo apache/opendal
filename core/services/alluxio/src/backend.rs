@@ -29,7 +29,6 @@ use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

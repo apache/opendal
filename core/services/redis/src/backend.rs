@@ -19,7 +19,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use http::Uri;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use redis::Client;

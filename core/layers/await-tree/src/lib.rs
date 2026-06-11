@@ -22,7 +22,6 @@
 
 use await_tree::InstrumentAwait;
 use futures::Future;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

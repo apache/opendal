@@ -28,7 +28,6 @@ use super::config::FoyerConfig;
 use super::core::FoyerCore;
 use super::deleter::FoyerDeleter;
 use super::writer::FoyerWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

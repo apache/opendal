@@ -26,7 +26,6 @@ use std::sync::Arc;
 
 use log::Level;
 use log::log;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

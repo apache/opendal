@@ -23,7 +23,6 @@ use http::Response;
 use http::StatusCode;
 
 use crate::error::parse_error;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

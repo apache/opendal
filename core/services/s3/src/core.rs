@@ -45,7 +45,6 @@ use reqsign_core::Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -24,7 +24,6 @@ use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

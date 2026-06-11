@@ -35,7 +35,6 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;

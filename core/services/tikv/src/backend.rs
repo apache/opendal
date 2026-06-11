@@ -25,7 +25,6 @@ use super::config::TikvConfig;
 use super::core::*;
 use super::deleter::TikvDeleter;
 use super::writer::TikvWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;

@@ -30,7 +30,6 @@ use super::deleter::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;

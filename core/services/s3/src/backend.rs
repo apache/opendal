@@ -56,7 +56,6 @@ use crate::lister::S3Listers;
 use crate::lister::S3ObjectVersionsLister;
 use crate::writer::S3Writer;
 use crate::writer::S3Writers;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

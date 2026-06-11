@@ -35,7 +35,6 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

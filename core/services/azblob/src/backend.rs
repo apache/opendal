@@ -47,7 +47,6 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{

@@ -26,7 +26,6 @@ use super::core::*;
 use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -24,7 +24,6 @@ use std::future::Future;
 use std::sync::Arc;
 
 use fastrace::prelude::*;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -30,7 +30,6 @@ use super::core::GhacCore;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -35,7 +35,6 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

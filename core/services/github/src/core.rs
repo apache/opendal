@@ -30,7 +30,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::error::parse_error;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

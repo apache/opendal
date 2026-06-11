@@ -30,7 +30,6 @@ use futures::Stream;
 use futures::StreamExt;
 use mea::semaphore::OwnedSemaphorePermit;
 use mea::semaphore::Semaphore;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

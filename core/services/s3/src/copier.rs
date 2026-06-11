@@ -24,7 +24,6 @@ use crate::core::*;
 use crate::error::S3Error;
 use crate::error::from_s3_error;
 use crate::error::parse_error;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

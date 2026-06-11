@@ -23,7 +23,6 @@ use http::StatusCode;
 use super::core::VercelArtifactsCore;
 use super::error::parse_error;
 use super::writer::VercelArtifactsWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

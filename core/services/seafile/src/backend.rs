@@ -34,7 +34,6 @@ use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

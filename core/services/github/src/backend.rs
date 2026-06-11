@@ -32,7 +32,6 @@ use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

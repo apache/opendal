@@ -29,7 +29,6 @@ use super::deleter::SwiftDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

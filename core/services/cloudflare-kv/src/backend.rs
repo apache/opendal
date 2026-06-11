@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

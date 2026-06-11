@@ -29,7 +29,6 @@ use super::lister::HfLister;
 use super::reader::HfReadStream;
 use super::uri::{HfRepo, HfRepoType};
 use super::writer::HfWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

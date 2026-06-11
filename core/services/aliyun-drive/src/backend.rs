@@ -32,7 +32,6 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

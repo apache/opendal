@@ -48,7 +48,6 @@ use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

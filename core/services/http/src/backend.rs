@@ -26,7 +26,6 @@ use super::HTTP_SCHEME;
 use super::config::HttpConfig;
 use super::core::HttpCore;
 use super::error::parse_error;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

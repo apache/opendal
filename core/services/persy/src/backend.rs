@@ -23,7 +23,6 @@ use super::config::PersyConfig;
 use super::core::*;
 use super::deleter::PersyDeleter;
 use super::writer::PersyWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

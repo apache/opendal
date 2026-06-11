@@ -31,7 +31,6 @@ use reqsign_volcengine_tos::{percent_encode_path, percent_encode_query};
 use serde::Deserialize;
 use serde::Serialize;
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

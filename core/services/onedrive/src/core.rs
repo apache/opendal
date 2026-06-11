@@ -27,7 +27,6 @@ use http::StatusCode;
 use http::header;
 use mea::mutex::Mutex;
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

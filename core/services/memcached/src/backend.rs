@@ -19,7 +19,6 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use url::Url;
 
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

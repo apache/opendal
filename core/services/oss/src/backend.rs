@@ -46,7 +46,6 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

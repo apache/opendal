@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

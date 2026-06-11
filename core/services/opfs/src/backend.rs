@@ -30,7 +30,6 @@ use super::lister::OpfsLister;
 use super::reader::OpfsReadStream;
 use super::utils::*;
 use super::writer::OpfsWriter;
-use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::*;
 

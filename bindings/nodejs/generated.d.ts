@@ -1101,6 +1101,11 @@ export interface DeleteOptions {
   version?: string
   /** Whether to delete recursively. */
   recursive?: boolean
+  /** * Sets if-match condition for this operation.
+   * If file exists and its etag does not match, an error of kind
+   * `ConditionNotMatch` will be returned.
+   */
+  ifMatch?: string
 }
 
 export declare const enum EntryMode {

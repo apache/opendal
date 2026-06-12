@@ -45,6 +45,7 @@ impl OpCreateDir {
 pub struct OpDelete {
     version: Option<String>,
     recursive: bool,
+    if_match: Option<String>,
 }
 
 impl OpDelete {
@@ -67,6 +68,15 @@ impl OpDelete {
         self
     }
 
+    /// Set the if_match condition for this delete operation.
+    ///
+    /// When set, the delete will only proceed if the existing object's ETag
+    /// matches the given value.
+    pub fn with_if_match(mut self, if_match: impl Into<String>) -> Self {
+        self.if_match = Some(if_match.into());
+        self
+    }
+
     /// Get the version of this delete operation.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
@@ -76,6 +86,11 @@ impl OpDelete {
     pub fn recursive(&self) -> bool {
         self.recursive
     }
+
+    /// Get the if_match condition.
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
 }
 
 impl From<options::DeleteOptions> for OpDelete {
@@ -83,6 +98,7 @@ impl From<options::DeleteOptions> for OpDelete {
         Self {
             version: value.version,
             recursive: value.recursive,
+            if_match: value.if_match,
         }
     }
 }

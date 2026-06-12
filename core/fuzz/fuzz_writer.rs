@@ -111,6 +111,7 @@ static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
         return op;
     }
 
+    log::warn!("OPENDAL_TEST is not set; falling back to a temporary fs operator");
     let root = std::env::temp_dir().join(format!("opendal-fuzz-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create fuzz root dir must succeed");
     Operator::new(opendal::services::Fs::default().root(&root.to_string_lossy()))

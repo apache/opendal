@@ -108,6 +108,25 @@ var (
 		}[0],
 	}
 
+	typeResultOperatorCopier = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
+	typeResultCopierNext = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer, // size (usize)
+			&ffi.TypeUint8,   // has_next (bool)
+			&ffi.TypePointer, // error
+			nil,
+		}[0],
+	}
+
 	typeResultReaderRead = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -298,6 +317,19 @@ type resultOperatorWriter struct {
 type resultWriterWrite struct {
 	size  uint
 	error *opendalError
+}
+
+type opendalCopier struct{}
+
+type resultOperatorCopier struct {
+	copier *opendalCopier
+	error  *opendalError
+}
+
+type resultCopierNext struct {
+	size     uint
+	has_next uint8
+	error    *opendalError
 }
 
 type resultReaderRead struct {

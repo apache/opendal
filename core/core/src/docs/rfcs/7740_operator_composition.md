@@ -1,7 +1,7 @@
 - Proposal Name: `operator_composition`
 - Start Date: 2026-06-12
 - RFC PR: [apache/opendal#7740](https://github.com/apache/opendal/pull/7740)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#7741](https://github.com/apache/opendal/issues/7741)
 
 # Summary
 

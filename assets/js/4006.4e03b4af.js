@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkopendal_website=globalThis.webpackChunkopendal_website||[]).push([[4006],{4006(e,s,a){a.r(s)}}]);

@@ -162,7 +162,6 @@ impl Builder for GhacBuilder {
                         stat: true,
 
                         read: true,
-                        read_with_suffix: true,
 
                         write: true,
                         write_can_multi: true,

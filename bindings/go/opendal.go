@@ -46,7 +46,7 @@
 //		defer op.Close()
 //
 //		// Perform operations using the operator
-//		err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		err = op.Write(context.Background(), "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -122,12 +122,12 @@ type OperatorOptions map[string]string
 //		defer op.Close() // Ensure the operator is closed when done
 //
 //		// Perform operations using the operator
-//		err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		err = op.Write(context.Background(), "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //
-//		data, err := op.Read("example.txt")
+//		data, err := op.Read(context.Background(), "example.txt")
 //		if err != nil {
 //			log.Fatal(err)
 //		}

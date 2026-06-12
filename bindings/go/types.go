@@ -126,7 +126,8 @@ var (
 		}[0],
 	}
 
-	typeResultIsExist = ffi.Type{
+	// typeResultExists mirrors opendal_result_exists { bool exists; opendal_error* error; }
+	typeResultExists = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
 			&ffi.TypeUint8,
@@ -276,6 +277,8 @@ type resultOperatorNew struct {
 
 type opendalOperator struct{}
 
+type opendalCancelToken struct{}
+
 type resultRead struct {
 	data  opendalBytes
 	error *opendalError
@@ -310,9 +313,10 @@ type resultReaderSeek struct {
 	error *opendalError
 }
 
-type resultIsExist struct {
-	is_exist uint8
-	error    *opendalError
+// resultExists mirrors opendal_result_exists from the non-deprecated exists API.
+type resultExists struct {
+	exists uint8
+	error  *opendalError
 }
 
 type resultStat struct {

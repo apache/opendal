@@ -25,10 +25,13 @@ import (
 	"io"
 	"runtime"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
 )
+
+var errWriterClosed = errors.New("writer is closed")
 
 // Write writes the given bytes to the specified path.
 //
@@ -37,6 +40,8 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native write in a blocking manner.
 //   - path: The destination path where the bytes will be written.
 //   - data: The byte slice containing the data to be written.
 //   - opts: Optional write options.
@@ -48,27 +53,29 @@ import (
 // # Example
 //
 //	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//		err = op.Write(context.Background(), "test", []byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) error {
-	if len(opts) == 0 {
-		return ffiOperatorWrite.symbol(op.ctx)(op.inner, path, data)
-	}
+func (op *Operator) Write(ctx context.Context, path string, data []byte, opts ...WithWriteFn) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		if len(opts) == 0 {
+			return ffiOperatorWriteWithCancel.symbol(op.ctx)(op.inner, path, data, token)
+		}
 
-	o := parseWriteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
-	if err != nil {
+		o := parseWriteOptions(opts...)
+		cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
+		if err != nil {
+			return err
+		}
+		defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
+		err = ffiOperatorWriteWithOptionsCancel.symbol(op.ctx)(op.inner, path, data, cOpts, token)
+		runtime.KeepAlive(keepAlive)
 		return err
-	}
-	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	err = ffiOperatorWriteWith.symbol(op.ctx)(op.inner, path, data, cOpts)
-	runtime.KeepAlive(keepAlive)
-	return err
+	})
 }
 
 // WithWriteFn is a functional option for write operations.
@@ -255,6 +262,8 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - path: The path where the directory should be created.
 //
 // # Returns
@@ -275,7 +284,7 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 // # Example
 //
 //	func exampleCreateDir(op *opendal.Operator) {
-//		err = op.CreateDir("test/")
+//		err = op.CreateDir(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -283,8 +292,10 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 //
 // Note: This example assumes proper error handling and import statements.
 // The trailing slash in "test/" is important to indicate it's a directory.
-func (op *Operator) CreateDir(path string) error {
-	return ffiOperatorCreateDir.symbol(op.ctx)(op.inner, path)
+func (op *Operator) CreateDir(ctx context.Context, path string) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorCreateDirWithCancel.symbol(op.ctx)(op.inner, path, token)
+	})
 }
 
 // Writer returns a new Writer for the specified path.
@@ -295,6 +306,8 @@ func (op *Operator) CreateDir(path string) error {
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Writer. It governs cancellation for
+//     all subsequent Write and Close calls on that Writer.
 //   - path: The destination path where data will be written.
 //   - opts: Optional write options.
 //
@@ -305,7 +318,7 @@ func (op *Operator) CreateDir(path string) error {
 // # Example
 //
 //	func exampleWriter(op *opendal.Operator) {
-//		writer, err := op.Writer("test/")
+//		writer, err := op.Writer(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -317,40 +330,83 @@ func (op *Operator) CreateDir(path string) error {
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
-	if len(opts) == 0 {
-		inner, err := ffiOperatorWriter.symbol(op.ctx)(op.inner, path)
+// The provided context is bound to the Writer; canceling it cancels in-flight
+// Write and Close calls in a blocking manner.
+func (op *Operator) Writer(ctx context.Context, path string, opts ...WithWriteFn) (*Writer, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Writer, error) {
+		if len(opts) == 0 {
+			inner, err := ffiOperatorWriterWithCancel.symbol(op.ctx)(op.inner, path, token)
+			if err != nil {
+				return nil, err
+			}
+			writer := &Writer{
+				inner:     inner,
+				ctx:       op.ctx,
+				cancelCtx: ctx,
+			}
+			return writer, nil
+		}
+
+		o := parseWriteOptions(opts...)
+		cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
+		inner, err := ffiOperatorWriterWithOptionsCancel.symbol(op.ctx)(op.inner, path, cOpts, token)
+		runtime.KeepAlive(keepAlive)
 		if err != nil {
 			return nil, err
 		}
 		writer := &Writer{
-			inner: inner,
-			ctx:   op.ctx,
+			inner:     inner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
 		}
 		return writer, nil
-	}
-
-	o := parseWriteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
-	if err != nil {
-		return nil, err
-	}
-	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorWriterWith.symbol(op.ctx)(op.inner, path, cOpts)
-	runtime.KeepAlive(keepAlive)
-	if err != nil {
-		return nil, err
-	}
-	writer := &Writer{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return writer, nil
+	}, func(writer *Writer) {
+		if writer != nil {
+			writer.free()
+		}
+	})
 }
 
+// Writer implements io.WriteCloser.
+//
+// Writer is not safe for concurrent use. Callers must not call Write, Close, or
+// free concurrently. The mutex protects only the idempotent-close check; it
+// does not protect the native handle from concurrent FFI calls.
+//
+// After a cancelled Write or Close the handle remains valid and the same
+// operation may be retried, but the writer's internal stream state is
+// unspecified. Callers that need reliable delivery should discard the Writer
+// and open a new one when a cancellation occurs.
 type Writer struct {
 	inner *opendalWriter
 	ctx   context.Context
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Write and Close so the Writer keeps stdlib io interface
+	// signatures.
+	cancelCtx context.Context
+	mu        sync.Mutex
+}
+
+func (w *Writer) cancelContext() context.Context {
+	if w.cancelCtx == nil {
+		return context.Background()
+	}
+	return w.cancelCtx
+}
+
+func (w *Writer) free() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.inner == nil {
+		return
+	}
+	inner := w.inner
+	w.inner = nil
+	ffiWriterFree.symbol(w.ctx)(inner)
 }
 
 // Write writes the given bytes to the specified path.
@@ -363,17 +419,19 @@ type Writer struct {
 //
 // # Parameters
 //
-//   - path: The destination path where the bytes will be written.
-//   - data: The byte slice containing the data to be written.
+//   - p: The byte slice containing the data to be written.
 //
 // # Returns
 //
 //   - error: An error if the write operation fails, or nil if successful.
 //
+// Write uses the context bound to the Writer at creation time. Canceling that
+// context cancels the in-flight write in a blocking manner.
+//
 // # Example
 //
-//	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//	func exampleWrite(w *opendal.Writer) {
+//		_, err := w.Write([]byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -381,25 +439,80 @@ type Writer struct {
 //
 // Note: This example assumes proper error handling and import statements.
 func (w *Writer) Write(p []byte) (n int, err error) {
-	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
+	ctx := w.cancelContext()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	w.mu.Lock()
+	inner := w.inner
+	w.mu.Unlock()
+	if inner == nil {
+		return 0, errWriterClosed
+	}
+
+	return runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (int, error) {
+		return ffiWriterWriteWithCancel.symbol(w.ctx)(inner, p, token)
+	})
 }
 
 // Close finishes the write and releases the resources associated with the Writer.
 // It is important to call Close after writing all the data to ensure that the data is
 // properly flushed and written to the storage. Otherwise, the data may be lost.
+//
+// Close uses the context bound to the Writer at creation time. Canceling that
+// context cancels the in-flight close in a blocking manner; in that case the
+// underlying handle is preserved so Close can be retried.
 func (w *Writer) Close() error {
-	defer ffiWriterFree.symbol(w.ctx)(w.inner)
-	return ffiWriterClose.symbol(w.ctx)(w.inner)
+	ctx := w.cancelContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	w.mu.Lock()
+	if w.inner == nil {
+		w.mu.Unlock()
+		return nil
+	}
+	inner := w.inner
+	w.inner = nil
+	w.mu.Unlock()
+
+	_, err := runWithCancelContext(ctx, w.ctx, func(token *opendalCancelToken) (struct{}, error) {
+		return struct{}{}, ffiWriterCloseWithCancel.symbol(w.ctx)(inner, token)
+	})
+	if shouldReleaseWriterAfterClose(err) {
+		// On success or a native error the close attempt is final, so free the
+		// underlying handle.
+		ffiWriterFree.symbol(w.ctx)(inner)
+		return err
+	}
+
+	// The close was canceled (context.Canceled/DeadlineExceeded). The native
+	// writer was not freed, so restore the handle to allow Close to be retried
+	// instead of leaking it.
+	//
+	// Note: re-closing after a cancelled close is best-effort. opendal does
+	// not document core::Writer::close() as resumable, so the retry may or may
+	// not succeed depending on the backend and how far the first attempt got.
+	w.mu.Lock()
+	w.inner = inner
+	w.mu.Unlock()
+	return err
+}
+
+func shouldReleaseWriterAfterClose(err error) bool {
+	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
 }
 
 var _ io.WriteCloser = (*Writer)(nil)
 
-var ffiOperatorWrite = newFFI(ffiOpts{
-	sym:    "opendal_operator_write",
+var ffiOperatorWriteWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_write_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte) error {
-	return func(op *opendalOperator, path string, data []byte) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, token *opendalCancelToken) error {
+	return func(op *opendalOperator, path string, data []byte, token *opendalCancelToken) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
@@ -411,17 +524,18 @@ var ffiOperatorWrite = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&bytes),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}
 })
 
-var ffiOperatorWriteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_write_with",
+var ffiOperatorWriteWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_write_with_options_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) error {
-	return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions, token *opendalCancelToken) error {
+	return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions, token *opendalCancelToken) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
@@ -434,17 +548,18 @@ var ffiOperatorWriteWith = newFFI(ffiOpts{
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&bytes),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}
 })
 
-var ffiOperatorCreateDir = newFFI(ffiOpts{
-	sym:    "opendal_operator_create_dir",
+var ffiOperatorCreateDirWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_create_dir_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) error {
-	return func(op *opendalOperator, path string) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) error {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return err
@@ -454,17 +569,18 @@ var ffiOperatorCreateDir = newFFI(ffiOpts{
 			unsafe.Pointer(&e),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}
 })
 
-var ffiOperatorWriter = newFFI(ffiOpts{
-	sym:    "opendal_operator_writer",
+var ffiOperatorWriterWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_writer_with_cancel",
 	rType:  &typeResultOperatorWriter,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalWriter, error) {
-	return func(op *opendalOperator, path string) (*opendalWriter, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalWriter, error) {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalWriter, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -474,6 +590,7 @@ var ffiOperatorWriter = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return nil, parseError(ctx, result.error)
@@ -482,12 +599,12 @@ var ffiOperatorWriter = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorWriterWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_writer_with",
+var ffiOperatorWriterWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_writer_with_options_cancel",
 	rType:  &typeResultOperatorWriter,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
-	return func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalWriteOptions, token *opendalCancelToken) (*opendalWriter, error) {
+	return func(op *opendalOperator, path string, opts *opendalWriteOptions, token *opendalCancelToken) (*opendalWriter, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -498,6 +615,7 @@ var ffiOperatorWriterWith = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return nil, parseError(ctx, result.error)
@@ -638,18 +756,19 @@ var ffiWriterFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiWriterWrite = newFFI(ffiOpts{
-	sym:    "opendal_writer_write",
+var ffiWriterWriteWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_writer_write_with_cancel",
 	rType:  &typeResultWriterWrite,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter, buf []byte) (size int, err error) {
-	return func(r *opendalWriter, buf []byte) (size int, err error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter, buf []byte, token *opendalCancelToken) (size int, err error) {
+	return func(r *opendalWriter, buf []byte, token *opendalCancelToken) (size int, err error) {
 		bytes := toOpendalBytes(buf)
 		var result resultWriterWrite
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&r),
 			unsafe.Pointer(&bytes),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return 0, parseError(ctx, result.error)
@@ -658,16 +777,17 @@ var ffiWriterWrite = newFFI(ffiOpts{
 	}
 })
 
-var ffiWriterClose = newFFI(ffiOpts{
-	sym:    "opendal_writer_close",
+var ffiWriterCloseWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_writer_close_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter) error {
-	return func(r *opendalWriter) error {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter, token *opendalCancelToken) error {
+	return func(r *opendalWriter, token *opendalCancelToken) error {
 		var e *opendalError
 		ffiCall(
 			unsafe.Pointer(&e),
 			unsafe.Pointer(&r),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}

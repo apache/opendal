@@ -20,6 +20,7 @@
 package opendal_test
 
 import (
+	"context"
 	"github.com/apache/opendal/bindings/go"
 	"github.com/stretchr/testify/require"
 )
@@ -37,9 +38,9 @@ func testsCreateDir(cap *opendal.Capability) []behaviorTest {
 func testCreateDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path := fixture.NewDirPath()
 
-	assert.Nil(op.CreateDir(path))
+	assert.Nil(op.CreateDir(context.Background(), path))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 }
@@ -47,10 +48,10 @@ func testCreateDir(assert *require.Assertions, op *opendal.Operator, fixture *fi
 func testCreateDirExisting(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path := fixture.NewDirPath()
 
-	assert.Nil(op.CreateDir(path))
-	assert.Nil(op.CreateDir(path))
+	assert.Nil(op.CreateDir(context.Background(), path))
+	assert.Nil(op.CreateDir(context.Background(), path))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 }

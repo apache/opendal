@@ -33,6 +33,8 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - from: The current file path.
 //   - to: The new file path.
 //
@@ -49,7 +51,7 @@ import (
 // # Example
 //
 //	func exampleRename(op *opendal.Operator) {
-//		err = op.Rename("path/from/file", "path/to/file")
+//		err = op.Rename(context.Background(), "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Printf("Rename operation failed: %v", err)
 //		} else {
@@ -58,34 +60,10 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Rename(src, dest string) error {
-	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
-}
-
-// Check verifies if the operator is functioning correctly.
-//
-// Check is a wrapper around the C-binding function `opendal_operator_check`.
-// It performs a health check against the underlying backend, returning any
-// error encountered while reaching it.
-//
-// # Returns
-//
-//   - error: An error if the check fails, or nil if the operator is working correctly.
-//
-// # Example
-//
-//	func exampleCheck(op *opendal.Operator) {
-//		err = op.Check()
-//		if err != nil {
-//			log.Printf("Operator check failed: %v", err)
-//		} else {
-//			log.Println("Operator is functioning correctly")
-//		}
-//	}
-//
-// Note: This example assumes proper error handling and import statements.
-func (op *Operator) Check() error {
-	return ffiOperatorCheck.symbol(op.ctx)(op.inner)
+func (op *Operator) Rename(ctx context.Context, src, dest string) error {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorRenameWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
+	})
 }
 
 func normalizeScheme(scheme Scheme) (*byte, error) {
@@ -185,12 +163,12 @@ var ffiOperatorOptionsFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorCopy = newFFI(ffiOpts{
-	sym:    "opendal_operator_copy",
+var ffiOperatorRenameWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_rename_with_cancel",
 	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
-	return func(op *opendalOperator, src, dest string) (err error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
+	return func(op *opendalOperator, src, dest string, token *opendalCancelToken) (err error) {
 		var (
 			byteSrc  *byte
 			byteDest *byte
@@ -209,50 +187,7 @@ var ffiOperatorCopy = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&byteSrc),
 			unsafe.Pointer(&byteDest),
-		)
-		return parseError(ctx, e)
-	}
-})
-
-var ffiOperatorRename = newFFI(ffiOpts{
-	sym:    "opendal_operator_rename",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
-	return func(op *opendalOperator, src, dest string) (err error) {
-		var (
-			byteSrc  *byte
-			byteDest *byte
-		)
-		byteSrc, err = BytePtrFromString(src)
-		if err != nil {
-			return err
-		}
-		byteDest, err = BytePtrFromString(dest)
-		if err != nil {
-			return err
-		}
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&byteSrc),
-			unsafe.Pointer(&byteDest),
-		)
-		return parseError(ctx, e)
-	}
-})
-
-var ffiOperatorCheck = newFFI(ffiOpts{
-	sym:    "opendal_operator_check",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator) error {
-	return func(op *opendalOperator) error {
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}

@@ -21,6 +21,7 @@ package opendal_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strconv"
@@ -54,7 +55,7 @@ func testsPresign(cap *opendal.Capability) []behaviorTest {
 func testPresignWrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	req, err := op.PresignWrite(path, time.Hour)
+	req, err := op.PresignWrite(context.Background(), path, time.Hour)
 	assert.Nil(err)
 
 	req.ContentLength = int64(len(content))
@@ -68,7 +69,7 @@ func testPresignWrite(assert *require.Assertions, op *opendal.Operator, fixture 
 	assert.GreaterOrEqual(resp.StatusCode, 200)
 	assert.Less(resp.StatusCode, 300)
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err)
 	assert.EqualValues(size, meta.ContentLength())
 }
@@ -76,9 +77,9 @@ func testPresignWrite(assert *require.Assertions, op *opendal.Operator, fixture 
 func testPresignRead(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	assert.Nil(op.Write(context.Background(), path, content))
 
-	req, err := op.PresignRead(path, time.Hour)
+	req, err := op.PresignRead(context.Background(), path, time.Hour)
 	assert.Nil(err)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -95,9 +96,9 @@ func testPresignRead(assert *require.Assertions, op *opendal.Operator, fixture *
 func testPresignStat(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	assert.Nil(op.Write(context.Background(), path, content))
 
-	req, err := op.PresignStat(path, time.Hour)
+	req, err := op.PresignStat(context.Background(), path, time.Hour)
 	assert.Nil(err)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -115,9 +116,9 @@ func testPresignStat(assert *require.Assertions, op *opendal.Operator, fixture *
 func testPresignDelete(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	assert.Nil(op.Write(context.Background(), path, content))
 
-	req, err := op.PresignDelete(path, time.Hour)
+	req, err := op.PresignDelete(context.Background(), path, time.Hour)
 	assert.Nil(err)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -128,7 +129,7 @@ func testPresignDelete(assert *require.Assertions, op *opendal.Operator, fixture
 	assert.GreaterOrEqual(resp.StatusCode, 200)
 	assert.Less(resp.StatusCode, 300)
 
-	exists, err := op.IsExist(path)
+	exists, err := op.IsExist(context.Background(), path)
 	assert.Nil(err)
 	assert.False(exists)
 }

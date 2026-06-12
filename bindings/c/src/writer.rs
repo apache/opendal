@@ -31,18 +31,49 @@ pub struct opendal_writer {
 }
 
 impl opendal_writer {
-    fn deref_mut(&mut self) -> &mut core::blocking::Writer {
+    fn deref_mut(&mut self) -> &mut core::Writer {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::blocking::Writer) }
+        unsafe { &mut *(self.inner as *mut core::Writer) }
     }
 }
 
 impl opendal_writer {
-    pub(crate) fn new(writer: core::blocking::Writer) -> Self {
+    pub(crate) fn new_async(writer: core::Writer) -> Self {
         Self {
             inner: Box::into_raw(Box::new(writer)) as _,
         }
+    }
+
+    fn result_write(result: core::Result<usize>) -> opendal_result_writer_write {
+        match result {
+            Ok(size) => opendal_result_writer_write {
+                size,
+                error: std::ptr::null_mut(),
+            },
+            Err(e) => opendal_result_writer_write {
+                size: 0,
+                error: opendal_error::new(e),
+            },
+        }
+    }
+
+    /// \brief Like `opendal_writer_write` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_writer_write_with_cancel(
+        &mut self,
+        bytes: &opendal_bytes,
+        token: *const opendal_cancel_token,
+    ) -> opendal_result_writer_write {
+        let size = bytes.len;
+        let bytes = core::Buffer::from(bytes);
+        let writer = self.deref_mut();
+        Self::result_write(cancel::block_on_cancelable(token, async move {
+            writer.write(bytes).await?;
+            Ok(size)
+        }))
     }
 
     /// \brief Write data to the writer.
@@ -51,36 +82,34 @@ impl opendal_writer {
         &mut self,
         bytes: &opendal_bytes,
     ) -> opendal_result_writer_write {
-        let size = bytes.len;
-        match self.deref_mut().write(bytes) {
-            Ok(()) => opendal_result_writer_write {
-                size,
-                error: std::ptr::null_mut(),
-            },
-            Err(e) => opendal_result_writer_write {
-                size: 0,
-                error: opendal_error::new(
-                    core::Error::new(core::ErrorKind::Unexpected, "write failed from writer")
-                        .set_source(e),
-                ),
-            },
+        unsafe { Self::opendal_writer_write_with_cancel(self, bytes, std::ptr::null()) }
+    }
+
+    /// \brief Like `opendal_writer_close` with cooperative cancellation.
+    ///
+    /// Pass NULL for `token` to block until completion.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_writer_close_with_cancel(
+        ptr: *mut opendal_writer,
+        token: *const opendal_cancel_token,
+    ) -> *mut opendal_error {
+        unsafe {
+            if !ptr.is_null() {
+                let writer = (*ptr).deref_mut();
+                if let Err(e) =
+                    cancel::block_on_cancelable(token, async move { writer.close().await })
+                {
+                    return opendal_error::new(e);
+                }
+            }
+            std::ptr::null_mut()
         }
     }
 
     /// \brief Close the writer and make sure all data have been stored.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_close(ptr: *mut opendal_writer) -> *mut opendal_error {
-        unsafe {
-            if !ptr.is_null() {
-                if let Err(e) = (*ptr).deref_mut().close() {
-                    return opendal_error::new(
-                        core::Error::new(core::ErrorKind::Unexpected, "close writer failed")
-                            .set_source(e),
-                    );
-                }
-            }
-            std::ptr::null_mut()
-        }
+        unsafe { Self::opendal_writer_close_with_cancel(ptr, std::ptr::null()) }
     }
 
     /// \brief Frees the heap memory used by the opendal_writer.
@@ -88,7 +117,7 @@ impl opendal_writer {
     pub unsafe extern "C" fn opendal_writer_free(ptr: *mut opendal_writer) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw((*ptr).inner as *mut core::blocking::Writer));
+                drop(Box::from_raw((*ptr).inner as *mut core::Writer));
                 drop(Box::from_raw(ptr));
             }
         }

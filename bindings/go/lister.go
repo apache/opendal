@@ -26,6 +26,55 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
+// Check verifies if the operator is functioning correctly.
+//
+// This function performs a health check on the operator by sending a `list` request
+// to the root path. It returns any errors encountered during this process.
+//
+// # Returns
+//
+//   - error: An error if the check fails, or nil if the operator is working correctly.
+//
+// # Details
+//
+// The check is performed by attempting to list the contents of the root directory.
+// This operation tests the basic functionality of the operator, including
+// connectivity and permissions.
+//
+// # Example
+//
+//	func exampleCheck(op *opendal.Operator) {
+//		err = op.Check(context.Background())
+//		if err != nil {
+//			log.Printf("Operator check failed: %v", err)
+//		} else {
+//			log.Println("Operator is functioning correctly")
+//		}
+//	}
+//
+// Note: This example assumes proper error handling and import statements.
+func (op *Operator) Check(ctx context.Context) (err error) {
+	return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorCheckWithCancel.symbol(op.ctx)(op.inner, token)
+	})
+}
+
+var ffiOperatorCheckWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_check_with_cancel",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, token *opendalCancelToken) error {
+	return func(op *opendalOperator, token *opendalCancelToken) error {
+		var e *opendalError
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&op),
+			unsafe.Pointer(&token),
+		)
+		return parseError(ctx, e)
+	}
+})
+
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
 //
 // WithListFn is a functional option for the List operation.
@@ -92,6 +141,8 @@ type listOptions struct {
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Lister. It governs cancellation for
+//     all subsequent Next calls on that Lister.
 //   - path: The starting path for listing entries.
 //   - opts: Optional functional options to configure the list operation.
 //
@@ -104,14 +155,14 @@ type listOptions struct {
 //
 //	func exampleList(op *opendal.Operator) {
 //		// List without options
-//		lister, err := op.List("test/")
+//		lister, err := op.List(context.Background(), "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //		defer lister.Close()
 //
 //		// List with recursive option
-//		lister, err = op.List("test/", opendal.ListWithRecursive(true))
+//		lister, err = op.List(context.Background(), "test/", opendal.ListWithRecursive(true))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -127,31 +178,39 @@ type listOptions struct {
 //	}
 //
 // Note: Always check lister.Error() after the loop to catch any errors that
-// occurred during iteration.
-func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
-	o := &listOptions{}
-	for _, opt := range opts {
-		opt(o)
-	}
-	cOpts := ffiListOptionsNew.symbol(op.ctx)()
-	defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
-	ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
-	if o.limit > 0 {
-		ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
-	}
-	if o.startAfter != nil {
-		ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
-	}
-	ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
-	ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
-	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
-	if err != nil {
-		return nil, err
-	}
-	return &Lister{
-		inner: listerInner,
-		ctx:   op.ctx,
-	}, nil
+// occurred during iteration. The provided context is bound to the Lister;
+// canceling it cancels in-flight Next calls in a blocking manner.
+func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (*Lister, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Lister, error) {
+		o := &listOptions{}
+		for _, opt := range opts {
+			opt(o)
+		}
+		cOpts := ffiListOptionsNew.symbol(op.ctx)()
+		defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
+		ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
+		if o.limit > 0 {
+			ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
+		}
+		if o.startAfter != nil {
+			ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
+		}
+		ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
+		ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
+		listerInner, err := ffiOperatorListWithOptionsCancel.symbol(op.ctx)(op.inner, path, cOpts, token)
+		if err != nil {
+			return nil, err
+		}
+		return &Lister{
+			inner:     listerInner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
+		}, nil
+	}, func(lister *Lister) {
+		if lister != nil {
+			_ = lister.Close()
+		}
+	})
 }
 
 // Lister provides a mechanism for listing entries at a specified path.
@@ -172,7 +231,7 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(context.Background(), "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -182,11 +241,21 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 //		// Process the entry
 //		fmt.Println(entry.Name())
 //	}
+//
+// Lister iterates directory entries.
+//
+// After a cancelled Next the handle remains valid and can be closed without
+// leaking resources, but the iterator's internal position is unspecified.
+// Callers should discard a Lister that had an operation cancelled and open a
+// new one rather than continuing to call Next.
 type Lister struct {
 	inner *opendalLister
 	ctx   context.Context
-	entry *Entry
-	err   error
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Next.
+	cancelCtx context.Context
+	entry     *Entry
+	err       error
 }
 
 // This method implements the io.Closer interface. It should be called when
@@ -228,7 +297,7 @@ func (l *Lister) Error() error {
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(context.Background(), "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -237,15 +306,26 @@ func (l *Lister) Error() error {
 //		entry := lister.Entry()
 //		fmt.Println(entry.Name())
 //	}
+//
+// Next uses the context bound to the Lister at creation time. Canceling that
+// context cancels the in-flight advance in a blocking manner.
 func (l *Lister) Next() bool {
-	inner, err := ffiListerNext.symbol(l.ctx)(l.inner)
-	if inner == nil || err != nil {
+	cancelCtx := l.cancelCtx
+	if cancelCtx == nil {
+		cancelCtx = context.Background()
+	}
+	entry, err := runWithCancelContext(cancelCtx, l.ctx, func(token *opendalCancelToken) (*Entry, error) {
+		inner, err := ffiListerNextWithCancel.symbol(l.ctx)(l.inner, token)
+		if inner == nil || err != nil {
+			return nil, err
+		}
+		return newEntry(l.ctx, inner), nil
+	})
+	if entry == nil || err != nil {
 		l.err = err
 		l.entry = nil
 		return false
 	}
-
-	entry := newEntry(l.ctx, inner)
 
 	l.entry = entry
 	return true
@@ -436,12 +516,12 @@ var ffiListOptionsFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorListWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_list_with",
+var ffiOperatorListWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_list_with_options_cancel",
 	rType:  &typeResultList,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
-	return func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalListOptions, token *opendalCancelToken) (*opendalLister, error) {
+	return func(op *opendalOperator, path string, opts *opendalListOptions, token *opendalCancelToken) (*opendalLister, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -452,6 +532,7 @@ var ffiOperatorListWith = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		if result.err != nil {
 			return nil, parseError(ctx, result.err)
@@ -473,16 +554,17 @@ var ffiListerFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiListerNext = newFFI(ffiOpts{
-	sym:    "opendal_lister_next",
+var ffiListerNextWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_lister_next_with_cancel",
 	rType:  &typeResultListerNext,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) (*opendalEntry, error) {
-	return func(l *opendalLister) (*opendalEntry, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister, token *opendalCancelToken) (*opendalEntry, error) {
+	return func(l *opendalLister, token *opendalCancelToken) (*opendalEntry, error) {
 		var result opendalResultListerNext
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&l),
+			unsafe.Pointer(&token),
 		)
 		if result.err != nil {
 			return nil, parseError(ctx, result.err)

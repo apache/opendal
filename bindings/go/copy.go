@@ -91,11 +91,13 @@ type copyOptions struct {
 
 // Copy duplicates a file from the source path to the destination path.
 //
-// Copy is a wrapper around the C-binding function `opendal_operator_copy`.
-// When options are provided, it uses `opendal_operator_copy_with`.
+// Copy is a wrapper around the C-binding function `opendal_operator_copy_with_cancel`.
+// When options are provided, it uses `opendal_operator_copy_with_options_cancel`.
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. Canceling it cancels the underlying
+//     native call in a blocking manner.
 //   - src: The source file path.
 //   - dest: The destination file path.
 //   - opts: Optional copy options.
@@ -114,16 +116,18 @@ type copyOptions struct {
 // # Example
 //
 //	func exampleCopy(op *opendal.Operator) {
-//		err := op.Copy("path/from/file", "path/to/file")
+//		err := op.Copy(context.Background(), "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Copy(src, dest string, opts ...WithCopyFn) error {
+func (op *Operator) Copy(ctx context.Context, src, dest string, opts ...WithCopyFn) error {
 	if len(opts) == 0 {
-		return ffiOperatorCopy.symbol(op.ctx)(op.inner, src, dest)
+		return runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+			return ffiOperatorCopyWithCancel.symbol(op.ctx)(op.inner, src, dest, token)
+		})
 	}
 
 	o := &copyOptions{}
@@ -161,7 +165,9 @@ func (op *Operator) Copy(src, dest string, opts ...WithCopyFn) error {
 	if o.chunk != 0 {
 		ffiCopyOptionsSetChunk.symbol(op.ctx)(cOpts, o.chunk)
 	}
-	err := ffiOperatorCopyWith.symbol(op.ctx)(op.inner, src, dest, cOpts)
+	err := runErrWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorCopyWithOptionsCancel.symbol(op.ctx)(op.inner, src, dest, cOpts, token)
+	})
 	free(cOpts)
 	runtime.KeepAlive(ifMatchData)
 	runtime.KeepAlive(sourceVersionData)
@@ -270,12 +276,38 @@ var ffiCopyOptionsSetChunk = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorCopyWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_copy_with",
+var ffiOperatorCopyWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_copy_with_cancel",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
-	return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, token *opendalCancelToken) error {
+	return func(op *opendalOperator, src, dest string, token *opendalCancelToken) error {
+		byteSrc, err := BytePtrFromString(src)
+		if err != nil {
+			return err
+		}
+		byteDest, err := BytePtrFromString(dest)
+		if err != nil {
+			return err
+		}
+		var e *opendalError
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&op),
+			unsafe.Pointer(&byteSrc),
+			unsafe.Pointer(&byteDest),
+			unsafe.Pointer(&token),
+		)
+		return parseError(ctx, e)
+	}
+})
+
+var ffiOperatorCopyWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_copy_with_options_cancel",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions, token *opendalCancelToken) error {
+	return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions, token *opendalCancelToken) error {
 		byteSrc, err := BytePtrFromString(src)
 		if err != nil {
 			return err
@@ -291,6 +323,7 @@ var ffiOperatorCopyWith = newFFI(ffiOpts{
 			unsafe.Pointer(&byteSrc),
 			unsafe.Pointer(&byteDest),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		return parseError(ctx, e)
 	}

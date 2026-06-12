@@ -20,6 +20,7 @@
 package opendal_test
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -283,7 +284,7 @@ func (f *fixture) Cleanup(assert *require.Assertions) {
 	defer f.lock.Unlock()
 
 	for i := len(f.paths) - 1; i >= 0; i-- {
-		f.op.Delete(f.paths[i])
+		f.op.Delete(context.Background(), f.paths[i])
 	}
 }
 

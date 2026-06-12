@@ -138,6 +138,17 @@ typedef struct opendal_error {
 } opendal_error;
 
 /**
+ * \brief A cancellation token for cancellable OpenDAL operations.
+ */
+typedef struct opendal_cancel_token {
+  /**
+   * The pointer to the Rust cancellation token.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_cancel_token;
+
+/**
  * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
  *
  * For examples, please see the comment section of opendal_operator_list()
@@ -253,14 +264,14 @@ typedef struct opendal_metadata_user_metadata_pair {
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator actually owns a pointer to
- * an opendal::blocking::Operator, which is inside the Rust core code.
+ * an opendal::Operator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
  */
 typedef struct opendal_operator {
   /**
-   * The pointer to the opendal::blocking::Operator in the Rust code.
+   * The pointer to the operator state in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -495,11 +506,11 @@ typedef struct opendal_read_options {
  * \brief The result type returned by opendal's reader operation.
  *
  * \note The opendal_reader actually owns a pointer to
- * a opendal::BlockingReader, which is inside the Rust core code.
+ * a opendal::FuturesAsyncReader, which is inside the Rust core code.
  */
 typedef struct opendal_reader {
   /**
-   * The pointer to the opendal::StdReader in the Rust code.
+   * The pointer to the opendal::FuturesAsyncReader in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
@@ -1141,6 +1152,29 @@ extern "C" {
 void opendal_error_free(struct opendal_error *ptr);
 
 /**
+ * \brief Construct a cancellation token.
+ */
+struct opendal_cancel_token *opendal_cancel_token_new(void);
+
+/**
+ * \brief Cancel operations using this token.
+ */
+void opendal_cancel_token_cancel(const struct opendal_cancel_token *ptr);
+
+/**
+ * \brief Free a cancellation token.
+ */
+void opendal_cancel_token_free(struct opendal_cancel_token *ptr);
+
+/**
+ * \brief Like `opendal_lister_next` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_lister_next opendal_lister_next_with_cancel(struct opendal_lister *self,
+                                                                  const struct opendal_cancel_token *token);
+
+/**
  * \brief Return the next object to be listed
  *
  * Lister is an iterator of the objects under its path, this method is the same as
@@ -1380,6 +1414,197 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
 struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
                                                                     const struct opendal_operator_options *options,
                                                                     const struct opendal_operator_layers *layers);
+
+/**
+ * \brief Like `opendal_operator_write` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_write_with_cancel(const struct opendal_operator *op,
+                                                         const char *path,
+                                                         const struct opendal_bytes *bytes,
+                                                         const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_write_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_write_with_options_cancel(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 const struct opendal_bytes *bytes,
+                                                                 const struct opendal_write_options *opts,
+                                                                 const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_read` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_read opendal_operator_read_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_read_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_read opendal_operator_read_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_read_options *opts,
+                                                                     const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_reader` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_operator_reader opendal_operator_reader_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_writer` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_operator_writer opendal_operator_writer_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_writer_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_operator_writer opendal_operator_writer_with_options_cancel(const struct opendal_operator *op,
+                                                                                  const char *path,
+                                                                                  const struct opendal_write_options *opts,
+                                                                                  const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_delete` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_delete_with_cancel(const struct opendal_operator *op,
+                                                          const char *path,
+                                                          const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_delete_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_delete_with_options_cancel(const struct opendal_operator *op,
+                                                                  const char *path,
+                                                                  const struct opendal_delete_options *opts,
+                                                                  const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_is_exist` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_is_exist opendal_operator_is_exist_with_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_exists` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_exists opendal_operator_exists_with_cancel(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_stat` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_stat opendal_operator_stat_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_stat_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_stat opendal_operator_stat_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_stat_options *opts,
+                                                                     const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_list` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_list opendal_operator_list_with_cancel(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_list_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_list opendal_operator_list_with_options_cancel(const struct opendal_operator *op,
+                                                                     const char *path,
+                                                                     const struct opendal_list_options *opts,
+                                                                     const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_create_dir` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_create_dir_with_cancel(const struct opendal_operator *op,
+                                                              const char *path,
+                                                              const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_rename` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_rename_with_cancel(const struct opendal_operator *op,
+                                                          const char *src,
+                                                          const char *dest,
+                                                          const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_copy` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_copy_with_cancel(const struct opendal_operator *op,
+                                                        const char *src,
+                                                        const char *dest,
+                                                        const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_copy_with` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_copy_with_options_cancel(const struct opendal_operator *op,
+                                                                const char *src,
+                                                                const char *dest,
+                                                                const struct opendal_copy_options *opts,
+                                                                const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_check` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_operator_check_with_cancel(const struct opendal_operator *op,
+                                                         const struct opendal_cancel_token *token);
 
 /**
  * \brief Blocking write raw bytes to `path`.
@@ -2160,6 +2385,46 @@ struct opendal_capability opendal_operator_info_get_full_capability(const struct
 struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 
 /**
+ * \brief Like `opendal_operator_presign_read` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_presign opendal_operator_presign_read_with_cancel(const struct opendal_operator *op,
+                                                                        const char *path,
+                                                                        uint64_t expire_secs,
+                                                                        const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_presign_write` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_presign opendal_operator_presign_write_with_cancel(const struct opendal_operator *op,
+                                                                         const char *path,
+                                                                         uint64_t expire_secs,
+                                                                         const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_presign_delete` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_presign opendal_operator_presign_delete_with_cancel(const struct opendal_operator *op,
+                                                                          const char *path,
+                                                                          uint64_t expire_secs,
+                                                                          const struct opendal_cancel_token *token);
+
+/**
+ * \brief Like `opendal_operator_presign_stat` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_presign opendal_operator_presign_stat_with_cancel(const struct opendal_operator *op,
+                                                                        const char *path,
+                                                                        uint64_t expire_secs,
+                                                                        const struct opendal_cancel_token *token);
+
+/**
  * \brief Presign a read operation.
  */
 struct opendal_result_presign opendal_operator_presign_read(const struct opendal_operator *op,
@@ -2651,11 +2916,31 @@ struct opendal_metadata *opendal_entry_metadata(const struct opendal_entry *self
 void opendal_entry_free(struct opendal_entry *ptr);
 
 /**
+ * \brief Like `opendal_reader_read` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_reader_read opendal_reader_read_with_cancel(struct opendal_reader *self,
+                                                                  uint8_t *buf,
+                                                                  uintptr_t len,
+                                                                  const struct opendal_cancel_token *token);
+
+/**
  * \brief Read data from the reader.
  */
 struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
                                                       uint8_t *buf,
                                                       uintptr_t len);
+
+/**
+ * \brief Like `opendal_reader_seek` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_reader_seek opendal_reader_seek_with_cancel(struct opendal_reader *self,
+                                                                  int64_t offset,
+                                                                  int32_t whence,
+                                                                  const struct opendal_cancel_token *token);
 
 /**
  * \brief Seek to an offset, in bytes, in a stream.
@@ -2670,10 +2955,27 @@ struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *sel
 void opendal_reader_free(struct opendal_reader *ptr);
 
 /**
+ * \brief Like `opendal_writer_write` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_result_writer_write opendal_writer_write_with_cancel(struct opendal_writer *self,
+                                                                    const struct opendal_bytes *bytes,
+                                                                    const struct opendal_cancel_token *token);
+
+/**
  * \brief Write data to the writer.
  */
 struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *self,
                                                         const struct opendal_bytes *bytes);
+
+/**
+ * \brief Like `opendal_writer_close` with cooperative cancellation.
+ *
+ * Pass NULL for `token` to block until completion.
+ */
+struct opendal_error *opendal_writer_close_with_cancel(struct opendal_writer *ptr,
+                                                       const struct opendal_cancel_token *token);
 
 /**
  * \brief Close the writer and make sure all data have been stored.

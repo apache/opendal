@@ -19,6 +19,7 @@ opendal-go requires **libffi** to be installed.
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/apache/opendal-go-services/memory"
 	opendal "github.com/apache/opendal/bindings/go"
@@ -32,21 +33,23 @@ func main() {
 	}
 	defer op.Close()
 
+	ctx := context.Background()
+
 	// Write data to a file named "test"
-	err = op.Write("test", []byte("Hello opendal go binding!"))
+	err = op.Write(ctx, "test", []byte("Hello opendal go binding!"))
 	if err != nil {
 		panic(err)
 	}
 
 	// Read data from the file "test"
-	data, err := op.Read("test")
+	data, err := op.Read(ctx, "test")
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Read content: %s\n", data)
 
 	// List all entries under the root directory "/"
-	lister, err := op.List("/")
+	lister, err := op.List(ctx, "/")
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +63,7 @@ func main() {
 		_ = entry.Name()
 
 		// Get metadata for the current entry
-		meta, _ := op.Stat(entry.Path())
+		meta, _ := op.Stat(ctx, entry.Path())
 
 		// Print file size
 		fmt.Printf("Size: %d bytes\n", meta.ContentLength())
@@ -78,15 +81,40 @@ func main() {
 	}
 
 	// Copy a file
-	op.Copy("test", "test_copy")
+	op.Copy(ctx, "test", "test_copy")
 
 	// Rename a file
-	op.Rename("test", "test_rename")
+	op.Rename(ctx, "test", "test_rename")
 
 	// Delete a file
-	op.Delete("test_rename")
+	op.Delete(ctx, "test_rename")
 }
 ```
+
+## Context Cancellation
+
+Operator methods take a `context.Context` as their first argument. For the
+streaming handles, the context is bound when the handle is created
+(`op.Reader(ctx, path)`, `op.Writer(ctx, path)`, `op.List(ctx, path)`) and
+governs the subsequent `Read`/`Seek`/`Write`/`Close`/`Next` calls so those
+types keep their standard `io` interface signatures.
+
+When the Go context is canceled or its deadline is exceeded, the binding
+signals OpenDAL's native cancel token and then blocks until the native call
+actually returns before reporting `context.Canceled` or
+`context.DeadlineExceeded`. Waiting for the native call to finish guarantees the
+underlying buffers and handles are no longer in use by native code once the call
+returns.
+
+After a cancellation the streaming handles (`Reader`, `Writer`, `Lister`) are
+still alive and can be closed without leaking resources, but their internal
+stream state is unspecified (e.g. the read position may have advanced
+partially). Callers should **discard** a handle that had an operation cancelled
+and open a new one rather than attempting to resume from the same handle.
+
+`Writer.Close` may be retried after a cancelled close, but success is not
+guaranteed because the underlying `core::Writer::close` future is not
+documented as resumable.
 
 ## Run Tests
 

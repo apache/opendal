@@ -20,6 +20,7 @@
 package opendal_test
 
 import (
+	"context"
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -52,9 +53,9 @@ func testsWrite(cap *opendal.Capability) []behaviorTest {
 func testWriteOnly(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	assert.Nil(op.Write(context.Background(), path, content))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(size), meta.ContentLength())
 }
@@ -65,9 +66,9 @@ func testWriteWithEmptyContent(assert *require.Assertions, op *opendal.Operator,
 	}
 
 	path := fixture.NewFilePath()
-	assert.Nil(op.Write(path, []byte{}))
+	assert.Nil(op.Write(context.Background(), path, []byte{}))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(0), meta.ContentLength())
 }
@@ -75,7 +76,7 @@ func testWriteWithEmptyContent(assert *require.Assertions, op *opendal.Operator,
 func testWriteWithDirPath(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path := fixture.NewDirPath()
 
-	err := op.Write(path, []byte("1"))
+	err := op.Write(context.Background(), path, []byte("1"))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
@@ -83,9 +84,9 @@ func testWriteWithDirPath(assert *require.Assertions, op *opendal.Operator, fixt
 func testWriteWithSpecialChars(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFileWithPath(uuid.NewString() + " !@#$%^&()_+-=;',.txt")
 
-	assert.Nil(op.Write(path, content))
+	assert.Nil(op.Write(context.Background(), path, content))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(size), meta.ContentLength())
 }
@@ -99,13 +100,13 @@ func testWriteOverwrite(assert *require.Assertions, op *opendal.Operator, fixtur
 	size := uint(5 * 1024 * 1024)
 	contentOne, contentTwo := genFixedBytes(size), genFixedBytes(size)
 
-	assert.Nil(op.Write(path, contentOne))
-	bs, err := op.Read(path)
+	assert.Nil(op.Write(context.Background(), path, contentOne))
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(contentOne, bs, "read content_one")
 
-	assert.Nil(op.Write(path, contentTwo))
-	bs, err = op.Read(path)
+	assert.Nil(op.Write(context.Background(), path, contentTwo))
+	bs, err = op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.NotEqual(contentOne, bs, "content_one must be overwrote")
 	assert.Equal(contentTwo, bs, "read content_two")
@@ -118,9 +119,9 @@ func testWriteWithCacheControl(assert *require.Assertions, op *opendal.Operator,
 
 	path := fixture.NewFilePath()
 	content := []byte("hello")
-	assert.Nil(op.Write(path, content, opendal.WriteWithCacheControl("max-age=60")))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithCacheControl("max-age=60")))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 	cacheControl, ok := meta.CacheControl()
@@ -135,9 +136,9 @@ func testWriteWithContentType(assert *require.Assertions, op *opendal.Operator, 
 
 	path := fixture.NewFilePath()
 	content := []byte("hello")
-	assert.Nil(op.Write(path, content, opendal.WriteWithContentType("text/plain")))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithContentType("text/plain")))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 	contentType, ok := meta.ContentType()
@@ -152,9 +153,9 @@ func testWriteWithContentDisposition(assert *require.Assertions, op *opendal.Ope
 
 	path := fixture.NewFilePath()
 	content := []byte("hello")
-	assert.Nil(op.Write(path, content, opendal.WriteWithContentDisposition("attachment; filename=hello.txt")))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithContentDisposition("attachment; filename=hello.txt")))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 	contentDisposition, ok := meta.ContentDisposition()
@@ -169,9 +170,9 @@ func testWriteWithContentEncoding(assert *require.Assertions, op *opendal.Operat
 
 	path := fixture.NewFilePath()
 	content := []byte("hello")
-	assert.Nil(op.Write(path, content, opendal.WriteWithContentEncoding("gzip")))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithContentEncoding("gzip")))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 	contentEncoding, ok := meta.ContentEncoding()
@@ -186,12 +187,12 @@ func testWriteWithUserMetadata(assert *require.Assertions, op *opendal.Operator,
 
 	path := fixture.NewFilePath()
 	content := []byte("hello")
-	assert.Nil(op.Write(path, content, opendal.WriteWithUserMetadata(map[string]string{
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithUserMetadata(map[string]string{
 		"language": "go",
 		"project":  "opendal",
 	})))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 	assert.Equal(map[string]string{
@@ -206,14 +207,14 @@ func testWriteWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixt
 	}
 
 	path := fixture.NewFilePath()
-	assert.Nil(op.Write(path, []byte("hello")))
-	meta, err := op.Stat(path)
+	assert.Nil(op.Write(context.Background(), path, []byte("hello")))
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	etag, ok := meta.ETag()
 	assert.True(ok, "etag must exist")
 
-	assert.Nil(op.Write(path, []byte("world"), opendal.WriteWithIfMatch(etag)))
-	bs, err := op.Read(path)
+	assert.Nil(op.Write(context.Background(), path, []byte("world"), opendal.WriteWithIfMatch(etag)))
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal([]byte("world"), bs)
 }
@@ -224,17 +225,17 @@ func testWriteWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, 
 	}
 
 	path := fixture.NewFilePath()
-	assert.Nil(op.Write(path, []byte("hello")))
-	meta, err := op.Stat(path)
+	assert.Nil(op.Write(context.Background(), path, []byte("hello")))
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	etag, ok := meta.ETag()
 	assert.True(ok, "etag must exist")
 
-	err = op.Write(path, []byte("world"), opendal.WriteWithIfNoneMatch(etag))
+	err = op.Write(context.Background(), path, []byte("world"), opendal.WriteWithIfNoneMatch(etag))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal([]byte("hello"), bs)
 }
@@ -245,12 +246,12 @@ func testWriteWithIfNotExists(assert *require.Assertions, op *opendal.Operator, 
 	}
 
 	path := fixture.NewFilePath()
-	assert.Nil(op.Write(path, []byte("hello"), opendal.WriteWithIfNotExists(true)))
-	err := op.Write(path, []byte("world"), opendal.WriteWithIfNotExists(true))
+	assert.Nil(op.Write(context.Background(), path, []byte("hello"), opendal.WriteWithIfNotExists(true)))
+	err := op.Write(context.Background(), path, []byte("world"), opendal.WriteWithIfNotExists(true))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal([]byte("hello"), bs)
 }
@@ -265,7 +266,7 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 	contentA := genFixedBytes(size)
 	contentB := genFixedBytes(size)
 
-	w, err := op.Writer(path)
+	w, err := op.Writer(context.Background(), path)
 	assert.Nil(err)
 	_, err = w.Write(contentA)
 	assert.Nil(err)
@@ -273,11 +274,11 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 	assert.Nil(err)
 	assert.Nil(w.Close())
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(context.Background(), path)
 	assert.Nil(err, "stat must succeed")
 	assert.Equal(uint64(size*2), meta.ContentLength())
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(uint64(size*2), uint64(len(bs)), "read size")
 	assert.Equal(contentA, bs[:size], "read contentA")
@@ -291,9 +292,9 @@ func testWriteWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Ope
 
 	path := fixture.NewFilePath()
 	content := genFixedBytes(1024 * 1024)
-	assert.Nil(op.Write(path, content, opendal.WriteWithChunk(256*1024), opendal.WriteWithConcurrent(2)))
+	assert.Nil(op.Write(context.Background(), path, content, opendal.WriteWithChunk(256*1024), opendal.WriteWithConcurrent(2)))
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(content, bs)
 }
@@ -305,19 +306,19 @@ func testWriterWithAppend(assert *require.Assertions, op *opendal.Operator, fixt
 
 	path := fixture.NewFilePath()
 
-	w, err := op.Writer(path, opendal.WriteWithAppend(true))
+	w, err := op.Writer(context.Background(), path, opendal.WriteWithAppend(true))
 	assert.Nil(err)
 	_, err = w.Write([]byte("hello"))
 	assert.Nil(err)
 	assert.Nil(w.Close())
 
-	w, err = op.Writer(path, opendal.WriteWithAppend(true))
+	w, err = op.Writer(context.Background(), path, opendal.WriteWithAppend(true))
 	assert.Nil(err)
 	_, err = w.Write([]byte(" world"))
 	assert.Nil(err)
 	assert.Nil(w.Close())
 
-	bs, err := op.Read(path)
+	bs, err := op.Read(context.Background(), path)
 	assert.Nil(err, "read must succeed")
 	assert.Equal([]byte("hello world"), bs)
 }

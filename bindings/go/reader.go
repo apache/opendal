@@ -36,6 +36,9 @@ import (
 //
 // # Parameters
 //
+//   - ctx: The context for the operation. When the context is canceled or its
+//     deadline is exceeded, the underlying native read is canceled and Read
+//     returns ctx.Err() after the native call has stopped.
 //   - path: The path of the file to read.
 //   - opts: Optional read options.
 //
@@ -52,7 +55,7 @@ import (
 // # Example
 //
 //	func exampleRead(op *opendal.Operator) {
-//		data, err := op.Read("test")
+//		data, err := op.Read(context.Background(), "test")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -60,8 +63,14 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
-	bytes, err := op.read(path, opts...)
+func (op *Operator) Read(ctx context.Context, path string, opts ...WithReadFn) ([]byte, error) {
+	bytes, err := runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (opendalBytes, error) {
+		return op.readWithCancel(path, token, opts...)
+	}, func(bytes opendalBytes) {
+		if bytes.data != nil {
+			ffiBytesFree.symbol(op.ctx)(&bytes)
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -73,9 +82,9 @@ func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
 	return data, nil
 }
 
-func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) {
+func (op *Operator) readWithCancel(path string, token *opendalCancelToken, opts ...WithReadFn) (opendalBytes, error) {
 	if len(opts) == 0 {
-		return ffiOperatorRead.symbol(op.ctx)(op.inner, path)
+		return ffiOperatorReadWithCancel.symbol(op.ctx)(op.inner, path, token)
 	}
 
 	o := parseReadOptions(opts...)
@@ -84,7 +93,7 @@ func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) 
 		return opendalBytes{}, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(op.inner, path, cOpts)
+	bytes, err := ffiOperatorReadWithOptionsCancel.symbol(op.ctx)(op.inner, path, cOpts, token)
 	runtime.KeepAlive(keepAlive)
 	return bytes, err
 }
@@ -311,6 +320,8 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //
 // # Parameters
 //
+//   - ctx: The context bound to the returned Reader. It governs cancellation for
+//     all subsequent Read and Seek calls on that Reader.
 //   - path: The path of the file to read.
 //
 // # Returns
@@ -322,11 +333,13 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //
 //   - This implementation does not support the `reader_with` functionality.
 //   - The returned reader allows for more controlled and efficient reading of large files.
+//   - The provided context is bound to the Reader; canceling it cancels in-flight
+//     Read and Seek calls in a blocking manner.
 //
 // # Example
 //
 //	func exampleReader(op *opendal.Operator) {
-//		r, err := op.Reader("path/to/file")
+//		r, err := op.Reader(context.Background(), "path/to/file")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -345,21 +358,38 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Reader(path string) (*Reader, error) {
-	inner, err := ffiOperatorReader.symbol(op.ctx)(op.inner, path)
-	if err != nil {
-		return nil, err
-	}
-	reader := &Reader{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return reader, nil
+func (op *Operator) Reader(ctx context.Context, path string) (*Reader, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*Reader, error) {
+		inner, err := ffiOperatorReaderWithCancel.symbol(op.ctx)(op.inner, path, token)
+		if err != nil {
+			return nil, err
+		}
+		reader := &Reader{
+			inner:     inner,
+			ctx:       op.ctx,
+			cancelCtx: ctx,
+		}
+		return reader, nil
+	}, func(reader *Reader) {
+		if reader != nil {
+			_ = reader.Close()
+		}
+	})
 }
 
+// Reader implements io.ReadSeekCloser.
+//
+// After a cancelled Read or Seek the handle remains valid and can be closed
+// without leaking resources, but its internal stream position is unspecified.
+// Callers should discard a Reader that had an operation cancelled and open a
+// new one rather than attempting to resume reading from the same handle.
 type Reader struct {
 	inner *opendalReader
 	ctx   context.Context
+	// cancelCtx is the user-provided context bound at creation. It governs
+	// cancellation for Read and Seek so the Reader keeps stdlib io interface
+	// signatures.
+	cancelCtx context.Context
 }
 
 var _ io.ReadSeekCloser = (*Reader)(nil)
@@ -385,7 +415,7 @@ var _ io.ReadSeekCloser = (*Reader)(nil)
 //
 // # Example
 //
-//	reader, err := op.Reader("path/to/file")
+//	reader, err := op.Reader(context.Background(), "path/to/file")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -404,28 +434,33 @@ var _ io.ReadSeekCloser = (*Reader)(nil)
 //	}
 //
 // Note: Always check the number of bytes read (n) as it may be less than len(buf).
+//
+// Read uses the context bound to the Reader at creation time. Canceling that
+// context cancels the in-flight read in a blocking manner.
 func (r *Reader) Read(buf []byte) (int, error) {
-	length := uint(len(buf))
-	if length == 0 {
-		return 0, nil
-	}
-	read := ffiReaderRead.symbol(r.ctx)
-	var (
-		totalSize uint
-		size      uint
-		err       error
-	)
-	for {
-		size, err = read(r.inner, buf[totalSize:])
-		totalSize += size
-		if size == 0 || err != nil || totalSize >= length {
-			break
+	return runWithCancelContext(r.cancelCtx, r.ctx, func(token *opendalCancelToken) (int, error) {
+		length := uint(len(buf))
+		if length == 0 {
+			return 0, nil
 		}
-	}
-	if totalSize == 0 && err == nil {
-		err = io.EOF
-	}
-	return int(totalSize), err
+		read := ffiReaderReadWithCancel.symbol(r.ctx)
+		var (
+			totalSize uint
+			size      uint
+			err       error
+		)
+		for {
+			size, err = read(r.inner, buf[totalSize:], token)
+			totalSize += size
+			if size == 0 || err != nil || totalSize >= length {
+				break
+			}
+		}
+		if totalSize == 0 && err == nil {
+			err = io.EOF
+		}
+		return int(totalSize), err
+	})
 }
 
 // Seek sets the offset for the next Read operation on the reader.
@@ -447,7 +482,7 @@ func (r *Reader) Read(buf []byte) (int, error) {
 //
 // # Example
 //
-//	reader, err := op.Reader("path/to/file")
+//	reader, err := op.Reader(context.Background(), "path/to/file")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -469,8 +504,12 @@ func (r *Reader) Read(buf []byte) (int, error) {
 //
 // Note: The actual new position may differ from the requested position
 // if the underlying storage system has restrictions on seeking.
+//
+// Seek uses the context bound to the Reader at creation time.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
-	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
+	return runWithCancelContext(r.cancelCtx, r.ctx, func(token *opendalCancelToken) (int64, error) {
+		return ffiReaderSeekWithCancel.symbol(r.ctx)(r.inner, offset, whence, token)
+	})
 }
 
 // Close releases resources associated with the OperatorReader.
@@ -479,12 +518,12 @@ func (r *Reader) Close() error {
 	return nil
 }
 
-var ffiOperatorRead = newFFI(ffiOpts{
-	sym:    "opendal_operator_read",
+var ffiOperatorReadWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_read_with_cancel",
 	rType:  &typeResultRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (opendalBytes, error) {
-	return func(op *opendalOperator, path string) (opendalBytes, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (opendalBytes, error) {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) (opendalBytes, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return opendalBytes{}, err
@@ -494,17 +533,18 @@ var ffiOperatorRead = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		return result.data, parseError(ctx, result.error)
 	}
 })
 
-var ffiOperatorReadWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_read_with",
+var ffiOperatorReadWithOptionsCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_read_with_options_cancel",
 	rType:  &typeResultRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
-	return func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalReadOptions, token *opendalCancelToken) (opendalBytes, error) {
+	return func(op *opendalOperator, path string, opts *opendalReadOptions, token *opendalCancelToken) (opendalBytes, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return opendalBytes{}, err
@@ -515,6 +555,7 @@ var ffiOperatorReadWith = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&opts),
+			unsafe.Pointer(&token),
 		)
 		return result.data, parseError(ctx, result.error)
 	}
@@ -646,12 +687,12 @@ var ffiReadOptionsSetContentLengthHint = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorReader = newFFI(ffiOpts{
-	sym:    "opendal_operator_reader",
+var ffiOperatorReaderWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_operator_reader_with_cancel",
 	rType:  &typeResultOperatorReader,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalReader, error) {
-	return func(op *opendalOperator, path string) (*opendalReader, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalReader, error) {
+	return func(op *opendalOperator, path string, token *opendalCancelToken) (*opendalReader, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
 			return nil, err
@@ -661,6 +702,7 @@ var ffiOperatorReader = newFFI(ffiOpts{
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return nil, parseError(ctx, result.error)
@@ -682,12 +724,12 @@ var ffiReaderFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiReaderRead = newFFI(ffiOpts{
-	sym:    "opendal_reader_read",
+var ffiReaderReadWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_reader_read_with_cancel",
 	rType:  &typeResultReaderRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, buf []byte) (size uint, err error) {
-	return func(r *opendalReader, buf []byte) (size uint, err error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, buf []byte, token *opendalCancelToken) (size uint, err error) {
+	return func(r *opendalReader, buf []byte, token *opendalCancelToken) (size uint, err error) {
 		var length = len(buf)
 		if length == 0 {
 			return 0, nil
@@ -699,6 +741,7 @@ var ffiReaderRead = newFFI(ffiOpts{
 			unsafe.Pointer(&r),
 			unsafe.Pointer(&bytePtr),
 			unsafe.Pointer(&length),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return 0, parseError(ctx, result.error)
@@ -707,18 +750,19 @@ var ffiReaderRead = newFFI(ffiOpts{
 	}
 })
 
-var ffiReaderSeek = newFFI(ffiOpts{
-	sym:    "opendal_reader_seek",
+var ffiReaderSeekWithCancel = newFFI(ffiOpts{
+	sym:    "opendal_reader_seek_with_cancel",
 	rType:  &typeResultReaderSeek,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, offset int64, whence int) (int64, error) {
-	return func(r *opendalReader, offset int64, whence int) (int64, error) {
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, offset int64, whence int, token *opendalCancelToken) (int64, error) {
+	return func(r *opendalReader, offset int64, whence int, token *opendalCancelToken) (int64, error) {
 		var result resultReaderSeek
 		ffiCall(
 			unsafe.Pointer(&result),
 			unsafe.Pointer(&r),
 			unsafe.Pointer(&offset),
 			unsafe.Pointer(&whence),
+			unsafe.Pointer(&token),
 		)
 		if result.error != nil {
 			return 0, parseError(ctx, result.error)

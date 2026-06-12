@@ -29,41 +29,59 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-type presignFunc func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error)
+type presignFunc func(op *opendalOperator, path string, expire uint64, token *opendalCancelToken) (*opendalPresignedRequest, error)
 
 // PresignRead returns a presigned HTTP request that can be used to read the object at the given path.
-func (op *Operator) PresignRead(path string, expire time.Duration) (*http.Request, error) {
-	return op.presign(path, expire, ffiOperatorPresignRead.symbol(op.ctx))
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+	return op.presignContext(ctx, path, expire, func() presignFunc {
+		return ffiOperatorPresignReadWithCancel.symbol(op.ctx)
+	})
 }
 
 // PresignWrite returns a presigned HTTP request that can be used to write the object at the given path.
-func (op *Operator) PresignWrite(path string, expire time.Duration) (*http.Request, error) {
-	return op.presign(path, expire, ffiOperatorPresignWrite.symbol(op.ctx))
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignWrite(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+	return op.presignContext(ctx, path, expire, func() presignFunc {
+		return ffiOperatorPresignWriteWithCancel.symbol(op.ctx)
+	})
 }
 
 // PresignDelete returns a presigned HTTP request that can be used to delete the object at the given path.
-func (op *Operator) PresignDelete(path string, expire time.Duration) (*http.Request, error) {
-	return op.presign(path, expire, ffiOperatorPresignDelete.symbol(op.ctx))
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignDelete(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+	return op.presignContext(ctx, path, expire, func() presignFunc {
+		return ffiOperatorPresignDeleteWithCancel.symbol(op.ctx)
+	})
 }
 
 // PresignStat returns a presigned HTTP request that can be used to stat the object at the given path.
-func (op *Operator) PresignStat(path string, expire time.Duration) (*http.Request, error) {
-	return op.presign(path, expire, ffiOperatorPresignStat.symbol(op.ctx))
+//
+// Canceling ctx cancels the underlying native call in a blocking manner.
+func (op *Operator) PresignStat(ctx context.Context, path string, expire time.Duration) (*http.Request, error) {
+	return op.presignContext(ctx, path, expire, func() presignFunc {
+		return ffiOperatorPresignStatWithCancel.symbol(op.ctx)
+	})
 }
 
-func (op *Operator) presign(path string, expire time.Duration, call presignFunc) (*http.Request, error) {
-	secs := uint64(expire / time.Second)
+func (op *Operator) presignContext(ctx context.Context, path string, expire time.Duration, call func() presignFunc) (*http.Request, error) {
+	return runWithCancelContext(ctx, op.ctx, func(token *opendalCancelToken) (*http.Request, error) {
+		secs := uint64(expire / time.Second)
 
-	req, err := call(op.inner, path, secs)
-	if err != nil {
-		return nil, err
-	}
-	if req == nil {
-		return nil, fmt.Errorf("presigned request should not be nil")
-	}
-	defer ffiPresignedRequestFree.symbol(op.ctx)(req)
+		req, err := call()(op.inner, path, secs, token)
+		if err != nil {
+			return nil, err
+		}
+		if req == nil {
+			return nil, fmt.Errorf("presigned request should not be nil")
+		}
+		defer ffiPresignedRequestFree.symbol(op.ctx)(req)
 
-	return buildHTTPPresignedRequest(op.ctx, req)
+		return buildHTTPPresignedRequest(op.ctx, req)
+	})
 }
 
 func buildHTTPPresignedRequest(ctx context.Context, ptr *opendalPresignedRequest) (req *http.Request, err error) {
@@ -97,101 +115,37 @@ func buildHTTPPresignedRequest(ctx context.Context, ptr *opendalPresignedRequest
 	return
 }
 
-var ffiOperatorPresignRead = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_read",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+func newPresignWithCancelFFI(sym string) *FFI[presignFunc] {
+	return newFFI(ffiOpts{
+		sym:    contextKey(sym),
+		rType:  &typeResultPresign,
+		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) presignFunc {
+		return func(op *opendalOperator, path string, expire uint64, token *opendalCancelToken) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var result resultPresign
+			ffiCall(
+				unsafe.Pointer(&result),
+				unsafe.Pointer(&op),
+				unsafe.Pointer(&bytePath),
+				unsafe.Pointer(&expire),
+				unsafe.Pointer(&token),
+			)
+			if result.error != nil {
+				return nil, parseError(ctx, result.error)
+			}
+			return result.req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+	})
+}
 
-var ffiOperatorPresignWrite = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_write",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
-
-var ffiOperatorPresignDelete = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_delete",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
-
-var ffiOperatorPresignStat = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_stat",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+var ffiOperatorPresignReadWithCancel = newPresignWithCancelFFI("opendal_operator_presign_read_with_cancel")
+var ffiOperatorPresignWriteWithCancel = newPresignWithCancelFFI("opendal_operator_presign_write_with_cancel")
+var ffiOperatorPresignDeleteWithCancel = newPresignWithCancelFFI("opendal_operator_presign_delete_with_cancel")
+var ffiOperatorPresignStatWithCancel = newPresignWithCancelFFI("opendal_operator_presign_stat_with_cancel")
 
 var ffiPresignedRequestMethod = newFFI(ffiOpts{
 	sym:    "opendal_presigned_request_method",

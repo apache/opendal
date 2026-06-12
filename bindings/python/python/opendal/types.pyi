@@ -96,7 +96,9 @@ class Metadata:
     def version(self) -> builtins.str | None:
         r"""The version of this entry."""
     @property
-    def user_metadata(self) -> builtins.dict[builtins.str, builtins.str] | None:
+    def user_metadata(
+        self,
+    ) -> builtins.dict[builtins.str, builtins.str] | None:
         r"""The user-defined metadata of this entry."""
 
 @typing.final

@@ -119,6 +119,11 @@ lint: setup
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
 
+[group('lint')]
+lint-fix: setup
+    @echo "{{ BOLD }}--- Running Python lint fixer (Ruff) ---{{ NORMAL }}"
+    @uv run ruff check --fix --unsafe-fixes
+
 # Format all code (Rust, Python, etc.)
 [group('lint')]
 fmt: setup

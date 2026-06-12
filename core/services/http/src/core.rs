@@ -22,7 +22,9 @@ use http::Request;
 use http::Response;
 use http::header;
 use http::header::IF_MATCH;
+use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
+use http::header::IF_UNMODIFIED_SINCE;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -70,6 +72,14 @@ impl HttpCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
+        }
+
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
@@ -106,6 +116,14 @@ impl HttpCore {
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         if let Some(auth) = &self.authorization {

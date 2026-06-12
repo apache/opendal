@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Operator Composition
+#[doc = include_str!("7740_operator_composition.md")]
+pub mod rfc_7740_operator_composition {}
+
 /// Capability API
 #[doc = include_str!("7700_capability_api.md")]
 pub mod rfc_7700_capability_api {}

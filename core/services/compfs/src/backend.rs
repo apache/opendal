@@ -176,7 +176,7 @@ impl Access for CompfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
 
         self.core
             .exec(move || async move { compio::fs::create_dir_all(path).await })
@@ -186,7 +186,7 @@ impl Access for CompfsBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let meta = self
             .core
             .exec(move || async move { compio::fs::metadata(path).await })
@@ -220,8 +220,8 @@ impl Access for CompfsBackend {
         _: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let from = self.core.prepare_path(from)?;
-        let to = self.core.prepare_path(to)?;
+        let from = self.core.root_join(from)?;
+        let to = self.core.root_join(to)?;
 
         self.core
             .exec(move || async move {
@@ -247,8 +247,8 @@ impl Access for CompfsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let from = self.core.prepare_path(from)?;
-        let to = self.core.prepare_path(to)?;
+        let from = self.core.root_join(from)?;
+        let to = self.core.root_join(to)?;
 
         self.core
             .exec(move || async move {
@@ -262,7 +262,7 @@ impl Access for CompfsBackend {
         Ok(RpRename::default())
     }
     async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let file = self
             .core
             .exec(move || async move {
@@ -281,7 +281,7 @@ impl Access for CompfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let append = args.append();
         let file = self
             .core
@@ -309,7 +309,7 @@ impl Access for CompfsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
 
         let read_dir = match self
             .core

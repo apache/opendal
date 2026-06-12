@@ -17,6 +17,7 @@
 
 use crate::*;
 use std::hash::{BuildHasher, Hasher};
+use std::path::{Component, Path, PathBuf};
 
 /// build_abs_path will build an absolute path with root.
 ///
@@ -145,6 +146,34 @@ pub fn normalize_root(v: &str) -> String {
         v.push('/')
     }
     v
+}
+
+/// Join a caller-supplied key onto a base directory while keeping the result
+/// confined to that base.
+/// Useful for backends to reject `..` traversal in a key so path joins cannot escape `root`.
+///
+/// Services must confine operations within configured root. Services could use
+/// this function to confine paths within configured root.
+///
+/// ## Explanation
+///
+/// `normalize_path` strips leading `/` and empty segments but
+/// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
+/// lexical, so a key such as `../../etc/passwd` would otherwise escape the
+/// configured `root` at syscall time.
+pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
+    let trimmed = path.trim_end_matches('/');
+    if Path::new(trimmed)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            "path escapes the configured root via `..`",
+        )
+        .with_context("path", path));
+    }
+    Ok(base.join(trimmed))
 }
 
 /// Get basename from path.

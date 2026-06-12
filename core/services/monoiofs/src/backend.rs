@@ -104,7 +104,7 @@ impl Access for MonoiofsBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let meta = self
             .core
             .dispatch(move || monoio::fs::metadata(path))
@@ -125,7 +125,7 @@ impl Access for MonoiofsBackend {
         Ok(RpStat::new(m))
     }
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let reader = MonoiofsReader::new(self.core.clone(), path).await?;
         Ok((RpRead::default(), oio::PositionReader::new(reader)))
     }
@@ -144,7 +144,7 @@ impl Access for MonoiofsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.core.prepare_path(from)?;
+        let from = self.core.root_join(from)?;
         // ensure file exists
         self.core
             .dispatch({
@@ -162,7 +162,7 @@ impl Access for MonoiofsBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         self.core
             .dispatch(move || monoio::fs::create_dir_all(path))
             .await
@@ -177,7 +177,7 @@ impl Access for MonoiofsBackend {
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let from = self.core.prepare_path(from)?;
+        let from = self.core.root_join(from)?;
         // ensure file exists
         self.core
             .dispatch({

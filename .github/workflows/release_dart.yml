@@ -94,7 +94,7 @@ jobs:
           cargo build --release --target ${{ matrix.target }}
 
       - name: Upload build artifact (per platform)
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
           path: bindings/dart/rust/target/${{ matrix.target }}/release/*opendal*
@@ -111,7 +111,7 @@ jobs:
             mkdir -p target/release/
 
         - name: Download all artifacts
-          uses: actions/download-artifact@v7
+          uses: actions/download-artifact@v8
           with:
             path: artifacts
 
@@ -128,7 +128,7 @@ jobs:
             cd bindings/dart/rust
             ls -R .
         - name: Upload combined build artifacts
-          uses: actions/upload-artifact@v6
+          uses: actions/upload-artifact@v7
           with:
               name: combined-release
               path: bindings/dart/rust/target/release/

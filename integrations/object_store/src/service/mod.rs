@@ -107,6 +107,7 @@ impl Access for ObjectStoreService {
                 stat_with_if_match: true,
                 stat_with_if_unmodified_since: true,
                 read: true,
+                read_with_suffix: true,
                 write: true,
                 delete: true,
                 list: true,
@@ -169,7 +170,7 @@ mod tests {
         let builder = ObjectStoreBuilder::new(store);
 
         let backend = builder.build().expect("build should succeed");
-        assert!(backend.info().scheme() == OBJECT_STORE_SCHEME);
+        assert_eq!(backend.info().scheme(), OBJECT_STORE_SCHEME);
     }
 
     #[tokio::test]

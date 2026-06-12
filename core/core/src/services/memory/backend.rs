@@ -70,6 +70,7 @@ impl MemoryBackend {
         info.set_root("/");
         info.set_native_capability(Capability {
             read: true,
+            read_with_suffix: true,
             write: true,
             write_can_empty: true,
             write_with_cache_control: true,

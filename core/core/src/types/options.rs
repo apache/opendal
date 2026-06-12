@@ -17,7 +17,8 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::raw::{BytesRange, Timestamp};
+use crate::raw::Timestamp;
+use crate::types::BytesRange;
 use std::collections::HashMap;
 
 /// Options for delete operations.
@@ -65,6 +66,7 @@ pub struct ReadOptions {
     /// - `..` means read bytes in range `[0, n)` of file.
     /// - `0..1024` and `..1024` means read bytes in range `[0, 1024)` of file
     /// - `1024..` means read bytes in range `[1024, n)` of file
+    /// - `BytesRange::suffix(1024)` means read the last `min(1024, n)` bytes of file
     ///
     /// The type implements `From<RangeBounds<u64>>`, so users can use `(1024..).into()` instead.
     pub range: BytesRange,

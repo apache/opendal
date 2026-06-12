@@ -107,8 +107,20 @@ type WithReadFn func(*readOptions)
 func ReadWithRange(offset, length uint64) WithReadFn {
 	return func(o *readOptions) {
 		o.hasRange = true
+		o.hasRangeLength = true
 		o.rangeOffset = offset
 		o.rangeLength = length
+	}
+}
+
+// ReadWithRangeFrom sets the byte range to start at offset and read until the
+// end of the file, i.e. the range [offset, n) for a file of size n.
+func ReadWithRangeFrom(offset uint64) WithReadFn {
+	return func(o *readOptions) {
+		o.hasRange = true
+		o.hasRangeLength = false
+		o.rangeOffset = offset
+		o.rangeLength = 0
 	}
 }
 
@@ -170,6 +182,17 @@ func ReadWithGap(gap uint) WithReadFn {
 	}
 }
 
+// ReadWithContentLengthHint sets the known content length of the object.
+//
+// This is an execution hint that allows OpenDAL to avoid extra metadata
+// requests while planning reads. It must not be used as an object identity
+// or consistency condition.
+func ReadWithContentLengthHint(length uint64) WithReadFn {
+	return func(o *readOptions) {
+		o.contentLengthHint = &length
+	}
+}
+
 // ReadWithOverrideContentType sets the Content-Type to send back (presign only).
 func ReadWithOverrideContentType(contentType string) WithReadFn {
 	return func(o *readOptions) {
@@ -193,6 +216,7 @@ func ReadWithOverrideContentDisposition(contentDisposition string) WithReadFn {
 
 type readOptions struct {
 	hasRange                   bool
+	hasRangeLength             bool
 	rangeOffset                uint64
 	rangeLength                uint64
 	version                    string
@@ -203,6 +227,7 @@ type readOptions struct {
 	concurrent                 uint
 	chunk                      uint
 	gap                        uint
+	contentLengthHint          *uint64
 	overrideContentType        string
 	overrideCacheControl       string
 	overrideContentDisposition string
@@ -243,7 +268,11 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 	}
 
 	if o.hasRange {
-		ffiReadOptionsSetRange.symbol(ctx)(cOpts, o.rangeOffset, o.rangeLength)
+		if o.hasRangeLength {
+			ffiReadOptionsSetRange.symbol(ctx)(cOpts, o.rangeOffset, o.rangeLength)
+		} else {
+			ffiReadOptionsSetRangeFrom.symbol(ctx)(cOpts, o.rangeOffset)
+		}
 	}
 	if err := setString(o.version, ffiReadOptionsSetVersion.symbol(ctx)); err != nil {
 		return fail(err)
@@ -268,6 +297,9 @@ func newOpendalReadOptions(ctx context.Context, o *readOptions) (*opendalReadOpt
 	}
 	if o.gap != 0 {
 		ffiReadOptionsSetGap.symbol(ctx)(cOpts, o.gap)
+	}
+	if o.contentLengthHint != nil {
+		ffiReadOptionsSetContentLengthHint.symbol(ctx)(cOpts, *o.contentLengthHint)
 	}
 	if err := setString(o.overrideContentType, ffiReadOptionsSetOverrideContentType.symbol(ctx)); err != nil {
 		return fail(err)
@@ -560,6 +592,16 @@ var ffiReadOptionsSetRange = newFFI(ffiOpts{
 	}
 })
 
+var ffiReadOptionsSetRangeFrom = newFFI(ffiOpts{
+	sym:    "opendal_read_options_set_range_from",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, offset uint64) {
+	return func(opts *opendalReadOptions, offset uint64) {
+		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&offset))
+	}
+})
+
 func newReadOptionsSetStringFFI(sym string) *FFI[func(*opendalReadOptions, string) ([]byte, error)] {
 	return newFFI(ffiOpts{
 		sym:    contextKey(sym),
@@ -632,6 +674,16 @@ var ffiReadOptionsSetGap = newFFI(ffiOpts{
 }, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, gap uint) {
 	return func(opts *opendalReadOptions, gap uint) {
 		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&gap))
+	}
+})
+
+var ffiReadOptionsSetContentLengthHint = newFFI(ffiOpts{
+	sym:    "opendal_read_options_set_content_length_hint",
+	rType:  &ffi.TypeVoid,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, length uint64) {
+	return func(opts *opendalReadOptions, length uint64) {
+		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&length))
 	}
 })
 

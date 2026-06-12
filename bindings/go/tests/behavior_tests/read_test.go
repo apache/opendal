@@ -24,7 +24,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/apache/opendal/bindings/go"
+	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -41,6 +41,8 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 		testReadWithSpecialChars,
 		testReaderSeek,
 		testReadWithRange,
+		testReadWithRangeFrom,
+		testReadWithContentLengthHint,
 		testReadWithConcurrentChunkGap,
 	}
 	if cap.WriteCanMulti() {
@@ -164,6 +166,40 @@ func testReadWithRange(assert *require.Assertions, op *opendal.Operator, fixture
 	assert.Nil(op.Write(context.Background(), path, content), "write must succeed")
 
 	bs, err := op.Read(context.Background(), path, opendal.ReadWithRange(uint64(offset), uint64(length)))
+	assert.Nil(err)
+	assert.Equal(length, int64(len(bs)), "read range size")
+	assert.Equal(content[offset:offset+length], bs, "read range content")
+}
+
+func testReadWithRangeFrom(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+	offset, _ := genOffsetLength(size)
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	bs, err := op.Read(path, opendal.ReadWithRangeFrom(uint64(offset)))
+	assert.Nil(err)
+	assert.Equal(int64(size)-offset, int64(len(bs)), "read range-from size")
+	assert.Equal(content[offset:], bs, "read range-from content")
+}
+
+func testReadWithContentLengthHint(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	// An accurate hint must not change the result of a full read.
+	bs, err := op.Read(path, opendal.ReadWithContentLengthHint(uint64(size)))
+	assert.Nil(err)
+	assert.Equal(size, uint(len(bs)), "read size")
+	assert.Equal(content, bs, "read content")
+
+	// The hint is an execution hint only; it must also work combined with a range.
+	offset, length := genOffsetLength(size)
+	bs, err = op.Read(path,
+		opendal.ReadWithRange(uint64(offset), uint64(length)),
+		opendal.ReadWithContentLengthHint(uint64(size)),
+	)
 	assert.Nil(err)
 	assert.Equal(length, int64(len(bs)), "read range size")
 	assert.Equal(content[offset:offset+length], bs, "read range content")

@@ -114,6 +114,7 @@ impl Builder for GdriveBuilder {
                 stat: true,
 
                 read: true,
+                read_with_suffix: true,
 
                 list: true,
                 list_with_recursive: true,

@@ -564,6 +564,7 @@ impl Builder for OssBuilder {
                             stat_with_version: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,

@@ -127,6 +127,7 @@ impl Builder for GithubBuilder {
                             stat: true,
 
                             read: true,
+                            read_with_suffix: true,
 
                             create_dir: true,
 

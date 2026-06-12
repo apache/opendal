@@ -157,7 +157,7 @@ jobs:
       - name: Build
         shell: bash
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.settings.os }}-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -192,7 +192,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod docs;
 mod java;
 mod parser;
 mod python;
@@ -41,6 +42,7 @@ pub fn run(language: &str) -> Result<()> {
     match language {
         "java" => java::generate(workspace_dir, services),
         "python" | "py" => python::generate(workspace_dir, services),
+        "docs" => docs::generate(workspace_dir, services),
         _ => anyhow::bail!("unsupported language: {}", language),
     }
 }

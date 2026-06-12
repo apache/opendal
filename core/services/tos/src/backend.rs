@@ -31,6 +31,7 @@ use crate::utils::tos_parse_into_metadata;
 use crate::writer::TosWriter;
 use http::Response;
 use http::StatusCode;
+use opendal_core::BytesRange;
 use opendal_core::raw::*;
 use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
 use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
@@ -178,6 +179,7 @@ impl Builder for TosBuilder {
                     stat_with_version: true,
 
                     read: true,
+                    read_with_suffix: true,
                     read_with_if_match: true,
                     read_with_if_none_match: true,
                     read_with_if_modified_since: true,

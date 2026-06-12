@@ -22,9 +22,9 @@ use std::sync::Arc;
 
 use crate::raw::oio;
 use crate::raw::{
-    Access, AccessorInfo, BytesRange, Layer, LayeredAccess, OpCopier, OpCopy, OpCreateDir, OpList,
-    OpPresign, OpRead, OpStat, OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead,
-    RpStat, RpWrite,
+    Access, AccessorInfo, Layer, LayeredAccess, OpCopier, OpCopy, OpCreateDir, OpList, OpPresign,
+    OpRead, OpStat, OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpStat,
+    RpWrite,
 };
 use crate::*;
 
@@ -35,8 +35,14 @@ impl<A: Access> Layer<A> for CompleteLayer {
     type LayeredAccess = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_full_capability(|mut cap| {
+            cap.read_with_suffix = cap.read;
+            cap
+        });
+
         CompleteAccessor {
-            info: inner.info(),
+            info,
             inner: Arc::new(inner),
         }
     }
@@ -188,7 +194,11 @@ impl<R> CompleteReader<R> {
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let size = range.size();
+        let size = if range.is_suffix() {
+            None
+        } else {
+            range.size()
+        };
         self.inner.open(range).await.map(|(rp, stream)| {
             (
                 rp,
@@ -198,7 +208,11 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let size = range.size();
+        let size = if range.is_suffix() {
+            None
+        } else {
+            range.size()
+        };
         let (rp, buffer) = self.inner.read(range).await?;
         check_complete(size, buffer.len() as u64)?;
         Ok((rp, buffer))

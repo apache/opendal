@@ -19,6 +19,7 @@
 //!
 //! By using ops, users can add more context for operation.
 
+use crate::BytesRange;
 use crate::options;
 use crate::raw::*;
 

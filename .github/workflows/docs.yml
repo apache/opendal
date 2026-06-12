@@ -76,7 +76,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: rust-docs
           path: ./core/target/doc
@@ -97,7 +97,7 @@ jobs:
         run: ./mvnw javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -132,7 +132,7 @@ jobs:
         run: pnpm run docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -150,7 +150,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
 
@@ -164,7 +164,7 @@ jobs:
         run: uv run mkdocs build
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: python-docs
           path: ./bindings/python/site
@@ -192,7 +192,7 @@ jobs:
         run: bundle exec rake doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ruby-docs
           path: ./bindings/ruby/doc
@@ -216,7 +216,7 @@ jobs:
         run: make doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
@@ -235,7 +235,7 @@ jobs:
         run: ldoc ./src
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: lua-docs
           path: ./bindings/lua/doc/
@@ -283,7 +283,7 @@ jobs:
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: haskell-docs
           path: ./bindings/haskell/doc/
@@ -312,7 +312,7 @@ jobs:
           ninja docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
@@ -348,7 +348,7 @@ jobs:
           dune build @doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html
@@ -371,7 +371,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: object-store-opendal-docs
           path: ./integrations/object_store/target/doc
@@ -395,7 +395,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dav-server-opendalfs-docs
           path: ./integrations/dav-server/target/doc
@@ -418,7 +418,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: unftp-sbe-opendal-docs
           path: ./integrations/unftp-sbe/target/doc
@@ -441,7 +441,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: object-parquet-docs
           path: ./integrations/parquet/target/doc
@@ -487,79 +487,79 @@ jobs:
         run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download ruby docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ruby-docs
           path: ./website/static/docs/ruby
 
       - name: Download java docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml
 
       - name: Download object-store-opendal docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
 
       - name: Download dav-server-opendalfs docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
       - name: Download unftp-sbe-opendal docs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal
@@ -576,7 +576,7 @@ jobs:
         run: cp .asf.yaml ./website/build/.asf.yaml
 
       - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4.0.0
+        uses: peaceiris/actions-gh-pages@v4.1.0
         # Keep the public root site pinned to main; tag builds are published below.
         if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
         with:
@@ -608,7 +608,7 @@ jobs:
           echo OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME} >> $GITHUB_ENV
 
       - name: Deploy to staged
-        uses: peaceiris/actions-gh-pages@v4.0.0
+        uses: peaceiris/actions-gh-pages@v4.1.0
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

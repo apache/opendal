@@ -65,7 +65,7 @@ jobs:
         run: ls -la pkg/
 
       - name: Upload artifact (source gem)
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: opendal-ruby-gem-source
           path: bindings/ruby/pkg/*.gem
@@ -99,10 +99,10 @@ jobs:
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
           - os: macos-15
-            platform: arm64-darwin24
+            platform: arm64-darwin23
             rust_target: aarch64-apple-darwin
           - os: macos-26
-            platform: arm64-darwin25
+            platform: arm64-darwin23
             rust_target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
@@ -144,7 +144,7 @@ jobs:
           cp -r pkg/*.gem pkg_out/
 
       - name: Upload gem artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: opendal-ruby-gem-${{ matrix.platform }}
           path: bindings/ruby/pkg_out/*.gem
@@ -177,7 +177,7 @@ jobs:
           working-directory: bindings/ruby
 
       - name: Download gem artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: opendal-ruby-gem-*
           path: bindings/ruby/pkg/

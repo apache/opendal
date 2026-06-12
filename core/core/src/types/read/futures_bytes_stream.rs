@@ -16,7 +16,6 @@
 // under the License.
 
 use std::io;
-use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -46,7 +45,7 @@ unsafe impl Sync for FuturesBytesStream {}
 
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
-    pub(crate) async fn new(ctx: Arc<ReadContext>, range: impl RangeBounds<u64>) -> Result<Self> {
+    pub(crate) async fn new(ctx: Arc<ReadContext>, range: impl Into<BytesRange>) -> Result<Self> {
         let stream = BufferStream::create(ctx, range).await?;
 
         Ok(FuturesBytesStream {

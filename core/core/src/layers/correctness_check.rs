@@ -240,6 +240,38 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_match",
             ));
         }
+        if args.source_if_match().is_some() && !capability.copy_with_source_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_if_match",
+            ));
+        }
+        if args.source_if_none_match().is_some() && !capability.copy_with_source_if_none_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_if_none_match",
+            ));
+        }
+        if args.source_if_modified_since().is_some()
+            && !capability.copy_with_source_if_modified_since
+        {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_if_modified_since",
+            ));
+        }
+        if args.source_if_unmodified_since().is_some()
+            && !capability.copy_with_source_if_unmodified_since
+        {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "source_if_unmodified_since",
+            ));
+        }
         if args.source_version().is_some() && !capability.copy_with_source_version {
             return Err(new_unsupported_error(
                 &self.info,

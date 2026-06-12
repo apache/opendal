@@ -1446,6 +1446,42 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object currently has the given ETag.
+    ///
+    /// Refer to [`options::CopyOptions::source_if_match`] for more details.
+    pub fn source_if_match(mut self, etag: &str) -> Self {
+        self.args.0.source_if_match = Some(etag.to_string());
+        self
+    }
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object's ETag does not match the given value.
+    ///
+    /// Refer to [`options::CopyOptions::source_if_none_match`] for more details.
+    pub fn source_if_none_match(mut self, etag: &str) -> Self {
+        self.args.0.source_if_none_match = Some(etag.to_string());
+        self
+    }
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object has been modified after the given timestamp.
+    ///
+    /// Refer to [`options::CopyOptions::source_if_modified_since`] for more details.
+    pub fn source_if_modified_since(mut self, v: Timestamp) -> Self {
+        self.args.0.source_if_modified_since = Some(v);
+        self
+    }
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object has not been modified after the given timestamp.
+    ///
+    /// Refer to [`options::CopyOptions::source_if_unmodified_since`] for more details.
+    pub fn source_if_unmodified_since(mut self, v: Timestamp) -> Self {
+        self.args.0.source_if_unmodified_since = Some(v);
+        self
+    }
+
     /// Sets source version for this copy operation.
     ///
     /// Refer to [`options::CopyOptions::source_version`] for more details.

@@ -51,6 +51,10 @@ use opendal_core::*;
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
     pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
+    pub const X_AMZ_COPY_SOURCE_IF_MATCH: &str = "x-amz-copy-source-if-match";
+    pub const X_AMZ_COPY_SOURCE_IF_NONE_MATCH: &str = "x-amz-copy-source-if-none-match";
+    pub const X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE: &str = "x-amz-copy-source-if-modified-since";
+    pub const X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE: &str = "x-amz-copy-source-if-unmodified-since";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -685,6 +689,27 @@ impl S3Core {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
+        if let Some(source_if_match) = args.source_if_match() {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, source_if_match);
+        }
+        if let Some(source_if_none_match) = args.source_if_none_match() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_NONE_MATCH,
+                source_if_none_match,
+            );
+        }
+        if let Some(v) = args.source_if_modified_since() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
+        if let Some(v) = args.source_if_unmodified_since() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -1144,6 +1169,27 @@ impl S3Core {
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(source_if_match) = args.source_if_match() {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, source_if_match);
+        }
+        if let Some(source_if_none_match) = args.source_if_none_match() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_NONE_MATCH,
+                source_if_none_match,
+            );
+        }
+        if let Some(v) = args.source_if_modified_since() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
+        if let Some(v) = args.source_if_unmodified_since() {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE,
+                v.format_http_date(),
+            );
         }
 
         // Set request payer header if enabled.

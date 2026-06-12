@@ -984,6 +984,10 @@ impl Builder for S3Builder {
                             copy_can_multi: true,
                             copy_with_if_not_exists: true,
                             copy_with_if_match: true,
+                            copy_with_source_if_match: true,
+                            copy_with_source_if_none_match: true,
+                            copy_with_source_if_modified_since: true,
+                            copy_with_source_if_unmodified_since: true,
                             copy_with_source_version: true,
                             // The min multipart size of S3 is 5 MiB.
                             //

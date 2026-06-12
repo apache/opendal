@@ -18,41 +18,45 @@
 name: Service Test Ghac
 
 on:
-  workflow_call:
-    inputs:
-      opendal_repository:
-        description: "OpenDAL repository to checkout"
-        required: true
-        type: string
-      opendal_ref:
-        description: "OpenDAL ref to test"
-        required: true
-        type: string
-      correlation_id:
-        description: "Identifier used by OpenDAL CI to find this run"
-        required: true
-        type: string
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "core/layers/**"
+      - "core/testkit/**"
+      - "core/tests/**"
+      - "!core/core/src/docs/**"
+      - "core/services/azblob/**"
+      - "core/services/azure-common/**"
+      - "core/services/ghac/**"
+      - ".github/workflows/service_test_ghac.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   ghac_v2:
-    name: ghac v2
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     permissions:
       actions: write
-      contents: read
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ inputs.opendal_repository }}
-          ref: ${{ inputs.opendal_ref }}
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-nextest: true
 
       - name: Configure Cache Env
-        uses: actions/github-script@v9
+        uses: actions/github-script@v8
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');

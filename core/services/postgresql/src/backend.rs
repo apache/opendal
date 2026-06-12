@@ -157,7 +157,7 @@ impl PostgresqlBackend {
         info.set_scheme(POSTGRESQL_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

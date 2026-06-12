@@ -121,7 +121,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
@@ -154,7 +154,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
@@ -185,7 +185,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
@@ -216,7 +216,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
-            info.set_native_capability(self.capability);
+            info.set_service_capability(self.capability);
 
             info.into()
         }

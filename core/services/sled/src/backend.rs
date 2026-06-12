@@ -115,7 +115,7 @@ impl SledBackend {
         info.set_scheme(SLED_SCHEME)
             .set_name(&core.datadir)
             .set_root("/")
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 read: true,
                 stat: true,
                 write: true,

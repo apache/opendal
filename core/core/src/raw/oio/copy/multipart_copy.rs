@@ -189,7 +189,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
     ///
     /// This is called before `initiate_copy` so we fail a copy operation before we make any IO.
     fn validate_part_count(&self, source_size: u64) -> Result<()> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         let (Some(max_total_size), Some(max_part_size)) = (
             capability.write_total_max_size,
             capability.write_multi_max_size,
@@ -439,7 +439,7 @@ mod tests {
     #[tokio::test]
     async fn test_validate_part_count_rejects_before_initiate() -> Result<()> {
         let info = Arc::new(AccessorInfo::default());
-        info.update_full_capability(|cap| Capability {
+        info.update_capability(|cap| Capability {
             write_total_max_size: Some(2),
             write_multi_max_size: Some(1),
             ..cap

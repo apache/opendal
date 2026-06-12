@@ -25,13 +25,13 @@ use serde_json::Value;
 use crate::raw::*;
 use crate::*;
 
-/// Layer for overriding an accessor's full capability.
+/// Layer for overriding an accessor's effective capability.
 ///
 /// This layer updates [`Capability`] exposed by
-/// [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability]
-/// without changing the accessor's native capability. It is useful when the
-/// backend implementation supports a capability, but the specific endpoint or
-/// test setup needs to disable or tune it.
+/// [`OperatorInfo::capability`][crate::OperatorInfo::capability] without
+/// changing the accessor's service capability. It is useful when the service
+/// implementation supports a capability, but the specific endpoint or test
+/// setup needs to disable or tune it.
 ///
 /// # Examples
 ///
@@ -92,7 +92,7 @@ impl<A: Access> Layer<A> for CapabilityOverrideLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
         let apply = self.apply.clone();
-        info.update_full_capability(|cap| apply(cap));
+        info.update_capability(|cap| apply(cap));
         inner
     }
 }
@@ -192,7 +192,7 @@ mod tests {
     use crate::services;
 
     #[test]
-    fn capability_override_updates_full_capability_only() -> Result<()> {
+    fn capability_override_updates_capability_only() -> Result<()> {
         let op = Operator::new(services::Memory::default())?
             .layer(CapabilityOverrideLayer::new(|mut cap| {
                 cap.read = false;
@@ -200,14 +200,15 @@ mod tests {
                 cap
             }))
             .finish();
+        let info = op.inner().info();
 
-        assert!(!op.info().full_capability().read);
-        assert_eq!(op.info().full_capability().delete_max_size, Some(7));
+        assert!(!op.info().capability().read);
+        assert_eq!(op.info().capability().delete_max_size, Some(7));
 
-        assert!(op.info().native_capability().read);
+        assert!(info.service_capability().read);
         assert_ne!(
-            op.info().native_capability().delete_max_size,
-            op.info().full_capability().delete_max_size
+            info.service_capability().delete_max_size,
+            op.info().capability().delete_max_size
         );
 
         Ok(())
@@ -222,9 +223,9 @@ mod tests {
             .layer(layer)
             .finish();
 
-        assert!(!op.info().full_capability().read);
-        assert!(op.info().full_capability().write_can_append);
-        assert_eq!(op.info().full_capability().delete_max_size, Some(7));
+        assert!(!op.info().capability().read);
+        assert!(op.info().capability().write_can_append);
+        assert_eq!(op.info().capability().delete_max_size, Some(7));
 
         Ok(())
     }
@@ -237,9 +238,9 @@ mod tests {
             .layer(layer)
             .finish();
 
-        assert!(!op.info().full_capability().read);
-        assert!(op.info().full_capability().write);
-        assert_eq!(op.info().full_capability().delete_max_size, None);
+        assert!(!op.info().capability().read);
+        assert!(op.info().capability().write);
+        assert_eq!(op.info().capability().delete_max_size, None);
 
         Ok(())
     }

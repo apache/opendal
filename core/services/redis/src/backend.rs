@@ -283,7 +283,7 @@ impl RedisBackend {
         info.set_scheme(REDIS_SCHEME);
         info.set_name(core.addr());
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             write: true,
             delete: true,

@@ -27,7 +27,7 @@ use tokio::time::sleep;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write {
         tests.extend(async_trials!(
@@ -438,7 +438,7 @@ pub async fn test_read_not_exist(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -468,7 +468,7 @@ pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -497,7 +497,7 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -530,7 +530,7 @@ pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> 
 
 /// Reader with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
+    if !op.info().capability().read_with_if_modified_since {
         return Ok(());
     }
 
@@ -559,7 +559,7 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
 
 /// Reader with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
+    if !op.info().capability().read_with_if_unmodified_since {
         return Ok(());
     }
 
@@ -588,7 +588,7 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -620,7 +620,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with dir path should return an error.
 pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
 
@@ -653,8 +653,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with override-cache-control should succeed.
 pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_cache_control
-        && op.info().full_capability().presign)
+    if !(op.info().capability().read_with_override_cache_control && op.info().capability().presign)
     {
         return Ok(());
     }
@@ -700,9 +699,9 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Resu
 pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow::Result<()> {
     if !(op
         .info()
-        .full_capability()
+        .capability()
         .read_with_override_content_disposition
-        && op.info().full_capability().presign)
+        && op.info().capability().presign)
     {
         return Ok(());
     }
@@ -748,9 +747,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow
 
 /// Read file with override_content_type should succeed.
 pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_content_type
-        && op.info().full_capability().presign)
-    {
+    if !(op.info().capability().read_with_override_content_type && op.info().capability().presign) {
         return Ok(());
     }
 
@@ -795,7 +792,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
 
 /// Read with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
+    if !op.info().capability().read_with_if_modified_since {
         return Ok(());
     }
 
@@ -826,7 +823,7 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
 
 /// Read with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
+    if !op.info().capability().read_with_if_unmodified_since {
         return Ok(());
     }
 
@@ -942,7 +939,7 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -974,7 +971,7 @@ pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -1004,7 +1001,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -1036,7 +1033,7 @@ pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::R
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -1068,7 +1065,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 }
 
 pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
+    if !op.info().capability().read_with_version {
         return Ok(());
     }
 
@@ -1102,7 +1099,7 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
 }
 
 pub async fn test_read_with_not_existing_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
+    if !op.info().capability().read_with_version {
         return Ok(());
     }
 

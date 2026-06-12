@@ -131,7 +131,7 @@ impl PersyBackend {
         info.set_scheme(PERSY_SCHEME);
         info.set_name(&core.datafile);
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

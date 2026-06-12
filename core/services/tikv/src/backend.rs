@@ -125,7 +125,7 @@ impl TikvBackend {
         info.set_scheme(TIKV_SCHEME);
         info.set_name("TiKV");
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

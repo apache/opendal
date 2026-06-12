@@ -158,7 +158,7 @@ impl Builder for GhacBuilder {
                 am.set_scheme(GHAC_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
-                    .set_native_capability(Capability {
+                    .set_service_capability(Capability {
                         stat: true,
 
                         read: true,

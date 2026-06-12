@@ -68,7 +68,7 @@ impl MemoryBackend {
         info.set_scheme(MEMORY_SCHEME);
         info.set_name(&format!("{:p}", Arc::as_ptr(&core.data)));
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             read_with_suffix: true,
             write: true,

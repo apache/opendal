@@ -163,7 +163,7 @@ impl MysqlBackend {
         info.set_scheme(MYSQL_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             list: true,
             list_with_recursive: true,

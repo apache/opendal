@@ -167,7 +167,7 @@ impl Builder for SftpBuilder {
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
             .set_scheme(SFTP_SCHEME)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
 
                 read: true,

@@ -26,6 +26,27 @@ Out-of-tree raw services and layers that implement copy must migrate to the new 
 
 HTTP metrics emitted by the metrics layers now include a `service_operation` label for backend-specific request names such as `GetObject` or `UploadPart`. Metrics consumers and dashboards that assume the previous HTTP metric label set must be updated.
 
+### Capability APIs renamed
+
+`OperatorInfo::capability()` now returns the effective capability of the current operator. Use it to decide whether an operation or option is available.
+
+```diff
+- let cap = op.info().full_capability();
++ let cap = op.info().capability();
+```
+
+`full_capability()` remains as a deprecated compatibility alias. `native_capability()` is also deprecated for user-facing availability checks.
+
+Raw service and layer implementations should use the new service/effective capability names:
+
+```diff
+- info.set_native_capability(cap);
++ info.set_service_capability(cap);
+
+- info.update_full_capability(|cap| cap);
++ info.update_capability(|cap| cap);
+```
+
 ## Raw API
 
 ### `RpRead` carries optional `Metadata`
@@ -169,8 +190,8 @@ op.write_options("path/to/file", data, options).await?;
 All `stat_has_*` and `list_has_*` capability check APIs have been removed. Instead, check capabilities directly on the `Capability` struct:
 
 ```diff
-- if op.info().full_capability().stat_has_content_length() {
-+ if op.info().full_capability().stat.content_length {
+- if op.info().capability().stat_has_content_length() {
++ if op.info().capability().stat.content_length {
     // ...
 }
 ```

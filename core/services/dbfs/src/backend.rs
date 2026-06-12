@@ -134,7 +134,7 @@ impl Access for DbfsBackend {
         let am = AccessorInfo::default();
         am.set_scheme(DBFS_SCHEME)
             .set_root(&self.core.root)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
 
                 write: true,

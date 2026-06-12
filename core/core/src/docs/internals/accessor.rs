@@ -92,13 +92,13 @@
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_native_capability`:
+//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_service_capability`:
 //!
 //! ```ignore
 //! impl Access for MyBackend {
 //!     fn info(&self) -> Arc<AccessorInfo> {
 //!         let am = AccessorInfo::default();
-//!         am.set_native_capability(
+//!         am.set_service_capability(
 //!             Capability {
 //!                 read: true,
 //!                 write: true,
@@ -274,7 +274,7 @@
 //!         let am = AccessorInfo::default();
 //!         am.set_scheme(DUCK_SCHEME)
 //!             .set_root(&self.root)
-//!             .set_native_capability(
+//!             .set_service_capability(
 //!                 Capability {
 //!                     read: true,
 //!                     ..Default::default()

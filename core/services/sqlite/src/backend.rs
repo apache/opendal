@@ -181,7 +181,7 @@ impl SqliteBackend {
         info.set_scheme(SQLITE_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             write: true,
             create_dir: true,
@@ -387,10 +387,10 @@ mod test {
         // Verify basic properties
         assert_eq!(accessor.root, "/");
         assert_eq!(accessor.info.scheme(), SQLITE_SCHEME);
-        assert!(accessor.info.native_capability().read);
-        assert!(accessor.info.native_capability().write);
-        assert!(accessor.info.native_capability().delete);
-        assert!(accessor.info.native_capability().stat);
+        assert!(accessor.info.service_capability().read);
+        assert!(accessor.info.service_capability().write);
+        assert!(accessor.info.service_capability().delete);
+        assert!(accessor.info.service_capability().stat);
     }
 
     #[tokio::test]

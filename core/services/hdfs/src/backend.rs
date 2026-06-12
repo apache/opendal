@@ -160,7 +160,7 @@ impl Builder for HdfsBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(HDFS_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             read: true,

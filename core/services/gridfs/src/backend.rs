@@ -162,7 +162,7 @@ impl GridfsBackend {
         info.set_scheme(GRIDFS_SCHEME);
         info.set_name(&format!("{}/{}", core.database, core.bucket));
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

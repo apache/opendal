@@ -57,7 +57,7 @@ impl Builder for CacacheBuilder {
         info.set_scheme(CACACHE_SCHEME);
         info.set_name(&datadir_path);
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             write: true,
             delete: true,

@@ -198,7 +198,7 @@ impl Builder for WebdavBuilder {
                 let am = AccessorInfo::default();
                 am.set_scheme(WEBDAV_SCHEME)
                     .set_root(&root)
-                    .set_native_capability(Capability {
+                    .set_service_capability(Capability {
                         stat: true,
 
                         read: true,

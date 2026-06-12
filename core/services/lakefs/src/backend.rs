@@ -157,7 +157,7 @@ impl Builder for LakefsBuilder {
                 info: {
                     let am = AccessorInfo::default();
                     am.set_scheme(LAKEFS_SCHEME)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             list: true,

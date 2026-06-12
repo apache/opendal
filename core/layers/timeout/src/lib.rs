@@ -433,7 +433,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
-            am.set_native_capability(Capability {
+            am.set_service_capability(Capability {
                 read: true,
                 delete: true,
                 ..Default::default()

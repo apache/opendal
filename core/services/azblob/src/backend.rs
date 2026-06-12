@@ -398,7 +398,7 @@ impl Builder for AzblobBuilder {
                     info.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
@@ -566,7 +566,7 @@ impl Access for AzblobBackend {
             RpDelete::default(),
             oio::BatchDeleter::new(
                 AzblobDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
+                self.core.info.capability().delete_max_size,
             ),
         ))
     }

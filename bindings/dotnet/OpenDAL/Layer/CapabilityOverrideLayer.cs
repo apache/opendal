@@ -22,7 +22,7 @@ using OpenDAL.Layer.Abstractions;
 namespace OpenDAL.Layer;
 
 /// <summary>
-/// Layer that overrides the full capability exposed by an operator.
+/// Layer that overrides the effective capability exposed by an operator.
 /// </summary>
 public sealed class CapabilityOverrideLayer : ILayer
 {

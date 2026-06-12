@@ -384,7 +384,7 @@ impl Debug for OpendalStore {
             .field("scheme", &self.info.scheme())
             .field("name", &self.info.name())
             .field("root", &self.info.root())
-            .field("capability", &self.info.full_capability())
+            .field("capability", &self.info.capability())
             .finish()
     }
 }
@@ -634,7 +634,7 @@ impl ObjectStore for OpendalStore {
         let this = self.clone();
 
         let fut = async move {
-            let list_with_start_after = this.inner.info().full_capability().list_with_start_after;
+            let list_with_start_after = this.inner.info().capability().list_with_start_after;
             let mut fut = this.inner.lister_with(&path).recursive(true);
 
             // Use native start_after support if possible.

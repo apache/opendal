@@ -221,7 +221,7 @@ impl Builder for HfBuilder {
 
         let info: Arc<AccessorInfo> = {
             let am = AccessorInfo::default();
-            am.set_scheme(HF_SCHEME).set_native_capability(Capability {
+            am.set_scheme(HF_SCHEME).set_service_capability(Capability {
                 stat: true,
                 read: true,
                 write: token.is_some(),
@@ -325,7 +325,7 @@ impl Access for HfBackend {
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let deleter = HfDeleter::new(self.core.clone());
-        let max_batch_size = self.core.info.full_capability().delete_max_size;
+        let max_batch_size = self.core.info.capability().delete_max_size;
         Ok((
             RpDelete::default(),
             oio::BatchDeleter::new(deleter, max_batch_size),
@@ -378,7 +378,7 @@ pub(super) mod test_utils {
         let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
 
         let info = AccessorInfo::default();
-        info.set_scheme("hf").set_native_capability(Capability {
+        info.set_scheme("hf").set_service_capability(Capability {
             read: true,
             write: true,
             delete: true,

@@ -89,7 +89,7 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 		assertOperatorInfoPointer(t, infoInner, aValues...)
 		*(**byte)(rValue) = namePtr
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetFullCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
 		if info != infoInner {
 			t.Fatalf("Info() requested full capability for unexpected operator info: %p", info)
 		}
@@ -117,8 +117,8 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 	if info.GetName() != "namespace" {
 		t.Fatalf("Info().GetName() = %q, want namespace", info.GetName())
 	}
-	if !info.GetFullCapability().Stat() {
-		t.Fatal("Info().GetFullCapability().Stat() = false, want true")
+	if !info.GetCapability().Stat() {
+		t.Fatal("Info().GetCapability().Stat() = false, want true")
 	}
 	if !info.GetNativeCapability().List() {
 		t.Fatal("Info().GetNativeCapability().List() = false, want true")

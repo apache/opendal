@@ -29,7 +29,7 @@ use futures::stream;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write && cap.stat {
         tests.extend(async_trials!(
@@ -85,7 +85,7 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
 
 /// Write a file with empty content.
 pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_can_empty {
+    if !op.info().capability().write_can_empty {
         return Ok(());
     }
 
@@ -132,12 +132,12 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
 
 /// Write a single file with cache control should succeed.
 pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_cache_control {
+    if !op.info().capability().write_with_cache_control {
         return Ok(());
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
 
     let target_cache_control = "no-cache, no-store, max-age=300";
     op.write_with(&path, content)
@@ -158,7 +158,7 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
 
 /// Write a single file with content type should succeed.
 pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_content_type {
+    if !op.info().capability().write_with_content_type {
         return Ok(());
     }
 
@@ -182,7 +182,7 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
 
 /// Write a single file with content disposition should succeed.
 pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_content_disposition {
+    if !op.info().capability().write_with_content_disposition {
         return Ok(());
     }
 
@@ -206,7 +206,7 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
 
 /// Write a single file with content encoding should succeed.
 pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_content_encoding {
+    if !op.info().capability().write_with_content_encoding {
         return Ok(());
     }
 
@@ -228,7 +228,7 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
 
 /// write a single file with user defined metadata should succeed.
 pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_user_metadata {
+    if !op.info().capability().write_with_user_metadata {
         return Ok(());
     }
 
@@ -316,7 +316,7 @@ pub async fn test_writer_abort_with_concurrent(op: Operator) -> Result<()> {
 
 /// Append data into writer
 pub async fn test_writer_write(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_can_multi) {
+    if !(op.info().capability().write_can_multi) {
         return Ok(());
     }
 
@@ -351,7 +351,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 
 /// Append data into writer
 pub async fn test_writer_write_with_concurrent(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_can_multi) {
+    if !(op.info().capability().write_can_multi) {
         return Ok(());
     }
 
@@ -393,7 +393,7 @@ pub async fn test_writer_write_with_concurrent(op: Operator) -> Result<()> {
 
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
@@ -437,7 +437,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 
 /// Streaming data into writer
 pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
@@ -482,7 +482,7 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
 
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_can_multi) {
+    if !(op.info().capability().write_can_multi) {
         return Ok(());
     }
 
@@ -517,7 +517,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_can_multi) {
+    if !(op.info().capability().write_can_multi) {
         return Ok(());
     }
 
@@ -552,7 +552,7 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
 }
 
 pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     if !cap.write_can_multi {
         return Ok(());
     }
@@ -577,8 +577,8 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
 /// Test append to a file must success.
 pub async fn test_write_with_append(op: Operator) -> Result<()> {
     let path = TEST_FIXTURE.new_file_path();
-    let (content_one, size_one) = gen_bytes(op.info().full_capability());
-    let (content_two, size_two) = gen_bytes(op.info().full_capability());
+    let (content_one, size_one) = gen_bytes(op.info().capability());
+    let (content_two, size_two) = gen_bytes(op.info().capability());
 
     op.write_with(&path, content_one.clone())
         .append(true)
@@ -607,7 +607,7 @@ pub async fn test_write_with_append(op: Operator) -> Result<()> {
 }
 
 pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     let path = TEST_FIXTURE.new_file_path();
     let (content_one, _) = gen_bytes(cap);
@@ -695,8 +695,8 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    let (content_one, _) = gen_bytes(op.info().full_capability());
-    let (content_two, _) = gen_bytes(op.info().full_capability());
+    let (content_one, _) = gen_bytes(op.info().capability());
+    let (content_two, _) = gen_bytes(op.info().capability());
 
     op.write(&path, content_one.clone()).await?;
     let bs = op.read(&path).await?.to_bytes();
@@ -726,7 +726,7 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
 
 /// Write an exists file with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_if_none_match {
+    if !op.info().capability().write_with_if_none_match {
         return Ok(());
     }
 
@@ -750,7 +750,7 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
 
 /// Write a file with if_not_exists will get a ConditionNotMatch error if file exists.
 pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_if_not_exists {
+    if !op.info().capability().write_with_if_not_exists {
         return Ok(());
     }
 
@@ -774,7 +774,7 @@ pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
 
 /// Write a file with if_match will get a ConditionNotMatch error if file's etag does not match.
 pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_if_match {
+    if !op.info().capability().write_with_if_match {
         return Ok(());
     }
 

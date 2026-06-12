@@ -119,7 +119,7 @@ impl Builder for OnedriveBuilder {
         let info = AccessorInfo::default();
         info.set_scheme(ONEDRIVE_SCHEME)
             .set_root(&root)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 read: true,
                 read_with_suffix: true,
                 read_with_if_none_match: true,

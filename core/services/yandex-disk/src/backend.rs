@@ -99,7 +99,7 @@ impl Builder for YandexDiskBuilder {
                     let am = AccessorInfo::default();
                     am.set_scheme(YANDEX_DISK_SCHEME)
                         .set_root(&root)
-                        .set_native_capability(Capability {
+                        .set_service_capability(Capability {
                             stat: true,
 
                             create_dir: true,

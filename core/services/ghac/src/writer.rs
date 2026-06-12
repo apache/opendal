@@ -81,7 +81,7 @@ impl GhacWriter {
                         am.set_scheme("azblob")
                             .set_root("/")
                             .set_name(container)
-                            .set_native_capability(Capability {
+                            .set_service_capability(Capability {
                                 stat: true,
                                 stat_with_if_match: true,
                                 stat_with_if_none_match: true,

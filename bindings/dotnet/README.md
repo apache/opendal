@@ -235,10 +235,10 @@ catch (OpenDALException ex) when (ex.Code == ErrorCode.NotFound)
 }
 ```
 
-Some features depend on backend capability. Check `op.Info.FullCapability` before using optional options/features:
+Some features depend on backend capability. Check `op.Info.Capability` before using optional options/features:
 
 ```csharp
-var cap = op.Info.FullCapability;
+var cap = op.Info.Capability;
 if (cap.PresignRead)
 {
 	var req = await op.PresignReadAsync("a.txt", TimeSpan.FromMinutes(5));

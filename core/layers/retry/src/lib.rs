@@ -1045,7 +1045,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
-            am.set_scheme("mock").set_native_capability(Capability {
+            am.set_scheme("mock").set_service_capability(Capability {
                 read: true,
                 write: true,
                 write_can_multi: true,

@@ -73,7 +73,7 @@ impl WriteContext {
     ///
     /// Returns the chunk size and if the chunk size is exact.
     fn calculate_chunk_size(&self) -> (Option<usize>, bool) {
-        let cap = self.accessor().info().full_capability();
+        let cap = self.accessor().info().capability();
 
         let exact = self.options().chunk().is_some();
         let chunk_size = self

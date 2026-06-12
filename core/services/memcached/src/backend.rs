@@ -191,7 +191,7 @@ impl MemcachedBackend {
         info.set_scheme(MEMCACHED_SCHEME);
         info.set_name("memcached");
         info.set_root("/");
-        info.set_native_capability(Capability {
+        info.set_service_capability(Capability {
             read: true,
             stat: true,
             write: true,

@@ -175,7 +175,7 @@ impl Builder for TosBuilder {
             am.set_scheme(TOS_SCHEME)
                 .set_root(&root)
                 .set_name(&bucket)
-                .set_native_capability(Capability {
+                .set_service_capability(Capability {
                     stat_with_version: true,
 
                     read: true,
@@ -376,7 +376,7 @@ impl Access for TosBackend {
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let info = self.core.info.clone();
-        let capability = info.full_capability();
+        let capability = info.capability();
         let deleter = TosDeleter::new(self.core.clone());
         Ok((
             RpDelete::default(),

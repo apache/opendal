@@ -31,16 +31,17 @@ use serde::Serialize;
 /// - Advanced operation variants (conditional operations, metadata handling)
 /// - Operational constraints (size limits, batch limitations)
 ///
-/// # Capability Types
+/// # Capability Sources
 ///
-/// Every operator maintains two capability sets:
+/// Every accessor maintains two capability sets internally:
 ///
-/// 1. [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability]:
-///    Represents operations natively supported by the storage backend.
+/// 1. [`OperatorInfo::capability`][crate::OperatorInfo::capability]:
+///    Represents all available operations on the current operator, including
+///    those implemented through layers or alternative mechanisms.
 ///
-/// 2. [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability]:
-///    Represents all available operations, including those implemented through
-///    alternative mechanisms.
+/// 2. `AccessorInfo::service_capability`:
+///    Represents operations declared by the service implementation. This is used
+///    by service and layer internals and is not the user-facing availability check.
 ///
 /// # Implementation Details
 ///
@@ -50,8 +51,10 @@ use serde::Serialize;
 /// - Blocking operations are provided through the BlockingLayer
 ///
 /// Developers should:
-/// - Use `full_capability` to determine available operations
-/// - Use `native_capability` to identify optimized operations
+/// - Use [`OperatorInfo::capability`][crate::OperatorInfo::capability] to
+///   determine available operations.
+/// - Use service capability only inside service and layer implementations that
+///   need the service-declared baseline.
 ///
 /// # Field Naming Conventions
 ///

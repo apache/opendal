@@ -2150,6 +2150,11 @@ char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 
 /**
+ * \brief Return the operator's capability
+ */
+struct opendal_capability opendal_operator_info_get_capability(const struct opendal_operator_info *self);
+
+/**
  * \brief Return the operator's full capability
  */
 struct opendal_capability opendal_operator_info_get_full_capability(const struct opendal_operator_info *self);

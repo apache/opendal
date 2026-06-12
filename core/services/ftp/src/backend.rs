@@ -146,7 +146,7 @@ impl Builder for FtpBuilder {
         accessor_info
             .set_scheme(FTP_SCHEME)
             .set_root(&root)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
 
                 read: true,

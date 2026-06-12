@@ -92,7 +92,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if !capability.read_with_version && args.version().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
@@ -133,7 +133,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if args.append() && !capability.write_can_append {
             return Err(new_unsupported_error(
                 &self.info,
@@ -171,7 +171,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if !capability.stat_with_version && args.version().is_some() {
             return Err(new_unsupported_error(
                 self.info.as_ref(),
@@ -225,7 +225,7 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let capability = self.info.full_capability();
+        let capability = self.info.capability();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
             return Err(new_unsupported_error(
                 &self.info,
@@ -267,7 +267,7 @@ impl<T> CheckWrapper<T> {
     }
 
     fn check_delete(&self, args: &OpDelete) -> Result<()> {
-        if args.version().is_some() && !self.info.full_capability().delete_with_version {
+        if args.version().is_some() && !self.info.capability().delete_with_version {
             return Err(new_unsupported_error(
                 &self.info,
                 Operation::Delete,
@@ -275,7 +275,7 @@ impl<T> CheckWrapper<T> {
             ));
         }
 
-        if args.recursive() && !self.info.full_capability().delete_with_recursive {
+        if args.recursive() && !self.info.capability().delete_with_recursive {
             return Err(new_unsupported_error(
                 &self.info,
                 Operation::Delete,
@@ -322,7 +322,7 @@ mod tests {
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
             info.set_scheme("memory");
-            info.set_native_capability(self.capability);
+            info.set_service_capability(self.capability);
 
             info.into()
         }

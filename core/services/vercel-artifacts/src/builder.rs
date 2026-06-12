@@ -86,7 +86,7 @@ impl Builder for VercelArtifactsBuilder {
     fn build(self) -> Result<impl Access> {
         let info = AccessorInfo::default();
         info.set_scheme(VERCEL_ARTIFACTS_SCHEME)
-            .set_native_capability(Capability {
+            .set_service_capability(Capability {
                 stat: true,
 
                 read: true,

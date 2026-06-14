@@ -193,6 +193,13 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
                 "version",
             ));
         }
+        if !capability.list_with_glob && args.glob().is_some() {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::List,
+                "glob",
+            ));
+        }
 
         self.inner.list(path, args).await
     }
@@ -290,6 +297,25 @@ mod tests {
             ..Default::default()
         });
         let res = op.lister_with("path/").versions(true).await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_list_with_glob() {
+        let op = new_test_operator(Capability {
+            list: true,
+            ..Default::default()
+        });
+        let res = op.list_with("path/").glob("*.jpg").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            list: true,
+            list_with_glob: true,
+            ..Default::default()
+        });
+        let res = op.lister_with("path/").glob("*.jpg").await;
         assert!(res.is_ok())
     }
 }

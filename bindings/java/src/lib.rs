@@ -247,6 +247,7 @@ fn make_list_options<'a>(
         recursive: convert::read_bool_field(env, options, "recursive").unwrap_or_default(),
         versions: convert::read_bool_field(env, options, "versions").unwrap_or_default(),
         deleted: convert::read_bool_field(env, options, "deleted").unwrap_or_default(),
+        ..Default::default()
     })
 }
 

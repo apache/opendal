@@ -110,6 +110,7 @@ updates:
       include:
         - "*"
 
+  # Java binding
   - package-ecosystem: "cargo"
     directory: "/bindings/java"
     open-pull-requests-limit: 1
@@ -120,6 +121,7 @@ updates:
       include:
         - "*"
 
+  # Node.js binding
   - package-ecosystem: "cargo"
     directory: "/bindings/nodejs"
     open-pull-requests-limit: 1
@@ -138,7 +140,7 @@ updates:
       include:
         - "*"
 
-  # Python bindings
+  # Python binding
   - package-ecosystem: "cargo"
     directory: "/bindings/python"
     open-pull-requests-limit: 3
@@ -160,7 +162,7 @@ updates:
         patterns:
           - "*"
 
-  # Go bindings
+  # Go binding
   - package-ecosystem: "gomod"
     directory: "/bindings/go"
     open-pull-requests-limit: 1
@@ -175,7 +177,7 @@ updates:
       include:
         - "*"
 
-  # Go bindings behavior tests
+  # Go binding behavior tests
   - package-ecosystem: "gomod"
     directory: "/bindings/go/tests/behavior_tests"
     open-pull-requests-limit: 1

@@ -87,6 +87,14 @@ updates:
           - "rand"
           - "getrandom"
 
+  # Cargo dependencies - bindings, example, tests
+  - package-ecosystem: "cargo"
+    directories: "**/*"
+    open-pull-requests-limit: 5
+    cooldown:
+      semver-patch-days: 120
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
@@ -138,8 +146,19 @@ updates:
       include:
         - "*"
 
+  # PHP binding
+  - package-ecosystem: "composer"
+    directory: "/bindings/php"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "quarterly"
+    cooldown:
+      semver-patch-days: 120
+      include:
+        - "*"
+
   # Python binding
-  - package-ecosystem: "cargo"
+  - package-ecosystem: "uv"
     directory: "/bindings/python"
     open-pull-requests-limit: 3
     schedule:
@@ -159,6 +178,28 @@ updates:
       others:
         patterns:
           - "*"
+    cooldown:
+      semver-patch-days: 120
+      include:
+        - "*"
+
+  # Ruby binding
+  - package-ecosystem: "bundler"
+    directory: "/bindings/ruby"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "quarterly"
+    cooldown:
+      semver-patch-days: 120
+      include:
+        - "*"
+
+  # Swift binding
+  - package-ecosystem: "swift"
+    directory: "/bindings/swift"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "quarterly"
     cooldown:
       semver-patch-days: 120
       include:

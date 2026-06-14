@@ -180,10 +180,18 @@ impl<A: Access> SimulateAccessor<A> {
             cap.list_with_recursive,
             self.config.list_recursive,
         ) {
-            // Backend supports recursive list, forward directly.
+            // Match the non-recursive arm: for a non-trailing-slash path, list
+            // the parent and prefix-filter so prefix-siblings aren't dropped.
             (_, true, _) => {
-                let (rp, p) = self.inner.list(path, forward).await?;
-                (rp, SimulateLister::One(p))
+                if path.ends_with('/') {
+                    let (rp, p) = self.inner.list(path, forward).await?;
+                    (rp, SimulateLister::One(p))
+                } else {
+                    let parent = get_parent(path);
+                    let (rp, p) = self.inner.list(parent, forward).await?;
+                    let p = PrefixLister::new(p, path);
+                    (rp, SimulateLister::Three(p))
+                }
             }
             // Simulate recursive via flat list when enabled.
             (true, false, true) => {
@@ -350,5 +358,134 @@ impl<A: Access, D: oio::Delete> oio::Delete for SimulateDeleter<A, D> {
 
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         self.deleter.close()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Capability;
+    use crate::EntryMode;
+    use crate::Metadata;
+
+    /// Native-recursive backend with WebDAV `Depth: infinity` semantics: a file
+    /// path lists only that file and its subtree, not prefix-siblings.
+    #[derive(Debug)]
+    struct NativeRecursiveService {
+        entries: Vec<String>,
+    }
+
+    impl Access for NativeRecursiveService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let info = AccessorInfo::default();
+            info.set_scheme("memory");
+            info.set_native_capability(Capability {
+                list: true,
+                list_with_recursive: true,
+                ..Default::default()
+            });
+            info.into()
+        }
+
+        async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+            let matched: Vec<oio::Entry> = self
+                .entries
+                .iter()
+                .filter(|key| {
+                    if path.is_empty() || path.ends_with('/') {
+                        key.starts_with(path)
+                    } else {
+                        *key == path || key.starts_with(&format!("{path}/"))
+                    }
+                })
+                .map(|key| {
+                    let mode = if key.ends_with('/') {
+                        EntryMode::DIR
+                    } else {
+                        EntryMode::FILE
+                    };
+                    oio::Entry::new(key, Metadata::new(mode).with_content_length(0))
+                })
+                .collect();
+            let lister: oio::Lister = Box::new(MockLister {
+                entries: matched.into_iter(),
+            });
+            Ok((RpList::default(), lister))
+        }
+    }
+
+    struct MockLister {
+        entries: std::vec::IntoIter<oio::Entry>,
+    }
+
+    impl oio::List for MockLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            Ok(self.entries.next())
+        }
+    }
+
+    async fn collect(acc: &SimulateAccessor<NativeRecursiveService>, path: &str) -> Vec<String> {
+        let (_, mut lister) = acc
+            .simulate_list(path, OpList::new().with_recursive(true))
+            .await
+            .expect("list must succeed");
+
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.expect("next must succeed") {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort();
+        paths
+    }
+
+    /// Recursively listing `dir/file` (no trailing slash) must keep its
+    /// prefix-sibling `dir/file2`, not just the file itself.
+    #[tokio::test]
+    async fn test_native_recursive_list_no_trailing_slash_keeps_prefix_siblings() {
+        let srv = NativeRecursiveService {
+            entries: vec![
+                "dir/file".to_string(),
+                "dir/file2".to_string(),
+                "dir/other".to_string(),
+            ],
+        };
+        let acc = SimulateLayer::default().layer(srv);
+
+        let paths = collect(&acc, "dir/file").await;
+        assert_eq!(paths, vec!["dir/file".to_string(), "dir/file2".to_string()]);
+    }
+
+    /// Listing a path that already ends with a slash must keep forwarding the
+    /// request straight to the backend's native recursive walk.
+    #[tokio::test]
+    async fn test_native_recursive_list_trailing_slash_forwards_directly() {
+        let srv = NativeRecursiveService {
+            entries: vec![
+                "dir/".to_string(),
+                "dir/file".to_string(),
+                "dir/file2".to_string(),
+                "dir/sub/".to_string(),
+                "dir/sub/leaf".to_string(),
+            ],
+        };
+        let acc = SimulateLayer::default().layer(srv);
+
+        let paths = collect(&acc, "dir/").await;
+        assert_eq!(
+            paths,
+            vec![
+                "dir/".to_string(),
+                "dir/file".to_string(),
+                "dir/file2".to_string(),
+                "dir/sub/".to_string(),
+                "dir/sub/leaf".to_string(),
+            ]
+        );
     }
 }

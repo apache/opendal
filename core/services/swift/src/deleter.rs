@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct SwiftDeleter {
     core: Arc<SwiftCore>,
+    ctx: OperationContext,
 }
 
 impl SwiftDeleter {
-    pub fn new(core: Arc<SwiftCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<SwiftCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::BatchDelete for SwiftDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.swift_delete(&path).await?;
+        let resp = self.core.swift_delete(&self.ctx, &path).await?;
 
         let status = resp.status();
 
@@ -48,7 +49,7 @@ impl oio::BatchDelete for SwiftDeleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<oio::BatchDeleteResult> {
-        let resp = self.core.swift_bulk_delete(&batch).await?;
+        let resp = self.core.swift_bulk_delete(&self.ctx, &batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {

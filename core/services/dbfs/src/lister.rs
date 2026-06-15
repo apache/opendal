@@ -28,18 +28,19 @@ use opendal_core::*;
 
 pub struct DbfsLister {
     core: Arc<DbfsCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl DbfsLister {
-    pub fn new(core: Arc<DbfsCore>, path: String) -> Self {
-        Self { core, path }
+    pub fn new(core: Arc<DbfsCore>, ctx: OperationContext, path: String) -> Self {
+        Self { core, ctx, path }
     }
 }
 
 impl oio::PageList for DbfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let response = self.core.dbfs_list(&self.path).await?;
+        let response = self.core.dbfs_list(&self.ctx, &self.path).await?;
 
         let status_code = response.status();
         if !status_code.is_success() {

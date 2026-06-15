@@ -29,13 +29,24 @@ use opendal_core::*;
 
 pub struct AzfileLister {
     core: Arc<AzfileCore>,
+    ctx: OperationContext,
     path: String,
     limit: Option<usize>,
 }
 
 impl AzfileLister {
-    pub fn new(core: Arc<AzfileCore>, path: String, limit: Option<usize>) -> Self {
-        Self { core, path, limit }
+    pub fn new(
+        core: Arc<AzfileCore>,
+        ctx: OperationContext,
+        path: String,
+        limit: Option<usize>,
+    ) -> Self {
+        Self {
+            core,
+            ctx,
+            path,
+            limit,
+        }
     }
 }
 
@@ -43,7 +54,7 @@ impl oio::PageList for AzfileLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azfile_list(&self.path, &self.limit, &ctx.token)
+            .azfile_list(&self.ctx, &self.path, &self.limit, &ctx.token)
             .await?;
 
         let status = resp.status();

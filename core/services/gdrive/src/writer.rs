@@ -28,6 +28,7 @@ use opendal_core::*;
 
 pub struct GdriveWriter {
     core: Arc<GdriveCore>,
+    ctx: OperationContext,
 
     path: String,
 
@@ -35,9 +36,15 @@ pub struct GdriveWriter {
 }
 
 impl GdriveWriter {
-    pub fn new(core: Arc<GdriveCore>, path: String, file_id: Option<String>) -> Self {
+    pub fn new(
+        core: Arc<GdriveCore>,
+        ctx: OperationContext,
+        path: String,
+        file_id: Option<String>,
+    ) -> Self {
         GdriveWriter {
             core,
+            ctx,
             path,
 
             file_id,
@@ -55,11 +62,16 @@ impl oio::OneShotWrite for GdriveWriter {
         loop {
             let resp = if let Some(file_id) = &current_file_id {
                 self.core
-                    .gdrive_upload_overwrite_simple_request(file_id, size as u64, bs.clone())
+                    .gdrive_upload_overwrite_simple_request(
+                        &self.ctx,
+                        file_id,
+                        size as u64,
+                        bs.clone(),
+                    )
                     .await
             } else {
                 self.core
-                    .gdrive_upload_simple_request(&self.path, size as u64, bs.clone())
+                    .gdrive_upload_simple_request(&self.ctx, &self.path, size as u64, bs.clone())
                     .await
             }?;
 
@@ -81,7 +93,7 @@ impl oio::OneShotWrite for GdriveWriter {
                 StatusCode::NOT_FOUND if !retried && current_file_id.is_some() => {
                     retried = true;
                     self.core.refresh_path(&self.path).await;
-                    current_file_id = self.core.resolve_path(&self.path).await?;
+                    current_file_id = self.core.resolve_path(&self.ctx, &self.path).await?;
                     continue;
                 }
                 _ => return Err(parse_error(resp)),

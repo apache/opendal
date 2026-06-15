@@ -138,7 +138,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap();
 
         // Write some data
         for i in 0..10 {
@@ -191,7 +191,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap();
 
         let data: Vec<u8> = (0..100).collect();
         op.write("test", data.clone()).await.unwrap();
@@ -227,8 +227,7 @@ mod tests {
                 .recover_mode("none")
                 .shards(1),
         )
-        .unwrap()
-        .finish();
+        .unwrap();
 
         // Write some data
         for i in 0..5 {

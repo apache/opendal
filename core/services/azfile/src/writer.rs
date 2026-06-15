@@ -28,13 +28,19 @@ pub type AzfileWriters = TwoWays<oio::OneShotWriter<AzfileWriter>, oio::AppendWr
 
 pub struct AzfileWriter {
     core: Arc<AzfileCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl AzfileWriter {
-    pub fn new(core: Arc<AzfileCore>, op: OpWrite, path: String) -> Self {
-        AzfileWriter { core, op, path }
+    pub fn new(core: Arc<AzfileCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        AzfileWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -57,7 +63,7 @@ impl oio::OneShotWrite for AzfileWriter {
         let size = bs.len();
         let resp = self
             .core
-            .azfile_create_file(&self.path, size, &self.op)
+            .azfile_create_file(&self.ctx, &self.path, size, &self.op)
             .await?;
 
         let status = resp.status();
@@ -70,7 +76,7 @@ impl oio::OneShotWrite for AzfileWriter {
 
         let resp = self
             .core
-            .azfile_update(&self.path, size as u64, 0, bs)
+            .azfile_update(&self.ctx, &self.path, size as u64, 0, bs)
             .await?;
         let status = resp.status();
         let mut meta = AzfileWriter::parse_metadata(resp.headers())?;
@@ -84,7 +90,10 @@ impl oio::OneShotWrite for AzfileWriter {
 
 impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.azfile_get_file_properties(&self.path).await?;
+        let resp = self
+            .core
+            .azfile_get_file_properties(&self.ctx, &self.path)
+            .await?;
 
         let status = resp.status();
 
@@ -97,7 +106,7 @@ impl oio::AppendWrite for AzfileWriter {
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .azfile_update(&self.path, size, offset, body)
+            .azfile_update(&self.ctx, &self.path, size, offset, body)
             .await?;
 
         let status = resp.status();

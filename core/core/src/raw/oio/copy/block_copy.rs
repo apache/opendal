@@ -108,15 +108,15 @@ pub struct BlockCopier<C: BlockCopy> {
 impl<C: BlockCopy> BlockCopier<C> {
     /// Create a new BlockCopier.
     pub fn new(
-        info: Arc<AccessorInfo>,
+        executor: impl Into<Executor>,
         inner: C,
         source_content_length_hint: Option<u64>,
         copy_once_threshold: u64,
         block_size: u64,
         concurrent: usize,
     ) -> Self {
+        let executor = executor.into();
         let copier = Arc::new(inner);
-        let executor = info.executor();
         let concurrent = concurrent.max(1);
 
         Self {
@@ -364,7 +364,7 @@ mod tests {
         let inner = TestCopy {
             state: state.clone(),
         };
-        let mut copier = BlockCopier::new(Arc::default(), inner, None, 0, 2, 2);
+        let mut copier = BlockCopier::new(Executor::default(), inner, None, 0, 2, 2);
 
         while copier.next().await?.is_some() {}
 

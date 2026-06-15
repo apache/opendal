@@ -81,7 +81,7 @@ impl Builder for VercelBlobBuilder {
     type Config = VercelBlobConfig;
 
     /// Builds the backend and returns the result of VercelBlobBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -96,34 +96,28 @@ impl Builder for VercelBlobBuilder {
 
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(VERCEL_BLOB_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(VERCEL_BLOB_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_multi_min_size: Some(5 * 1024 * 1024),
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_multi_min_size: Some(5 * 1024 * 1024),
 
-                            copy: true,
+                    copy: true,
 
-                            list: true,
-                            list_with_limit: true,
+                    list: true,
+                    list_with_limit: true,
 
-                            delete: true,
+                    delete: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 token,
@@ -141,14 +135,16 @@ pub struct VercelBlobBackend {
 /// Reader returned by this backend.
 pub struct VercelBlobReader {
     backend: VercelBlobBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl VercelBlobReader {
-    fn new(backend: VercelBlobBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: VercelBlobBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -160,7 +156,7 @@ impl oio::StreamRead for VercelBlobReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.download(path, range, &args).await?;
+        let resp = backend.core.download(&self.ctx, path, range, &args).await?;
 
         let status = resp.status();
 
@@ -180,19 +176,23 @@ impl oio::StreamRead for VercelBlobReader {
     }
 }
 
-impl Access for VercelBlobBackend {
+impl Service for VercelBlobBackend {
     type Reader = oio::StreamReader<VercelBlobReader>;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
     type Deleter = oio::OneShotDeleter<VercelBlobDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.head(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.head(ctx, path).await?;
 
         let status = resp.status();
 
@@ -208,48 +208,90 @@ impl Access for VercelBlobBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(VercelBlobReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<VercelBlobReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(VercelBlobReader::new(
+                    self.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let writer = VercelBlobWriter::new(self.core.clone(), args, path.to_string());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, VercelBlobWriters) = {
+            let concurrent = args.concurrent();
+            let writer =
+                VercelBlobWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
 
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.copy(from, to).await?;
+        let (rp, output): (_, ()) = {
+            let resp = self.core.copy(ctx, from, to).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::OK => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = VercelBlobLister::new(self.core.clone(), path, args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<VercelBlobLister>) = {
+            let l = VercelBlobLister::new(self.core.clone(), ctx.clone(), path, args.limit());
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(VercelBlobDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<VercelBlobDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(VercelBlobDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

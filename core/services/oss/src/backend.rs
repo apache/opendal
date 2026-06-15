@@ -409,7 +409,7 @@ impl TryFrom<&Option<String>> for AddressingStyle {
 impl Builder for OssBuilder {
     type Config = OssConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         #[allow(deprecated)]
@@ -498,11 +498,8 @@ impl Builder for OssBuilder {
             assume_role = assume_role.with_role_session_name(role_session_name.clone());
         }
 
-        let info = Arc::new(AccessorInfo::default());
-
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -551,76 +548,73 @@ impl Builder for OssBuilder {
         let request_signer = RequestSigner::new(bucket);
         let signer = Signer::new(ctx, provider, request_signer);
 
+        let info = ServiceInfo::new(OSS_SCHEME, &root, bucket);
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_version: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_version: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_append: true,
+            write_can_multi: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
+            write_with_if_not_exists: true,
+
+            // The min multipart size of OSS is 100 KiB.
+            //
+            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+            write_multi_min_size: Some(100 * 1024),
+            // The max multipart size of OSS is 5 GiB.
+            //
+            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+            write_with_user_metadata: true,
+
+            delete: true,
+            delete_with_version: true,
+            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
+
+            copy: true,
+
+            list: true,
+            list_with_limit: true,
+            list_with_start_after: true,
+            list_with_recursive: true,
+            list_with_versions: true,
+            list_with_deleted: true,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(OssBackend {
             core: Arc::new(OssCore {
-                info: {
-                    info.set_scheme(OSS_SCHEME)
-                        .set_root(&root)
-                        .set_name(bucket)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-                            stat_with_version: true,
-
-                            read: true,
-                            read_with_suffix: true,
-
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_version: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
-
-                            write: true,
-                            write_can_empty: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_cache_control: true,
-                            write_with_content_type: true,
-                            write_with_content_disposition: true,
-                            write_with_content_encoding: true,
-                            write_with_if_not_exists: true,
-
-                            // The min multipart size of OSS is 100 KiB.
-                            //
-                            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-                            write_multi_min_size: Some(100 * 1024),
-                            // The max multipart size of OSS is 5 GiB.
-                            //
-                            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            write_with_user_metadata: true,
-
-                            delete: true,
-                            delete_with_version: true,
-                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
-
-                            copy: true,
-
-                            list: true,
-                            list_with_limit: true,
-                            list_with_start_after: true,
-                            list_with_recursive: true,
-                            list_with_versions: true,
-                            list_with_deleted: true,
-
-                            presign: true,
-                            presign_stat: true,
-                            presign_read: true,
-                            presign_write: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 root,
                 bucket: bucket.to_owned(),
                 endpoint,
@@ -644,14 +638,16 @@ pub struct OssBackend {
 /// Reader returned by this backend.
 pub struct OssReader {
     backend: OssBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl OssReader {
-    fn new(backend: OssBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: OssBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -663,7 +659,10 @@ impl oio::StreamRead for OssReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.oss_get_object(path, range, &args).await?;
+        let resp = backend
+            .core
+            .oss_get_object(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
 
@@ -683,19 +682,23 @@ impl oio::StreamRead for OssReader {
     }
 }
 
-impl Access for OssBackend {
+impl Service for OssBackend {
     type Reader = oio::StreamReader<OssReader>;
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.oss_head_object(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.oss_head_object(ctx, path, &args).await?;
 
         let status = resp.status();
 
@@ -713,76 +716,119 @@ impl Access for OssBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(OssReader::new(self.clone(), path, args)),
-        ))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = OssWriter::new(self.core.clone(), path, args.clone());
-
-        let w = if args.append() {
-            OssWriters::Two(oio::AppendWriter::new(writer))
-        } else {
-            OssWriters::One(oio::MultipartWriter::new(
-                self.core.info.clone(),
-                writer,
-                args.concurrent(),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<OssReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(OssReader::new(self.clone(), ctx.clone(), path, args)),
             ))
-        };
+        }?;
 
-        Ok((RpWrite::default(), w))
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                OssDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, OssWriters) = {
+            let writer = OssWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
+
+            let w = if args.append() {
+                OssWriters::Two(oio::AppendWriter::new(writer))
+            } else {
+                OssWriters::One(oio::MultipartWriter::new(
+                    ctx.executor().clone(),
+                    writer,
+                    args.concurrent(),
+                ))
+            };
+
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if args.versions() || args.deleted() {
-            TwoWays::Two(oio::PageLister::new(OssObjectVersionsLister::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        } else {
-            TwoWays::One(oio::PageLister::new(OssLister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            )))
-        };
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<OssDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(
+                    OssDeleter::new(self.core.clone(), ctx.clone()),
+                    self.core.capability.delete_max_size,
+                ),
+            ))
+        }?;
 
-        Ok((RpList::default(), l))
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, OssListers) = {
+            let l = if args.versions() || args.deleted() {
+                TwoWays::Two(oio::PageLister::new(OssObjectVersionsLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else {
+                TwoWays::One(oio::PageLister::new(OssLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args.recursive(),
+                    args.limit(),
+                    args.start_after(),
+                )))
+            };
+
+            Ok((RpList::default(), l))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.oss_copy_object(from, to).await?;
-        let status = resp.status();
+        let (rp, output): (_, ()) = {
+            let resp = self.core.oss_copy_object(ctx, from, to).await?;
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::OK => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.oss_head_object_request(path, true, v),
@@ -803,7 +849,7 @@ impl Access for OssBackend {
             )),
         };
         let req = req?;
-        let req = self.core.sign_query(req, args.expire()).await?;
+        let req = self.core.sign_query(ctx, req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

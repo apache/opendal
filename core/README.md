@@ -174,8 +174,7 @@ async fn main() -> Result<()> {
     // Init an operator
     let op = Operator::new(builder)?
         // Init with logging layer enabled.
-        .layer(LoggingLayer::default())
-        .finish();
+        .layer(LoggingLayer::default());
 
     // Write data
     op.write("hello.txt", "Hello, World!").await?;

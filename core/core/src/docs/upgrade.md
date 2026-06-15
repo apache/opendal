@@ -169,8 +169,8 @@ op.write_options("path/to/file", data, options).await?;
 All `stat_has_*` and `list_has_*` capability check APIs have been removed. Instead, check capabilities directly on the `Capability` struct:
 
 ```diff
-- if op.info().full_capability().stat_has_content_length() {
-+ if op.info().full_capability().stat.content_length {
+- if op.info().capability().stat_has_content_length() {
++ if op.info().capability().stat.content_length {
     // ...
 }
 ```
@@ -189,13 +189,13 @@ The following services have been removed due to lack of maintainers:
 
 If you need these services, please consider maintaining them or use alternative services.
 
-### HttpClientLayer replaces `update_http_client`
+### `Operator::http_client` replaces `update_http_client`
 
-The `Operator::update_http_client()` method has been replaced by `HttpClientLayer`:
+The `Operator::update_http_client()` method has been replaced by `Operator::http_client`:
 
 ```diff
 - op.update_http_client(client);
-+ op = op.layer(HttpClientLayer::new(client));
++ op = op.http_client(client);
 ```
 
 ### Expose `presign_xxx_options` API
@@ -458,8 +458,8 @@ Since v0.48, the `customed_credential_load` function has been renamed to `custom
 Since v0.48, Operator's new APIs `from_iter` and `via_iter` methods have deprecated the `from_map` and `via_map` methods.
 
 ```diff
-- Operator::from_map::<Fs>(map)?.finish();
-+ Operator::from_iter::<Fs>(map)?.finish();
+- Operator::from_map::<Fs>(map)?;
++ Operator::from_iter::<Fs>(map)?;
 ```
 
 New API `from_iter` and `via_iter` should cover all use cases of `from_map` and `via_map`.
@@ -473,7 +473,7 @@ Since v0.48, all service builder now takes ownership `self` instead of `&mut sel
 - builder.bucket("test");
 - builder.root("/path/to/root");
 + let builder = S3::default().bucket("test").root("/path/to/root");
-  let op = Operator::new(builder)?.finish();
+  let op = Operator::new(builder)?;
 ```
 
 ## Raw API
@@ -1150,14 +1150,14 @@ To reduce the understanding overhead, we move all `OpXxx` into `opendal::ops` no
 
 In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.
 
-Due to this change, we have to refactor the logic of `Operator`'s init logic. In v0.26, we added `opendal::Builder` trait and `opendal::OperatorBuilder`. For the first glance, the only change to existing code will be like:
+Due to this change, we had to refactor the logic of `Operator`'s init logic. In v0.26, we added `opendal::Builder` trait and a generic operator build step. The public `Operator::new` API now returns a complete operator directly:
 
 ```diff
 - let op = Operator::new(builder.build()?);
-+ let op = Operator::new(builder.build()?).finish();
++ let op = Operator::new(builder)?;
 ```
 
-By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily used everywhere as before.
+No `finish()` call is required.
 
 ## Accessor
 

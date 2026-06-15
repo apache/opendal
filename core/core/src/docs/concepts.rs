@@ -58,7 +58,7 @@
 //! ```
 //!
 //! # Operator
-//! The [`Operator`] is a delegate for Service, the underlying implementation detail that implements [`Access`][crate::raw::Access],
+//! The [`Operator`] is a delegate for Service, the underlying implementation detail that implements [`Service`][crate::raw::Service],
 //! and it also provides one unified access interface.
 //! It will hold one reference of Service with its all generic types erased by OpenDAL,
 //! which is the reason why we say the Operator is the delegate of one Service.
@@ -83,7 +83,7 @@
 //! # fn test() -> Result<()> {
 //! let builder = Memory::default();
 //!
-//! let op = Operator::new(builder)?.finish();
+//! let op = Operator::new(builder)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -119,7 +119,7 @@
 //! # async fn test() -> Result<()> {
 //! let builder = Memory::default();
 //!
-//! let op = Operator::new(builder)?.finish();
+//! let op = Operator::new(builder)?;
 //! let bs: Vec<u8> = op.read("abc").await?;
 //! # Ok(())
 //! # }

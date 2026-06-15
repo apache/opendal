@@ -29,17 +29,18 @@ use opendal_core::*;
 
 pub struct OssDeleter {
     core: Arc<OssCore>,
+    ctx: OperationContext,
 }
 
 impl OssDeleter {
-    pub fn new(core: Arc<OssCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<OssCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::BatchDelete for OssDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        let resp = self.core.oss_delete_object(&path, &args).await?;
+        let resp = self.core.oss_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 
@@ -57,7 +58,7 @@ impl oio::BatchDelete for OssDeleter {
             .map(|path| (path.0.to_owned(), path.1.clone()))
             .collect();
 
-        let resp = self.core.oss_delete_objects(batch).await?;
+        let resp = self.core.oss_delete_objects(&self.ctx, batch).await?;
 
         let status = resp.status();
 

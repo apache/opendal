@@ -50,7 +50,7 @@
 //!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
-//!     let op = Operator::new(builder)?.finish();
+//!     let op = Operator::new(builder)?;
 //!     Ok(())
 //! }
 //! ```
@@ -60,11 +60,10 @@
 //! The next setup is to compose layers. Layers are modules that provide extra
 //! features for every operation. All builtin layers could be found at [`layers`].
 //!
-//! Let's use [`layers::HttpClientLayer`] as an example; this layer allows
-//! customizing the HTTP client used by OpenDAL.
+//! Let's use [`layers::CapabilityOverrideLayer`] and a custom [`HttpClient`] as an example.
 //!
 //! ```no_run
-//! use opendal_core::layers::HttpClientLayer;
+//! use opendal_core::layers::CapabilityOverrideLayer;
 //! use opendal_core::raw::HttpClient;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
@@ -79,8 +78,8 @@
 //!     let client = HttpClient::new()?;
 //!     let op = Operator::new(builder)?
 //!         // Init with custom HTTP client.
-//!         .layer(HttpClientLayer::new(client))
-//!         .finish();
+//!         .http_client(client)
+//!         .layer(CapabilityOverrideLayer::new(|cap| cap));
 //!
 //!     Ok(())
 //! }
@@ -104,7 +103,6 @@
 //! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 //!
 //! ```no_run
-//! use opendal_core::layers::HttpClientLayer;
 //! use opendal_core::options;
 //! use opendal_core::raw::HttpClient;
 //! use opendal_core::services;
@@ -120,8 +118,7 @@
 //!     let client = HttpClient::new()?;
 //!     let op = Operator::new(builder)?
 //!         // Init with custom HTTP client.
-//!         .layer(HttpClientLayer::new(client))
-//!         .finish();
+//!         .http_client(client);
 //!
 //!     // Fetch this file's metadata
 //!     let meta = op.stat("hello.txt").await?;

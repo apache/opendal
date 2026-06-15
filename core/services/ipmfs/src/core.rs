@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -26,7 +25,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct IpmfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub endpoint: String,
 }
@@ -41,7 +41,7 @@ impl Debug for IpmfsCore {
 }
 
 impl IpmfsCore {
-    pub async fn ipmfs_stat(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -53,10 +53,15 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn ipmfs_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn ipmfs_read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -73,10 +78,10 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn ipmfs_rm(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_rm(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -88,10 +93,14 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<Buffer>> {
+    pub(crate) async fn ipmfs_ls(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -103,10 +112,14 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_mkdir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -118,11 +131,16 @@ impl IpmfsCore {
         let req = Request::post(url);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Support write from reader.
-    pub async fn ipmfs_write(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
+    pub async fn ipmfs_write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -136,6 +154,6 @@ impl IpmfsCore {
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 }

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -56,7 +55,8 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct VercelBlobCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// Vercel Blob token.
@@ -73,8 +73,12 @@ impl Debug for VercelBlobCore {
 
 impl VercelBlobCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> request::Builder {
@@ -85,6 +89,7 @@ impl VercelBlobCore {
 impl VercelBlobCore {
     pub async fn download(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _: &OpRead,
@@ -92,7 +97,7 @@ impl VercelBlobCore {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
-        let resp = self.list(&p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1)).await?;
 
         // Use the mtach url to download the file
         let url = resolve_blob(resp.blobs, p);
@@ -113,11 +118,12 @@ impl VercelBlobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub async fn upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: u64,
         args: &OpWrite,
@@ -148,13 +154,13 @@ impl VercelBlobCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn head(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(&p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1)).await?;
 
         let url = resolve_blob(resp.blobs, p);
 
@@ -175,13 +181,18 @@ impl VercelBlobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let resp = self.list(&from, Some(1)).await?;
+        let resp = self.list(ctx, &from, Some(1)).await?;
 
         let from_url = resolve_blob(resp.blobs, from);
 
@@ -207,10 +218,15 @@ impl VercelBlobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn list(&self, prefix: &str, limit: Option<usize>) -> Result<ListResponse> {
+    pub async fn list(
+        &self,
+        ctx: &OperationContext,
+        prefix: &str,
+        limit: Option<usize>,
+    ) -> Result<ListResponse> {
         let prefix = if prefix == "/" { "" } else { prefix };
 
         let mut url = format!(
@@ -232,7 +248,7 @@ impl VercelBlobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -248,10 +264,10 @@ impl VercelBlobCore {
         Ok(resp)
     }
 
-    pub async fn vercel_delete_blob(&self, path: &str) -> Result<()> {
+    pub async fn vercel_delete_blob(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(&p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1)).await?;
 
         let url = resolve_blob(resp.blobs, p);
 
@@ -274,7 +290,7 @@ impl VercelBlobCore {
             .body(Buffer::from(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -286,6 +302,7 @@ impl VercelBlobCore {
 
     pub async fn initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -313,11 +330,12 @@ impl VercelBlobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn upload_part(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -347,11 +365,12 @@ impl VercelBlobCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<Part>,
@@ -379,7 +398,7 @@ impl VercelBlobCore {
             .body(Buffer::from(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

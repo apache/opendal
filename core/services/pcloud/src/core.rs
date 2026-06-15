@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
@@ -32,7 +31,8 @@ use super::error::parse_error;
 
 #[derive(Clone)]
 pub struct PcloudCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     /// The root of this core.
     pub root: String,
@@ -56,13 +56,17 @@ impl Debug for PcloudCore {
 
 impl PcloudCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 }
 
 impl PcloudCore {
-    pub async fn get_file_link(&self, path: &str) -> Result<String> {
+    pub async fn get_file_link(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -81,7 +85,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
         match status {
@@ -110,7 +114,12 @@ impl PcloudCore {
         }
     }
 
-    pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn download(
+        &self,
+        ctx: &OperationContext,
+        url: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let req = Request::get(url);
 
         // set body
@@ -120,17 +129,17 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
+    pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
         for i in 0..paths.len() - 1 {
             let path = paths[..i + 1].join("/");
-            let resp = self.create_folder_if_not_exists(&path).await?;
+            let resp = self.create_folder_if_not_exists(ctx, &path).await?;
 
             let status = resp.status();
 
@@ -157,7 +166,11 @@ impl PcloudCore {
         Ok(())
     }
 
-    pub async fn create_folder_if_not_exists(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn create_folder_if_not_exists(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/createfolderifnotexists?path=/{}&username={}&password={}",
             self.endpoint,
@@ -174,10 +187,15 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn rename_file(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn rename_file(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -198,10 +216,15 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn rename_folder(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
         let url = format!(
@@ -221,10 +244,14 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete_folder(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete_folder(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -243,10 +270,14 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete_file(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -265,10 +296,15 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy_file(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_file(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -289,10 +325,15 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy_folder(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_folder(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -313,10 +354,10 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let path = path.trim_end_matches('/');
@@ -337,10 +378,15 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn upload_file(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
+    pub async fn upload_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        bs: Buffer,
+    ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
@@ -362,10 +408,14 @@ impl PcloudCore {
             .body(bs)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn list_folder(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn list_folder(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let path = normalize_root(&path);
@@ -388,7 +438,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

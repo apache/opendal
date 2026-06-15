@@ -32,7 +32,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub struct SftpCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub root: String,
     client: Arc<bounded::Pool<Manager>>,
@@ -49,7 +50,8 @@ impl Debug for SftpCore {
 
 impl SftpCore {
     pub fn new(
-        info: Arc<AccessorInfo>,
+        info: ServiceInfo,
+        capability: Capability,
         endpoint: String,
         root: String,
         user: Option<String>,
@@ -69,6 +71,7 @@ impl SftpCore {
 
         SftpCore {
             info,
+            capability,
             endpoint,
             root,
             client,

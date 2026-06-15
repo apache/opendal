@@ -49,7 +49,7 @@ use crate::*;
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Build an `blocking::Operator` with blocking layer to start operating the storage.
 ///     let _: blocking::Operator = blocking::Operator::new(op)?;
@@ -79,7 +79,7 @@ use crate::*;
 /// fn blocking_fn() -> Result<blocking::Operator> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
 ///     let _guard = handle.enter();
@@ -113,7 +113,7 @@ use crate::*;
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
 ///     let _guard = RUNTIME.enter();

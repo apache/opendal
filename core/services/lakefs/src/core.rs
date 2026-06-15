@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -27,7 +26,8 @@ use opendal_core::*;
 use serde::Deserialize;
 
 pub struct LakefsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub repository: String,
     pub branch: String,
@@ -50,7 +50,11 @@ impl Debug for LakefsCore {
 }
 
 impl LakefsCore {
-    pub async fn get_object_metadata(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn get_object_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -71,11 +75,12 @@ impl LakefsCore {
         let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn get_object_content(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _args: &OpRead,
@@ -104,11 +109,12 @@ impl LakefsCore {
         let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub async fn list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         delimiter: &str,
         amount: &Option<usize>,
@@ -145,11 +151,12 @@ impl LakefsCore {
         let req = req.extension(Operation::Read);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn upload_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         _args: &OpWrite,
         body: Buffer,
@@ -174,10 +181,15 @@ impl LakefsCore {
         let req = req.extension(Operation::Write);
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn delete_object(&self, path: &str, _args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -198,10 +210,15 @@ impl LakefsCore {
         let req = req.extension(Operation::Delete);
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn copy_object(&self, path: &str, dest: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        dest: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -230,7 +247,7 @@ impl LakefsCore {
             .extension(Operation::Delete)
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Parse LakefsStatus into Metadata

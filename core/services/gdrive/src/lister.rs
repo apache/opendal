@@ -34,15 +34,17 @@ use opendal_core::*;
 pub struct GdriveLister {
     path: String,
     core: Arc<GdriveCore>,
+    ctx: OperationContext,
     emitted_paths: Mutex<HashSet<String>>,
     recent_entries_loaded: Mutex<bool>,
 }
 
 impl GdriveLister {
-    pub fn new(path: String, core: Arc<GdriveCore>) -> Self {
+    pub fn new(path: String, core: Arc<GdriveCore>, ctx: OperationContext) -> Self {
         Self {
             path,
             core,
+            ctx,
             emitted_paths: Mutex::default(),
             recent_entries_loaded: Mutex::default(),
         }
@@ -128,9 +130,13 @@ impl oio::PageList for GdriveLister {
             return Ok(());
         }
 
-        let file_id = match self.core.resolve_path(&self.path).await? {
+        let file_id = match self.core.resolve_path(&self.ctx, &self.path).await? {
             Some(file_id) => Some(file_id),
-            None => self.core.resolve_path_after_refresh(&self.path).await?,
+            None => {
+                self.core
+                    .resolve_path_after_refresh(&self.ctx, &self.path)
+                    .await?
+            }
         };
 
         let file_id = match file_id {
@@ -150,9 +156,13 @@ impl oio::PageList for GdriveLister {
         // - `list("dir")` returns `dir/` (but does NOT list its children)
         // - list children requires a trailing slash, like `list("dir/")`
         if !is_dir_path {
-            let mut resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            let mut resp = self.core.gdrive_stat_by_id(&self.ctx, &file_id).await?;
             if resp.status() == StatusCode::NOT_FOUND {
-                let file_id = match self.core.resolve_path_after_refresh(&self.path).await? {
+                let file_id = match self
+                    .core
+                    .resolve_path_after_refresh(&self.ctx, &self.path)
+                    .await?
+                {
                     Some(file_id) => file_id,
                     None => {
                         ctx.done = true;
@@ -160,7 +170,7 @@ impl oio::PageList for GdriveLister {
                     }
                 };
 
-                resp = self.core.gdrive_stat_by_id(&file_id).await?;
+                resp = self.core.gdrive_stat_by_id(&self.ctx, &file_id).await?;
             }
             if resp.status() != StatusCode::OK {
                 return Err(parse_error(resp));
@@ -185,12 +195,12 @@ impl oio::PageList for GdriveLister {
 
         let mut resp = self
             .core
-            .gdrive_list(file_id.as_str(), 1000, &ctx.token)
+            .gdrive_list(&self.ctx, file_id.as_str(), 1000, &ctx.token)
             .await?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             self.core.refresh_dir_path(&self.path).await;
-            let file_id = match self.core.resolve_path(&self.path).await? {
+            let file_id = match self.core.resolve_path(&self.ctx, &self.path).await? {
                 Some(file_id) => file_id,
                 None => {
                     ctx.done = true;
@@ -199,7 +209,7 @@ impl oio::PageList for GdriveLister {
             };
             resp = self
                 .core
-                .gdrive_list(file_id.as_str(), 1000, &ctx.token)
+                .gdrive_list(&self.ctx, file_id.as_str(), 1000, &ctx.token)
                 .await?;
         }
 
@@ -269,6 +279,7 @@ const PAGE_SIZE: i32 = 1000;
 
 pub struct GdriveFlatLister {
     core: Arc<GdriveCore>,
+    ctx: OperationContext,
     root_path: String,
     prefix: Option<String>,
 
@@ -308,9 +319,10 @@ struct PendingDir {
 }
 
 impl GdriveFlatLister {
-    pub fn new(root_path: String, core: Arc<GdriveCore>) -> Self {
+    pub fn new(root_path: String, core: Arc<GdriveCore>, ctx: OperationContext) -> Self {
         Self {
             core,
+            ctx,
             root_path,
             prefix: None,
             pending_dirs: VecDeque::new(),
@@ -394,14 +406,14 @@ impl GdriveFlatLister {
             return Ok(());
         }
 
-        let root_id = match self.core.resolve_path(&self.root_path).await? {
+        let root_id = match self.core.resolve_path(&self.ctx, &self.root_path).await? {
             Some(id) => {
                 log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", &id);
                 id
             }
             None => match self
                 .core
-                .resolve_path_after_refresh(&self.root_path)
+                .resolve_path_after_refresh(&self.ctx, &self.root_path)
                 .await?
             {
                 Some(id) => {
@@ -426,9 +438,13 @@ impl GdriveFlatLister {
                         parent_path.clear();
                     }
 
-                    let parent_id = match self.core.resolve_path(&parent_path).await? {
+                    let parent_id = match self.core.resolve_path(&self.ctx, &parent_path).await? {
                         Some(id) => id,
-                        None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                        None => match self
+                            .core
+                            .resolve_path_after_refresh(&self.ctx, &parent_path)
+                            .await?
+                        {
                             Some(id) => id,
                             None => {
                                 self.done = true;
@@ -454,7 +470,7 @@ impl GdriveFlatLister {
         //
         // - `list("dir", recursive=true)` where `dir` is a folder but without trailing slash.
         // - `list("prefix", recursive=true)` where `prefix` points to a file or a file prefix.
-        let mut resp = self.core.gdrive_stat_by_id(&root_id).await?;
+        let mut resp = self.core.gdrive_stat_by_id(&self.ctx, &root_id).await?;
         if resp.status() == StatusCode::NOT_FOUND {
             if self.root_path.ends_with('/') {
                 self.core.refresh_dir_path(&self.root_path).await;
@@ -462,7 +478,7 @@ impl GdriveFlatLister {
                 self.core.refresh_path(&self.root_path).await;
             }
 
-            let root_id = match self.core.resolve_path(&self.root_path).await? {
+            let root_id = match self.core.resolve_path(&self.ctx, &self.root_path).await? {
                 Some(id) => id,
                 None => {
                     if self.root_path.ends_with('/') {
@@ -478,9 +494,13 @@ impl GdriveFlatLister {
                         parent_path.clear();
                     }
 
-                    let parent_id = match self.core.resolve_path(&parent_path).await? {
+                    let parent_id = match self.core.resolve_path(&self.ctx, &parent_path).await? {
                         Some(id) => id,
-                        None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                        None => match self
+                            .core
+                            .resolve_path_after_refresh(&self.ctx, &parent_path)
+                            .await?
+                        {
                             Some(id) => id,
                             None => {
                                 self.done = true;
@@ -501,7 +521,7 @@ impl GdriveFlatLister {
                 }
             };
 
-            resp = self.core.gdrive_stat_by_id(&root_id).await?;
+            resp = self.core.gdrive_stat_by_id(&self.ctx, &root_id).await?;
         }
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
@@ -542,9 +562,13 @@ impl GdriveFlatLister {
                 parent_path.clear();
             }
 
-            let parent_id = match self.core.resolve_path(&parent_path).await? {
+            let parent_id = match self.core.resolve_path(&self.ctx, &parent_path).await? {
                 Some(id) => id,
-                None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                None => match self
+                    .core
+                    .resolve_path_after_refresh(&self.ctx, &parent_path)
+                    .await?
+                {
                     Some(id) => id,
                     None => {
                         self.done = true;
@@ -593,7 +617,7 @@ impl GdriveFlatLister {
 
         let mut resp = self
             .core
-            .gdrive_list_batch(&self.current_batch, PAGE_SIZE, &self.page_token)
+            .gdrive_list_batch(&self.ctx, &self.current_batch, PAGE_SIZE, &self.page_token)
             .await?;
 
         if resp.status() == StatusCode::NOT_FOUND {
@@ -602,7 +626,7 @@ impl GdriveFlatLister {
             for dir_id in current_batch {
                 if let Some(path) = self.dir_id_to_path.get(&dir_id).cloned() {
                     self.core.refresh_dir_path(&path).await;
-                    if let Some(new_id) = self.core.resolve_path(&path).await? {
+                    if let Some(new_id) = self.core.resolve_path(&self.ctx, &path).await? {
                         refreshed_batch.push((new_id, path));
                     }
                 }
@@ -615,7 +639,7 @@ impl GdriveFlatLister {
 
             resp = self
                 .core
-                .gdrive_list_batch(&self.current_batch, PAGE_SIZE, &self.page_token)
+                .gdrive_list_batch(&self.ctx, &self.current_batch, PAGE_SIZE, &self.page_token)
                 .await?;
         }
 
@@ -759,16 +783,21 @@ mod tests {
     use crate::path_index::GdrivePathIndex;
 
     fn mock_gdrive_core() -> Arc<GdriveCore> {
-        let info = Arc::new(AccessorInfo::default());
-        let signer = Arc::new(Mutex::new(GdriveSigner::new(info.clone())));
+        let info = ServiceInfo::new("gdrive", "", "");
+        let signer = Arc::new(Mutex::new(GdriveSigner::new()));
 
         Arc::new(GdriveCore {
             info: info.clone(),
+            capability: Capability::default(),
             root: "/".to_string(),
             signer: signer.clone(),
-            path_index: GdrivePathIndex::new(GdrivePathQuery::new(info, signer)),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
             recent_entries: Mutex::new(GdriveRecentState::default()),
         })
+    }
+
+    fn mock_operation_context() -> OperationContext {
+        OperationContext::new(HttpClient::default(), Executor::default())
     }
 
     #[tokio::test]
@@ -777,7 +806,8 @@ mod tests {
         core.record_recent_delete("parent/dir/", EntryMode::DIR)
             .await;
 
-        let mut lister = GdriveFlatLister::new("parent/".to_string(), core);
+        let mut lister =
+            GdriveFlatLister::new("parent/".to_string(), core, mock_operation_context());
         lister
             .dir_id_to_path
             .insert("parent-id".to_string(), "parent/".to_string());
@@ -802,7 +832,8 @@ mod tests {
     #[test]
     fn test_apply_refreshed_batch_clears_page_token() {
         let core = mock_gdrive_core();
-        let mut lister = GdriveFlatLister::new("parent/".to_string(), core);
+        let mut lister =
+            GdriveFlatLister::new("parent/".to_string(), core, mock_operation_context());
         lister.page_token = "stale-page-token".to_string();
         lister.current_batch = vec!["old-id".to_string()];
         lister

@@ -83,21 +83,20 @@ impl VercelArtifactsBuilder {
 impl Builder for VercelArtifactsBuilder {
     type Config = VercelArtifactsConfig;
 
-    fn build(self) -> Result<impl Access> {
-        let info = AccessorInfo::default();
-        info.set_scheme(VERCEL_ARTIFACTS_SCHEME)
-            .set_native_capability(Capability {
-                stat: true,
+    fn build(self) -> Result<impl Service> {
+        let info = ServiceInfo::new(VERCEL_ARTIFACTS_SCHEME, "", "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
-                read_with_suffix: true,
+            read: true,
+            read_with_suffix: true,
 
-                write: true,
+            write: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
         let access_token = self
             .config
@@ -124,7 +123,8 @@ impl Builder for VercelArtifactsBuilder {
 
         Ok(VercelArtifactsBackend {
             core: Arc::new(VercelArtifactsCore {
-                info: Arc::new(info),
+                info,
+                capability,
                 access_token,
                 endpoint,
                 query_string,

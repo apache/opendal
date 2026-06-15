@@ -59,7 +59,7 @@ let cache = HybridCacheBuilder::new()
 let op = Operator::new(Dashmap::default())
     .unwrap()
     .layer(FoyerLayer::new(cache.clone()))
-    .finish();
+    ;
 ```
 
 ## 4. Perform operations as you used to

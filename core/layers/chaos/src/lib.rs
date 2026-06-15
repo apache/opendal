@@ -56,12 +56,12 @@ use rand::rngs::StdRng;
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
-///     .finish();
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChaosLayer {
+    rng: Arc<Mutex<StdRng>>,
     error_ratio: f64,
 }
 
@@ -76,17 +76,24 @@ impl ChaosLayer {
             (0.0..=1.0).contains(&error_ratio),
             "error_ratio must between 0.0 and 1.0"
         );
-        Self { error_ratio }
+        Self {
+            rng: Arc::new(Mutex::new(StdRng::from_rng(&mut rand::rng()))),
+            error_ratio,
+        }
     }
 }
 
-impl<A: Access> Layer<A> for ChaosLayer {
-    type LayeredAccess = ChaosAccessor<A>;
+impl Layer for ChaosLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        ChaosAccessor {
+impl ChaosLayer {
+    fn layer(&self, inner: Servicer) -> ChaosService {
+        ChaosService {
             inner,
-            rng: Arc::new(Mutex::new(rand::make_rng())),
+            rng: self.rng.clone(),
             error_ratio: self.error_ratio,
         }
     }
@@ -94,27 +101,47 @@ impl<A: Access> Layer<A> for ChaosLayer {
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct ChaosAccessor<A> {
-    inner: A,
+pub struct ChaosService {
+    inner: Servicer,
     rng: Arc<Mutex<StdRng>>,
-
     error_ratio: f64,
 }
 
-impl<A: Access> LayeredAccess for ChaosAccessor<A> {
-    type Inner = A;
-    type Reader = ChaosReader<A::Reader>;
-    type Writer = A::Writer;
-    type Lister = A::Lister;
-    type Deleter = A::Deleter;
-    type Copier = A::Copier;
+impl Service for ChaosService {
+    type Reader = ChaosReader<oio::Reader>;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(path, args).await.map(|(rp, r)| {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(ctx, path, args).await.map(|(rp, r)| {
             (
                 rp,
                 ChaosReader::new(r, Arc::clone(&self.rng), self.error_ratio),
@@ -122,26 +149,56 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(ctx, path, args).await
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args).await
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        self.inner.list(ctx, path, args).await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete(ctx).await
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 

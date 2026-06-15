@@ -26,14 +26,20 @@ use opendal_core::*;
 
 pub struct WebdavWriter {
     core: Arc<WebdavCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl WebdavWriter {
-    pub fn new(core: Arc<WebdavCore>, op: OpWrite, path: String) -> Self {
-        WebdavWriter { core, op, path }
+    pub fn new(core: Arc<WebdavCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        WebdavWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -55,7 +61,7 @@ impl oio::OneShotWrite for WebdavWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .webdav_put(&self.path, Some(bs.len() as u64), &self.op, bs)
+            .webdav_put(&self.ctx, &self.path, Some(bs.len() as u64), &self.op, bs)
             .await?;
 
         let status = resp.status();
@@ -68,7 +74,7 @@ impl oio::OneShotWrite for WebdavWriter {
                 if let Some(user_metadata) = self.op.user_metadata() {
                     let proppatch_resp = self
                         .core
-                        .webdav_proppatch(&self.path, user_metadata)
+                        .webdav_proppatch(&self.ctx, &self.path, user_metadata)
                         .await?;
 
                     let proppatch_status = proppatch_resp.status();

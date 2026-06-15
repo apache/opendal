@@ -22,6 +22,7 @@
 
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -48,8 +49,7 @@ use tracing::span;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(TracingLayer::new())
-///     .finish();
+///     .layer(TracingLayer::new());
 /// # Ok(())
 /// # }
 /// ```
@@ -80,8 +80,7 @@ use tracing::span;
 ///
 ///         let _ = dotenvy::dotenv();
 ///         let op = Operator::new(services::Memory::default())?
-///             .layer(TracingLayer::new())
-///             .finish();
+///             .layer(TracingLayer::new());
 ///
 ///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
 ///             .await?;
@@ -129,7 +128,7 @@ use tracing::span;
 /// ```
 ///
 /// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct TracingLayer {}
 
@@ -140,20 +139,20 @@ impl TracingLayer {
     }
 }
 
-impl<A: Access> Layer<A> for TracingLayer {
-    type LayeredAccess = TracingAccessor<A>;
+impl Layer for TracingLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
+    fn apply_http_fetch(&self, _srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        // Give outbound HTTP requests and their response bodies dedicated spans.
+        Arc::new(TracingHttpFetcher { inner })
+    }
+}
 
-        // Update http client with metrics http fetcher.
-        info.update_http_client(|client| {
-            HttpClient::with(TracingHttpFetcher {
-                inner: client.into_inner(),
-            })
-        });
-
-        TracingAccessor { inner }
+impl TracingLayer {
+    fn layer(&self, inner: Servicer) -> TracingService {
+        TracingService { inner }
     }
 }
 
@@ -168,6 +167,7 @@ impl HttpFetch for TracingHttpFetcher {
         let resp = self.inner.fetch(req).instrument(span.clone()).await?;
 
         let (parts, body) = resp.into_parts();
+        // Keep response body polling inside the same HTTP fetch span.
         let body = body.map_inner(|s| Box::new(TracingStream { inner: s, span }));
         Ok(http::Response::from_parts(parts, body))
     }
@@ -192,87 +192,139 @@ where
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct TracingAccessor<A> {
-    inner: A,
+pub struct TracingService {
+    inner: Servicer,
 }
 
-impl<A: Access> LayeredAccess for TracingAccessor<A> {
-    type Inner = A;
-    type Reader = TracingWrapper<A::Reader>;
-    type Writer = TracingWrapper<A::Writer>;
-    type Lister = TracingWrapper<A::Lister>;
-    type Deleter = TracingWrapper<A::Deleter>;
-    type Copier = A::Copier;
+impl Service for TracingService {
+    type Reader = TracingWrapper<oio::Reader>;
+    type Writer = TracingWrapper<oio::Writer>;
+    type Lister = TracingWrapper<oio::Lister>;
+    type Deleter = TracingWrapper<oio::Deleter>;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.inner.create_dir(path, args).await
+    fn capability(&self) -> Capability {
+        self.inner.capability()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner
+            .create_dir(ctx, path, args)
+            .instrument(span!(Level::DEBUG, "create_dir", path))
+            .await
+    }
+
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
         let span = span!(Level::DEBUG, "read", path, ?args);
 
-        let (rp, r) = self.inner.read(path, args).instrument(span.clone()).await?;
-
+        let (rp, r) = self
+            .inner
+            .read(ctx, path, args)
+            .instrument(span.clone())
+            .await?;
         Ok((rp, TracingWrapper::new(span, r)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
         let span = span!(Level::DEBUG, "write", path, ?args);
 
         let (rp, r) = self
             .inner
-            .write(path, args)
+            .write(ctx, path, args)
             .instrument(span.clone())
             .await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner().copy(from, to, args, opts.clone()).await
+        self.inner
+            .copy(ctx, from, to, args, opts)
+            .instrument(span!(Level::DEBUG, "copy", from, to))
+            .await
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner().rename(from, to, args).await
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner
+            .rename(ctx, from, to, args)
+            .instrument(span!(Level::DEBUG, "rename", from, to))
+            .await
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(path, args).await
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner
+            .stat(ctx, path, args)
+            .instrument(span!(Level::DEBUG, "stat", path))
+            .await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         let span = span!(Level::DEBUG, "delete");
 
-        let (rp, r) = self.inner.delete().instrument(span.clone()).await?;
+        let (rp, r) = self.inner.delete(ctx).instrument(span.clone()).await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
         let span = span!(Level::DEBUG, "list", path, ?args);
 
-        let (rp, r) = self.inner.list(path, args).instrument(span.clone()).await?;
+        let (rp, r) = self
+            .inner
+            .list(ctx, path, args)
+            .instrument(span.clone())
+            .await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args).await
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner
+            .presign(ctx, path, args)
+            .instrument(span!(Level::DEBUG, "presign", path))
+            .await
     }
 }
 

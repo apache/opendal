@@ -110,7 +110,7 @@ impl Builder for LakefsBuilder {
     type Config = LakefsConfig;
 
     /// Build a LakefsBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match self.config.endpoint {
@@ -154,23 +154,19 @@ impl Builder for LakefsBuilder {
 
         Ok(LakefsBackend {
             core: Arc::new(LakefsCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(LAKEFS_SCHEME)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(LAKEFS_SCHEME, "", ""),
+                capability: Capability {
+                    stat: true,
 
-                            list: true,
+                    list: true,
 
-                            read: true,
-                            read_with_suffix: true,
-                            write: true,
-                            delete: true,
-                            copy: true,
-                            shared: true,
-                            ..Default::default()
-                        });
-                    am.into()
+                    read: true,
+                    read_with_suffix: true,
+                    write: true,
+                    delete: true,
+                    copy: true,
+                    shared: true,
+                    ..Default::default()
                 },
                 endpoint,
                 repository,
@@ -192,14 +188,16 @@ pub struct LakefsBackend {
 /// Reader returned by this backend.
 pub struct LakefsReader {
     backend: LakefsBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl LakefsReader {
-    fn new(backend: LakefsBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: LakefsBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -211,7 +209,10 @@ impl oio::StreamRead for LakefsReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.get_object_content(path, range, &args).await?;
+        let resp = backend
+            .core
+            .get_object_content(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
 
@@ -231,24 +232,28 @@ impl oio::StreamRead for LakefsReader {
     }
 }
 
-impl Access for LakefsBackend {
+impl Service for LakefsBackend {
     type Reader = oio::StreamReader<LakefsReader>;
     type Writer = oio::OneShotWriter<LakefsWriter>;
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.get_object_metadata(path).await?;
+        let resp = self.core.get_object_metadata(ctx, path).await?;
 
         let status = resp.status();
 
@@ -267,53 +272,95 @@ impl Access for LakefsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(LakefsReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<LakefsReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(LakefsReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = LakefsLister::new(
-            self.core.clone(),
-            path.to_string(),
-            args.limit(),
-            args.start_after(),
-            args.recursive(),
-        );
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<LakefsLister>) = {
+            let l = LakefsLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.limit(),
+                args.start_after(),
+                args.recursive(),
+            );
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(LakefsWriter::new(self.core.clone(), path.to_string(), args)),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::OneShotWriter<LakefsWriter>) = {
+            Ok((
+                RpWrite::default(),
+                oio::OneShotWriter::new(LakefsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path.to_string(),
+                    args,
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(LakefsDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<LakefsDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(LakefsDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.copy_object(from, to).await?;
+        let (rp, output): (_, ()) = {
+            let resp = self.core.copy_object(ctx, from, to).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::CREATED => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::CREATED => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 }

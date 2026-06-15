@@ -28,7 +28,10 @@ use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
 
-/// Add [opentelemetry::metrics](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/index.html) for every operation.
+/// Add [opentelemetry::metrics] for OpenDAL operations and HTTP fetches.
+///
+/// This layer records operation metrics from OpenDAL API calls and HTTP metrics
+/// from requests made through OpenDAL's HTTP fetcher.
 ///
 /// # Examples
 ///
@@ -41,12 +44,11 @@ use opentelemetry::metrics::UpDownCounter;
 /// # fn main() -> Result<()> {
 /// let meter = opentelemetry::global::meter("opendal");
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(OtelMetricsLayer::builder().register(&meter))
-///     .finish();
+///     .layer(OtelMetricsLayer::builder().register(&meter));
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OtelMetricsLayer {
     interceptor: OtelMetricsInterceptor,
 }
@@ -65,8 +67,7 @@ impl OtelMetricsLayer {
     /// # fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().register(&meter))
-    ///     .finish();
+    ///     .layer(OtelMetricsLayer::builder().register(&meter));
     /// # Ok(())
     /// # }
     /// ```
@@ -99,7 +100,7 @@ impl Default for OtelMetricsLayerBuilder {
 }
 
 impl OtelMetricsLayerBuilder {
-    /// Set boundaries for bytes related histogram like `operation_bytes`.
+    /// Set boundaries for bytes histograms, including operation bytes and HTTP body sizes.
     pub fn bytes_boundaries(mut self, boundaries: Vec<f64>) -> Self {
         if !boundaries.is_empty() {
             self.bytes_boundaries = boundaries;
@@ -107,7 +108,7 @@ impl OtelMetricsLayerBuilder {
         self
     }
 
-    /// Set boundaries for bytes rate related histogram like `operation_bytes_rate`.
+    /// Set boundaries for bytes rate histograms, including operation and HTTP body rates.
     pub fn bytes_rate_boundaries(mut self, boundaries: Vec<f64>) -> Self {
         if !boundaries.is_empty() {
             self.bytes_rate_boundaries = boundaries;
@@ -131,7 +132,7 @@ impl OtelMetricsLayerBuilder {
         self
     }
 
-    /// Set boundaries for duration seconds related histogram like `operation_duration_seconds`.
+    /// Set boundaries for duration histograms, including operation and HTTP request/response durations.
     pub fn duration_seconds_boundaries(mut self, boundaries: Vec<f64>) -> Self {
         if !boundaries.is_empty() {
             self.duration_seconds_boundaries = boundaries;
@@ -160,8 +161,7 @@ impl OtelMetricsLayerBuilder {
     /// # fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
-    ///     .layer(OtelMetricsLayer::builder().register(&meter))
-    ///     .finish();
+    ///     .layer(OtelMetricsLayer::builder().register(&meter));
     /// # Ok(())
     /// # }
     /// ```
@@ -336,11 +336,14 @@ impl OtelMetricsLayerBuilder {
     }
 }
 
-impl<A: Access> Layer<A> for OtelMetricsLayer {
-    type LayeredAccess = observe::MetricsAccessor<A, OtelMetricsInterceptor>;
+impl Layer for OtelMetricsLayer {
+    // Operation and HTTP metrics share the same registered OpenTelemetry instruments.
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_service(inner)
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_fetch(srv, inner)
     }
 }
 

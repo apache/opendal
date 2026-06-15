@@ -28,7 +28,7 @@ use crate::*;
 ///
 /// - Services impl `AppendWrite`
 /// - `AppendWriter` impl `Write`
-/// - Expose `AppendWriter` as `Accessor::Writer`
+/// - Expose `AppendWriter` as `Service::Writer`
 ///
 /// ## Requirements
 ///

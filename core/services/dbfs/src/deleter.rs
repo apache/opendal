@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct DbfsDeleter {
     core: Arc<DbfsCore>,
+    ctx: OperationContext,
 }
 
 impl DbfsDeleter {
-    pub fn new(core: Arc<DbfsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<DbfsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for DbfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.dbfs_delete(&path).await?;
+        let resp = self.core.dbfs_delete(&self.ctx, &path).await?;
 
         let status = resp.status();
 

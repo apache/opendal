@@ -28,11 +28,12 @@ use crate::error::parse_tos_error_code;
 
 pub struct TosDeleter {
     core: Arc<TosCore>,
+    ctx: OperationContext,
 }
 
 impl TosDeleter {
-    pub fn new(core: Arc<TosCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<TosCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
@@ -42,7 +43,7 @@ impl oio::BatchDelete for TosDeleter {
             return Ok(());
         }
 
-        let resp = self.core.tos_delete_object(&path, &args).await?;
+        let resp = self.core.tos_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 
@@ -54,7 +55,7 @@ impl oio::BatchDelete for TosDeleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let resp = self.core.tos_delete_objects(&batch).await?;
+        let resp = self.core.tos_delete_objects(&self.ctx, &batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {

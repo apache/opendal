@@ -29,8 +29,13 @@ pub enum HfReadStream {
 }
 
 impl HfReadStream {
-    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(RpRead, Self)> {
-        let resp = core.resolve(path, range, core.download_mode).await?;
+    pub async fn try_new(
+        core: &HfCore,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self)> {
+        let resp = core.resolve(ctx, path, range, core.download_mode).await?;
         if resp.headers().contains_key("x-xet-hash") {
             let (_, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
@@ -116,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_read_returns_metadata() -> Result<()> {
-        let (core, _) = create_test_core(
+        let (core, ctx, _) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
@@ -124,7 +129,7 @@ mod tests {
         );
 
         let (rp, mut reader) =
-            HfReadStream::try_new(&core, "test.txt", BytesRange::default()).await?;
+            HfReadStream::try_new(&core, &ctx, "test.txt", BytesRange::default()).await?;
         let metadata = rp.metadata().expect("read metadata must be returned");
 
         assert_eq!(metadata.mode(), EntryMode::FILE);
@@ -164,10 +169,15 @@ mod tests {
         use base64::Engine;
 
         let core = testing_dataset_core();
+        let ctx = OperationContext::new(
+            HttpClient::with(reqwest::Client::new()),
+            Executor::default(),
+        );
         let content = b"non-xet fallback test content";
         let path = "tests/non-xet-fallback.txt";
 
         core.commit_git(
+            &ctx,
             vec![CommitFile {
                 path: path.to_string(),
                 content: base64::prelude::BASE64_STANDARD.encode(content),
@@ -180,7 +190,7 @@ mod tests {
         .await
         .expect("commit should succeed");
 
-        let (_, mut reader) = HfReadStream::try_new(&core, path, BytesRange::default())
+        let (_, mut reader) = HfReadStream::try_new(&core, &ctx, path, BytesRange::default())
             .await
             .expect("reading non-XET file in Xet mode should succeed via HTTP fallback");
 
@@ -200,6 +210,7 @@ mod tests {
         assert_eq!(buf, content);
 
         core.commit_git(
+            &ctx,
             vec![],
             vec![],
             vec![DeletedFile {

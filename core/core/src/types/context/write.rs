@@ -23,8 +23,10 @@ use crate::*;
 
 /// WriteContext holds the immutable context for give write operation.
 pub struct WriteContext {
-    /// The accessor to the storage services.
-    acc: Accessor,
+    /// The composed context used to execute operations.
+    ctx: OperationContext,
+    /// The composed service to the underlying object storage.
+    srv: Servicer,
     /// Path to the file.
     path: String,
     /// Arguments for the write operation.
@@ -36,19 +38,20 @@ pub struct WriteContext {
 impl WriteContext {
     /// Create a new WriteContext.
     #[inline]
-    pub fn new(acc: Accessor, path: String, args: OpWrite, options: OpWriter) -> Self {
+    pub fn new(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        args: OpWrite,
+        options: OpWriter,
+    ) -> Self {
         Self {
-            acc,
+            ctx,
+            srv,
             path,
             args,
             options,
         }
-    }
-
-    /// Get the accessor.
-    #[inline]
-    pub fn accessor(&self) -> &Accessor {
-        &self.acc
     }
 
     /// Get the path.
@@ -73,7 +76,7 @@ impl WriteContext {
     ///
     /// Returns the chunk size and if the chunk size is exact.
     fn calculate_chunk_size(&self) -> (Option<usize>, bool) {
-        let cap = self.accessor().info().full_capability();
+        let cap = self.srv.capability();
 
         let exact = self.options().chunk().is_some();
         let chunk_size = self
@@ -110,7 +113,10 @@ impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
     pub async fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
-        let (_, w) = ctx.acc.write(ctx.path(), ctx.args().clone()).await?;
+        let (_, w) = ctx
+            .srv
+            .write(&ctx.ctx, ctx.path(), ctx.args().clone())
+            .await?;
 
         Ok(Self {
             w,
@@ -137,7 +143,7 @@ impl WriteGenerator<oio::Writer> {
     pub async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
         let Some(chunk_size) = self.chunk_size else {
             let size = bs.len();
-            self.w.write_dyn(bs).await?;
+            self.w.write(bs).await?;
             return Ok(size);
         };
 
@@ -156,7 +162,7 @@ impl WriteGenerator<oio::Writer> {
             let fill_size = bs.len();
             self.buffer.push(bs);
             let buf = self.buffer.take().collect();
-            self.w.write_dyn(buf).await?;
+            self.w.write(buf).await?;
             return Ok(fill_size);
         }
 
@@ -168,7 +174,7 @@ impl WriteGenerator<oio::Writer> {
         // - write existing buffer in chunk_size to make more rooms for writing data.
         if self.buffer.len() >= chunk_size {
             let buf = self.buffer.take().collect();
-            self.w.write_dyn(buf).await?;
+            self.w.write(buf).await?;
         }
 
         // Condition
@@ -191,7 +197,7 @@ impl WriteGenerator<oio::Writer> {
             }
 
             let buf = self.buffer.take().collect();
-            self.w.write_dyn(buf).await?;
+            self.w.write(buf).await?;
         }
 
         self.w.close().await

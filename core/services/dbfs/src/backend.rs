@@ -81,7 +81,7 @@ impl Builder for DbfsBuilder {
     type Config = DbfsConfig;
 
     /// Build a DbfsBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -105,14 +105,28 @@ impl Builder for DbfsBuilder {
             }
         };
 
-        let client = HttpClient::new()?;
+        let capability = Capability {
+            stat: true,
+
+            write: true,
+            create_dir: true,
+            delete: true,
+            rename: true,
+
+            list: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,
                 endpoint: endpoint.to_string(),
                 token,
-                client,
             }),
+            capability,
         })
     }
 }
@@ -121,38 +135,32 @@ impl Builder for DbfsBuilder {
 #[derive(Debug, Clone)]
 pub struct DbfsBackend {
     core: Arc<DbfsCore>,
+    capability: Capability,
 }
 
-impl Access for DbfsBackend {
+impl Service for DbfsBackend {
     type Reader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type Lister = oio::PageLister<DbfsLister>;
     type Deleter = oio::OneShotDeleter<DbfsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        let am = AccessorInfo::default();
-        am.set_scheme(DBFS_SCHEME)
-            .set_root(&self.core.root)
-            .set_native_capability(Capability {
-                stat: true,
-
-                write: true,
-                create_dir: true,
-                delete: true,
-                rename: true,
-
-                list: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
+    fn info(&self) -> ServiceInfo {
+        let am = ServiceInfo::new(DBFS_SCHEME, &self.core.root, "");
         am.into()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.dbfs_create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        let resp = self.core.dbfs_create_dir(ctx, path).await?;
 
         let status = resp.status();
 
@@ -162,13 +170,13 @@ impl Access for DbfsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.dbfs_get_status(path).await?;
+        let resp = self.core.dbfs_get_status(ctx, path).await?;
 
         let status = resp.status();
 
@@ -197,30 +205,63 @@ impl Access for DbfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(DbfsWriter::new(self.core.clone(), args, path.to_string())),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::OneShotWriter<DbfsWriter>) = {
+            Ok((
+                RpWrite::default(),
+                oio::OneShotWriter::new(DbfsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args,
+                    path.to_string(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(DbfsDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<DbfsDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(DbfsDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = DbfsLister::new(self.core.clone(), path.to_string());
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<DbfsLister>) = {
+            let l = DbfsLister::new(self.core.clone(), ctx.clone(), path.to_string());
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.dbfs_ensure_parent_path(to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        self.core.dbfs_ensure_parent_path(ctx, to).await?;
 
-        let resp = self.core.dbfs_rename(from, to).await?;
+        let resp = self.core.dbfs_rename(ctx, from, to).await?;
 
         let status = resp.status();
 

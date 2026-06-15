@@ -57,7 +57,7 @@ impl CompfsBuilder {
 impl Builder for CompfsBuilder {
     type Config = CompfsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = match self.config.root {
             Some(root) => Ok(root),
             None => Err(Error::new(
@@ -85,32 +85,26 @@ impl Builder for CompfsBuilder {
             )
         })?;
         let core = CompfsCore {
-            info: {
-                let am = AccessorInfo::default();
-                am.set_scheme(COMPFS_SCHEME)
-                    .set_root(&root)
-                    .set_native_capability(Capability {
-                        stat: true,
+            info: ServiceInfo::new(COMPFS_SCHEME, &root, ""),
+            capability: Capability {
+                stat: true,
 
-                        read: true,
+                read: true,
 
-                        write: true,
-                        write_can_empty: true,
-                        write_can_multi: true,
-                        create_dir: true,
-                        delete: true,
+                write: true,
+                write_can_empty: true,
+                write_can_multi: true,
+                create_dir: true,
+                delete: true,
 
-                        list: true,
+                list: true,
 
-                        copy: true,
-                        rename: true,
+                copy: true,
+                rename: true,
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
-
-                am.into()
+                ..Default::default()
             },
             root: root.into(),
             dispatcher,
@@ -164,18 +158,27 @@ impl oio::PositionRead for CompfsReader {
     }
 }
 
-impl Access for CompfsBackend {
+impl Service for CompfsBackend {
     type Reader = oio::PositionReader<CompfsReader>;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let path = self.core.prepare_path(path)?;
 
         self.core
@@ -185,7 +188,7 @@ impl Access for CompfsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let path = self.core.prepare_path(path)?;
         let meta = self
             .core
@@ -206,47 +209,62 @@ impl Access for CompfsBackend {
         Ok(RpStat::new(ret))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<CompfsDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         _: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let from = self.core.prepare_path(from)?;
-        let to = self.core.prepare_path(to)?;
+        let (rp, output): (_, ()) = {
+            let from = self.core.prepare_path(from)?;
+            let to = self.core.prepare_path(to)?;
 
-        self.core
-            .exec(move || async move {
-                let from = OpenOptions::new().read(true).open(from).await?;
-                if let Some(parent) = to.parent() {
-                    compio::fs::create_dir_all(parent).await?;
-                }
-                let to = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(to)
-                    .await?;
+            self.core
+                .exec(move || async move {
+                    let from = OpenOptions::new().read(true).open(from).await?;
+                    if let Some(parent) = to.parent() {
+                        compio::fs::create_dir_all(parent).await?;
+                    }
+                    let to = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(to)
+                        .await?;
 
-                let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
-                compio::io::copy(&mut from, &mut to).await?;
+                    let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
+                    compio::io::copy(&mut from, &mut to).await?;
 
-                Ok(())
-            })
-            .await?;
+                    Ok(())
+                })
+                .await?;
 
-        Ok((RpCopy::default(), ()))
+            Ok((RpCopy::default(), ()))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
         let from = self.core.prepare_path(from)?;
         let to = self.core.prepare_path(to)?;
 
@@ -261,75 +279,97 @@ impl Access for CompfsBackend {
 
         Ok(RpRename::default())
     }
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = self.core.prepare_path(path)?;
-        let file = self
-            .core
-            .exec(move || async move {
-                let file = compio::fs::OpenOptions::new()
-                    .read(true)
-                    .open(&path)
-                    .await?;
-                Ok(file)
-            })
-            .await?;
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::PositionReader<CompfsReader>) = {
+            let path = self.core.prepare_path(path)?;
+            let file = self
+                .core
+                .exec(move || async move {
+                    let file = compio::fs::OpenOptions::new()
+                        .read(true)
+                        .open(&path)
+                        .await?;
+                    Ok(file)
+                })
+                .await?;
 
-        Ok((
-            RpRead::default(),
-            oio::PositionReader::new(CompfsReader::new(self.core.clone(), file)),
-        ))
+            Ok((
+                RpRead::default(),
+                oio::PositionReader::new(CompfsReader::new(self.core.clone(), file)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = self.core.prepare_path(path)?;
-        let append = args.append();
-        let file = self
-            .core
-            .exec(move || async move {
-                if let Some(parent) = path.parent() {
-                    compio::fs::create_dir_all(parent).await?;
-                }
-                let file = compio::fs::OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(!append)
-                    .open(path)
-                    .await?;
-                let mut file = Cursor::new(file);
-                if append {
-                    let len = file.get_ref().metadata().await?.len();
-                    file.set_position(len);
-                }
-                Ok(file)
-            })
-            .await?;
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, CompfsWriter) = {
+            let path = self.core.prepare_path(path)?;
+            let append = args.append();
+            let file = self
+                .core
+                .exec(move || async move {
+                    if let Some(parent) = path.parent() {
+                        compio::fs::create_dir_all(parent).await?;
+                    }
+                    let file = compio::fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .truncate(!append)
+                        .open(path)
+                        .await?;
+                    let mut file = Cursor::new(file);
+                    if append {
+                        let len = file.get_ref().metadata().await?.len();
+                        file.set_position(len);
+                    }
+                    Ok(file)
+                })
+                .await?;
 
-        let w = CompfsWriter::new(self.core.clone(), file);
-        Ok((RpWrite::new(), w))
+            let w = CompfsWriter::new(self.core.clone(), file);
+            Ok((RpWrite::new(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let path = self.core.prepare_path(path)?;
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, Option<CompfsLister>) = {
+            let path = self.core.prepare_path(path)?;
 
-        let read_dir = match self
-            .core
-            .exec_blocking({
-                let path = path.clone();
-                move || std::fs::read_dir(path)
-            })
-            .await?
-        {
-            Ok(rd) => rd,
-            Err(e) => {
-                return if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(new_std_io_error(e))
-                };
+            match self
+                .core
+                .exec_blocking({
+                    let path = path.clone();
+                    move || std::fs::read_dir(path)
+                })
+                .await?
+            {
+                Ok(read_dir) => {
+                    let lister = CompfsLister::new(self.core.clone(), &path, read_dir);
+                    Ok((RpList::default(), Some(lister)))
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
+                Err(e) => Err(new_std_io_error(e)),
             }
-        };
+        }?;
 
-        let lister = CompfsLister::new(self.core.clone(), &path, read_dir);
-        Ok((RpList::default(), Some(lister)))
+        Ok((rp, output))
     }
 }

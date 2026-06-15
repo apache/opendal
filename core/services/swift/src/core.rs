@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -105,7 +104,8 @@ impl TempUrlHashAlgorithm {
 }
 
 pub struct SwiftCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub endpoint: String,
     pub container: String,
@@ -125,7 +125,11 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn swift_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -146,7 +150,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Bulk delete multiple objects in a single request.
@@ -154,6 +158,7 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
     pub async fn swift_bulk_delete(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         // The bulk-delete endpoint is on the account URL (the endpoint itself).
@@ -183,11 +188,12 @@ impl SwiftCore {
             .body(Buffer::from(bytes::Bytes::from(body_str)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn swift_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -218,11 +224,12 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn swift_create_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         length: u64,
         args: &OpWrite,
@@ -266,11 +273,12 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn swift_read(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
@@ -312,10 +320,15 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<Buffer>> {
+    pub async fn swift_copy(
+        &self,
+        ctx: &OperationContext,
+        src_p: &str,
+        dst_p: &str,
+    ) -> Result<Response<Buffer>> {
         // NOTE: current implementation is limited to same container and root
 
         let src_p = format!(
@@ -352,10 +365,15 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn swift_get_metadata(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn swift_get_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -387,7 +405,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Build the segment path for an SLO part.
@@ -408,6 +426,7 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
     pub async fn swift_put_segment(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -431,7 +450,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Finalize an SLO by uploading the manifest.
@@ -442,6 +461,7 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
     pub async fn swift_put_slo_manifest(
         &self,
+        ctx: &OperationContext,
         path: &str,
         manifest: &[SloManifestEntry],
         args: &OpWrite,
@@ -473,7 +493,7 @@ impl SwiftCore {
             .body(Buffer::from(bytes::Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Delete an SLO manifest and all its segments.
@@ -482,7 +502,12 @@ impl SwiftCore {
     /// and all referenced segments in one call.
     ///
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
-    pub async fn swift_delete_slo(&self, path: &str, upload_id: &str) -> Result<()> {
+    pub async fn swift_delete_slo(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<()> {
         // List segments under the upload_id prefix and delete them individually.
         // We can't use multipart-manifest=delete because we haven't created
         // the manifest yet (abort happens before complete).
@@ -503,7 +528,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Ok(());
         }
@@ -530,7 +555,7 @@ impl SwiftCore {
                     .map_err(new_request_build_error)?;
 
                 // Best effort — ignore individual segment delete failures.
-                let _ = self.info.http_client().send(req).await;
+                let _ = ctx.http_client().send(req).await;
             }
         }
 

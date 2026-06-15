@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use constants::X_OSS_META_PREFIX;
@@ -36,7 +35,7 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::header::RANGE;
 use reqsign_aliyun_oss::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -61,7 +60,8 @@ pub mod constants {
 }
 
 pub struct OssCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub root: String,
     pub bucket: String,
@@ -91,14 +91,23 @@ impl Debug for OssCore {
 }
 
 impl OssCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_env(reqsign_core::OsEnv),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -106,14 +115,19 @@ impl OssCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -122,8 +136,12 @@ impl OssCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     /// Set sse headers
@@ -476,22 +494,33 @@ impl OssCore {
 
     pub async fn oss_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.oss_get_object_request(path, false, range, args)?;
-        let req = self.sign(req).await?;
-        self.info.http_client().fetch(req).await
+        let req = self.sign(ctx, req).await?;
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn oss_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.oss_head_object_request(path, false, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn oss_copy_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -513,12 +542,13 @@ impl OssCore {
             .extension(ServiceOperation("CopyObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn oss_list_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         token: &str,
         delimiter: &str,
@@ -526,12 +556,13 @@ impl OssCore {
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
         let req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn oss_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -565,18 +596,24 @@ impl OssCore {
             .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn oss_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn oss_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let req = self.oss_delete_object_request(path, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn oss_delete_objects(
         &self,
+        ctx: &OperationContext,
         paths: Vec<(String, OpDelete)>,
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
@@ -608,8 +645,8 @@ impl OssCore {
         let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     fn get_endpoint(&self, is_presign: bool) -> &str {
@@ -620,8 +657,10 @@ impl OssCore {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn oss_initiate_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
@@ -652,13 +691,15 @@ impl OssCore {
             .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// Creates a request to upload a part
+    #[allow(clippy::too_many_arguments)]
     pub async fn oss_upload_part_request(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -685,12 +726,13 @@ impl OssCore {
             .extension(ServiceOperation("UploadPart"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn oss_complete_multipart_upload_request(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         is_presign: bool,
@@ -723,14 +765,15 @@ impl OssCore {
         let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// Abort an ongoing multipart upload.
     /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
     pub async fn oss_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -748,8 +791,8 @@ impl OssCore {
             .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 }
 

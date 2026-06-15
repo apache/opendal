@@ -29,11 +29,12 @@ use opendal_core::*;
 
 pub struct S3Deleter {
     core: Arc<S3Core>,
+    ctx: OperationContext,
 }
 
 impl S3Deleter {
-    pub fn new(core: Arc<S3Core>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
@@ -44,7 +45,7 @@ impl oio::BatchDelete for S3Deleter {
             return Ok(());
         }
 
-        let resp = self.core.s3_delete_object(&path, &args).await?;
+        let resp = self.core.s3_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 
@@ -59,7 +60,7 @@ impl oio::BatchDelete for S3Deleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let resp = self.core.s3_delete_objects(&batch).await?;
+        let resp = self.core.s3_delete_objects(&self.ctx, &batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {

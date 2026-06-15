@@ -33,7 +33,6 @@ pub struct D1Core {
     pub account_id: String,
     pub database_id: String,
 
-    pub client: HttpClient,
     pub table: String,
     pub key_field: String,
     pub value_field: String,
@@ -77,14 +76,14 @@ impl D1Core {
             .map_err(new_request_build_error)
     }
 
-    pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+    pub async fn get(&self, ctx: &OperationContext, path: &str) -> Result<Option<Buffer>> {
         let query = format!(
             "SELECT {} FROM {} WHERE {} = ? LIMIT 1",
             self.value_field, self.table, self.key_field
         );
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
-        let resp = self.client.send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
@@ -97,7 +96,7 @@ impl D1Core {
         }
     }
 
-    pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, ctx: &OperationContext, path: &str, value: Buffer) -> Result<()> {
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
@@ -111,7 +110,7 @@ impl D1Core {
         let params = vec![path.into(), value.to_vec().into()];
         let req = self.create_d1_query_request(&query, params)?;
 
-        let resp = self.client.send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
@@ -119,11 +118,11 @@ impl D1Core {
         }
     }
 
-    pub async fn delete(&self, path: &str) -> Result<()> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = ?", self.table, self.key_field);
         let req = self.create_d1_query_request(&query, vec![path.into()])?;
 
-        let resp = self.client.send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),

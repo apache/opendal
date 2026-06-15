@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -26,7 +25,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct VercelArtifactsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub(crate) access_token: String,
     pub(crate) endpoint: String,
     pub(crate) query_string: String,
@@ -42,6 +42,7 @@ impl Debug for VercelArtifactsCore {
 impl VercelArtifactsCore {
     pub(crate) async fn vercel_artifacts_get(
         &self,
+        ctx: &OperationContext,
         hash: &str,
         range: BytesRange,
         _: &OpRead,
@@ -66,11 +67,12 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub(crate) async fn vercel_artifacts_put(
         &self,
+        ctx: &OperationContext,
         hash: &str,
         size: u64,
         body: Buffer,
@@ -93,10 +95,14 @@ impl VercelArtifactsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub(crate) async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<Buffer>> {
+    pub(crate) async fn vercel_artifacts_stat(
+        &self,
+        ctx: &OperationContext,
+        hash: &str,
+    ) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/v8/artifacts/{}{}",
             self.endpoint,
@@ -114,6 +120,6 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 }

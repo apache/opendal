@@ -79,7 +79,7 @@ impl TikvBuilder {
 impl Builder for TikvBuilder {
     type Config = TikvConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let endpoints = self.config.endpoints.ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
@@ -116,16 +116,14 @@ impl Builder for TikvBuilder {
 pub struct TikvBackend {
     core: Arc<TikvCore>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl TikvBackend {
     fn new(core: TikvCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(TIKV_SCHEME);
-        info.set_name("TiKV");
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(TIKV_SCHEME, "/", "TiKV");
+        let capability = Capability {
             read: true,
             stat: true,
             write: true,
@@ -133,12 +131,13 @@ impl TikvBackend {
             delete: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 }
@@ -176,18 +175,22 @@ impl oio::StreamRead for TikvReader {
     }
 }
 
-impl Access for TikvBackend {
+impl Service for TikvBackend {
     type Reader = oio::StreamReader<TikvReader>;
     type Writer = TikvWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -202,22 +205,44 @@ impl Access for TikvBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(TikvReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<TikvReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(TikvReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), TikvWriter::new(self.core.clone(), p)))
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, TikvWriter) = {
+            let p = build_abs_path(&self.root, path);
+            Ok((RpWrite::new(), TikvWriter::new(self.core.clone(), p)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(TikvDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<TikvDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(TikvDeleter::new(self.core.clone(), self.root.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

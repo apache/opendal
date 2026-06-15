@@ -102,7 +102,7 @@ impl AliyunDriveBuilder {
 impl Builder for AliyunDriveBuilder {
     type Config = AliyunDriveConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -144,35 +144,29 @@ impl Builder for AliyunDriveBuilder {
 
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(ALIYUN_DRIVE_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            create_dir: true,
-                            read: true,
-                            read_with_suffix: true,
-                            write: true,
-                            write_can_multi: true,
-                            // The min multipart size of AliyunDrive is 100 KiB.
-                            write_multi_min_size: Some(100 * 1024),
-                            // The max multipart size of AliyunDrive is 5 GiB.
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            delete: true,
-                            copy: true,
-                            rename: true,
-                            list: true,
-                            list_with_limit: true,
-                            shared: true,
-                            ..Default::default()
-                        });
-
-                    am.into()
+                info: ServiceInfo::new(ALIYUN_DRIVE_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
+                    create_dir: true,
+                    read: true,
+                    read_with_suffix: true,
+                    write: true,
+                    write_can_multi: true,
+                    // The min multipart size of AliyunDrive is 100 KiB.
+                    write_multi_min_size: Some(100 * 1024),
+                    // The max multipart size of AliyunDrive is 5 GiB.
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
+                    delete: true,
+                    copy: true,
+                    rename: true,
+                    list: true,
+                    list_with_limit: true,
+                    shared: true,
+                    ..Default::default()
                 },
                 endpoint: "https://openapi.alipan.com".to_string(),
                 root,
@@ -195,13 +189,15 @@ pub struct AliyunDriveBackend {
 /// Reader returned by this backend.
 pub struct AliyunDriveReader {
     backend: AliyunDriveBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl AliyunDriveReader {
-    fn new(backend: AliyunDriveBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: AliyunDriveBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -211,10 +207,13 @@ impl oio::StreamRead for AliyunDriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let res = backend.core.get_by_path(path).await?;
+        let res = backend.core.get_by_path(&self.ctx, path).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        let resp = backend.core.download(&file.file_id, range).await?;
+        let resp = backend
+            .core
+            .download(&self.ctx, &file.file_id, range)
+            .await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -233,49 +232,66 @@ impl oio::StreamRead for AliyunDriveReader {
     }
 }
 
-impl Access for AliyunDriveBackend {
+impl Service for AliyunDriveBackend {
     type Reader = oio::StreamReader<AliyunDriveReader>;
     type Writer = AliyunDriveWriter;
     type Lister = oio::PageLister<AliyunDriveLister>;
     type Deleter = oio::OneShotDeleter<AliyunDriveDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.ensure_dir_exists(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.ensure_dir_exists(ctx, path).await?;
 
         Ok(RpCreateDir::default())
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         if from == to {
             return Ok(RpRename::default());
         }
-        let res = self.core.get_by_path(from).await?;
+        let res = self.core.get_by_path(ctx, from).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
         // rename can overwrite.
-        match self.core.get_by_path(to).await {
+        match self.core.get_by_path(ctx, to).await {
             Err(err) if err.kind() == ErrorKind::NotFound => {}
             Err(err) => return Err(err),
             Ok(res) => {
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-                self.core.delete_path(&file.file_id).await?;
+                self.core.delete_path(ctx, &file.file_id).await?;
             }
         };
 
-        let parent_file_id = self.core.ensure_dir_exists(get_parent(to)).await?;
-        self.core.move_path(&file.file_id, &parent_file_id).await?;
+        let parent_file_id = self.core.ensure_dir_exists(ctx, get_parent(to)).await?;
+        self.core
+            .move_path(ctx, &file.file_id, &parent_file_id)
+            .await?;
 
         let from_name = get_basename(from);
         let to_name = get_basename(to);
 
         if from_name != to_name {
-            self.core.update_path(&file.file_id, to_name).await?;
+            self.core.update_path(ctx, &file.file_id, to_name).await?;
         }
 
         Ok(RpRename::default())
@@ -283,56 +299,62 @@ impl Access for AliyunDriveBackend {
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        if from == to {
-            return Ok((RpCopy::default(), ()));
-        }
-        let res = self.core.get_by_path(from).await?;
-        let file: AliyunDriveFile =
-            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        // copy can overwrite.
-        match self.core.get_by_path(to).await {
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-            Ok(res) => {
+        let (rp, output): (_, ()) = {
+            if from == to {
+                Ok((RpCopy::default(), ()))
+            } else {
+                let res = self.core.get_by_path(ctx, from).await?;
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-                self.core.delete_path(&file.file_id).await?;
+                // copy can overwrite.
+                match self.core.get_by_path(ctx, to).await {
+                    Err(err) if err.kind() == ErrorKind::NotFound => {}
+                    Err(err) => Err(err)?,
+                    Ok(res) => {
+                        let file: AliyunDriveFile = serde_json::from_reader(res.reader())
+                            .map_err(new_json_serialize_error)?;
+                        self.core.delete_path(ctx, &file.file_id).await?;
+                    }
+                }
+                // there is no direct copy in AliyunDrive.
+                // so we need to copy the path first and then rename it.
+                let parent_path = get_parent(to);
+                let parent_file_id = self.core.ensure_dir_exists(ctx, parent_path).await?;
+
+                // if from and to are going to be placed in the same folder,
+                // copy_path will fail as we cannot change the name during this action.
+                // it has to be auto renamed.
+                let auto_rename = file.parent_file_id == parent_file_id;
+                let res = self
+                    .core
+                    .copy_path(ctx, &file.file_id, &parent_file_id, auto_rename)
+                    .await?;
+                let file: CopyResponse =
+                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                let file_id = file.file_id;
+
+                let from_name = get_basename(from);
+                let to_name = get_basename(to);
+
+                if from_name != to_name {
+                    self.core.update_path(ctx, &file_id, to_name).await?;
+                }
+
+                Ok((RpCopy::default(), ()))
             }
-        };
-        // there is no direct copy in AliyunDrive.
-        // so we need to copy the path first and then rename it.
-        let parent_path = get_parent(to);
-        let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
+        }?;
 
-        // if from and to are going to be placed in the same folder,
-        // copy_path will fail as we cannot change the name during this action.
-        // it has to be auto renamed.
-        let auto_rename = file.parent_file_id == parent_file_id;
-        let res = self
-            .core
-            .copy_path(&file.file_id, &parent_file_id, auto_rename)
-            .await?;
-        let file: CopyResponse =
-            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        let file_id = file.file_id;
-
-        let from_name = get_basename(from);
-        let to_name = get_basename(to);
-
-        if from_name != to_name {
-            self.core.update_path(&file_id, to_name).await?;
-        }
-
-        Ok((RpCopy::default(), ()))
+        Ok((rp, output))
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let res = self.core.get_by_path(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let res = self.core.get_by_path(ctx, path).await?;
         let file: AliyunDriveFile =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
@@ -360,58 +382,99 @@ impl Access for AliyunDriveBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(AliyunDriveReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<AliyunDriveReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(AliyunDriveReader::new(
+                    self.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(AliyunDriveDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<AliyunDriveDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(AliyunDriveDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let parent = match self.core.get_by_path(path).await {
-            Err(err) if err.kind() == ErrorKind::NotFound => None,
-            Err(err) => return Err(err),
-            Ok(res) => {
-                let file: AliyunDriveFile =
-                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-                Some(AliyunDriveParent {
-                    file_id: file.file_id,
-                    path: path.to_string(),
-                    updated_at: file.updated_at,
-                })
-            }
-        };
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<AliyunDriveLister>) = {
+            let parent = match self.core.get_by_path(ctx, path).await {
+                Err(err) if err.kind() == ErrorKind::NotFound => None,
+                Err(err) => return Err(err),
+                Ok(res) => {
+                    let file: AliyunDriveFile =
+                        serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                    Some(AliyunDriveParent {
+                        file_id: file.file_id,
+                        path: path.to_string(),
+                        updated_at: file.updated_at,
+                    })
+                }
+            };
 
-        let l = AliyunDriveLister::new(self.core.clone(), parent, args.limit());
+            let l = AliyunDriveLister::new(self.core.clone(), ctx.clone(), parent, args.limit());
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let parent_path = get_parent(path);
-        let parent_file_id = self.core.ensure_dir_exists(parent_path).await?;
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, AliyunDriveWriter) = {
+            let parent_path = get_parent(path);
+            let parent_file_id = self.core.ensure_dir_exists(ctx, parent_path).await?;
 
-        // write can overwrite
-        match self.core.get_by_path(path).await {
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-            Ok(res) => {
-                let file: AliyunDriveFile =
-                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-                self.core.delete_path(&file.file_id).await?;
-            }
-        };
+            // write can overwrite
+            match self.core.get_by_path(ctx, path).await {
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+                Ok(res) => {
+                    let file: AliyunDriveFile =
+                        serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                    self.core.delete_path(ctx, &file.file_id).await?;
+                }
+            };
 
-        let writer =
-            AliyunDriveWriter::new(self.core.clone(), &parent_file_id, get_basename(path), args);
+            let writer = AliyunDriveWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                &parent_file_id,
+                get_basename(path),
+                args,
+            );
 
-        Ok((RpWrite::default(), writer))
+            Ok((RpWrite::default(), writer))
+        }?;
+
+        Ok((rp, output))
     }
 }

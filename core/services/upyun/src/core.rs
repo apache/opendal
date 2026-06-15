@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use base64::Engine;
 use hmac::Hmac;
@@ -56,7 +55,8 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct UpyunCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -80,8 +80,12 @@ impl Debug for UpyunCore {
 
 impl UpyunCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
@@ -100,7 +104,12 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn download_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -119,10 +128,10 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -140,7 +149,7 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn upload(
@@ -186,7 +195,7 @@ impl UpyunCore {
         Ok(req)
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -203,10 +212,15 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -231,10 +245,15 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn move_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -259,10 +278,10 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let path = path[..path.len() - 1].to_string();
 
@@ -284,11 +303,12 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -324,7 +344,7 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn upload_part(
@@ -365,6 +385,7 @@ impl UpyunCore {
 
     pub async fn complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -388,11 +409,12 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         iter: &str,
         limit: Option<usize>,
@@ -427,7 +449,7 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

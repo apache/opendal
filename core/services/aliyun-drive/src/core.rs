@@ -60,7 +60,8 @@ pub struct AliyunDriveSigner {
 }
 
 pub struct AliyunDriveCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub endpoint: String,
     pub root: String,
@@ -80,7 +81,12 @@ impl Debug for AliyunDriveCore {
 }
 
 impl AliyunDriveCore {
-    async fn send(&self, mut req: Request<Buffer>, token: Option<&str>) -> Result<Buffer> {
+    async fn send(
+        &self,
+        ctx: &OperationContext,
+        mut req: Request<Buffer>,
+        token: Option<&str>,
+    ) -> Result<Buffer> {
         // AliyunDrive raise NullPointerException if you haven't set a user-agent.
         req.headers_mut().insert(
             header::USER_AGENT,
@@ -100,7 +106,7 @@ impl AliyunDriveCore {
                     .expect("access token must be valid header value"),
             );
         }
-        let res = self.info.http_client().send(req).await?;
+        let res = ctx.http_client().send(req).await?;
         if !res.status().is_success() {
             return Err(parse_error(res));
         }
@@ -109,6 +115,7 @@ impl AliyunDriveCore {
 
     async fn get_access_token(
         &self,
+        ctx: &OperationContext,
         client_id: &str,
         client_secret: &str,
         refresh_token: &str,
@@ -123,17 +130,20 @@ impl AliyunDriveCore {
         let req = Request::post(format!("{}/oauth/access_token", self.endpoint))
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, None).await
+        self.send(ctx, req, None).await
     }
 
-    async fn get_drive_id(&self, token: Option<&str>) -> Result<Buffer> {
+    async fn get_drive_id(&self, ctx: &OperationContext, token: Option<&str>) -> Result<Buffer> {
         let req = Request::post(format!("{}/adrive/v1.0/user/getDriveInfo", self.endpoint))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.send(req, token).await
+        self.send(ctx, req, token).await
     }
 
-    pub async fn get_token_and_drive(&self) -> Result<(Option<String>, String)> {
+    pub async fn get_token_and_drive(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<(Option<String>, String)> {
         let mut signer = self.signer.lock().await;
         let token = match &mut signer.sign {
             AliyunDriveSign::Access(access_token) => Some(access_token.clone()),
@@ -147,7 +157,7 @@ impl AliyunDriveCore {
                 if *expire_at < Timestamp::now().into_inner().as_second() || access_token.is_none()
                 {
                     let res = self
-                        .get_access_token(client_id, client_secret, refresh_token)
+                        .get_access_token(ctx, client_id, client_secret, refresh_token)
                         .await?;
                     let output: RefreshTokenResponse = serde_json::from_reader(res.reader())
                         .map_err(new_json_deserialize_error)?;
@@ -159,7 +169,7 @@ impl AliyunDriveCore {
             }
         };
         let Some(drive_id) = &signer.drive_id else {
-            let res = self.get_drive_id(token.as_deref()).await?;
+            let res = self.get_drive_id(ctx, token.as_deref()).await?;
             let output: DriveInfoResponse =
                 serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
             let drive_id = match self.drive_type {
@@ -186,13 +196,13 @@ impl AliyunDriveCore {
         file_path.to_string()
     }
 
-    pub async fn get_by_path(&self, path: &str) -> Result<Buffer> {
+    pub async fn get_by_path(&self, ctx: &OperationContext, path: &str) -> Result<Buffer> {
         let file_path = self.build_path(path, true);
         let req = Request::post(format!(
             "{}/adrive/v1.0/openFile/get_by_path",
             self.endpoint
         ));
-        let (token, drive_id) = self.get_token_and_drive().await?;
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&GetByPathRequest {
             drive_id: &drive_id,
             file_path: &file_path,
@@ -202,10 +212,10 @@ impl AliyunDriveCore {
             .extension(Operation::Read)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
+        self.send(ctx, req, token.as_deref()).await
     }
 
-    pub async fn ensure_dir_exists(&self, path: &str) -> Result<String> {
+    pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let file_path = self.build_path(path, false);
         if file_path == "/" {
             return Ok("root".to_string());
@@ -217,6 +227,7 @@ impl AliyunDriveCore {
             let _guard = self.dir_lock.lock().await;
             let res = self
                 .create(
+                    ctx,
                     parent.as_deref(),
                     path,
                     CreateType::Folder,
@@ -230,8 +241,10 @@ impl AliyunDriveCore {
         Ok(parent.expect("ensure_dir_exists must succeed"))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_with_rapid_upload(
         &self,
+        ctx: &OperationContext,
         parent_file_id: Option<&str>,
         name: &str,
         typ: CreateType,
@@ -248,7 +261,7 @@ impl AliyunDriveCore {
             pre_hash = rapid_upload.pre_hash;
         }
 
-        let (token, drive_id) = self.get_token_and_drive().await?;
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&CreateRequest {
             drive_id: &drive_id,
             parent_file_id: parent_file_id.unwrap_or("root"),
@@ -267,22 +280,23 @@ impl AliyunDriveCore {
             .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
+        self.send(ctx, req, token.as_deref()).await
     }
 
     pub async fn create(
         &self,
+        ctx: &OperationContext,
         parent_file_id: Option<&str>,
         name: &str,
         typ: CreateType,
         check_name_mode: CheckNameMode,
     ) -> Result<Buffer> {
-        self.create_with_rapid_upload(parent_file_id, name, typ, check_name_mode, None, None)
+        self.create_with_rapid_upload(ctx, parent_file_id, name, typ, check_name_mode, None, None)
             .await
     }
 
-    async fn get_download_url(&self, file_id: &str) -> Result<String> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+    async fn get_download_url(&self, ctx: &OperationContext, file_id: &str) -> Result<String> {
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&FileRequest {
             drive_id: &drive_id,
             file_id,
@@ -297,7 +311,7 @@ impl AliyunDriveCore {
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
 
-        let res = self.send(req, token.as_deref()).await?;
+        let res = self.send(ctx, req, token.as_deref()).await?;
 
         let output: GetDownloadUrlResponse =
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
@@ -305,18 +319,28 @@ impl AliyunDriveCore {
         Ok(output.url)
     }
 
-    pub async fn download(&self, file_id: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let download_url = self.get_download_url(file_id).await?;
+    pub async fn download(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(ctx, file_id).await?;
         let req = Request::get(download_url)
             .extension(Operation::Read)
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn move_path(&self, file_id: &str, to_parent_file_id: &str) -> Result<()> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+    pub async fn move_path(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        to_parent_file_id: &str,
+    ) -> Result<()> {
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&MovePathRequest {
             drive_id: &drive_id,
             file_id,
@@ -328,12 +352,17 @@ impl AliyunDriveCore {
             .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await?;
+        self.send(ctx, req, token.as_deref()).await?;
         Ok(())
     }
 
-    pub async fn update_path(&self, file_id: &str, name: &str) -> Result<()> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+    pub async fn update_path(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        name: &str,
+    ) -> Result<()> {
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&UpdatePathRequest {
             drive_id: &drive_id,
             file_id,
@@ -345,17 +374,18 @@ impl AliyunDriveCore {
             .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await?;
+        self.send(ctx, req, token.as_deref()).await?;
         Ok(())
     }
 
     pub async fn copy_path(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         to_parent_file_id: &str,
         auto_rename: bool,
     ) -> Result<Buffer> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&CopyPathRequest {
             drive_id: &drive_id,
             file_id,
@@ -367,11 +397,11 @@ impl AliyunDriveCore {
             .extension(Operation::Copy)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
+        self.send(ctx, req, token.as_deref()).await
     }
 
-    pub async fn delete_path(&self, file_id: &str) -> Result<()> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+    pub async fn delete_path(&self, ctx: &OperationContext, file_id: &str) -> Result<()> {
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&FileRequest {
             drive_id: &drive_id,
             file_id,
@@ -381,17 +411,18 @@ impl AliyunDriveCore {
             .extension(Operation::Delete)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await?;
+        self.send(ctx, req, token.as_deref()).await?;
         Ok(())
     }
 
     pub async fn list(
         &self,
+        ctx: &OperationContext,
         parent_file_id: &str,
         limit: Option<usize>,
         marker: Option<String>,
     ) -> Result<Buffer> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&ListRequest {
             drive_id: &drive_id,
             parent_file_id,
@@ -403,11 +434,16 @@ impl AliyunDriveCore {
             .extension(Operation::List)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
+        self.send(ctx, req, token.as_deref()).await
     }
 
-    pub async fn complete(&self, file_id: &str, upload_id: &str) -> Result<Buffer> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+    pub async fn complete(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        upload_id: &str,
+    ) -> Result<Buffer> {
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let body = serde_json::to_vec(&CompleteRequest {
             drive_id: &drive_id,
             file_id,
@@ -418,16 +454,17 @@ impl AliyunDriveCore {
             .extension(Operation::Write)
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
-        self.send(req, token.as_deref()).await
+        self.send(ctx, req, token.as_deref()).await
     }
 
     async fn get_upload_url(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         upload_id: &str,
         part_number: usize,
     ) -> Result<String> {
-        let (token, drive_id) = self.get_token_and_drive().await?;
+        let (token, drive_id) = self.get_token_and_drive(ctx).await?;
         let part_info_list = vec![PartInfoItem {
             part_number: Some(part_number),
         }];
@@ -447,7 +484,7 @@ impl AliyunDriveCore {
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
 
-        let res = self.send(req, token.as_deref()).await?;
+        let res = self.send(ctx, req, token.as_deref()).await?;
 
         let mut output: UploadUrlResponse =
             serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)?;
@@ -465,17 +502,20 @@ impl AliyunDriveCore {
     }
     pub async fn upload(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         upload_id: &str,
         part_number: usize,
         body: Buffer,
     ) -> Result<Buffer> {
-        let upload_url = self.get_upload_url(file_id, upload_id, part_number).await?;
+        let upload_url = self
+            .get_upload_url(ctx, file_id, upload_id, part_number)
+            .await?;
         let req = Request::put(upload_url)
             .extension(Operation::Write)
             .body(body)
             .map_err(new_request_build_error)?;
-        self.send(req, None).await
+        self.send(ctx, req, None).await
     }
 }
 

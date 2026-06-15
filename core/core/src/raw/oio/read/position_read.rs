@@ -74,7 +74,10 @@ impl<R: PositionRead> PositionReader<R> {
 impl<R: PositionRead> oio::Read for PositionReader<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let stream = PositionReadStream::new(self.inner.clone(), range, self.max_buf_size);
-        Ok((RpRead::default(), Box::new(stream)))
+        Ok((
+            RpRead::default(),
+            Box::new(stream) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {

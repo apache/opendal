@@ -28,7 +28,7 @@ pub async fn hello_world() -> String {
         .bucket("test")
         .region("us-east-1");
 
-    let op = Operator::new(cfg).unwrap().finish();
+    let op = Operator::new(cfg).unwrap();
     op.write(
         "test",
         "Hello, WASM! We are from OpenDAL at rust side!"

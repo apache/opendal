@@ -142,7 +142,7 @@ impl RedisBuilder {
 impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(
             self.config
                 .root
@@ -269,21 +269,19 @@ impl RedisBuilder {
     }
 }
 
-/// RedisBackend implements Access trait directly
+/// RedisBackend implements [`Service`] for Redis-compatible key-value stores.
 #[derive(Debug, Clone)]
 pub struct RedisBackend {
     core: Arc<RedisCore>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl RedisBackend {
     fn new(core: RedisCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(REDIS_SCHEME);
-        info.set_name(core.addr());
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(REDIS_SCHEME, "/", core.addr());
+        let capability = Capability {
             read: true,
             write: true,
             delete: true,
@@ -291,17 +289,18 @@ impl RedisBackend {
             write_can_empty: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
@@ -374,18 +373,22 @@ impl oio::StreamRead for RedisReader {
     }
 }
 
-impl Access for RedisBackend {
+impl Service for RedisBackend {
     type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -400,22 +403,44 @@ impl Access for RedisBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(RedisReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<RedisReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(RedisReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p)))
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, RedisWriter) = {
+            let p = build_abs_path(&self.root, path);
+            Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(RedisDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<RedisDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(RedisDeleter::new(self.core.clone(), self.root.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

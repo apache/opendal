@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Write;
-use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -41,7 +40,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_aws_v4::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -88,7 +87,8 @@ pub mod constants {
 }
 
 pub struct S3Core {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub bucket: String,
     pub endpoint: String,
@@ -136,7 +136,21 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_env(reqsign_core::OsEnv),
+        )
+    }
+
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
@@ -144,7 +158,7 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -160,14 +174,18 @@ impl S3Core {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
         if self.skip_signature {
-            return self.info.http_client().send(req).await;
+            return ctx.http_client().send(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -180,20 +198,23 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        self.info
-            .http_client()
+        ctx.http_client()
             .send(Request::from_parts(parts, body))
             .await
     }
 
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+    pub async fn fetch(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<HttpBody>> {
         if self.skip_signature {
-            return self.info.http_client().fetch(req).await;
+            return ctx.http_client().fetch(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -206,8 +227,7 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        self.info
-            .http_client()
+        ctx.http_client()
             .fetch(Request::from_parts(parts, body))
             .await
     }
@@ -524,12 +544,13 @@ impl S3Core {
 
     pub async fn s3_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.s3_get_object_request(path, range, args)?;
-        self.fetch(req).await
+        self.fetch(ctx, req).await
     }
 
     pub fn s3_put_object_request(
@@ -615,12 +636,22 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
+    pub async fn s3_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.s3_head_object_request(path, args)?;
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn s3_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -651,11 +682,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_copy_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -736,11 +768,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_list_objects_v1(
         &self,
+        ctx: &OperationContext,
         path: &str,
         marker: &str,
         delimiter: &str,
@@ -775,11 +808,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_list_objects_v2(
         &self,
+        ctx: &OperationContext,
         path: &str,
         continuation_token: &str,
         delimiter: &str,
@@ -826,11 +860,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -898,10 +933,14 @@ impl S3Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn s3_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_initiate_multipart_copy(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -930,7 +969,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub(crate) fn s3_upload_part_copy_request(
@@ -1062,6 +1101,7 @@ impl S3Core {
 
     pub async fn s3_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -1108,11 +1148,12 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_complete_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -1155,12 +1196,13 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     /// Abort an on-going multipart upload.
     pub async fn s3_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -1185,12 +1227,13 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     /// Abort an on-going multipart copy.
     pub async fn s3_abort_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -1214,11 +1257,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_delete_objects(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
@@ -1256,11 +1300,12 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -1306,7 +1351,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

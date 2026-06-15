@@ -30,20 +30,21 @@ pub type PcloudWriters = oio::OneShotWriter<PcloudWriter>;
 
 pub struct PcloudWriter {
     core: Arc<PcloudCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl PcloudWriter {
-    pub fn new(core: Arc<PcloudCore>, path: String) -> Self {
-        PcloudWriter { core, path }
+    pub fn new(core: Arc<PcloudCore>, ctx: OperationContext, path: String) -> Self {
+        PcloudWriter { core, ctx, path }
     }
 }
 
 impl oio::OneShotWrite for PcloudWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        self.core.ensure_dir_exists(&self.path).await?;
+        self.core.ensure_dir_exists(&self.ctx, &self.path).await?;
 
-        let resp = self.core.upload_file(&self.path, bs).await?;
+        let resp = self.core.upload_file(&self.ctx, &self.path, bs).await?;
 
         let status = resp.status();
 

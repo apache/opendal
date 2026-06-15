@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         .repo("your_repo");
 
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

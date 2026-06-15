@@ -29,11 +29,12 @@ use super::model::CfKvDeleteResponse;
 
 pub struct CloudflareKvDeleter {
     core: Arc<CloudflareKvCore>,
+    ctx: OperationContext,
 }
 
 impl CloudflareKvDeleter {
-    pub fn new(core: Arc<CloudflareKvCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<CloudflareKvCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
@@ -42,7 +43,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         let path = build_abs_path(&self.core.info.root(), &path);
         let resp = self
             .core
-            .delete(&[path.trim_end_matches('/').to_string()])
+            .delete(&self.ctx, &[path.trim_end_matches('/').to_string()])
             .await?;
 
         let status = resp.status();
@@ -71,7 +72,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
             })
             .collect::<Vec<String>>();
 
-        let resp = self.core.delete(&keys).await?;
+        let resp = self.core.delete(&self.ctx, &keys).await?;
 
         let status = resp.status();
 

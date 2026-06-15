@@ -48,7 +48,6 @@ pub use execute::*;
 mod operator;
 pub use operator::IntoOperatorUri;
 pub use operator::Operator;
-pub use operator::OperatorBuilder;
 pub use operator::OperatorFactory;
 pub use operator::OperatorInfo;
 pub use operator::OperatorRegistry;

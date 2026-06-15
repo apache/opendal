@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use base64::Engine;
 use bytes::Buf;
@@ -36,7 +35,8 @@ use opendal_core::*;
 /// Core of [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[derive(Clone)]
 pub struct GithubCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// Github access_token.
@@ -59,8 +59,12 @@ impl Debug for GithubCore {
 
 impl GithubCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
@@ -81,7 +85,7 @@ impl GithubCore {
 }
 
 impl GithubCore {
-    pub async fn get_file_sha(&self, path: &str) -> Result<Option<String>> {
+    pub async fn get_file_sha(&self, ctx: &OperationContext, path: &str) -> Result<Option<String>> {
         // if the token is not set, we should not try to get the sha of the file.
         if self.token.is_none() {
             return Err(Error::new(
@@ -90,7 +94,7 @@ impl GithubCore {
             ));
         }
 
-        let resp = self.stat(path).await?;
+        let resp = self.stat(ctx, path).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -105,7 +109,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn stat(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -126,10 +130,15 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn get(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -151,11 +160,16 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn upload(&self, path: &str, bs: Buffer) -> Result<Response<Buffer>> {
-        let sha = self.get_file_sha(path).await?;
+    pub async fn upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        bs: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let sha = self.get_file_sha(ctx, path).await?;
 
         let path = build_abs_path(&self.root, path);
 
@@ -189,10 +203,10 @@ impl GithubCore {
             .body(Buffer::from(req_body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, path: &str) -> Result<()> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         // If path is a directory, we should delete path/.gitkeep
         let formatted_path = format!("{path}.gitkeep");
         let p = if path.ends_with('/') {
@@ -201,7 +215,7 @@ impl GithubCore {
             path
         };
 
-        let Some(sha) = self.get_file_sha(p).await? else {
+        let Some(sha) = self.get_file_sha(ctx, p).await? else {
             return Ok(());
         };
 
@@ -232,7 +246,7 @@ impl GithubCore {
             .body(Buffer::from(Bytes::from(req_body)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => Ok(()),
@@ -241,7 +255,7 @@ impl GithubCore {
         }
     }
 
-    pub async fn list(&self, path: &str) -> Result<ListResponse> {
+    pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -262,7 +276,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -278,7 +292,11 @@ impl GithubCore {
     }
 
     /// We use git_url to call github's Tree based API.
-    pub async fn list_with_recursive(&self, git_url: &str) -> Result<Vec<Tree>> {
+    pub async fn list_with_recursive(
+        &self,
+        ctx: &OperationContext,
+        git_url: &str,
+    ) -> Result<Vec<Tree>> {
         let url = format!("{git_url}?recursive=true");
 
         let req = Request::get(url);
@@ -292,7 +310,7 @@ impl GithubCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {

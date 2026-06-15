@@ -26,17 +26,18 @@ use opendal_core::raw::*;
 
 pub struct CosDeleter {
     core: Arc<CosCore>,
+    ctx: OperationContext,
 }
 
 impl CosDeleter {
-    pub fn new(core: Arc<CosCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<CosCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for CosDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        let resp = self.core.cos_delete_object(&path, &args).await?;
+        let resp = self.core.cos_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 

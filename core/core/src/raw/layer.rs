@@ -18,295 +18,256 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use futures::Future;
-use futures::future::ready;
-
 use crate::raw::*;
 use crate::*;
 
-/// Layer is used to intercept the operations on the underlying storage.
+/// Layer intercepts an operator's composed runtime resources.
 ///
-/// Struct that implement this trait must accept input `Arc<dyn Accessor>` as inner,
-/// and returns a new `Arc<dyn Accessor>` as output.
+/// A layer receives the current stack for each plane and returns the stack that
+/// should be used by operators built with this layer. Implementations can wrap
+/// the operation service, HTTP fetcher, task executor, or any combination of
+/// them.
 ///
-/// All functions in `Accessor` requires `&self`, so it's implementer's responsibility
-/// to maintain the internal mutability. Please also keep in mind that `Accessor`
-/// requires `Send` and `Sync`.
-///
-/// # Notes
-///
-/// ## Inner
-///
-/// It's required to implement `fn inner() -> Option<Arc<dyn Accessor>>` for layer's accessors.
-///
-/// By implement this method, all API calls will be forwarded to inner accessor instead.
-///
-/// # Examples
-///
-/// ```
-/// use std::sync::Arc;
-///
-/// use opendal_core::raw::*;
-/// use opendal_core::*;
-///
-/// /// Implement the real accessor logic here.
-/// #[derive(Debug)]
-/// struct TraceAccessor<A: Access> {
-///     inner: A,
-/// }
-///
-/// impl<A: Access> LayeredAccess for TraceAccessor<A> {
-///     type Inner = A;
-///     type Reader = A::Reader;
-///     type Writer = A::Writer;
-///     type Lister = A::Lister;
-///     type Deleter = A::Deleter;
-///     type Copier = A::Copier;
-///
-///     fn inner(&self) -> &Self::Inner {
-///         &self.inner
-///     }
-///
-///     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-///         self.inner.read(path, args).await
-///     }
-///
-///     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-///         self.inner.write(path, args).await
-///     }
-///
-///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-///         self.inner.list(path, args).await
-///     }
-///
-///     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-///         self.inner.delete().await
-///     }
-/// }
-///
-/// /// The public struct that exposed to users.
-/// ///
-/// /// Will be used like `op.layer(TraceLayer)`
-/// struct TraceLayer;
-///
-/// impl<A: Access> Layer<A> for TraceLayer {
-///     type LayeredAccess = TraceAccessor<A>;
-///
-///     fn layer(&self, inner: A) -> Self::LayeredAccess {
-///         TraceAccessor { inner }
-///     }
-/// }
-/// ```
-pub trait Layer<A: Access> {
-    /// The layered accessor that returned by this layer.
-    type LayeredAccess: Access;
-
-    /// Intercept the operations on the underlying storage.
-    fn layer(&self, inner: A) -> Self::LayeredAccess;
-}
-
-/// LayeredAccess is layered accessor that forward all not implemented
-/// method to inner.
-#[allow(missing_docs)]
-pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
-    type Inner: Access;
-
-    type Reader: oio::Read;
-    type Writer: oio::Write;
-    type Lister: oio::List;
-    type Deleter: oio::Delete;
-    type Copier: oio::Copy;
-
-    fn inner(&self) -> &Self::Inner;
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.inner().info()
+/// Hooks take `&self`, so layers that keep mutable state must use interior
+/// mutability. That state must remain `Send` and `Sync` because layers are
+/// shared across cloned operators and concurrent operations.
+pub trait Layer: Send + Sync + Debug + Unpin + 'static {
+    /// Intercept the operation service stack.
+    ///
+    /// Operation layers should return a service that forwards unchanged
+    /// operations to `inner`.
+    fn apply_service(&self, srv: Servicer) -> Servicer {
+        srv
     }
 
-    fn create_dir(
+    /// Intercept the HTTP fetch stack.
+    ///
+    /// Return `inner` unchanged for layers that do not affect HTTP requests.
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        let _ = srv;
+        inner
+    }
+
+    /// Intercept the task execution stack.
+    ///
+    /// Return `inner` unchanged for layers that do not affect spawned tasks.
+    fn apply_execute(&self, srv: Servicer, inner: Executor) -> Executor {
+        let _ = srv;
+        inner
+    }
+}
+
+/// Wrap a service and transform its capability.
+pub fn with_capability(
+    inner: Servicer,
+    apply: impl Fn(Capability) -> Capability + Send + Sync + Unpin + 'static,
+) -> Servicer {
+    Arc::new(CapabilityService {
+        inner,
+        apply: Arc::new(apply),
+    })
+}
+
+/// Wrap a service and expose its native capability.
+pub fn with_native_capability<T: Service>(inner: T, capability: Capability) -> impl Service {
+    NativeCapabilityService { inner, capability }
+}
+
+#[derive(Debug)]
+struct NativeCapabilityService<T> {
+    inner: T,
+    capability: Capability,
+}
+
+impl<T: Service> Service for NativeCapabilityService<T> {
+    type Reader = T::Reader;
+    type Writer = T::Writer;
+    type Lister = T::Lister;
+    type Deleter = T::Deleter;
+    type Copier = T::Copier;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: OpCreateDir,
-    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
-        self.inner().create_dir(path, args)
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
     }
 
-    fn read(
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    async fn read(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(ctx, path, args).await
+    }
 
-    fn write(
+    async fn write(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend;
-
-    fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
-        let (_, _, _, _) = (from, to, args, opts);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
+    ) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(ctx, path, args).await
     }
 
-    fn rename(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpRename,
-    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
-        self.inner().rename(from, to, args)
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete(ctx).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
-        self.inner().stat(path, args)
-    }
-
-    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend;
-
-    fn list(
+    async fn list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend;
-
-    fn presign(
-        &self,
-        path: &str,
-        args: OpPresign,
-    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
-        self.inner().presign(path, args)
-    }
-}
-
-impl<L: LayeredAccess> Access for L {
-    type Reader = L::Reader;
-    type Writer = L::Writer;
-    type Lister = L::Lister;
-    type Deleter = L::Deleter;
-    type Copier = L::Copier;
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        LayeredAccess::info(self)
-    }
-
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        LayeredAccess::create_dir(self, path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        LayeredAccess::read(self, path, args).await
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        LayeredAccess::write(self, path, args).await
+    ) -> Result<(RpList, Self::Lister)> {
+        self.inner.list(ctx, path, args).await
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        LayeredAccess::copy(self, from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts).await
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        LayeredAccess::rename(self, from, to, args).await
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        LayeredAccess::stat(self, path, args).await
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        LayeredAccess::delete(self).await
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        LayeredAccess::list(self, path, args).await
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        LayeredAccess::presign(self, path, args).await
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
+struct CapabilityService {
+    inner: Servicer,
+    apply: Arc<dyn Fn(Capability) -> Capability + Send + Sync>,
+}
 
-    use futures::lock::Mutex;
+impl Debug for CapabilityService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapabilityService")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
+}
 
-    use super::*;
-    use crate::services::Memory;
+impl Service for CapabilityService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-    #[derive(Debug)]
-    struct Test<A: Access> {
-        #[allow(dead_code)]
-        inner: Option<A>,
-        stated: Arc<Mutex<bool>>,
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    impl<A: Access> Layer<A> for &Test<A> {
-        type LayeredAccess = Test<A>;
-
-        fn layer(&self, inner: A) -> Self::LayeredAccess {
-            Test {
-                inner: Some(inner),
-                stated: self.stated.clone(),
-            }
-        }
+    fn capability(&self) -> Capability {
+        (self.apply)(self.inner.capability())
     }
 
-    impl<A: Access> Access for Test<A> {
-        type Reader = ();
-        type Writer = ();
-        type Lister = ();
-        type Deleter = ();
-        type Copier = ();
-
-        fn info(&self) -> Arc<AccessorInfo> {
-            let am = AccessorInfo::default();
-            am.set_scheme("test");
-            am.into()
-        }
-
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            let mut x = self.stated.lock().await;
-            *x = true;
-
-            assert!(self.inner.is_some());
-
-            // We will not call anything here to test the layer.
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-        }
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
     }
 
-    #[tokio::test]
-    async fn test_layer() {
-        let test = Test {
-            inner: None,
-            stated: Arc::new(Mutex::new(false)),
-        };
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
 
-        let op = Operator::new(Memory::default())
-            .unwrap()
-            .layer(&test)
-            .finish();
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, oio::Reader)> {
+        self.inner.read(ctx, path, args).await
+    }
 
-        op.stat("xxxxx").await.unwrap();
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, oio::Writer)> {
+        self.inner.write(ctx, path, args).await
+    }
 
-        assert!(*test.stated.clone().lock().await);
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, oio::Deleter)> {
+        self.inner.delete(ctx).await
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, oio::Lister)> {
+        self.inner.list(ctx, path, args).await
+    }
+
+    async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, oio::Copier)> {
+        self.inner.copy(ctx, from, to, args, opts).await
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }

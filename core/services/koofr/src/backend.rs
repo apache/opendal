@@ -110,7 +110,7 @@ impl Builder for KoofrBuilder {
     type Config = KoofrConfig;
 
     /// Builds the backend and returns the result of KoofrBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -143,35 +143,29 @@ impl Builder for KoofrBuilder {
 
         Ok(KoofrBackend {
             core: Arc::new(KoofrCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(KOOFR_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(KOOFR_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            create_dir: true,
+                    create_dir: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
-                            write_can_empty: true,
+                    write: true,
+                    write_can_empty: true,
 
-                            delete: true,
+                    delete: true,
 
-                            rename: true,
+                    rename: true,
 
-                            copy: true,
+                    copy: true,
 
-                            list: true,
+                    list: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint: self.config.endpoint.clone(),
@@ -193,13 +187,15 @@ pub struct KoofrBackend {
 /// Reader returned by this backend.
 pub struct KoofrReader {
     backend: KoofrBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl KoofrReader {
-    fn new(backend: KoofrBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: KoofrBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -209,7 +205,7 @@ impl oio::StreamRead for KoofrReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.get(path, range).await?;
+        let resp = backend.core.get(&self.ctx, path, range).await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -228,28 +224,37 @@ impl oio::StreamRead for KoofrReader {
     }
 }
 
-impl Access for KoofrBackend {
+impl Service for KoofrBackend {
     type Reader = oio::StreamReader<KoofrReader>;
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type Deleter = oio::OneShotDeleter<KoofrDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.ensure_dir_exists(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.ensure_dir_exists(ctx, path).await?;
         self.core
-            .create_dir(&build_abs_path(&self.core.root, path))
+            .create_dir(ctx, &build_abs_path(&self.core.root, path))
             .await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let path = build_rooted_abs_path(&self.core.root, path);
-        let resp = self.core.info(&path).await?;
+        let resp = self.core.info(ctx, &path).await?;
 
         let status = resp.status();
 
@@ -277,72 +282,114 @@ impl Access for KoofrBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(KoofrReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<KoofrReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(KoofrReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = KoofrWriter::new(self.core.clone(), path.to_string());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, KoofrWriters) = {
+            let writer = KoofrWriter::new(self.core.clone(), ctx.clone(), path.to_string());
 
-        let w = oio::OneShotWriter::new(writer);
+            let w = oio::OneShotWriter::new(writer);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(KoofrDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<KoofrDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(KoofrDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = KoofrLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<KoofrLister>) = {
+            let l = KoofrLister::new(self.core.clone(), ctx.clone(), path);
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.core.ensure_dir_exists(to).await?;
+        let (rp, output): (_, ()) = {
+            self.core.ensure_dir_exists(ctx, to).await?;
 
-        if from == to {
-            return Ok((RpCopy::default(), ()));
-        }
+            if from == to {
+                Ok((RpCopy::default(), ()))
+            } else {
+                let resp = self.core.remove(ctx, to).await?;
 
-        let resp = self.core.remove(to).await?;
+                let status = resp.status();
 
-        let status = resp.status();
+                if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
+                    Err(parse_error(resp))
+                } else {
+                    let resp = self.core.copy(ctx, from, to).await?;
 
-        if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp));
-        }
+                    let status = resp.status();
 
-        let resp = self.core.copy(from, to).await?;
+                    match status {
+                        StatusCode::OK => Ok((RpCopy::default(), ())),
+                        _ => Err(parse_error(resp)),
+                    }
+                }
+            }
+        }?;
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.ensure_dir_exists(to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        self.core.ensure_dir_exists(ctx, to).await?;
 
         if from == to {
             return Ok(RpRename::default());
         }
 
-        let resp = self.core.remove(to).await?;
+        let resp = self.core.remove(ctx, to).await?;
 
         let status = resp.status();
 
@@ -350,7 +397,7 @@ impl Access for KoofrBackend {
             return Err(parse_error(resp));
         }
 
-        let resp = self.core.move_object(from, to).await?;
+        let resp = self.core.move_object(ctx, from, to).await?;
 
         let status = resp.status();
 

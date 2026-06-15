@@ -141,7 +141,7 @@ impl MokaBuilder {
 impl Builder for MokaBuilder {
     type Config = MokaConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(
@@ -179,21 +179,18 @@ impl Builder for MokaBuilder {
     }
 }
 
-/// MokaBackend implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct MokaBackend {
     core: Arc<MokaCore>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl MokaBackend {
     fn new(core: MokaCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(MOKA_SCHEME);
-        info.set_name(core.cache.name().unwrap_or("moka"));
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(MOKA_SCHEME, "/", core.cache.name().unwrap_or("moka"));
+        let capability = Capability {
             read: true,
             write: true,
             write_can_empty: true,
@@ -206,17 +203,18 @@ impl MokaBackend {
             list: true,
             shared: false,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
@@ -260,18 +258,22 @@ impl oio::StreamRead for MokaReader {
     }
 }
 
-impl Access for MokaBackend {
+impl Service for MokaBackend {
     type Reader = oio::StreamReader<MokaReader>;
     type Writer = MokaWriter;
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -310,30 +312,61 @@ impl Access for MokaBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(MokaReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<MokaReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(MokaReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p, args)))
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, MokaWriter) = {
+            let p = build_abs_path(&self.root, path);
+            Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p, args)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(MokaDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<MokaDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(MokaDeleter::new(self.core.clone(), self.root.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        // For moka, we don't distinguish between files and directories
-        // Just return the lister to iterate through all matching keys
-        let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
-        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-        Ok((RpList::default(), lister))
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::HierarchyLister<MokaLister>) = {
+            // For moka, we don't distinguish between files and directories
+            // Just return the lister to iterate through all matching keys
+            let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
+            let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+            Ok((RpList::default(), lister))
+        }?;
+
+        Ok((rp, output))
     }
 }

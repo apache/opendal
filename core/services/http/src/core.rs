@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -28,7 +27,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct HttpCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub endpoint: String,
     pub root: String,
@@ -85,12 +85,13 @@ impl HttpCore {
 
     pub async fn http_get(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.http_get_request(path, range, args)?;
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
@@ -117,8 +118,13 @@ impl HttpCore {
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    pub async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn http_head(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.http_head_request(path, args)?;
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 }

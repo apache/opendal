@@ -110,7 +110,7 @@ impl Builder for B2Builder {
     type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -160,53 +160,47 @@ impl Builder for B2Builder {
 
         Ok(B2Backend {
             core: Arc::new(B2Core {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(B2_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(B2_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_with_content_type: true,
-                            write_with_user_metadata: true,
-                            // The min multipart size of b2 is 5 MiB.
-                            //
-                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            // The max multipart size of b2 is 5 Gb.
-                            //
-                            // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_with_content_type: true,
+                    write_with_user_metadata: true,
+                    // The min multipart size of b2 is 5 MiB.
+                    //
+                    // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                    write_multi_min_size: Some(5 * 1024 * 1024),
+                    // The max multipart size of b2 is 5 Gb.
+                    //
+                    // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
-                            delete: true,
-                            copy: true,
+                    delete: true,
+                    copy: true,
 
-                            list: true,
-                            list_with_limit: true,
-                            list_with_start_after: true,
-                            list_with_recursive: true,
+                    list: true,
+                    list_with_limit: true,
+                    list_with_start_after: true,
+                    list_with_recursive: true,
 
-                            presign: true,
-                            presign_read: true,
-                            presign_write: true,
-                            presign_stat: true,
+                    presign: true,
+                    presign_read: true,
+                    presign_write: true,
+                    presign_stat: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 signer: Arc::new(RwLock::new(signer)),
                 root,
@@ -227,14 +221,16 @@ pub struct B2Backend {
 /// Reader returned by this backend.
 pub struct B2Reader {
     backend: B2Backend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl B2Reader {
-    fn new(backend: B2Backend, path: &str, args: OpRead) -> Self {
+    fn new(backend: B2Backend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -248,7 +244,7 @@ impl oio::StreamRead for B2Reader {
         let args = self.args.clone();
         let resp = backend
             .core
-            .download_file_by_name(path, range, &args)
+            .download_file_by_name(&self.ctx, path, range, &args)
             .await?;
 
         let status = resp.status();
@@ -268,20 +264,24 @@ impl oio::StreamRead for B2Reader {
     }
 }
 
-impl Access for B2Backend {
+impl Service for B2Backend {
     type Reader = oio::StreamReader<B2Reader>;
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
+    }
+
+    fn capability(&self) -> Capability {
+        self.core.capability
     }
 
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
     /// So we call list api to get file info
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -289,81 +289,123 @@ impl Access for B2Backend {
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
 
-        let file_info = self.core.get_file_info(path, delimiter).await?;
+        let file_info = self.core.get_file_info(ctx, path, delimiter).await?;
         let meta = parse_file_info(&file_info);
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(B2Reader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<B2Reader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(B2Reader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let writer = B2Writer::new(self.core.clone(), path, args);
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, B2Writers) = {
+            let concurrent = args.concurrent();
+            let writer = B2Writer::new(self.core.clone(), ctx.clone(), path, args);
 
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(B2Deleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<B2Deleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(B2Deleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            oio::PageLister::new(B2Lister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            )),
-        ))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<B2Lister>) = {
+            Ok((
+                RpList::default(),
+                oio::PageLister::new(B2Lister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args.recursive(),
+                    args.limit(),
+                    args.start_after(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let file_info = self.core.get_file_info(from, None).await?;
+        let (rp, output): (_, ()) = {
+            let file_info = self.core.get_file_info(ctx, from, None).await?;
 
-        let source_file_id = file_info.file_id;
+            let source_file_id = file_info.file_id;
 
-        let Some(source_file_id) = source_file_id else {
-            return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
-        };
+            let Some(source_file_id) = source_file_id else {
+                return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
+            };
 
-        let resp = self.core.copy_file(source_file_id, to).await?;
+            let resp = self.core.copy_file(ctx, source_file_id, to).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::OK => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         match args.operation() {
             PresignOperation::Stat(_) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, args.expire())
+                    .get_download_authorization(ctx, path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 
-                let auth_info = self.core.get_auth_info().await?;
+                let auth_info = self.core.get_auth_info(ctx).await?;
 
                 let url = format!(
                     "{}/file/{}/{}?Authorization={}",
@@ -386,11 +428,11 @@ impl Access for B2Backend {
             PresignOperation::Read(_, _) => {
                 let resp = self
                     .core
-                    .get_download_authorization(path, args.expire())
+                    .get_download_authorization(ctx, path, args.expire())
                     .await?;
                 let path = build_abs_path(&self.core.root, path);
 
-                let auth_info = self.core.get_auth_info().await?;
+                let auth_info = self.core.get_auth_info(ctx).await?;
 
                 let url = format!(
                     "{}/file/{}/{}?Authorization={}",
@@ -411,7 +453,7 @@ impl Access for B2Backend {
                 )))
             }
             PresignOperation::Write(_) => {
-                let resp = self.core.get_upload_url().await?;
+                let resp = self.core.get_upload_url(ctx).await?;
 
                 let mut req = Request::post(&resp.upload_url);
 

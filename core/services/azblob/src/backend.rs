@@ -291,7 +291,7 @@ impl AzblobBuilder {
 impl Builder for AzblobBuilder {
     type Config = AzblobConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -364,12 +364,7 @@ impl Builder for AzblobBuilder {
             }
         };
 
-        let info = Arc::new(AccessorInfo::default());
-
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
-            .with_env(OsEnv);
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut credential = DefaultCredentialProvider::new();
 
@@ -392,59 +387,56 @@ impl Builder for AzblobBuilder {
             RequestSigner::new().with_service_sas_permissions("racwd"),
         );
 
+        let info = ServiceInfo::new(AZBLOB_SCHEME, &root, container);
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+
+            read: true,
+
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_override_content_disposition: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+
+            write: true,
+            write_can_append: true,
+            write_can_empty: true,
+            write_can_multi: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_if_not_exists: true,
+            write_with_if_none_match: true,
+            write_with_user_metadata: true,
+
+            delete: true,
+            delete_max_size: Some(AZBLOB_BATCH_LIMIT),
+
+            copy: true,
+            copy_with_if_not_exists: true,
+            copy_can_multi: true,
+            copy_multi_min_size: Some(AZBLOB_COPY_MIN_BLOCK_SIZE),
+            copy_multi_max_size: Some(AZBLOB_COPY_MAX_BLOCK_SIZE),
+
+            list: true,
+            list_with_recursive: true,
+
+            presign: self.config.sas_token.is_some(),
+            presign_stat: self.config.sas_token.is_some(),
+            presign_read: self.config.sas_token.is_some(),
+            presign_write: self.config.sas_token.is_some(),
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
-                info: {
-                    info.set_scheme(AZBLOB_SCHEME)
-                        .set_root(&root)
-                        .set_name(container)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-
-                            read: true,
-
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_override_content_disposition: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
-
-                            write: true,
-                            write_can_append: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_with_cache_control: true,
-                            write_with_content_type: true,
-                            write_with_if_not_exists: true,
-                            write_with_if_none_match: true,
-                            write_with_user_metadata: true,
-
-                            delete: true,
-                            delete_max_size: Some(AZBLOB_BATCH_LIMIT),
-
-                            copy: true,
-                            copy_with_if_not_exists: true,
-                            copy_can_multi: true,
-                            copy_multi_min_size: Some(AZBLOB_COPY_MIN_BLOCK_SIZE),
-                            copy_multi_max_size: Some(AZBLOB_COPY_MAX_BLOCK_SIZE),
-
-                            list: true,
-                            list_with_recursive: true,
-
-                            presign: self.config.sas_token.is_some(),
-                            presign_stat: self.config.sas_token.is_some(),
-                            presign_read: self.config.sas_token.is_some(),
-                            presign_write: self.config.sas_token.is_some(),
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 root,
                 endpoint,
                 encryption_key,
@@ -467,14 +459,16 @@ pub struct AzblobBackend {
 /// Reader returned by this backend.
 pub struct AzblobReader {
     backend: AzblobBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl AzblobReader {
-    fn new(backend: AzblobBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: AzblobBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -486,7 +480,10 @@ impl oio::StreamRead for AzblobReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.azblob_get_blob(path, range, &args).await?;
+        let resp = backend
+            .core
+            .azblob_get_blob(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -505,19 +502,26 @@ impl oio::StreamRead for AzblobReader {
     }
 }
 
-impl Access for AzblobBackend {
+impl Service for AzblobBackend {
     type Reader = oio::StreamReader<AzblobReader>;
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
     type Copier = AzblobCopiers;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self
+            .core
+            .azblob_get_blob_properties(ctx, path, &args)
+            .await?;
 
         let status = resp.status();
 
@@ -539,61 +543,108 @@ impl Access for AzblobBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(AzblobReader::new(self.clone(), path, args)),
-        ))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzblobWriters::Two(oio::AppendWriter::new(w))
-        } else {
-            AzblobWriters::One(oio::BlockWriter::new(
-                self.core.info.clone(),
-                w,
-                args.concurrent(),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<AzblobReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(AzblobReader::new(self.clone(), ctx.clone(), path, args)),
             ))
-        };
+        }?;
 
-        Ok((RpWrite::default(), w))
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                AzblobDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, AzblobWriters) = {
+            let w = AzblobWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+            let w = if args.append() {
+                AzblobWriters::Two(oio::AppendWriter::new(w))
+            } else {
+                AzblobWriters::One(oio::BlockWriter::new(
+                    ctx.executor().clone(),
+                    w,
+                    args.concurrent(),
+                ))
+            };
+
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzblobLister::new(
-            self.core.clone(),
-            path.to_string(),
-            args.recursive(),
-            args.limit(),
-        );
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<AzblobDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(
+                    AzblobDeleter::new(self.core.clone(), ctx.clone()),
+                    self.core.capability.delete_max_size,
+                ),
+            ))
+        }?;
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<AzblobLister>) = {
+            let l = AzblobLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+            );
+
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = new_azblob_copier(self.core.clone(), from, to, args, opts)?;
-        Ok((RpCopy::default(), copier))
+        let (rp, output): (_, AzblobCopiers) = {
+            let copier = new_azblob_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            Ok((RpCopy::default(), copier))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
@@ -612,7 +663,7 @@ impl Access for AzblobBackend {
         };
 
         let req = req?;
-        let req = self.core.sign_query(req).await?;
+        let req = self.core.sign_query(ctx, req).await?;
 
         let (parts, _) = req.into_parts();
 

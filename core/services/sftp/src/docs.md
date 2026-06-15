@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
         .user("test")
         .key("test_key");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

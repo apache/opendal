@@ -20,27 +20,26 @@ use std::sync::Arc;
 use opendal_core::Buffer;
 use opendal_core::Metadata;
 use opendal_core::Result;
-use opendal_core::raw::Access;
 use opendal_core::raw::oio;
 
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
 
-pub struct Writer<A: Access> {
-    pub(crate) w: A::Writer,
+pub struct Writer<W> {
+    pub(crate) w: W,
     pub(crate) buf: oio::QueueBuf,
     pub(crate) path: String,
-    pub(crate) inner: Arc<Inner<A>>,
+    pub(crate) inner: Arc<Inner>,
     pub(crate) size_limit: std::ops::Range<usize>,
     pub(crate) skip_cache: bool,
 }
 
-impl<A: Access> Writer<A> {
+impl<W> Writer<W> {
     pub(crate) fn new(
-        w: A::Writer,
+        w: W,
         path: String,
-        inner: Arc<Inner<A>>,
+        inner: Arc<Inner>,
         size_limit: std::ops::Range<usize>,
     ) -> Self {
         Self {
@@ -54,7 +53,7 @@ impl<A: Access> Writer<A> {
     }
 }
 
-impl<A: Access> oio::Write for Writer<A> {
+impl<W: oio::Write> oio::Write for Writer<W> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         if self.size_limit.contains(&(self.buf.len() + bs.len())) {
             self.buf.push(bs.clone());

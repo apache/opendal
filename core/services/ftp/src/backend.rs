@@ -94,7 +94,7 @@ impl FtpBuilder {
 impl Builder for FtpBuilder {
     type Config = FtpConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -142,28 +142,25 @@ impl Builder for FtpBuilder {
             Some(v) => v.clone(),
         };
 
-        let accessor_info = AccessorInfo::default();
-        accessor_info
-            .set_scheme(FTP_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                stat: true,
+        let info = ServiceInfo::new(FTP_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
+            read: true,
 
-                write: true,
-                write_can_multi: true,
-                write_can_append: true,
+            write: true,
+            write_can_multi: true,
+            write_can_append: true,
 
-                delete: true,
-                create_dir: true,
+            delete: true,
+            create_dir: true,
 
-                list: true,
+            list: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
         let manager = Manager {
             endpoint: endpoint.clone(),
@@ -173,12 +170,11 @@ impl Builder for FtpBuilder {
             enable_secure,
         };
 
-        let core = Arc::new(FtpCore::new(accessor_info.into(), manager.clone()));
+        let core = Arc::new(FtpCore::new(info.into(), capability, manager.clone()));
         Ok(FtpBackend { core })
     }
 }
 
-// Backend is used to serve `Accessor` support for ftp.
 #[derive(Clone)]
 pub struct FtpBackend {
     core: Arc<FtpCore>,
@@ -218,18 +214,27 @@ impl oio::StreamRead for FtpReader {
     }
 }
 
-impl Access for FtpBackend {
+impl Service for FtpBackend {
     type Reader = oio::StreamReader<FtpReader>;
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let mut ftp_stream = self.core.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
@@ -254,7 +259,7 @@ impl Access for FtpBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let file = self.ftp_stat(path).await?;
 
         let mode = if file.is_file() {
@@ -271,64 +276,95 @@ impl Access for FtpBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(FtpReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<FtpReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(FtpReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // Ensure the parent dir exists.
-        let parent = get_parent(path);
-        let paths: Vec<&str> = parent.split('/').collect();
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        op: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, FtpWriter) = {
+            // Ensure the parent dir exists.
+            let parent = get_parent(path);
+            let paths: Vec<&str> = parent.split('/').collect();
 
-        // TODO: we can optimize this by checking dir existence first.
-        let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
-        let mut curr_path = String::new();
+            // TODO: we can optimize this by checking dir existence first.
+            let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
+            let mut curr_path = String::new();
 
-        for path in paths {
-            if path.is_empty() {
-                continue;
-            }
-            curr_path.push_str(path);
-            curr_path.push('/');
-            match ftp_stream.mkdir(&curr_path).await {
-                // Do nothing if status is FileUnavailable or OK(()) is return.
-                Err(FtpError::UnexpectedResponse(Response {
-                    status: Status::FileUnavailable,
-                    ..
-                }))
-                | Ok(()) => (),
-                Err(e) => {
-                    return Err(format_ftp_error(e));
+            for path in paths {
+                if path.is_empty() {
+                    continue;
+                }
+                curr_path.push_str(path);
+                curr_path.push('/');
+                match ftp_stream.mkdir(&curr_path).await {
+                    // Do nothing if status is FileUnavailable or OK(()) is return.
+                    Err(FtpError::UnexpectedResponse(Response {
+                        status: Status::FileUnavailable,
+                        ..
+                    }))
+                    | Ok(()) => (),
+                    Err(e) => {
+                        return Err(format_ftp_error(e));
+                    }
                 }
             }
-        }
 
-        let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
-        let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
+            let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
+            let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
-        Ok((RpWrite::new(), w))
+            Ok((RpWrite::new(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<FtpDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, FtpLister) = {
+            let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
 
-        let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
+            let pathname = if path == "/" { None } else { Some(path) };
+            let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
 
-        Ok((
-            RpList::default(),
-            FtpLister::new(if path == "/" { "" } else { path }, files),
-        ))
+            Ok((
+                RpList::default(),
+                FtpLister::new(if path == "/" { "" } else { path }, files),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }
 

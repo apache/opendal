@@ -120,7 +120,7 @@ impl D1Builder {
 impl Builder for D1Builder {
     type Config = D1Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let mut authorization = None;
         let config = self.config;
 
@@ -141,11 +141,6 @@ impl Builder for D1Builder {
                 "database_id is required",
             ));
         };
-
-        let client = HttpClient::new().map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", D1_SCHEME)
-        })?;
 
         let Some(table) = config.table.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
@@ -172,7 +167,6 @@ impl Builder for D1Builder {
             authorization,
             account_id,
             database_id,
-            client,
             table,
             key_field,
             value_field,
@@ -186,16 +180,14 @@ impl Builder for D1Builder {
 pub struct D1Backend {
     core: Arc<D1Core>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl D1Backend {
     pub fn new(core: D1Core) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(D1_SCHEME);
-        info.set_name(&core.table);
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(D1_SCHEME, "/", &core.table);
+        let capability = Capability {
             read: true,
             stat: true,
             write: true,
@@ -206,17 +198,18 @@ impl D1Backend {
             delete: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
@@ -225,13 +218,15 @@ impl D1Backend {
 /// Reader returned by this backend.
 pub struct D1Reader {
     backend: D1Backend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl D1Reader {
-    fn new(backend: D1Backend, path: &str, _: OpRead) -> Self {
+    fn new(backend: D1Backend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -242,7 +237,7 @@ impl oio::StreamRead for D1Reader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
+        let bs = match backend.core.get(&self.ctx, &p).await? {
             Some(bs) => bs,
             None => {
                 return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
@@ -257,24 +252,28 @@ impl oio::StreamRead for D1Reader {
     }
 }
 
-impl Access for D1Backend {
+impl Service for D1Backend {
     type Reader = oio::StreamReader<D1Reader>;
     type Writer = D1Writer;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            let bs = self.core.get(&p).await?;
+            let bs = self.core.get(ctx, &p).await?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
@@ -283,22 +282,51 @@ impl Access for D1Backend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(D1Reader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<D1Reader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(D1Reader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), D1Writer::new(self.core.clone(), p)))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, D1Writer) = {
+            let p = build_abs_path(&self.root, path);
+            Ok((
+                RpWrite::new(),
+                D1Writer::new(self.core.clone(), ctx.clone(), p),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(D1Deleter::new(self.core.clone(), self.root.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<D1Deleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(D1Deleter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    self.root.clone(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

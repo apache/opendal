@@ -26,18 +26,19 @@ use opendal_core::*;
 
 pub struct IpmfsWriter {
     core: Arc<IpmfsCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl IpmfsWriter {
-    pub fn new(core: Arc<IpmfsCore>, path: String) -> Self {
-        IpmfsWriter { core, path }
+    pub fn new(core: Arc<IpmfsCore>, ctx: OperationContext, path: String) -> Self {
+        IpmfsWriter { core, ctx, path }
     }
 }
 
 impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.ipmfs_write(&self.path, bs).await?;
+        let resp = self.core.ipmfs_write(&self.ctx, &self.path, bs).await?;
 
         let status = resp.status();
 

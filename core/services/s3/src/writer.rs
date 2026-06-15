@@ -33,15 +33,17 @@ pub type S3Writers = TwoWays<oio::MultipartWriter<S3Writer>, oio::AppendWriter<S
 
 pub struct S3Writer {
     core: Arc<S3Core>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl S3Writer {
-    pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         S3Writer {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
@@ -70,7 +72,7 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -85,7 +87,7 @@ impl oio::MultipartWrite for S3Writer {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .s3_initiate_multipart_upload(&self.path, &self.op)
+            .s3_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -124,7 +126,7 @@ impl oio::MultipartWrite for S3Writer {
             checksum.clone(),
         )?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -180,7 +182,7 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self
             .core
-            .s3_complete_multipart_upload(&self.path, upload_id, parts, &self.op)
+            .s3_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
             .await?;
 
         let status = resp.status();
@@ -217,7 +219,7 @@ impl oio::MultipartWrite for S3Writer {
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .s3_abort_multipart_upload(&self.path, upload_id)
+            .s3_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
@@ -231,7 +233,7 @@ impl oio::AppendWrite for S3Writer {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .s3_head_object(&self.path, OpStat::default())
+            .s3_head_object(&self.ctx, &self.path, OpStat::default())
             .await?;
 
         let status = resp.status();
@@ -248,7 +250,7 @@ impl oio::AppendWrite for S3Writer {
             .core
             .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 

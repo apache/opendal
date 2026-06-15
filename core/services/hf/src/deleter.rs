@@ -24,11 +24,12 @@ use opendal_core::*;
 
 pub struct HfDeleter {
     core: Arc<HfCore>,
+    ctx: OperationContext,
 }
 
 impl HfDeleter {
-    pub fn new(core: Arc<HfCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<HfCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 
     async fn delete_paths(&self, paths: Vec<String>) -> Result<()> {
@@ -41,7 +42,7 @@ impl HfDeleter {
                 .into_iter()
                 .map(|path| BucketOperation::DeleteFile { path })
                 .collect();
-            self.core.commit_bucket(ops).await.map(|_| ())
+            self.core.commit_bucket(&self.ctx, ops).await.map(|_| ())
         } else {
             let mut deleted_files = Vec::new();
             let mut deleted_folders = Vec::new();
@@ -53,7 +54,7 @@ impl HfDeleter {
                 }
             }
             self.core
-                .commit_git(vec![], vec![], deleted_files, deleted_folders)
+                .commit_git(&self.ctx, vec![], vec![], deleted_files, deleted_folders)
                 .await
                 .map(|_| ())
         };
@@ -97,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_git_delete_separates_files_and_folders() -> Result<()> {
-        let (mut core, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Dataset,
             "test-org/test-dataset",
             "main",
@@ -105,7 +106,7 @@ mod tests {
         );
         core.token = Some("test-token".to_string());
 
-        let deleter = HfDeleter::new(Arc::new(core));
+        let deleter = HfDeleter::new(Arc::new(core), ctx);
         let batch = vec![
             ("dir/".to_string(), OpDelete::default()),
             ("dir/a".to_string(), OpDelete::default()),

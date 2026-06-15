@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         .datadir("/tmp/opendal/redb")
         .table("opendal-redb");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

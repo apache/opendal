@@ -25,8 +25,10 @@ use crate::*;
 
 /// ReadContext holds the immutable context for give read operation.
 pub struct ReadContext {
-    /// The accessor to the storage services.
-    acc: Accessor,
+    /// The composed context used to execute operations.
+    ctx: OperationContext,
+    /// The composed service to the underlying object storage.
+    srv: Servicer,
     /// Path to the file.
     path: String,
     /// Arguments for the read operation.
@@ -43,14 +45,16 @@ impl ReadContext {
     /// Create a new ReadContext.
     #[inline]
     pub fn new(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         args: OpRead,
         options: OpReader,
         reader: oio::Reader,
     ) -> Self {
         Self {
-            acc,
+            ctx,
+            srv,
             path,
             args,
             options,
@@ -59,10 +63,10 @@ impl ReadContext {
         }
     }
 
-    /// Get the accessor.
+    /// Get the composed context.
     #[inline]
-    pub fn accessor(&self) -> &Accessor {
-        &self.acc
+    pub(crate) fn context(&self) -> &OperationContext {
+        &self.ctx
     }
 
     /// Get the path.
@@ -125,8 +129,8 @@ impl ReadContext {
         }
 
         Ok(self
-            .accessor()
-            .stat(self.path(), op_stat)
+            .srv
+            .stat(&self.ctx, self.path(), op_stat)
             .await?
             .into_metadata()
             .content_length())
@@ -166,7 +170,7 @@ impl ReadContext {
         range: impl Into<BytesRange>,
     ) -> Result<BytesRange> {
         let range = range.into();
-        if range.is_suffix() && !self.accessor().info().native_capability().read_with_suffix {
+        if range.is_suffix() && !self.srv.capability().read_with_suffix {
             let range = self.parse_into_range(range).await?;
             Ok(range.into())
         } else {
@@ -262,14 +266,16 @@ mod tests {
     use super::*;
 
     async fn new_read_context(
-        acc: crate::raw::Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = acc.read(path, args.clone()).await?;
+        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
         Ok(ReadContext::new(
-            acc,
+            ctx,
+            srv,
             path.to_string(),
             args,
             options,
@@ -286,8 +292,10 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx =
+            Arc::new(new_read_context(ctx, srv, "test", OpReader::new().with_chunk(3)).await?);
         let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -307,8 +315,10 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx =
+            Arc::new(new_read_context(ctx, srv, "test", OpReader::new().with_chunk(3)).await?);
         let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, None));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -324,8 +334,9 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write("test", Buffer::from(Bytes::new())).await?;
 
-        let acc = op.into_inner();
-        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context(ctx, srv, "test", OpReader::new()).await?;
 
         let result = ctx
             .parse_into_range(BytesRange::new(u64::MAX, Some(1)))
@@ -342,9 +353,15 @@ mod tests {
     async fn test_parse_into_range_uses_content_length_hint() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
 
-        let acc = op.into_inner();
-        let ctx =
-            new_read_context(acc, "test", OpReader::new().with_content_length_hint(42)).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_content_length_hint(42),
+        )
+        .await?;
 
         let range = ctx.parse_into_range(10..).await?;
 
@@ -356,9 +373,15 @@ mod tests {
     async fn test_parse_into_range_suffix_uses_content_length_hint() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
 
-        let acc = op.into_inner();
-        let ctx =
-            new_read_context(acc, "test", OpReader::new().with_content_length_hint(42)).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_content_length_hint(42),
+        )
+        .await?;
 
         let range = ctx.parse_into_range(BytesRange::suffix(10)).await?;
 

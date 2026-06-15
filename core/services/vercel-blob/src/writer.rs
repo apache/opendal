@@ -32,19 +32,33 @@ pub type VercelBlobWriters = oio::MultipartWriter<VercelBlobWriter>;
 
 pub struct VercelBlobWriter {
     core: Arc<VercelBlobCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl VercelBlobWriter {
-    pub fn new(core: Arc<VercelBlobCore>, op: OpWrite, path: String) -> Self {
-        VercelBlobWriter { core, op, path }
+    pub fn new(
+        core: Arc<VercelBlobCore>,
+        ctx: OperationContext,
+        op: OpWrite,
+        path: String,
+    ) -> Self {
+        VercelBlobWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 }
 
 impl oio::MultipartWrite for VercelBlobWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let resp = self.core.upload(&self.path, size, &self.op, body).await?;
+        let resp = self
+            .core
+            .upload(&self.ctx, &self.path, size, &self.op, body)
+            .await?;
 
         let status = resp.status();
 
@@ -57,7 +71,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .initiate_multipart_upload(&self.path, &self.op)
+            .initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -86,7 +100,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let resp = self
             .core
-            .upload_part(&self.path, upload_id, part_number, size, body)
+            .upload_part(&self.ctx, &self.path, upload_id, part_number, size, body)
             .await?;
 
         let status = resp.status();
@@ -124,7 +138,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         let resp = self
             .core
-            .complete_multipart_upload(&self.path, upload_id, parts)
+            .complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
         let status = resp.status();

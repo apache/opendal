@@ -36,7 +36,7 @@ use crate::*;
 ///
 /// - Services impl `PositionWrite`
 /// - `PositionWriter` impl `Write`
-/// - Expose `PositionWriter` as `Accessor::Writer`
+/// - Expose `PositionWriter` as `Service::Writer`
 ///
 /// # Requirements
 ///
@@ -79,8 +79,8 @@ pub struct PositionWriter<W: PositionWrite> {
 #[allow(dead_code)]
 impl<W: PositionWrite> PositionWriter<W> {
     /// Create a new PositionWriter.
-    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
-        let executor = info.executor();
+    pub fn new(executor: impl Into<Executor>, inner: W, concurrent: usize) -> Self {
+        let executor = executor.into();
 
         Self {
             w: Arc::new(inner),
@@ -239,7 +239,7 @@ mod tests {
     async fn test_position_writer_with_concurrent_errors() {
         let mut rng = rng();
 
-        let mut w = PositionWriter::new(Arc::default(), TestWrite::new(), 200);
+        let mut w = PositionWriter::new(Executor::default(), TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {

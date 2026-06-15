@@ -93,7 +93,7 @@ impl Builder for GithubBuilder {
     type Config = GithubConfig;
 
     /// Builds the backend and returns the result of GithubBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -119,32 +119,26 @@ impl Builder for GithubBuilder {
 
         Ok(GithubBackend {
             core: Arc::new(GithubCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(GITHUB_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(GITHUB_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            create_dir: true,
+                    create_dir: true,
 
-                            write: true,
-                            write_can_empty: true,
+                    write: true,
+                    write_can_empty: true,
 
-                            delete: true,
+                    delete: true,
 
-                            list: true,
-                            list_with_recursive: true,
+                    list: true,
+                    list_with_recursive: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 token: self.config.token.clone(),
@@ -164,13 +158,15 @@ pub struct GithubBackend {
 /// Reader returned by this backend.
 pub struct GithubReader {
     backend: GithubBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl GithubReader {
-    fn new(backend: GithubBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: GithubBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -180,7 +176,7 @@ impl oio::StreamRead for GithubReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.get(path, range).await?;
+        let resp = backend.core.get(&self.ctx, path, range).await?;
 
         let status = resp.status();
 
@@ -200,23 +196,32 @@ impl oio::StreamRead for GithubReader {
     }
 }
 
-impl Access for GithubBackend {
+impl Service for GithubBackend {
     type Reader = oio::StreamReader<GithubReader>;
     type Writer = GithubWriters;
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let empty_bytes = Buffer::new();
 
         let resp = self
             .core
-            .upload(&format!("{path}.gitkeep"), empty_bytes)
+            .upload(ctx, &format!("{path}.gitkeep"), empty_bytes)
             .await?;
 
         let status = resp.status();
@@ -227,8 +232,8 @@ impl Access for GithubBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.stat(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.stat(ctx, path).await?;
 
         let status = resp.status();
 
@@ -251,30 +256,61 @@ impl Access for GithubBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(GithubReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<GithubReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(GithubReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = GithubWriter::new(self.core.clone(), path.to_string());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, GithubWriters) = {
+            let writer = GithubWriter::new(self.core.clone(), ctx.clone(), path.to_string());
 
-        let w = oio::OneShotWriter::new(writer);
+            let w = oio::OneShotWriter::new(writer);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(GithubDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<GithubDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(GithubDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GithubLister::new(self.core.clone(), path, args.recursive());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<GithubLister>) = {
+            let l = GithubLister::new(self.core.clone(), ctx.clone(), path, args.recursive());
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 }

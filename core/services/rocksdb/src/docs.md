@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
     let mut builder = Rocksdb::default()
         .datadir("/tmp/opendal/rocksdb");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

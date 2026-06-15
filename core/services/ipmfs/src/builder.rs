@@ -60,7 +60,7 @@ use opendal_core::*;
 ///     let mut builder = Ipmfs::default()
 ///         .endpoint("http://127.0.0.1:5001");
 ///
-///     let op: Operator = Operator::new(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?;
 ///     Ok(())
 /// }
 /// ```
@@ -105,7 +105,7 @@ impl IpmfsBuilder {
 impl Builder for IpmfsBuilder {
     type Config = IpmfsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
@@ -115,27 +115,26 @@ impl Builder for IpmfsBuilder {
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
-        let info = AccessorInfo::default();
-        info.set_scheme(IPMFS_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                stat: true,
+        let info = ServiceInfo::new(IPMFS_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
+            read: true,
 
-                write: true,
-                delete: true,
+            write: true,
+            delete: true,
 
-                list: true,
+            list: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
-        let accessor_info = Arc::new(info);
+        let accessor_info = info;
         let core = Arc::new(IpmfsCore {
             info: accessor_info,
+            capability,
             root: root.to_string(),
             endpoint: endpoint.to_string(),
         });

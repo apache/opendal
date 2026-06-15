@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct IpmfsDeleter {
     core: Arc<IpmfsCore>,
+    ctx: OperationContext,
 }
 
 impl IpmfsDeleter {
-    pub fn new(core: Arc<IpmfsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<IpmfsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for IpmfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.ipmfs_rm(&path).await?;
+        let resp = self.core.ipmfs_rm(&self.ctx, &path).await?;
 
         let status = resp.status();
 

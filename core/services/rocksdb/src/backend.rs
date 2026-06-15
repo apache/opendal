@@ -59,7 +59,7 @@ impl RocksdbBuilder {
 impl Builder for RocksdbBuilder {
     type Config = RocksdbConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", ROCKSDB_SCHEME)
@@ -82,36 +82,35 @@ impl Builder for RocksdbBuilder {
 pub struct RocksdbBackend {
     core: Arc<RocksdbCore>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl RocksdbBackend {
     pub fn new(core: RocksdbCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(ROCKSDB_SCHEME)
-            .set_name(&core.db.path().to_string_lossy())
-            .set_root("/")
-            .set_native_capability(Capability {
-                read: true,
-                stat: true,
-                write: true,
-                write_can_empty: true,
-                delete: true,
-                list: true,
-                list_with_recursive: true,
-                shared: false,
-                ..Default::default()
-            });
+        let info = ServiceInfo::new(ROCKSDB_SCHEME, "/", core.db.path().to_string_lossy());
+        let capability = Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            list: true,
+            list_with_recursive: true,
+            shared: false,
+            ..Default::default()
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
@@ -152,18 +151,22 @@ impl oio::StreamRead for RocksdbReader {
     }
 }
 
-impl Access for RocksdbBackend {
+impl Service for RocksdbBackend {
     type Reader = oio::StreamReader<RocksdbReader>;
     type Writer = RocksdbWriter;
     type Lister = oio::HierarchyLister<RocksdbLister>;
     type Deleter = oio::OneShotDeleter<RocksdbDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -178,30 +181,61 @@ impl Access for RocksdbBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(RocksdbReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<RocksdbReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(RocksdbReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        let writer = RocksdbWriter::new(self.core.clone(), p);
-        Ok((RpWrite::new(), writer))
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, RocksdbWriter) = {
+            let p = build_abs_path(&self.root, path);
+            let writer = RocksdbWriter::new(self.core.clone(), p);
+            Ok((RpWrite::new(), writer))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = RocksdbDeleter::new(self.core.clone(), self.root.clone());
-        Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<RocksdbDeleter>) = {
+            let deleter = RocksdbDeleter::new(self.core.clone(), self.root.clone());
+            Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = build_abs_path(&self.root, path);
-        let lister = RocksdbLister::new(self.core.clone(), self.root.clone(), p)?;
-        Ok((
-            RpList::default(),
-            oio::HierarchyLister::new(lister, path, args.recursive()),
-        ))
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::HierarchyLister<RocksdbLister>) = {
+            let p = build_abs_path(&self.root, path);
+            let lister = RocksdbLister::new(self.core.clone(), self.root.clone(), p)?;
+            Ok((
+                RpList::default(),
+                oio::HierarchyLister::new(lister, path, args.recursive()),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

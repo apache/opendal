@@ -28,6 +28,7 @@ use opendal_core::*;
 
 pub struct AliyunDriveWriter {
     core: Arc<AliyunDriveCore>,
+    ctx: OperationContext,
 
     _op: OpWrite,
     parent_file_id: String,
@@ -39,9 +40,16 @@ pub struct AliyunDriveWriter {
 }
 
 impl AliyunDriveWriter {
-    pub fn new(core: Arc<AliyunDriveCore>, parent_file_id: &str, name: &str, op: OpWrite) -> Self {
+    pub fn new(
+        core: Arc<AliyunDriveCore>,
+        ctx: OperationContext,
+        parent_file_id: &str,
+        name: &str,
+        op: OpWrite,
+    ) -> Self {
         AliyunDriveWriter {
             core,
+            ctx,
             _op: op,
             parent_file_id: parent_file_id.to_string(),
             name: name.to_string(),
@@ -60,6 +68,7 @@ impl oio::Write for AliyunDriveWriter {
                 let res = self
                     .core
                     .create(
+                        &self.ctx,
                         Some(&self.parent_file_id),
                         &self.name,
                         CreateType::File,
@@ -82,7 +91,7 @@ impl oio::Write for AliyunDriveWriter {
 
         if let Err(err) = self
             .core
-            .upload(file_id, upload_id, self.part_number, bs)
+            .upload(&self.ctx, file_id, upload_id, self.part_number, bs)
             .await
             && err.kind() != ErrorKind::AlreadyExists
         {
@@ -100,7 +109,7 @@ impl oio::Write for AliyunDriveWriter {
             return Ok(Metadata::default());
         };
 
-        self.core.complete(file_id, upload_id).await?;
+        self.core.complete(&self.ctx, file_id, upload_id).await?;
         Ok(Metadata::default())
     }
 
@@ -108,6 +117,6 @@ impl oio::Write for AliyunDriveWriter {
         let Some(file_id) = self.file_id.as_ref() else {
             return Ok(());
         };
-        self.core.delete_path(file_id).await
+        self.core.delete_path(&self.ctx, file_id).await
     }
 }

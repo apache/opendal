@@ -26,20 +26,21 @@ use opendal_core::*;
 
 pub struct AzdlsDeleter {
     core: Arc<AzdlsCore>,
+    ctx: OperationContext,
 }
 
 impl AzdlsDeleter {
-    pub fn new(core: Arc<AzdlsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<AzdlsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for AzdlsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let resp = if args.recursive() {
-            self.core.azdls_recursive_delete(&path).await?
+            self.core.azdls_recursive_delete(&self.ctx, &path).await?
         } else {
-            self.core.azdls_delete(&path).await?
+            self.core.azdls_delete(&self.ctx, &path).await?
         };
 
         let status = resp.status();

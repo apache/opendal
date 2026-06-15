@@ -112,46 +112,44 @@ impl OnedriveBuilder {
 impl Builder for OnedriveBuilder {
     type Config = OnedriveConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        let info = AccessorInfo::default();
-        info.set_scheme(ONEDRIVE_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                read: true,
-                read_with_suffix: true,
-                read_with_if_none_match: true,
+        let info = ServiceInfo::new(ONEDRIVE_SCHEME, &root, "");
+        let capability = Capability {
+            read: true,
+            read_with_suffix: true,
+            read_with_if_none_match: true,
 
-                write: true,
-                write_with_if_match: true,
-                // OneDrive supports the file size up to 250GB
-                // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
-                // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
-                // file up to this size.
-                // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
-                copy: true,
-                rename: true,
+            write: true,
+            write_with_if_match: true,
+            // OneDrive supports the file size up to 250GB
+            // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
+            // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
+            // file up to this size.
+            // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
+            copy: true,
+            rename: true,
 
-                stat: true,
-                stat_with_if_none_match: true,
-                stat_with_version: true,
+            stat: true,
+            stat_with_if_none_match: true,
+            stat_with_version: true,
 
-                delete: true,
-                create_dir: true,
+            delete: true,
+            create_dir: true,
 
-                list: true,
-                list_with_limit: true,
-                list_with_versions: true,
+            list: true,
+            list_with_limit: true,
+            list_with_versions: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
-        let accessor_info = Arc::new(info);
-        let mut signer = OneDriveSigner::new(accessor_info.clone());
+        let accessor_info = info;
+        let mut signer = OneDriveSigner::new();
 
         // Requires OAuth 2.0 tokens:
         // - `access_token` (the short-lived token)
@@ -195,6 +193,7 @@ impl Builder for OnedriveBuilder {
 
         let core = Arc::new(OneDriveCore {
             info: accessor_info,
+            capability,
             root,
             signer: Arc::new(Mutex::new(signer)),
         });

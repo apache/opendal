@@ -35,14 +35,21 @@ pub struct VercelArtifactsBackend {
 /// Reader returned by this backend.
 pub struct VercelArtifactsReader {
     backend: VercelArtifactsBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl VercelArtifactsReader {
-    fn new(backend: VercelArtifactsBackend, path: &str, args: OpRead) -> Self {
+    fn new(
+        backend: VercelArtifactsBackend,
+        ctx: OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -56,7 +63,7 @@ impl oio::StreamRead for VercelArtifactsReader {
         let args = self.args.clone();
         let response = backend
             .core
-            .vercel_artifacts_get(path, range, &args)
+            .vercel_artifacts_get(&self.ctx, path, range, &args)
             .await?;
 
         let status = response.status();
@@ -77,19 +84,23 @@ impl oio::StreamRead for VercelArtifactsReader {
     }
 }
 
-impl Access for VercelArtifactsBackend {
+impl Service for VercelArtifactsBackend {
     type Reader = oio::StreamReader<VercelArtifactsReader>;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type Deleter = ();
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let response = self.core.vercel_artifacts_stat(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let response = self.core.vercel_artifacts_stat(ctx, path).await?;
 
         let status = response.status();
 
@@ -102,21 +113,45 @@ impl Access for VercelArtifactsBackend {
             _ => Err(parse_error(response)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(VercelArtifactsReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<VercelArtifactsReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(VercelArtifactsReader::new(
+                    self.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(VercelArtifactsWriter::new(
-                self.core.clone(),
-                args,
-                path.to_string(),
-            )),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::OneShotWriter<VercelArtifactsWriter>) = {
+            Ok((
+                RpWrite::default(),
+                oio::OneShotWriter::new(VercelArtifactsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args,
+                    path.to_string(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 }

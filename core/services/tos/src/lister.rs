@@ -30,6 +30,7 @@ pub type TosListers = TwoWays<oio::PageLister<TosLister>, oio::PageLister<TosObj
 
 pub struct TosLister {
     core: Arc<TosCore>,
+    ctx: OperationContext,
 
     path: String,
     args: OpList,
@@ -39,12 +40,13 @@ pub struct TosLister {
 }
 
 impl TosLister {
-    pub fn new(core: Arc<TosCore>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<TosCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let start_after = args.start_after().map(ToString::to_string);
 
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             args,
@@ -60,6 +62,7 @@ impl oio::PageList for TosLister {
         let resp = self
             .core
             .tos_list_objects_v2(
+                &self.ctx,
                 &self.path,
                 &ctx.token,
                 self.delimiter,
@@ -117,6 +120,7 @@ impl oio::PageList for TosLister {
 
 pub struct TosObjectVersionsLister {
     core: Arc<TosCore>,
+    ctx: OperationContext,
 
     prefix: String,
     args: OpList,
@@ -126,7 +130,7 @@ pub struct TosObjectVersionsLister {
 }
 
 impl TosObjectVersionsLister {
-    pub fn new(core: Arc<TosCore>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<TosCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
@@ -134,6 +138,7 @@ impl TosObjectVersionsLister {
 
         Self {
             core,
+            ctx,
             prefix: path.to_string(),
             args,
             delimiter,
@@ -156,6 +161,7 @@ impl oio::PageList for TosObjectVersionsLister {
         let resp = self
             .core
             .tos_list_object_versions(
+                &self.ctx,
                 &self.prefix,
                 self.delimiter,
                 self.args.limit(),

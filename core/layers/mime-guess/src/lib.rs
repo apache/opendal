@@ -20,6 +20,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
+use std::sync::Arc;
+
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -58,11 +60,10 @@ use opendal_core::*;
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(MimeGuessLayer::new())
-///     .finish();
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct MimeGuessLayer {}
 
@@ -73,17 +74,21 @@ impl MimeGuessLayer {
     }
 }
 
-impl<A: Access> Layer<A> for MimeGuessLayer {
-    type LayeredAccess = MimeGuessAccessor<A>;
+impl Layer for MimeGuessLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
+impl MimeGuessLayer {
+    fn layer(&self, inner: Servicer) -> MimeGuessAccessor {
         MimeGuessAccessor(inner)
     }
 }
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct MimeGuessAccessor<A: Access>(A);
+pub struct MimeGuessAccessor(Servicer);
 
 fn mime_from_path(path: &str) -> Option<&str> {
     mime_guess::from_path(path).first_raw()
@@ -115,51 +120,68 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     })
 }
 
-impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
-    type Inner = A;
-    type Reader = A::Reader;
-    type Writer = A::Writer;
-    type Lister = A::Lister;
-    type Deleter = A::Deleter;
-    type Copier = A::Copier;
+impl Service for MimeGuessAccessor {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.0
+    fn info(&self) -> ServiceInfo {
+        self.0.info()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner().read(path, args).await
+    fn capability(&self) -> Capability {
+        self.0.capability()
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner()
-            .write(path, opwrite_with_mime(path, args))
-            .await
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.0.read(ctx, path, args).await
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        self.0.write(ctx, path, opwrite_with_mime(path, args)).await
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner().copy(from, to, args, opts).await
+        self.0.copy(ctx, from, to, args, opts).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner()
-            .stat(path, args)
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.0
+            .stat(ctx, path, args)
             .await
             .map(|rp| rpstat_with_mime(path, rp))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner().delete().await
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.0.delete(ctx).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner().list(path, args).await
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        self.0.list(ctx, path, args).await
     }
 }
 
@@ -175,9 +197,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_async() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?
-            .layer(MimeGuessLayer::new())
-            .finish();
+        let op = Operator::new(services::Memory::default())?.layer(MimeGuessLayer::new());
 
         op.write("test0.html", DATA).await?;
         assert_eq!(op.stat("test0.html").await?.content_type(), Some(HTML));

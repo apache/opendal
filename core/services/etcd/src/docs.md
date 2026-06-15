@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let mut builder = Etcd::default();
 
     // this will build a Operator accessing etcd which runs on http://127.0.0.1:2379
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

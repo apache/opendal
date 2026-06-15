@@ -22,7 +22,6 @@ mod operator;
 pub use operator::Operator;
 
 mod builder;
-pub use builder::OperatorBuilder;
 
 mod info;
 pub use info::OperatorInfo;

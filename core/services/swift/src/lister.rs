@@ -26,16 +26,24 @@ use opendal_core::*;
 
 pub struct SwiftLister {
     core: Arc<SwiftCore>,
+    ctx: OperationContext,
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
 }
 
 impl SwiftLister {
-    pub fn new(core: Arc<SwiftCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<SwiftCore>,
+        ctx: OperationContext,
+        path: String,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
+            ctx,
             path,
             delimiter,
             limit,
@@ -47,7 +55,13 @@ impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let response = self
             .core
-            .swift_list(&self.path, self.delimiter, self.limit, &ctx.token)
+            .swift_list(
+                &self.ctx,
+                &self.path,
+                self.delimiter,
+                self.limit,
+                &ctx.token,
+            )
             .await?;
 
         let status_code = response.status();

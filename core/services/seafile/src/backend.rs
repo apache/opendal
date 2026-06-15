@@ -119,7 +119,7 @@ impl Builder for SeafileBuilder {
     type Config = SeafileConfig;
 
     /// Builds the backend and returns the result of SeafileBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -157,29 +157,23 @@ impl Builder for SeafileBuilder {
 
         Ok(SeafileBackend {
             core: Arc::new(SeafileCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(SEAFILE_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            create_dir: true,
-                            stat: true,
+                info: ServiceInfo::new(SEAFILE_SCHEME, &root, ""),
+                capability: Capability {
+                    create_dir: true,
+                    stat: true,
 
-                            read: true,
+                    read: true,
 
-                            write: true,
-                            write_can_empty: true,
+                    write: true,
+                    write_can_empty: true,
 
-                            delete: true,
+                    delete: true,
 
-                            list: true,
+                    list: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint,
@@ -201,13 +195,15 @@ pub struct SeafileBackend {
 /// Reader returned by this backend.
 pub struct SeafileReader {
     backend: SeafileBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl SeafileReader {
-    fn new(backend: SeafileBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: SeafileBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -217,7 +213,7 @@ impl oio::StreamRead for SeafileReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.download_file(path, range).await?;
+        let resp = backend.core.download_file(&self.ctx, path, range).await?;
 
         let status = resp.status();
 
@@ -237,61 +233,101 @@ impl oio::StreamRead for SeafileReader {
     }
 }
 
-impl Access for SeafileBackend {
+impl Service for SeafileBackend {
     type Reader = oio::StreamReader<SeafileReader>;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.create_dir(ctx, path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let metadata = if path.ends_with('/') {
-            let dir_detail = self.core.dir_detail(path).await?;
+            let dir_detail = self.core.dir_detail(ctx, path).await?;
             parse_dir_detail(dir_detail)
         } else {
-            let file_detail = self.core.file_detail(path).await?;
+            let file_detail = self.core.file_detail(ctx, path).await?;
 
             parse_file_detail(file_detail)
         };
 
         metadata.map(RpStat::new)
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(SeafileReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<SeafileReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(SeafileReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = SeafileWriter::new(self.core.clone(), args, path.to_string());
-        let w = oio::OneShotWriter::new(w);
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, SeafileWriters) = {
+            let w = SeafileWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
+            let w = oio::OneShotWriter::new(w);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(SeafileDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<SeafileDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(SeafileDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SeafileLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<SeafileLister>) = {
+            let l = SeafileLister::new(self.core.clone(), ctx.clone(), path);
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 }

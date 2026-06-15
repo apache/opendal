@@ -37,14 +37,16 @@ pub struct OnedriveBackend {
 /// Reader returned by this backend.
 pub struct OnedriveReader {
     backend: OnedriveBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl OnedriveReader {
-    fn new(backend: OnedriveBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: OnedriveBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -58,7 +60,7 @@ impl oio::StreamRead for OnedriveReader {
         let args = self.args.clone();
         let response = backend
             .core
-            .onedrive_get_content(path, range, &args)
+            .onedrive_get_content(&self.ctx, path, range, &args)
             .await?;
         let (rp, stream) = match response.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
@@ -76,84 +78,142 @@ impl oio::StreamRead for OnedriveReader {
     }
 }
 
-impl Access for OnedriveBackend {
+impl Service for OnedriveBackend {
     type Reader = oio::StreamReader<OnedriveReader>;
     type Writer = oio::OneShotWriter<OneDriveWriter>;
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         if path == "/" {
             // skip, the root path exists in the personal OneDrive.
             return Ok(RpCreateDir::default());
         }
 
-        let response = self.core.onedrive_create_dir(path).await?;
+        let response = self.core.onedrive_create_dir(ctx, path).await?;
         match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(response)),
         }
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let meta = self.core.onedrive_stat(path, args).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let meta = self.core.onedrive_stat(ctx, path, args).await?;
 
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(OnedriveReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<OnedriveReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(OnedriveReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(OneDriveWriter::new(
-                self.core.clone(),
-                args,
-                path.to_string(),
-            )),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::OneShotWriter<OneDriveWriter>) = {
+            Ok((
+                RpWrite::default(),
+                oio::OneShotWriter::new(OneDriveWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args,
+                    path.to_string(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(OneDriveDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<OneDriveDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(OneDriveDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let monitor_url = self.core.initialize_copy(from, to).await?;
-        self.core.wait_until_complete(monitor_url).await?;
-        Ok((RpCopy::default(), ()))
+        let (rp, output): (_, ()) = {
+            let monitor_url = self.core.initialize_copy(ctx, from, to).await?;
+            self.core.wait_until_complete(ctx, monitor_url).await?;
+            Ok((RpCopy::default(), ()))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         if from == to {
             return Ok(RpRename::default());
         }
 
-        self.core.onedrive_move(from, to).await?;
+        self.core.onedrive_move(ctx, from, to).await?;
 
         Ok(RpRename::default())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = OneDriveLister::new(path.to_string(), self.core.clone(), &args);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<OneDriveLister>) = {
+            let l = OneDriveLister::new(
+                path.to_string(),
+                self.core.clone(),
+                ctx.clone(),
+                self.core.capability,
+                &args,
+            );
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 }

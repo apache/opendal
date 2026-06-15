@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -33,7 +32,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_azure_storage::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -69,7 +68,8 @@ pub mod constants {
 }
 
 pub struct AzblobCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub container: String,
     pub root: String,
     pub endpoint: String,
@@ -91,14 +91,27 @@ impl Debug for AzblobCore {
 }
 
 impl AzblobCore {
-    pub async fn sign_query<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_env(reqsign_core::OsEnv),
+        )
+    }
+
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(Duration::from_secs(3600)))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -106,7 +119,7 @@ impl AzblobCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 
         // Insert x-ms-version header for normal requests.
@@ -125,7 +138,7 @@ impl AzblobCore {
             return Ok(Request::from_parts(parts, body));
         }
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -133,14 +146,14 @@ impl AzblobCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    async fn batch_sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    async fn batch_sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -149,8 +162,12 @@ impl AzblobCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
@@ -246,14 +263,15 @@ impl AzblobCore {
 
     pub async fn azblob_get_blob(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.azblob_get_blob_request(path, range, args)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub fn azblob_put_blob_request(
@@ -312,14 +330,15 @@ impl AzblobCore {
 
     pub async fn azblob_put_blob(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_put_blob_request(path, size, args, body)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// For appendable object, it could be created by `put` an empty blob
@@ -376,12 +395,13 @@ impl AzblobCore {
 
     pub async fn azblob_init_appendable_blob(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_init_appendable_blob_request(path, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// Append content to an appendable blob.
@@ -422,14 +442,15 @@ impl AzblobCore {
 
     pub async fn azblob_append_blob(
         &self,
+        ctx: &OperationContext,
         path: &str,
         position: u64,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_append_blob_request(path, position, size, body)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn azblob_put_block_request(
@@ -476,6 +497,7 @@ impl AzblobCore {
 
     pub async fn azblob_put_block(
         &self,
+        ctx: &OperationContext,
         path: &str,
         block_id: Uuid,
         size: Option<u64>,
@@ -483,8 +505,8 @@ impl AzblobCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_put_block_request(path, block_id, size, args, body)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn azblob_put_block_from_url_request(
@@ -522,6 +544,7 @@ impl AzblobCore {
 
     pub async fn azblob_put_block_from_url(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         source_version: Option<&str>,
@@ -540,11 +563,11 @@ impl AzblobCore {
             .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let source = self.sign_query(source).await?;
+        let source = self.sign_query(ctx, source).await?;
         let source = source.uri().to_string();
         let req = self.azblob_put_block_from_url_request(&source, to, block_id, range)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     fn azblob_complete_put_block_list_request(
@@ -587,13 +610,14 @@ impl AzblobCore {
 
     pub async fn azblob_complete_put_block_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     fn azblob_complete_copy_block_list_request(
@@ -632,13 +656,14 @@ impl AzblobCore {
 
     pub async fn azblob_complete_copy_block_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         block_ids: Vec<Uuid>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_complete_copy_block_list_request(path, block_ids, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn azblob_head_blob_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
@@ -673,12 +698,13 @@ impl AzblobCore {
 
     pub async fn azblob_get_blob_properties(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.azblob_head_blob_request(path, args)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
@@ -690,14 +716,19 @@ impl AzblobCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azblob_delete_blob(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let req = self.azblob_delete_blob_request(path)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn azblob_copy_blob(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
@@ -725,12 +756,13 @@ impl AzblobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn azblob_list_blobs(
         &self,
+        ctx: &OperationContext,
         path: &str,
         next_marker: &str,
         delimiter: &str,
@@ -760,11 +792,15 @@ impl AzblobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<Buffer>> {
+    pub async fn azblob_batch_delete(
+        &self,
+        ctx: &OperationContext,
+        paths: &[String],
+    ) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
             self.endpoint, self.container
@@ -774,7 +810,7 @@ impl AzblobCore {
 
         for (idx, path) in paths.iter().enumerate() {
             let req = self.azblob_delete_blob_request(path)?;
-            let req = self.batch_sign(req).await?;
+            let req = self.batch_sign(ctx, req).await?;
 
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
@@ -785,8 +821,8 @@ impl AzblobCore {
             .extension(Operation::Delete)
             .extension(ServiceOperation("BatchDeleteBlobs"));
         let req = multipart.apply(req)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 }
 

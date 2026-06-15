@@ -20,7 +20,7 @@ use std::pin::pin;
 use futures::Stream;
 use futures::StreamExt;
 
-use crate::raw::oio::DeleteDyn;
+use crate::raw::oio::Delete;
 use crate::raw::*;
 use crate::*;
 
@@ -86,8 +86,8 @@ pub struct Deleter {
 }
 
 impl Deleter {
-    pub(crate) async fn create(acc: Accessor) -> Result<Self> {
-        let (_, deleter) = acc.delete().await?;
+    pub(crate) async fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
+        let (_, deleter) = srv.delete(&ctx).await?;
 
         Ok(Self { deleter })
     }
@@ -103,7 +103,7 @@ impl Deleter {
             op = op.with_recursive(true);
         }
 
-        self.deleter.delete_dyn(&input.path, op).await?;
+        self.deleter.delete(&input.path, op).await?;
         Ok(())
     }
 
@@ -186,7 +186,7 @@ impl Deleter {
 
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub async fn close(&mut self) -> Result<()> {
-        self.deleter.close_dyn().await
+        self.deleter.close().await
     }
 
     /// Convert the deleter into a sink.

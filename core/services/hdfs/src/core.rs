@@ -26,7 +26,8 @@ use opendal_core::*;
 /// HdfsCore contains code that directly interacts with HDFS.
 #[derive(Clone)]
 pub struct HdfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub atomic_write_dir: Option<String>,
     pub client: Arc<hdrs::Client>,

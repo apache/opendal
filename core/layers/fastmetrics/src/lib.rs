@@ -34,7 +34,12 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_layer_observe_metrics_common as observe;
 
-/// Add [fastmetrics](https://docs.rs/fastmetrics/) for every operation.
+/// Add [fastmetrics](https://docs.rs/fastmetrics/) metrics for OpenDAL operations and HTTP fetches.
+///
+/// # Fastmetrics Metrics
+///
+/// This layer registers operation metrics and HTTP fetch metrics. Please see the documentation of
+/// the [`observe`] module for metric details.
 ///
 /// # Examples
 ///
@@ -53,8 +58,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// # async fn main() -> Result<()> {
 /// let mut registry = fastmetrics::registry::Registry::default();
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(FastmetricsLayer::builder().register(&mut registry)?)
-///     .finish();
+///     .layer(FastmetricsLayer::builder().register(&mut registry)?);
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
@@ -108,8 +112,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(global_fastmetrics_layer().clone())
-///     .finish();
+///     .layer(global_fastmetrics_layer().clone());
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
@@ -128,7 +131,8 @@ use opendal_layer_observe_metrics_common as observe;
 /// println!("{}", output);
 /// # Ok(())
 /// # }
-#[derive(Clone)]
+/// ```
+#[derive(Clone, Debug)]
 pub struct FastmetricsLayer {
     interceptor: FastmetricsInterceptor,
 }
@@ -140,11 +144,14 @@ impl FastmetricsLayer {
     }
 }
 
-impl<A: Access> Layer<A> for FastmetricsLayer {
-    type LayeredAccess = observe::MetricsAccessor<A, FastmetricsInterceptor>;
+impl Layer for FastmetricsLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_service(inner)
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
+    // Reuse the same interceptor because this layer registers both operation and HTTP metrics.
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_fetch(srv, inner)
     }
 }
 
@@ -245,8 +252,7 @@ impl FastmetricsLayerBuilder {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
     /// let _ = Operator::new(builder)?
-    ///     .layer(FastmetricsLayer::builder().register(&mut registry)?)
-    ///     .finish();
+    ///     .layer(FastmetricsLayer::builder().register(&mut registry)?);
     /// # Ok(())
     /// # }
     /// ```
@@ -327,8 +333,7 @@ impl FastmetricsLayerBuilder {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
     /// let _ = Operator::new(builder)?
-    ///     .layer(FastmetricsLayer::builder().register_global()?)
-    ///     .finish();
+    ///     .layer(FastmetricsLayer::builder().register_global()?);
     /// # Ok(())
     /// # }
     /// ```

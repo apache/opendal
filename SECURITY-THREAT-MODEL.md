@@ -138,8 +138,9 @@ local filesystem contract.
 
 ### 4.3 Credential isolation
 
-OpenDAL must not leak credentials between independent operators, services, or
-layers in the same process.
+OpenDAL must not leak credentials between independent operators, services, or layers within the same process.
+
+Sharing OpenDAL operators across processes (e.g., via fork) while reusing configurations and credentials remains users' responsibility.
 
 Examples:
 

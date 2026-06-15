@@ -41,10 +41,11 @@ identity provider, authorization service, sandbox, or multi-tenant broker.
 The purpose of this document is to help maintainers triage security reports by
 answering three questions:
 
-1. What does OpenDAL treat as its own security boundary?
-2. What is delegated to the embedding application or storage provider?
-3. Which reports are OpenDAL vulnerabilities, hardening requests, caller
-   misuse, or out-of-scope deployment issues?
+1. What is OpenDAL's security boundary?
+2. What security responsibilities do applications that use OpenDAL have?
+3. What security responsibilities do cloud and network storage providers have?
+4. Which of the following categories apply to a security report: OpenDAL vulnerabilities,
+hardening requests, user misuse, or out-of-scope deployment issues?
 
 The most important premise is:
 

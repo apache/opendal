@@ -490,11 +490,16 @@ impl HfCore {
         let resp = ctx.http_client().fetch(req).await?;
 
         if !resp.status().is_success() {
+            let status = resp.status();
             // Drop the streaming body without reading it — parse_error reads
             // only response headers, so there is no need to buffer the body
             // (which may be a large HTML error page).
             let (parts, _) = resp.into_parts();
-            return Err(parse_error(parts));
+            let mut err = parse_error(parts);
+            if status == http::StatusCode::NOT_FOUND && self.path_info(ctx, path).await.is_ok() {
+                err = err.set_temporary();
+            }
+            return Err(err);
         }
 
         Ok(resp)

@@ -69,7 +69,8 @@ use opendal_core::*;
 /// fresh `FileSystemContext::connect` is performed.
 #[derive(Clone)]
 pub struct GoosefsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// Normalized root path (e.g. `/data/`)
     pub root: String,
     /// GooseFS client configuration (also used to seed the context).
@@ -98,9 +99,15 @@ impl GoosefsCore {
     ///
     /// The [`FileSystemContext`] is **not** connected here; it is established
     /// on the first RPC and then reused for the lifetime of this core.
-    pub fn new(info: Arc<AccessorInfo>, root: String, config: ClientConfig) -> Self {
+    pub fn new(
+        info: ServiceInfo,
+        capability: Capability,
+        root: String,
+        config: ClientConfig,
+    ) -> Self {
         Self {
             info,
+            capability,
             root,
             config,
             ctx: Arc::new(RwLock::new(None)),

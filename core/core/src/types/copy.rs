@@ -56,13 +56,14 @@ unsafe impl Sync for Copier {}
 impl Copier {
     /// Create a new copier.
     pub(crate) async fn create(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<Self> {
-        let (_, copier) = acc.copy(from, to, args, opts).await?;
+        let (_, copier) = srv.copy(&ctx, from, to, args, opts).await?;
 
         Ok(Self {
             copier: Some(copier),

@@ -29,18 +29,20 @@ use log::log;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+static LOGGING_TARGET: &str = "opendal::services";
+
 /// Add [log](https://docs.rs/log/) for every operation.
 ///
 /// # Logging
 ///
-/// - OpenDAL will log in structural way.
+/// - OpenDAL will log in a structured way.
 /// - Every operation will start with a `started` log entry.
 /// - Every operation will finish with the following status:
 ///   - `succeeded`: the operation is successful, but might have more to take.
 ///   - `finished`: the whole operation is finished.
-///   - `failed`: the operation returns an unexpected error.
-/// - The default log level while expected error happened is `Warn`.
-/// - The default log level while unexpected failure happened is `Error`.
+///   - `failed`: the operation returns an error.
+/// - The default log level for expected errors is `Warn`.
+/// - The default log level for unexpected errors is `Error`.
 ///
 /// # Examples
 ///
@@ -52,8 +54,7 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(LoggingLayer::default())
-///     .finish();
+///     .layer(LoggingLayer::default());
 /// # Ok(())
 /// # }
 /// ```
@@ -93,7 +94,7 @@ use opendal_core::*;
 /// impl LoggingInterceptor for MyLoggingInterceptor {
 ///     fn log(
 ///         &self,
-///         info: &raw::AccessorInfo,
+///         info: &raw::ServiceInfo,
 ///         operation: raw::Operation,
 ///         context: &[(&str, &str)],
 ///         message: &str,
@@ -105,12 +106,11 @@ use opendal_core::*;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(LoggingLayer::new(MyLoggingInterceptor))
-///     .finish();
+///     .layer(LoggingLayer::new(MyLoggingInterceptor));
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
     logger: I,
 }
@@ -130,40 +130,42 @@ impl LoggingLayer {
     }
 }
 
-impl<A: Access, I: LoggingInterceptor> Layer<A> for LoggingLayer<I> {
-    type LayeredAccess = LoggingAccessor<A, I>;
+impl<I: LoggingInterceptor> Layer for LoggingLayer<I> {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
+impl<I: LoggingInterceptor> LoggingLayer<I> {
+    fn layer(&self, inner: Servicer) -> LoggingService<I> {
         let info = inner.info();
-        LoggingAccessor {
+        LoggingService {
             inner,
-
             info,
             logger: self.logger.clone(),
         }
     }
 }
 
-/// LoggingInterceptor is used to intercept the log.
+/// LoggingInterceptor customizes log emission.
 pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
-    /// Everytime there is a log, this function will be called.
+    /// Called for every log event.
     ///
     /// # Inputs
     ///
-    /// - info: The service's access info.
-    /// - operation: The operation to log.
-    /// - context: Additional context of the log like path, etc.
-    /// - message: The log message.
-    /// - err: The error to log.
+    /// - `info`: The service information used for this operation.
+    /// - `operation`: The operation being logged.
+    /// - `context`: Additional key-value context such as path, range, or counters.
+    /// - `message`: The event message, such as `started`, `finished`, or `failed`.
+    /// - `err`: The error associated with this event, if any.
     ///
-    /// # Note
+    /// # Performance
     ///
-    /// Users should avoid calling resource-intensive operations such as I/O or network
-    /// functions here, especially anything that takes longer than 10ms. Otherwise, Opendal
-    /// could perform unexpectedly slow.
+    /// This method runs inline with the operation path. Avoid expensive I/O,
+    /// network calls, or long-running work here.
     fn log(
         &self,
-        info: &AccessorInfo,
+        info: &ServiceInfo,
         operation: Operation,
         context: &[(&str, &str)],
         message: &str,
@@ -176,17 +178,17 @@ pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
 pub struct DefaultLoggingInterceptor;
 
 impl LoggingInterceptor for DefaultLoggingInterceptor {
-    #[inline]
     fn log(
         &self,
-        info: &AccessorInfo,
+        info: &ServiceInfo,
         operation: Operation,
         context: &[(&str, &str)],
         message: &str,
         err: Option<&Error>,
     ) {
         if let Some(err) = err {
-            // Print error if it's unexpected, otherwise in warn.
+            // Expected errors are logged as warnings; unexpected errors need stronger
+            // visibility and more diagnostic context.
             let lvl = if err.kind() == ErrorKind::Unexpected {
                 Level::Error
             } else {
@@ -200,14 +202,12 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                 info.scheme(),
                 info.name(),
                 LoggingContext(context),
-                // Print error message with debug output while unexpected happened.
-                //
-                // It's super sad that we can't bind `format_args!()` here.
-                // See: https://github.com/rust-lang/rust/issues/92698
+                // Use Debug for unexpected errors to preserve more context.
+                // String avoids conditional format_args! temporaries in this log! argument.
                 if err.kind() != ErrorKind::Unexpected {
-                   format!("{err}")
+                    format!("{err}")
                 } else {
-                   format!("{err:?}")
+                    format!("{err:?}")
                 }
             );
         }
@@ -235,75 +235,72 @@ impl Display for LoggingContext<'_> {
 }
 
 #[doc(hidden)]
-#[derive(Debug)]
-pub struct LoggingAccessor<A: Access, I: LoggingInterceptor> {
-    inner: A,
-
-    info: Arc<AccessorInfo>,
+pub struct LoggingService<I: LoggingInterceptor> {
+    inner: Servicer,
+    info: ServiceInfo,
     logger: I,
 }
 
-static LOGGING_TARGET: &str = "opendal::services";
+impl<I: LoggingInterceptor> Debug for LoggingService<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoggingService")
+            .field("inner", &self.inner)
+            .field("info", &self.info)
+            .finish_non_exhaustive()
+    }
+}
 
-impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
-    type Inner = A;
-    type Reader = LoggingReader<A::Reader, I>;
-    type Writer = LoggingWriter<A::Writer, I>;
-    type Lister = LoggingLister<A::Lister, I>;
-    type Deleter = LoggingDeleter<A::Deleter, I>;
-    type Copier = LoggingCopier<A::Copier, I>;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+impl<I: LoggingInterceptor> LoggingService<I> {
+    fn log_start(&self, op: Operation, context: &[(&str, &str)]) {
+        self.logger.log(&self.info, op, context, "started", None);
     }
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn log_finish(&self, op: Operation, context: &[(&str, &str)], err: Option<&Error>) {
+        let message = if err.is_some() { "failed" } else { "finished" };
+        self.logger.log(&self.info, op, context, message, err);
+    }
+}
+
+impl<I: LoggingInterceptor> Service for LoggingService<I> {
+    type Reader = LoggingReader<oio::Reader, I>;
+    type Writer = LoggingWriter<oio::Writer, I>;
+    type Lister = LoggingLister<oio::Lister, I>;
+    type Deleter = LoggingDeleter<oio::Deleter, I>;
+    type Copier = LoggingCopier<oio::Copier, I>;
+
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.logger.log(
-            &self.info,
-            Operation::CreateDir,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .create_dir(path, args)
-            .await
-            .inspect(|_| {
-                self.logger.log(
-                    &self.info,
-                    Operation::CreateDir,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-            })
-            .inspect_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::CreateDir,
-                    &[("path", path)],
-                    "failed",
-                    Some(err),
-                );
-            })
+    fn capability(&self) -> Capability {
+        self.inner.capability()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.logger.log(
-            &self.info,
-            Operation::Read,
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.log_start(Operation::CreateDir, &[("path", path)]);
+        let result = self.inner.create_dir(ctx, path, args).await;
+        self.log_finish(
+            Operation::CreateDir,
             &[("path", path)],
-            "started",
-            None,
+            result.as_ref().err(),
         );
+        result
+    }
 
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.log_start(Operation::Read, &[("path", path)]);
         self.inner
-            .read(path, args)
+            .read(ctx, path, args)
             .await
             .map(|(rp, r)| {
                 self.logger.log(
@@ -329,17 +326,15 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.logger.log(
-            &self.info,
-            Operation::Write,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        self.log_start(Operation::Write, &[("path", path)]);
         self.inner
-            .write(path, args)
+            .write(ctx, path, args)
             .await
             .map(|(rp, w)| {
                 self.logger.log(
@@ -349,8 +344,10 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "created writer",
                     None,
                 );
-                let w = LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w);
-                (rp, w)
+                (
+                    rp,
+                    LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w),
+                )
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -363,23 +360,43 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.log_start(Operation::Stat, &[("path", path)]);
+        let result = self.inner.stat(ctx, path, args).await;
+        self.log_finish(Operation::Stat, &[("path", path)], result.as_ref().err());
+        result
+    }
+
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.log_start(Operation::Delete, &[]);
+        self.inner
+            .delete(ctx)
+            .await
+            .map(|(rp, d)| {
+                self.logger
+                    .log(&self.info, Operation::Delete, &[], "finished", None);
+                (
+                    rp,
+                    LoggingDeleter::new(self.info.clone(), self.logger.clone(), d),
+                )
+            })
+            .inspect_err(|err| {
+                self.logger
+                    .log(&self.info, Operation::Delete, &[], "failed", Some(err));
+            })
+    }
+
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.logger.log(
-            &self.info,
-            Operation::Copy,
-            &[("from", from), ("to", to)],
-            "started",
-            None,
-        );
-
+        self.log_start(Operation::Copy, &[("from", from), ("to", to)]);
         self.inner
-            .copy(from, to, args, opts.clone())
+            .copy(ctx, from, to, args, opts)
             .await
             .map(|(rp, c)| {
                 self.logger.log(
@@ -389,8 +406,10 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "created copier",
                     None,
                 );
-                let c = LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c);
-                (rp, c)
+                (
+                    rp,
+                    LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c),
+                )
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -403,100 +422,32 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.logger.log(
-            &self.info,
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.log_start(Operation::Rename, &[("from", from), ("to", to)]);
+        let result = self.inner.rename(ctx, from, to, args).await;
+        self.log_finish(
             Operation::Rename,
             &[("from", from), ("to", to)],
-            "started",
-            None,
+            result.as_ref().err(),
         );
-
-        self.inner
-            .rename(from, to, args)
-            .await
-            .inspect(|_| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Rename,
-                    &[("from", from), ("to", to)],
-                    "finished",
-                    None,
-                );
-            })
-            .inspect_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Rename,
-                    &[("from", from), ("to", to)],
-                    "failed",
-                    Some(err),
-                );
-            })
+        result
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.logger.log(
-            &self.info,
-            Operation::Stat,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        self.log_start(Operation::List, &[("path", path)]);
         self.inner
-            .stat(path, args)
-            .await
-            .inspect(|_| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Stat,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-            })
-            .inspect_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Stat,
-                    &[("path", path)],
-                    "failed",
-                    Some(err),
-                );
-            })
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.logger
-            .log(&self.info, Operation::Delete, &[], "started", None);
-
-        self.inner
-            .delete()
-            .await
-            .map(|(rp, d)| {
-                self.logger
-                    .log(&self.info, Operation::Delete, &[], "finished", None);
-                let d = LoggingDeleter::new(self.info.clone(), self.logger.clone(), d);
-                (rp, d)
-            })
-            .inspect_err(|err| {
-                self.logger
-                    .log(&self.info, Operation::Delete, &[], "failed", Some(err));
-            })
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.logger.log(
-            &self.info,
-            Operation::List,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .list(path, args)
+            .list(ctx, path, args)
             .await
             .map(|(rp, v)| {
                 self.logger.log(
@@ -506,8 +457,10 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
                     "created lister",
                     None,
                 );
-                let streamer = LoggingLister::new(self.info.clone(), self.logger.clone(), path, v);
-                (rp, streamer)
+                (
+                    rp,
+                    LoggingLister::new(self.info.clone(), self.logger.clone(), path, v),
+                )
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -520,42 +473,22 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.logger.log(
-            &self.info,
-            Operation::Presign,
-            &[("path", path)],
-            "started",
-            None,
-        );
-
-        self.inner
-            .presign(path, args)
-            .await
-            .inspect(|_| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Presign,
-                    &[("path", path)],
-                    "finished",
-                    None,
-                );
-            })
-            .inspect_err(|err| {
-                self.logger.log(
-                    &self.info,
-                    Operation::Presign,
-                    &[("path", path)],
-                    "failed",
-                    Some(err),
-                );
-            })
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.log_start(Operation::Presign, &[("path", path)]);
+        let result = self.inner.presign(ctx, path, args).await;
+        self.log_finish(Operation::Presign, &[("path", path)], result.as_ref().err());
+        result
     }
 }
 
 #[doc(hidden)]
 pub struct LoggingReader<R, I: LoggingInterceptor> {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     logger: I,
     path: String,
     range: Option<BytesRange>,
@@ -565,12 +498,12 @@ pub struct LoggingReader<R, I: LoggingInterceptor> {
 }
 
 impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
-    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, reader: R) -> Self {
+    fn new(info: ServiceInfo, logger: I, path: &str, reader: R) -> Self {
         Self::with_range(info, logger, path, None, reader)
     }
 
     fn with_range(
-        info: Arc<AccessorInfo>,
+        info: ServiceInfo,
         logger: I,
         path: &str,
         range: Option<BytesRange>,
@@ -694,7 +627,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
 
 #[doc(hidden)]
 pub struct LoggingWriter<W, I> {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     logger: I,
     path: String,
 
@@ -703,7 +636,7 @@ pub struct LoggingWriter<W, I> {
 }
 
 impl<W, I> LoggingWriter<W, I> {
-    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, writer: W) -> Self {
+    fn new(info: ServiceInfo, logger: I, path: &str, writer: W) -> Self {
         Self {
             info,
             logger,
@@ -794,7 +727,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
 
 #[doc(hidden)]
 pub struct LoggingLister<P, I: LoggingInterceptor> {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     logger: I,
     path: String,
 
@@ -803,7 +736,7 @@ pub struct LoggingLister<P, I: LoggingInterceptor> {
 }
 
 impl<P, I: LoggingInterceptor> LoggingLister<P, I> {
-    fn new(info: Arc<AccessorInfo>, logger: I, path: &str, inner: P) -> Self {
+    fn new(info: ServiceInfo, logger: I, path: &str, inner: P) -> Self {
         Self {
             info,
             logger,
@@ -849,7 +782,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
 
 #[doc(hidden)]
 pub struct LoggingDeleter<D, I: LoggingInterceptor> {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     logger: I,
 
     deleted: usize,
@@ -857,7 +790,7 @@ pub struct LoggingDeleter<D, I: LoggingInterceptor> {
 }
 
 impl<D, I: LoggingInterceptor> LoggingDeleter<D, I> {
-    fn new(info: Arc<AccessorInfo>, logger: I, inner: D) -> Self {
+    fn new(info: ServiceInfo, logger: I, inner: D) -> Self {
         Self {
             info,
             logger,
@@ -929,7 +862,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
 
 #[doc(hidden)]
 pub struct LoggingCopier<C, I: LoggingInterceptor> {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     logger: I,
     from: String,
     to: String,
@@ -939,7 +872,7 @@ pub struct LoggingCopier<C, I: LoggingInterceptor> {
 }
 
 impl<C, I: LoggingInterceptor> LoggingCopier<C, I> {
-    fn new(info: Arc<AccessorInfo>, logger: I, from: &str, to: &str, inner: C) -> Self {
+    fn new(info: ServiceInfo, logger: I, from: &str, to: &str, inner: C) -> Self {
         Self {
             info,
             logger,

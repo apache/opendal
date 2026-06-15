@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -29,7 +28,7 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use reqsign_tencent_cos::Credential;
 use serde::Deserialize;
 use serde::Serialize;
@@ -38,6 +37,7 @@ use opendal_core::Buffer;
 use opendal_core::BytesRange;
 use opendal_core::Result;
 use opendal_core::raw::*;
+use opendal_core::*;
 
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
@@ -46,7 +46,8 @@ pub mod constants {
 }
 
 pub struct CosCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
@@ -65,10 +66,19 @@ impl Debug for CosCore {
 }
 
 impl CosCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_env(reqsign_core::OsEnv),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -76,10 +86,15 @@ impl CosCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -88,22 +103,27 @@ impl CosCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 }
 
 impl CosCore {
     pub async fn cos_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.cos_get_object_request(path, range, args)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub fn cos_get_object_request(
@@ -209,11 +229,16 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn cos_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.cos_head_object_request(path, args)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
@@ -250,7 +275,12 @@ impl CosCore {
         Ok(req)
     }
 
-    pub async fn cos_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn cos_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -272,9 +302,9 @@ impl CosCore {
         let req = req.extension(Operation::Delete);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn cos_append_object_request(
@@ -317,6 +347,7 @@ impl CosCore {
 
     pub async fn cos_copy_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -341,13 +372,14 @@ impl CosCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn cos_list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         next_marker: &str,
         delimiter: &str,
@@ -375,13 +407,14 @@ impl CosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn cos_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -413,13 +446,14 @@ impl CosCore {
         let req = req.extension(Operation::Write);
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn cos_upload_part_request(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -443,13 +477,14 @@ impl CosCore {
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn cos_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -478,14 +513,15 @@ impl CosCore {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     /// Abort an on-going multipart upload.
     pub async fn cos_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -502,12 +538,13 @@ impl CosCore {
             .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn cos_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -540,9 +577,9 @@ impl CosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

@@ -20,8 +20,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use opendal_core::raw::*;
@@ -53,12 +51,11 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(CapabilityCheckLayer::new())
-///     .finish();
+///     .layer(CapabilityCheckLayer::new());
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct CapabilityCheckLayer {}
 
@@ -69,31 +66,25 @@ impl CapabilityCheckLayer {
     }
 }
 
-impl<A: Access> Layer<A> for CapabilityCheckLayer {
-    type LayeredAccess = CapabilityAccessor<A>;
+impl Layer for CapabilityCheckLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-
-        CapabilityAccessor { info, inner }
+impl CapabilityCheckLayer {
+    fn layer(&self, inner: Servicer) -> CapabilityCheckService {
+        CapabilityCheckService { inner }
     }
 }
 
 #[doc(hidden)]
-pub struct CapabilityAccessor<A: Access> {
-    info: Arc<AccessorInfo>,
-    inner: A,
+#[derive(Debug)]
+pub struct CapabilityCheckService {
+    inner: Servicer,
 }
 
-impl<A: Access> Debug for CapabilityAccessor<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CapabilityCheckAccessor")
-            .field("inner", &self.inner)
-            .finish_non_exhaustive()
-    }
-}
-
-fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
+fn new_unsupported_error(info: &ServiceInfo, op: Operation, args: &str) -> Error {
     let scheme = info.scheme();
     let op = op.into_static();
 
@@ -104,97 +95,143 @@ fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Erro
     .with_operation(op)
 }
 
-impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
-    type Inner = A;
-    type Reader = A::Reader;
-    type Writer = A::Writer;
-    type Lister = A::Lister;
-    type Deleter = A::Deleter;
-    type Copier = A::Copier;
+impl Service for CapabilityCheckService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(path, args).await
+    fn capability(&self) -> Capability {
+        self.inner.capability()
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.info.full_capability();
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(ctx, path, args).await
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let capability = self.capability();
+        let info = self.info();
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                &info,
                 Operation::Write,
                 "content_type",
             ));
         }
         if !capability.write_with_cache_control && args.cache_control().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                &info,
                 Operation::Write,
                 "cache_control",
             ));
         }
         if !capability.write_with_content_disposition && args.content_disposition().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                &info,
                 Operation::Write,
                 "content_disposition",
             ));
         }
 
-        self.inner.write(path, args).await
+        self.inner.write(ctx, path, args).await
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let capability = self.info.full_capability();
+        let capability = self.capability();
+        let info = self.info();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                &info,
                 Operation::Copy,
                 "if_not_exists",
             ));
         }
         if args.if_match().is_some() && !capability.copy_with_if_match {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Copy,
-                "if_match",
-            ));
+            return Err(new_unsupported_error(&info, Operation::Copy, "if_match"));
         }
         if args.source_version().is_some() && !capability.copy_with_source_version {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                &info,
                 Operation::Copy,
                 "source_version",
             ));
         }
 
-        self.inner.copy(from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts).await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete(ctx).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let capability = self.info.full_capability();
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let capability = self.capability();
         if !capability.list_with_versions && args.versions() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::List,
-                "version",
-            ));
+            let info = self.info();
+            return Err(new_unsupported_error(&info, Operation::List, "version"));
         }
 
-        self.inner.list(path, args).await
+        self.inner.list(ctx, path, args).await
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 
@@ -207,26 +244,109 @@ mod tests {
         capability: Capability,
     }
 
-    impl Access for MockService {
-        type Reader = oio::Reader;
-        type Writer = oio::Writer;
-        type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
-        type Copier = oio::Copier;
+    impl Service for MockService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
 
-        fn info(&self) -> Arc<AccessorInfo> {
-            let info = AccessorInfo::default();
-            info.set_native_capability(self.capability);
-
-            info.into()
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
         }
 
-        async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), Box::new(())))
+        fn capability(&self) -> Capability {
+            self.capability
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList {}, Box::new(())))
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn read(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpRead,
+        ) -> Result<(RpRead, Self::Reader)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn write(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpWrite,
+        ) -> Result<(RpWrite, Self::Writer)> {
+            Ok((RpWrite::new(), ()))
+        }
+
+        async fn list(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpList,
+        ) -> Result<(RpList, Self::Lister)> {
+            Ok((RpList {}, ()))
+        }
+
+        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn copy(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<(RpCopy, Self::Copier)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 

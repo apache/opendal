@@ -29,17 +29,25 @@ use opendal_core::raw::*;
 
 pub struct ObsLister {
     core: Arc<ObsCore>,
+    ctx: OperationContext,
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
 }
 
 impl ObsLister {
-    pub fn new(core: Arc<ObsCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<ObsCore>,
+        ctx: OperationContext,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
         Self {
             core,
+            ctx,
             path: path.to_string(),
             delimiter,
             limit,
@@ -51,7 +59,13 @@ impl oio::PageList for ObsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .obs_list_objects(&self.path, &ctx.token, self.delimiter, self.limit)
+            .obs_list_objects(
+                &self.ctx,
+                &self.path,
+                &ctx.token,
+                self.delimiter,
+                self.limit,
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {

@@ -30,7 +30,10 @@ pub type Reader = Box<dyn ReadDyn>;
 
 /// Read is the internal trait used by OpenDAL to read ranges from storage.
 ///
-/// Users should not use or import this trait unless they are implementing an `Accessor`.
+/// Users should not use or import this trait unless they are implementing a `Service`.
+///
+/// This trait returns `impl Future`, so it is not object safe. Use [`ReadDyn`] when
+/// type erasure is required.
 pub trait Read: Unpin + Send + Sync {
     /// Open a range stream for the given range.
     fn open(
@@ -59,8 +62,10 @@ impl Read for () {
     }
 }
 
-/// ReadDyn is the dyn version of [`Read`] make it possible to use as
-/// `Box<dyn ReadDyn>`.
+/// ReadDyn is the dyn-compatible adapter for [`Read`].
+///
+/// It boxes returned futures to support `Box<dyn ReadDyn>`, adding one allocation
+/// per call at the type-erasure boundary.
 pub trait ReadDyn: Unpin + Send + Sync {
     /// The dyn version of [`Read::open`].
     fn open_dyn(
@@ -97,20 +102,10 @@ impl<T: ReadDyn + ?Sized> Read for Box<T> {
 
 /// ReadStream is the internal trait used by OpenDAL to stream data from storage.
 ///
-/// Users should not use or import this trait unless they are implementing an `Accessor`.
+/// Users should not use or import this trait unless they are implementing a `Service`.
 ///
-/// # Notes
-///
-/// ## Object Safety
-///
-/// `ReadStream` uses `async in trait`, making it not object safe, preventing the use of
-/// `Box<dyn ReadStream>`.
-/// To address this, we've introduced [`ReadStreamDyn`] and its compatible type
-/// `Box<dyn ReadStreamDyn>`.
-///
-/// `ReadStreamDyn` uses `Box::pin()` to transform the returned future into a [`BoxedFuture`],
-/// introducing an additional layer of indirection and an extra allocation. Ideally,
-/// `ReadStreamDyn` should occur only once, at the outermost level of our API.
+/// This trait returns `impl Future`, so it is not object safe. Use [`ReadStreamDyn`]
+/// when type erasure is required.
 pub trait ReadStream: Unpin + Send + Sync {
     /// Read the next data chunk from the stream.
     fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend;
@@ -152,12 +147,12 @@ impl ReadStream for Buffer {
     }
 }
 
-/// ReadStreamDyn is the dyn version of [`ReadStream`] make it possible to use as
-/// `Box<dyn ReadStreamDyn>`.
+/// ReadStreamDyn is the dyn-compatible adapter for [`ReadStream`].
+///
+/// It boxes returned futures to support `Box<dyn ReadStreamDyn>`, adding one
+/// allocation per call at the type-erasure boundary.
 pub trait ReadStreamDyn: Unpin + Send + Sync {
     /// The dyn version of [`ReadStream::read`].
-    ///
-    /// This function returns a boxed future to make it object safe.
     fn read_dyn(&mut self) -> BoxedFuture<'_, Result<Buffer>>;
 
     /// The dyn version of [`ReadStream::read_all`].

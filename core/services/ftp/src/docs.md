@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let mut builder = Ftp::default()
         .endpoint("127.0.0.1");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

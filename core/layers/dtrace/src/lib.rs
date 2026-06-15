@@ -22,8 +22,7 @@
 #![deny(missing_docs)]
 
 use std::ffi::CString;
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::sync::Arc;
 
 use bytes::Buf;
 use opendal_core::raw::*;
@@ -36,7 +35,7 @@ use probe::probe_lazy;
 ///
 /// For now we have following probes:
 ///
-/// ### For Accessor
+/// ### For Service
 ///
 /// 1. ${operation}_start, arguments: path
 ///     1. create_dir
@@ -84,10 +83,9 @@ use probe::probe_lazy;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// // `Accessor` provides the low level APIs, we will use `Operator` normally.
+/// // `Service` provides the low level APIs, we will use `Operator` normally.
 /// let op: Operator = Operator::new(services::Memory::default().root("/tmp"))?
-///     .layer(DtraceLayer::new())
-///     .finish();
+///     .layer(DtraceLayer::new());
 ///
 /// let path = "/tmp/test.txt";
 /// for _ in 1..100000 {
@@ -126,7 +124,7 @@ use probe::probe_lazy;
 ///     Arguments: -8@%rax
 ///   stapsdt              0x0000003c       NT_STAPSDT (SystemTap probe descriptors)
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct DtraceLayer {}
 
@@ -137,66 +135,82 @@ impl DtraceLayer {
     }
 }
 
-impl<A: Access> Layer<A> for DtraceLayer {
-    type LayeredAccess = DTraceAccessor<A>;
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        DTraceAccessor { inner }
+impl Layer for DtraceLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
+
+impl DtraceLayer {
+    fn layer(&self, inner: Servicer) -> DTraceService {
+        DTraceService { inner }
     }
 }
 
 #[doc(hidden)]
-pub struct DTraceAccessor<A: Access> {
-    inner: A,
+#[derive(Debug)]
+pub struct DTraceService {
+    inner: Servicer,
 }
 
-impl<A: Access> Debug for DTraceAccessor<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DTraceAccessor")
-            .field("inner", &self.inner)
-            .finish_non_exhaustive()
-    }
-}
+impl Service for DTraceService {
+    type Reader = DtraceLayerWrapper<oio::Reader>;
+    type Writer = DtraceLayerWrapper<oio::Writer>;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-impl<A: Access> LayeredAccess for DTraceAccessor<A> {
-    type Inner = A;
-    type Reader = DtraceLayerWrapper<A::Reader>;
-    type Writer = DtraceLayerWrapper<A::Writer>;
-    type Lister = A::Lister;
-    type Deleter = A::Deleter;
-    type Copier = A::Copier;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, create_dir_start, c_path.as_ptr());
-        let result = self.inner.create_dir(path, args).await;
+        let result = self.inner.create_dir(ctx, path, args).await;
         probe_lazy!(opendal, create_dir_end, c_path.as_ptr());
         result
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, read_start, c_path.as_ptr());
         let result = self
             .inner
-            .read(path, args)
+            .read(ctx, path, args)
             .await
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, path)));
         probe_lazy!(opendal, read_end, c_path.as_ptr());
         result
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, write_start, c_path.as_ptr());
         let result = self
             .inner
-            .write(path, args)
+            .write(ctx, path, args)
             .await
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, &path.to_string())));
+            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, path)));
 
         probe_lazy!(opendal, write_end, c_path.as_ptr());
         result
@@ -204,6 +218,7 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
@@ -211,35 +226,55 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     ) -> Result<(RpCopy, Self::Copier)> {
         let c_from = CString::new(from).unwrap();
         probe_lazy!(opendal, copy_start, c_from.as_ptr());
-        let result = self.inner.copy(from, to, args, opts).await;
+        let result = self.inner.copy(ctx, from, to, args, opts).await;
         probe_lazy!(opendal, copy_end, c_from.as_ptr());
         result
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, stat_start, c_path.as_ptr());
-        let result = self.inner.stat(path, args).await;
+        let result = self.inner.stat(ctx, path, args).await;
         probe_lazy!(opendal, stat_end, c_path.as_ptr());
         result
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.inner.delete(ctx).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, list_start, c_path.as_ptr());
-        let result = self.inner.list(path, args).await;
+        let result = self.inner.list(ctx, path, args).await;
         probe_lazy!(opendal, list_end, c_path.as_ptr());
         result
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, presign_start, c_path.as_ptr());
-        let result = self.inner.presign(path, args).await;
+        let result = self.inner.presign(ctx, path, args).await;
         probe_lazy!(opendal, presign_end, c_path.as_ptr());
         result
     }
@@ -253,11 +288,11 @@ pub struct DtraceLayerWrapper<R> {
 }
 
 impl<R> DtraceLayerWrapper<R> {
-    fn new(inner: R, path: &String) -> Self {
+    fn new(inner: R, path: &str) -> Self {
         Self::with_range(inner, path, None)
     }
 
-    fn with_range(inner: R, path: &String, range: Option<BytesRange>) -> Self {
+    fn with_range(inner: R, path: &str, range: Option<BytesRange>) -> Self {
         Self {
             inner,
             path: path.to_string(),

@@ -129,7 +129,7 @@ impl SftpBuilder {
 impl Builder for SftpBuilder {
     type Config = SftpConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("sftp backend build started: {:?}", &self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
@@ -164,34 +164,33 @@ impl Builder for SftpBuilder {
             None => KnownHosts::Strict,
         };
 
-        let info = AccessorInfo::default();
-        info.set_root(root.as_str())
-            .set_scheme(SFTP_SCHEME)
-            .set_native_capability(Capability {
-                stat: true,
+        let info = ServiceInfo::new(SFTP_SCHEME, root.as_str(), "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
+            read: true,
 
-                write: true,
-                write_can_multi: true,
-                write_with_if_not_exists: true,
+            write: true,
+            write_can_multi: true,
+            write_with_if_not_exists: true,
 
-                create_dir: true,
-                delete: true,
+            create_dir: true,
+            delete: true,
 
-                list: true,
-                list_with_limit: true,
+            list: true,
+            list_with_limit: true,
 
-                copy: true,
-                rename: true,
+            copy: true,
+            rename: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
         let core = Arc::new(SftpCore::new(
-            Arc::new(info),
+            info,
+            capability,
             endpoint,
             root,
             user,
@@ -204,7 +203,6 @@ impl Builder for SftpBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for sftp.
 #[derive(Clone, Debug)]
 pub struct SftpBackend {
     pub core: Arc<SftpCore>,
@@ -255,18 +253,27 @@ impl oio::StreamRead for SftpReader {
     }
 }
 
-impl Access for SftpBackend {
+impl Service for SftpBackend {
     type Reader = oio::StreamReader<SftpReader>;
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let client = self.core.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
@@ -289,7 +296,7 @@ impl Access for SftpBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let client = self.core.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
@@ -298,130 +305,179 @@ impl Access for SftpBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(SftpReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<SftpReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(SftpReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if let Some((dir, _)) = path.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        op: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, SftpWriter) = {
+            if let Some((dir, _)) = path.rsplit_once('/') {
+                self.create_dir(ctx, dir, OpCreateDir::default()).await?;
+            }
 
-        let client = self.core.connect().await?;
+            let client = self.core.connect().await?;
 
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+            let mut fs = client.fs();
+            fs.set_cwd(&self.core.root);
+            let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
 
-        let mut option = client.options();
-        if op.if_not_exists() {
-            option.create_new(true);
-        } else {
-            option.create(true);
-        }
+            let mut option = client.options();
+            if op.if_not_exists() {
+                option.create_new(true);
+            } else {
+                option.create(true);
+            }
 
-        if op.append() {
-            option.append(true);
-        } else {
-            option.write(true).truncate(true);
-        }
+            if op.append() {
+                option.append(true);
+            } else {
+                option.write(true).truncate(true);
+            }
 
-        let res = option.open(&path).await;
-        let file = match res {
-            Ok(f) => f,
-            Err(e) if op.if_not_exists() && is_sftp_failure(&e) => {
-                // OpenSSH returns Failure for create_new if file exists.
-                // We perform a post-check to confirm if it was a ConditionNotMatch.
-                if fs.metadata(&path).await.is_ok() {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "file already exists, doesn't match the condition if_not_exists",
-                    )
-                    .set_source(e));
+            let res = option.open(&path).await;
+            let file = match res {
+                Ok(f) => f,
+                Err(e) if op.if_not_exists() && is_sftp_failure(&e) => {
+                    // OpenSSH returns Failure for create_new if file exists.
+                    // We perform a post-check to confirm if it was a ConditionNotMatch.
+                    if fs.metadata(&path).await.is_ok() {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "file already exists, doesn't match the condition if_not_exists",
+                        )
+                        .set_source(e));
+                    }
+                    return Err(parse_sftp_error(e));
                 }
-                return Err(parse_sftp_error(e));
-            }
-            Err(e) => return Err(parse_sftp_error(e)),
-        };
+                Err(e) => return Err(parse_sftp_error(e)),
+            };
 
-        Ok((RpWrite::new(), SftpWriter::new(file)))
+            Ok((RpWrite::new(), SftpWriter::new(file)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(SftpDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<SftpDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(SftpDeleter::new(self.core.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let client = self.core.connect().await?;
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, Option<SftpLister>) = {
+            let client = self.core.connect().await?;
+            let mut fs = client.fs();
+            fs.set_cwd(&self.core.root);
 
-        let file_path = format!("./{path}");
+            let file_path = format!("./{path}");
 
-        let dir = match fs.open_dir(&file_path).await {
-            Ok(dir) => dir,
-            Err(e) => {
-                return if is_not_found(&e) {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(parse_sftp_error(e))
-                };
+            match fs.open_dir(&file_path).await {
+                Ok(dir) => {
+                    let dir = dir.read_dir();
+                    Ok((
+                        RpList::default(),
+                        Some(SftpLister::new(dir, path.to_owned())),
+                    ))
+                }
+                Err(e) if is_not_found(&e) => Ok((RpList::default(), None)),
+                Err(e) => Err(parse_sftp_error(e)),
             }
-        }
-        .read_dir();
+        }?;
 
-        Ok((
-            RpList::default(),
-            Some(SftpLister::new(dir, path.to_owned())),
-        ))
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let client = self.core.connect().await?;
+        let (rp, output): (_, ()) = {
+            let client = self.core.connect().await?;
 
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
+            let mut fs = client.fs();
+            fs.set_cwd(&self.core.root);
 
-        if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
+            if let Some((dir, _)) = to.rsplit_once('/') {
+                self.create_dir(ctx, dir, OpCreateDir::default()).await?;
+            }
 
-        let src = fs.canonicalize(from).await.map_err(parse_sftp_error)?;
-        let dst = fs.canonicalize(to).await.map_err(parse_sftp_error)?;
-        let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
-        let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
+            let src = fs.canonicalize(from).await.map_err(parse_sftp_error)?;
+            let dst = fs.canonicalize(to).await.map_err(parse_sftp_error)?;
+            let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
+            let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
 
-        src_file
-            .copy_all_to(&mut dst_file)
-            .await
-            .map_err(parse_sftp_error)?;
+            src_file
+                .copy_all_to(&mut dst_file)
+                .await
+                .map_err(parse_sftp_error)?;
 
-        Ok((RpCopy::default(), ()))
+            Ok((RpCopy::default(), ()))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
         let client = self.core.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
         if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
+            self.create_dir(ctx, dir, OpCreateDir::default()).await?;
         }
         fs.rename(from, to).await.map_err(parse_sftp_error)?;
 
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

@@ -43,7 +43,7 @@ impl CacacheBuilder {
 impl Builder for CacacheBuilder {
     type Config = CacacheConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", CACACHE_SCHEME)
@@ -53,11 +53,8 @@ impl Builder for CacacheBuilder {
             path: datadir_path.clone(),
         };
 
-        let info = AccessorInfo::default();
-        info.set_scheme(CACACHE_SCHEME);
-        info.set_name(&datadir_path);
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(CACACHE_SCHEME, "/", &datadir_path);
+        let capability = Capability {
             read: true,
             write: true,
             delete: true,
@@ -66,11 +63,12 @@ impl Builder for CacacheBuilder {
             list: false,
             shared: false,
             ..Default::default()
-        });
+        };
 
         Ok(CacacheBackend {
             core: Arc::new(core),
-            info: Arc::new(info),
+            info,
+            capability,
         })
     }
 }
@@ -79,7 +77,8 @@ impl Builder for CacacheBuilder {
 #[derive(Debug, Clone)]
 pub struct CacacheBackend {
     core: Arc<CacacheCore>,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 /// Reader returned by this backend.
@@ -118,18 +117,34 @@ impl oio::StreamRead for CacacheReader {
     }
 }
 
-impl Access for CacacheBackend {
+impl Service for CacacheBackend {
     type Reader = oio::StreamReader<CacacheReader>;
     type Writer = CacacheWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let metadata = self.core.metadata(path).await?;
 
         match metadata {
@@ -146,24 +161,97 @@ impl Access for CacacheBackend {
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(CacacheReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<CacacheReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(CacacheReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, CacacheWriter) = {
+            Ok((
+                RpWrite::new(),
+                CacacheWriter::new(self.core.clone(), path.to_string()),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<CacacheDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(CacacheDeleter::new(self.core.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::new(),
-            CacacheWriter::new(self.core.clone(), path.to_string()),
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(CacacheDeleter::new(self.core.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

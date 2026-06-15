@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::io::Cursor;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -84,7 +83,8 @@ static HEADER_DESTINATION: &str = "Destination";
 static HEADER_OVERWRITE: &str = "Overwrite";
 
 pub struct WebdavCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub server_path: String,
     pub root: String,
@@ -110,13 +110,17 @@ impl Debug for WebdavCore {
 }
 
 impl WebdavCore {
-    pub async fn webdav_stat(&self, path: &str) -> Result<Metadata> {
+    pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
         let path = build_rooted_abs_path(&self.root, path);
-        self.webdav_stat_rooted_abs_path(&path).await
+        self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
     /// Input path must be `rooted_abs_path`.
-    async fn webdav_stat_rooted_abs_path(&self, rooted_abs_path: &str) -> Result<Metadata> {
+    async fn webdav_stat_rooted_abs_path(
+        &self,
+        ctx: &OperationContext,
+        rooted_abs_path: &str,
+    ) -> Result<Metadata> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(rooted_abs_path));
         let mut req = Request::builder().method("PROPFIND").uri(url);
 
@@ -134,7 +138,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -164,6 +168,7 @@ impl WebdavCore {
 
     pub async fn webdav_get(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _: &OpRead,
@@ -186,11 +191,12 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
     pub async fn webdav_put(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
@@ -222,7 +228,7 @@ impl WebdavCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Set user-defined metadata using WebDAV PROPPATCH method.
@@ -235,6 +241,7 @@ impl WebdavCore {
     /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
     pub async fn webdav_proppatch(
         &self,
+        ctx: &OperationContext,
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
@@ -260,10 +267,14 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webdav_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -278,14 +289,19 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         // Check if source file exists.
-        let _ = self.webdav_stat(from).await?;
+        let _ = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
-        self.webdav_mkcol(get_parent(to)).await?;
+        self.webdav_mkcol(ctx, get_parent(to)).await?;
 
         let source = build_rooted_abs_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
@@ -307,14 +323,19 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_move(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         // Check if source file exists.
-        let _ = self.webdav_stat(from).await?;
+        let _ = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
-        self.webdav_mkcol(get_parent(to)).await?;
+        self.webdav_mkcol(ctx, get_parent(to)).await?;
 
         let source = build_rooted_abs_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
@@ -336,10 +357,15 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<Buffer>> {
+    pub async fn webdav_list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpList,
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -362,7 +388,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// Create dir recursively for given path.
@@ -370,14 +396,14 @@ impl WebdavCore {
     /// # Notes
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
-    pub async fn webdav_mkcol(&self, path: &str) -> Result<()> {
+    pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
 
         loop {
-            match self.webdav_stat_rooted_abs_path(path).await {
+            match self.webdav_stat_rooted_abs_path(ctx, path).await {
                 // Dir exists, break the loop.
                 Ok(_) => {
                     break;
@@ -397,7 +423,7 @@ impl WebdavCore {
         }
 
         for dir in dirs {
-            self.webdav_mkcol_rooted_abs_path(dir).await?;
+            self.webdav_mkcol_rooted_abs_path(ctx, dir).await?;
         }
         Ok(())
     }
@@ -407,7 +433,11 @@ impl WebdavCore {
     /// Input path must be `rooted_abs_path`
     ///
     /// Reference: [RFC4918: 9.3.1.  MKCOL Status Codes](https://datatracker.ietf.org/doc/html/rfc4918#section-9.3.1)
-    async fn webdav_mkcol_rooted_abs_path(&self, rooted_abs_path: &str) -> Result<()> {
+    async fn webdav_mkcol_rooted_abs_path(
+        &self,
+        ctx: &OperationContext,
+        rooted_abs_path: &str,
+    ) -> Result<()> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(rooted_abs_path));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
@@ -421,7 +451,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
 
         match status {

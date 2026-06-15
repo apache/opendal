@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -34,10 +33,17 @@ pub struct GhacWriter(pub TwoWays<GhacWriterV1, GhacWriterV2>);
 
 impl GhacWriter {
     /// TODO: maybe we can move the signed url logic to azblob service instead.
-    pub fn new(core: Arc<GhacCore>, write_path: String, url: String) -> Result<Self> {
+    pub fn new(
+        core: Arc<GhacCore>,
+        ctx: OperationContext,
+        executor: Executor,
+        write_path: String,
+        url: String,
+    ) -> Result<Self> {
         match core.service_version {
             GhacVersion::V1 => Ok(GhacWriter(TwoWays::One(GhacWriterV1 {
                 core,
+                ctx,
                 path: write_path,
                 url,
                 size: 0,
@@ -76,45 +82,38 @@ impl GhacWriter {
                     RequestSigner::new(),
                 );
                 let azure_core = Arc::new(AzblobCore {
-                    info: {
-                        let am = AccessorInfo::default();
-                        am.set_scheme("azblob")
-                            .set_root("/")
-                            .set_name(container)
-                            .set_native_capability(Capability {
-                                stat: true,
-                                stat_with_if_match: true,
-                                stat_with_if_none_match: true,
+                    info: ServiceInfo::new("azblob", "/", container),
+                    capability: Capability {
+                        stat: true,
+                        stat_with_if_match: true,
+                        stat_with_if_none_match: true,
 
-                                read: true,
+                        read: true,
 
-                                read_with_if_match: true,
-                                read_with_if_none_match: true,
-                                read_with_override_content_disposition: true,
-                                read_with_if_modified_since: true,
-                                read_with_if_unmodified_since: true,
+                        read_with_if_match: true,
+                        read_with_if_none_match: true,
+                        read_with_override_content_disposition: true,
+                        read_with_if_modified_since: true,
+                        read_with_if_unmodified_since: true,
 
-                                write: true,
-                                write_can_append: true,
-                                write_can_empty: true,
-                                write_can_multi: true,
-                                write_with_cache_control: true,
-                                write_with_content_type: true,
-                                write_with_if_not_exists: true,
-                                write_with_if_none_match: true,
-                                write_with_user_metadata: true,
+                        write: true,
+                        write_can_append: true,
+                        write_can_empty: true,
+                        write_can_multi: true,
+                        write_with_cache_control: true,
+                        write_with_content_type: true,
+                        write_with_if_not_exists: true,
+                        write_with_if_none_match: true,
+                        write_with_user_metadata: true,
 
-                                copy: true,
+                        copy: true,
 
-                                list: true,
-                                list_with_recursive: true,
+                        list: true,
+                        list_with_recursive: true,
 
-                                shared: true,
+                        shared: true,
 
-                                ..Default::default()
-                            });
-
-                        am.into()
+                        ..Default::default()
                     },
                     container: container.to_string(),
                     root: "/".to_string(),
@@ -125,10 +124,16 @@ impl GhacWriter {
                     skip_signature: false,
                     signer,
                 });
-                let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());
-                let writer = oio::BlockWriter::new(core.info.clone(), w, 4);
+                let w = AzblobWriter::new(
+                    azure_core,
+                    ctx.clone(),
+                    OpWrite::default(),
+                    path.to_string(),
+                );
+                let writer = oio::BlockWriter::new(executor, w, 4);
                 Ok(GhacWriter(TwoWays::Two(GhacWriterV2 {
                     core,
+                    ctx,
                     writer,
                     path: write_path,
                     url,
@@ -140,21 +145,22 @@ impl GhacWriter {
 }
 
 impl oio::Write for GhacWriter {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.0.write(bs)
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.0.write(bs).await
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.0.abort()
+    async fn abort(&mut self) -> Result<()> {
+        self.0.abort().await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
-        self.0.close()
+    async fn close(&mut self) -> Result<Metadata> {
+        self.0.close().await
     }
 }
 
 pub struct GhacWriterV1 {
     core: Arc<GhacCore>,
+    ctx: OperationContext,
 
     path: String,
     url: String,
@@ -166,7 +172,10 @@ impl oio::Write for GhacWriterV1 {
         let size = bs.len() as u64;
         let offset = self.size;
 
-        let resp = self.core.ghac_v1_write(&self.url, size, offset, bs).await?;
+        let resp = self
+            .core
+            .ghac_v1_write(&self.ctx, &self.url, size, offset, bs)
+            .await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp).with_operation("Backend::ghac_upload"));
         }
@@ -180,7 +189,7 @@ impl oio::Write for GhacWriterV1 {
 
     async fn close(&mut self) -> Result<Metadata> {
         self.core
-            .ghac_finalize_upload(&self.path, &self.url, self.size)
+            .ghac_finalize_upload(&self.ctx, &self.path, &self.url, self.size)
             .await?;
         Ok(Metadata::default().with_content_length(self.size))
     }
@@ -188,6 +197,7 @@ impl oio::Write for GhacWriterV1 {
 
 pub struct GhacWriterV2 {
     core: Arc<GhacCore>,
+    ctx: OperationContext,
     writer: oio::BlockWriter<AzblobWriter>,
 
     path: String,
@@ -208,7 +218,7 @@ impl oio::Write for GhacWriterV2 {
         self.writer.close().await?;
         let _ = self
             .core
-            .ghac_finalize_upload(&self.path, &self.url, self.size)
+            .ghac_finalize_upload(&self.ctx, &self.path, &self.url, self.size)
             .await;
         Ok(Metadata::default().with_content_length(self.size))
     }

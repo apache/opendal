@@ -28,6 +28,7 @@ use std::sync::LazyLock;
 use std::task::Context;
 use std::task::Poll;
 
+use crate::raw::oio::ReadStream;
 use bytes::Bytes;
 use futures::Future;
 use futures::TryStreamExt;
@@ -35,7 +36,6 @@ use http::Request;
 use http::Response;
 use http_body::Frame;
 use http_body::SizeHint;
-use raw::oio::ReadStream;
 
 use super::HttpBody;
 use super::parse_content_encoding;
@@ -62,17 +62,16 @@ pub struct HttpClient {
     fetcher: HttpFetcher,
 }
 
-/// A reqsign `HttpSend` implementation that always forwards requests to the
-/// current http client stored inside [`AccessorInfo`].
+/// A reqsign `HttpSend` implementation backed by an OpenDAL HTTP client.
 #[derive(Clone)]
-pub struct AccessorInfoHttpSend {
-    info: Arc<AccessorInfo>,
+pub struct HttpClientHttpSend {
+    client: HttpClient,
 }
 
-impl AccessorInfoHttpSend {
-    /// Create a new [`AccessorInfoHttpSend`].
-    pub fn new(info: Arc<AccessorInfo>) -> Self {
-        Self { info }
+impl HttpClientHttpSend {
+    /// Create a new [`HttpClientHttpSend`].
+    pub fn new(client: HttpClient) -> Self {
+        Self { client }
     }
 }
 
@@ -83,9 +82,9 @@ impl Debug for HttpClient {
     }
 }
 
-impl Debug for AccessorInfoHttpSend {
+impl Debug for HttpClientHttpSend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AccessorInfoHttpSend").finish()
+        f.debug_struct("HttpClientHttpSend").finish()
     }
 }
 
@@ -144,10 +143,9 @@ impl reqsign_core::HttpSend for HttpClient {
     }
 }
 
-impl reqsign_core::HttpSend for AccessorInfoHttpSend {
+impl reqsign_core::HttpSend for HttpClientHttpSend {
     async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
-        let client = self.info.http_client();
-        reqsign_core::HttpSend::http_send(&client, req).await
+        reqsign_core::HttpSend::http_send(&self.client, req).await
     }
 }
 

@@ -35,14 +35,16 @@ use futures::Future;
 /// This struct is by design to keep in crate. We don't want
 /// users to use this struct directly.
 pub struct OperatorFuture<I, O, F: Future<Output = Result<O>>> {
-    /// The accessor to the underlying object storage
-    acc: Accessor,
+    /// The composed context used to execute operations.
+    ctx: OperationContext,
+    /// The composed service to the underlying object storage.
+    srv: Servicer,
     /// The path of string
     path: String,
     /// The input args
     args: I,
     /// The function which will move all the args and return a static future
-    f: fn(Accessor, String, I) -> F,
+    f: fn(OperationContext, Servicer, String, I) -> F,
 }
 
 impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
@@ -51,13 +53,15 @@ impl<I, O, F: Future<Output = Result<O>>> OperatorFuture<I, O, F> {
     /// This struct is by design to keep in crate. We don't want
     /// users to use this struct directly.
     pub(crate) fn new(
-        inner: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         args: I,
-        f: fn(Accessor, String, I) -> F,
+        f: fn(OperationContext, Servicer, String, I) -> F,
     ) -> Self {
         OperatorFuture {
-            acc: inner,
+            ctx,
+            srv,
             path,
             args,
             f,
@@ -73,7 +77,7 @@ where
     type IntoFuture = F;
 
     fn into_future(self) -> Self::IntoFuture {
-        (self.f)(self.acc, self.path, self.args)
+        (self.f)(self.ctx, self.srv, self.path, self.args)
     }
 }
 

@@ -26,20 +26,25 @@ use opendal_core::*;
 
 pub struct GdriveDeleter {
     core: Arc<GdriveCore>,
+    ctx: OperationContext,
 }
 
 impl GdriveDeleter {
-    pub fn new(core: Arc<GdriveCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<GdriveCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for GdriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let path = build_abs_path(&self.core.root, &path);
-        let mut file_id = match self.core.resolve_path(&path).await? {
+        let mut file_id = match self.core.resolve_path(&self.ctx, &path).await? {
             Some(id) => id,
-            None => match self.core.resolve_path_after_refresh(&path).await? {
+            None => match self
+                .core
+                .resolve_path_after_refresh(&self.ctx, &path)
+                .await?
+            {
                 Some(id) => id,
                 None => return Ok(()),
             },
@@ -48,13 +53,17 @@ impl oio::OneShotDelete for GdriveDeleter {
         let is_dir = if path.ends_with('/') {
             true
         } else {
-            let mut resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            let mut resp = self.core.gdrive_stat_by_id(&self.ctx, &file_id).await?;
             if resp.status() == StatusCode::NOT_FOUND {
-                file_id = match self.core.resolve_path_after_refresh(&path).await? {
+                file_id = match self
+                    .core
+                    .resolve_path_after_refresh(&self.ctx, &path)
+                    .await?
+                {
                     Some(id) => id,
                     None => return Ok(()),
                 };
-                resp = self.core.gdrive_stat_by_id(&file_id).await?;
+                resp = self.core.gdrive_stat_by_id(&self.ctx, &file_id).await?;
             }
 
             if resp.status() == StatusCode::NOT_FOUND {
@@ -70,7 +79,7 @@ impl oio::OneShotDelete for GdriveDeleter {
             file.mime_type == "application/vnd.google-apps.folder"
         };
 
-        let mut resp = self.core.gdrive_trash(&file_id).await?;
+        let mut resp = self.core.gdrive_trash(&self.ctx, &file_id).await?;
         if resp.status() == StatusCode::NOT_FOUND {
             if is_dir {
                 self.core.refresh_dir_path(&path).await;
@@ -78,12 +87,12 @@ impl oio::OneShotDelete for GdriveDeleter {
                 self.core.refresh_path(&path).await;
             }
 
-            file_id = match self.core.resolve_path(&path).await? {
+            file_id = match self.core.resolve_path(&self.ctx, &path).await? {
                 Some(id) => id,
                 None => return Ok(()),
             };
 
-            resp = self.core.gdrive_trash(&file_id).await?;
+            resp = self.core.gdrive_trash(&self.ctx, &file_id).await?;
         }
 
         if resp.status() == StatusCode::NOT_FOUND {

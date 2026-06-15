@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
         .access_token("my_access_token")
         .root("/root/folder/for/operator");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```
@@ -105,7 +105,7 @@ async fn main() -> Result<()> {
         .client_id("my_client_id")
         .root("/root/folder/for/operator");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

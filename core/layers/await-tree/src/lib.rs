@@ -21,7 +21,8 @@
 #![deny(missing_docs)]
 
 use await_tree::InstrumentAwait;
-use futures::Future;
+use std::sync::Arc;
+
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -43,12 +44,11 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(AwaitTreeLayer::new())
-///     .finish();
+///     .layer(AwaitTreeLayer::new());
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct AwaitTreeLayer {}
 
@@ -59,43 +59,72 @@ impl AwaitTreeLayer {
     }
 }
 
-impl<A: Access> Layer<A> for AwaitTreeLayer {
-    type LayeredAccess = AwaitTreeAccessor<A>;
+impl Layer for AwaitTreeLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
+impl AwaitTreeLayer {
+    fn layer(&self, inner: Servicer) -> AwaitTreeAccessor {
         AwaitTreeAccessor { inner }
     }
 }
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct AwaitTreeAccessor<A: Access> {
-    inner: A,
+pub struct AwaitTreeAccessor {
+    inner: Servicer,
 }
 
-impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
-    type Inner = A;
-    type Reader = AwaitTreeWrapper<A::Reader>;
-    type Writer = AwaitTreeWrapper<A::Writer>;
-    type Lister = AwaitTreeWrapper<A::Lister>;
-    type Deleter = AwaitTreeWrapper<A::Deleter>;
-    type Copier = AwaitTreeWrapper<A::Copier>;
+impl Service for AwaitTreeAccessor {
+    type Reader = AwaitTreeWrapper<oio::Reader>;
+    type Writer = AwaitTreeWrapper<oio::Writer>;
+    type Lister = AwaitTreeWrapper<oio::Lister>;
+    type Deleter = AwaitTreeWrapper<oio::Deleter>;
+    type Copier = AwaitTreeWrapper<oio::Copier>;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.inner
-            .read(path, args)
+            .create_dir(ctx, path, args)
+            .instrument_await(format!("opendal::{}", Operation::CreateDir))
+            .await
+    }
+
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.inner
+            .read(ctx, path, args)
             .instrument_await(format!("opendal::{}", Operation::Read))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
         self.inner
-            .write(path, args)
+            .write(ctx, path, args)
             .instrument_await(format!("opendal::{}", Operation::Write))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
@@ -103,51 +132,68 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner()
-            .copy(from, to, args, opts.clone())
+        self.inner
+            .copy(ctx, from, to, args, opts)
             .instrument_await(format!("opendal::{}", Operation::Copy))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner()
-            .rename(from, to, args)
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner
+            .rename(ctx, from, to, args)
             .instrument_await(format!("opendal::{}", Operation::Rename))
             .await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner
-            .stat(path, args)
+            .stat(ctx, path, args)
             .instrument_await(format!("opendal::{}", Operation::Stat))
             .await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         self.inner
-            .delete()
+            .delete(ctx)
             .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
         self.inner
-            .list(path, args)
+            .list(ctx, path, args)
             .instrument_await(format!("opendal::{}", Operation::List))
             .await
             .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         self.inner
-            .presign(path, args)
+            .presign(ctx, path, args)
             .instrument_await(format!("opendal::{}", Operation::Presign))
             .await
     }
@@ -186,33 +232,34 @@ impl<R: oio::Read> oio::Read for AwaitTreeWrapper<R> {
         ))
     }
 
-    fn read(
-        &self,
-        range: BytesRange,
-    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.inner
             .read(range)
             .instrument_await(format!("opendal::{}", Operation::Read))
+            .await
     }
 }
 
 impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner
             .write(bs)
             .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+    async fn abort(&mut self) -> Result<()> {
         self.inner
             .abort()
             .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+    async fn close(&mut self) -> Result<Metadata> {
         self.inner
             .close()
             .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
     }
 }
 
@@ -239,21 +286,24 @@ impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
 }
 
 impl<C: oio::Copy> oio::Copy for AwaitTreeWrapper<C> {
-    fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend {
+    async fn next(&mut self) -> Result<Option<usize>> {
         self.inner
             .next()
             .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+            .await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+    async fn close(&mut self) -> Result<Metadata> {
         self.inner
             .close()
             .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+            .await
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+    async fn abort(&mut self) -> Result<()> {
         self.inner
             .abort()
             .instrument_await(format!("opendal::{}", Operation::Copy.into_static()))
+            .await
     }
 }

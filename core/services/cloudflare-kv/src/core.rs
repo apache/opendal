@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use http::Request;
 use http::Response;
 use http::header;
 use http::request;
 use opendal_core::raw::*;
+use opendal_core::*;
 use opendal_core::{Buffer, Result};
 use serde_json::json;
 
@@ -33,13 +32,14 @@ pub struct CloudflareKvCore {
     pub account_id: String,
     pub namespace_id: String,
     pub expiration_ttl: Option<Duration>,
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 }
 
 impl CloudflareKvCore {
     #[inline]
-    async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    async fn send(&self, ctx: &OperationContext, req: Request<Buffer>) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     fn sign(&self, req: request::Builder) -> request::Builder {
@@ -56,7 +56,7 @@ impl CloudflareKvCore {
 }
 
 impl CloudflareKvCore {
-    pub async fn metadata(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn metadata(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/metadata/{}",
             self.url_prefix(),
@@ -71,10 +71,10 @@ impl CloudflareKvCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn get(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let url = format!("{}/values/{}", self.url_prefix(), percent_encode_path(path));
         let req = Request::get(url);
 
@@ -85,11 +85,12 @@ impl CloudflareKvCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn set(
         &self,
+        ctx: &OperationContext,
         path: &str,
         value: Buffer,
         metadata: CfKvMetadata,
@@ -115,10 +116,14 @@ impl CloudflareKvCore {
 
         let req = multipart.apply(req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, paths: &[String]) -> Result<Response<Buffer>> {
+    pub async fn delete(
+        &self,
+        ctx: &OperationContext,
+        paths: &[String],
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/bulk/delete", self.url_prefix());
 
         let req = Request::post(&url);
@@ -131,11 +136,12 @@ impl CloudflareKvCore {
             .body(Buffer::from(req_body.to_string()))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn list(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         limit: Option<usize>,
         cursor: Option<String>,
@@ -158,6 +164,6 @@ impl CloudflareKvCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }

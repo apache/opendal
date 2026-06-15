@@ -76,8 +76,7 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(ConcurrentLimitLayer::new(1024))
-///     .finish();
+///     .layer(ConcurrentLimitLayer::new(1024));
 /// # Ok(())
 /// # }
 /// ```
@@ -94,11 +93,9 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 /// let limit = ConcurrentLimitLayer::new(1024);
 ///
 /// let _operator_a = Operator::new(services::Memory::default())?
-///     .layer(limit.clone())
-///     .finish();
+///     .layer(limit.clone());
 /// let _operator_b = Operator::new(services::Memory::default())?
-///     .layer(limit.clone())
-///     .finish();
+///     .layer(limit.clone());
 /// # Ok(())
 /// # }
 /// ```
@@ -106,6 +103,14 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 pub struct ConcurrentLimitLayer<S: ConcurrentLimitSemaphore = Arc<Semaphore>> {
     operation_semaphore: S,
     http_semaphore: Option<S>,
+}
+
+impl<S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitLayer<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConcurrentLimitLayer")
+            .field("has_http_limit", &self.http_semaphore.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl ConcurrentLimitLayer<Arc<Semaphore>> {
@@ -152,24 +157,30 @@ impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
     }
 }
 
-impl<A: Access, S: ConcurrentLimitSemaphore> Layer<A> for ConcurrentLimitLayer<S>
+impl<S: ConcurrentLimitSemaphore> Layer for ConcurrentLimitLayer<S>
 where
-    S::Permit: Unpin,
+    S::Permit: Send + Sync + 'static + Unpin,
 {
-    type LayeredAccess = ConcurrentLimitAccessor<A, S>;
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
+    fn apply_http_fetch(&self, _srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        // Wrap the current HTTP fetcher so HTTP permits are held until the
+        // response body is dropped.
+        Arc::new(ConcurrentLimitHttpFetcher::<S> {
+            inner,
+            http_semaphore: self.http_semaphore.clone(),
+        })
+    }
+}
 
-        // Update http client with concurrent limit http fetcher.
-        info.update_http_client(|client| {
-            HttpClient::with(ConcurrentLimitHttpFetcher::<S> {
-                inner: client.into_inner(),
-                http_semaphore: self.http_semaphore.clone(),
-            })
-        });
-
-        ConcurrentLimitAccessor {
+impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    fn layer(&self, inner: Servicer) -> ConcurrentLimitService<S> {
+        ConcurrentLimitService {
             inner,
             semaphore: self.operation_semaphore.clone(),
         }
@@ -207,7 +218,7 @@ where
 
 struct ConcurrentLimitStream<S, P> {
     inner: S,
-    // Hold on this permit until this reader has been dropped.
+    // Hold this permit until the HTTP body stream is dropped.
     _permit: P,
 }
 
@@ -227,99 +238,132 @@ where
 
 #[doc(hidden)]
 #[derive(Clone)]
-pub struct ConcurrentLimitAccessor<A: Access, S: ConcurrentLimitSemaphore> {
-    inner: A,
+pub struct ConcurrentLimitService<S: ConcurrentLimitSemaphore> {
+    inner: Servicer,
     semaphore: S,
 }
 
-impl<A: Access, S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitAccessor<A, S> {
+impl<S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitService<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ConcurrentLimitAccessor")
+        f.debug_struct("ConcurrentLimitService")
             .field("inner", &self.inner)
             .finish_non_exhaustive()
     }
 }
 
-impl<A: Access, S: ConcurrentLimitSemaphore> LayeredAccess for ConcurrentLimitAccessor<A, S>
+impl<S: ConcurrentLimitSemaphore> Service for ConcurrentLimitService<S>
 where
-    S::Permit: Unpin,
+    S::Permit: Send + Sync + 'static + Unpin,
 {
-    type Inner = A;
-    type Reader = ConcurrentLimitReader<A::Reader, S>;
-    type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
-    type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
-    type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
-    type Copier = ConcurrentLimitWrapper<A::Copier, S::Permit>;
+    type Reader = ConcurrentLimitReader<oio::Reader, S>;
+    type Writer = ConcurrentLimitWrapper<oio::Writer, S::Permit>;
+    type Lister = ConcurrentLimitWrapper<oio::Lister, S::Permit>;
+    type Deleter = ConcurrentLimitWrapper<oio::Deleter, S::Permit>;
+    type Copier = ConcurrentLimitWrapper<oio::Copier, S::Permit>;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let _permit = self.semaphore.acquire().await;
-
-        self.inner.create_dir(path, args).await
+        self.inner.create_dir(ctx, path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
         self.inner
-            .read(path, args)
+            .read(ctx, path, args)
             .await
             .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, self.semaphore.clone())))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
         let permit = self.semaphore.acquire().await;
-
         self.inner
-            .write(path, args)
+            .write(ctx, path, args)
             .await
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
         let permit = self.semaphore.acquire().await;
-
         self.inner
-            .copy(from, to, args, opts.clone())
+            .copy(ctx, from, to, args, opts)
             .await
             .map(|(rp, c)| (rp, ConcurrentLimitWrapper::new(c, permit)))
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
         let _permit = self.semaphore.acquire().await;
-
-        self.inner.rename(from, to, args).await
+        self.inner.rename(ctx, from, to, args).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self.semaphore.acquire().await;
-
-        self.inner.stat(path, args).await
+        self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         let permit = self.semaphore.acquire().await;
-
         self.inner
-            .delete()
+            .delete(ctx)
             .await
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
         let permit = self.semaphore.acquire().await;
-
         self.inner
-            .list(path, args)
+            .list(ctx, path, args)
             .await
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.presign(ctx, path, args).await
     }
 }
 
@@ -358,7 +402,7 @@ where
 pub struct ConcurrentLimitWrapper<R, P> {
     inner: R,
 
-    // Hold on this permit until this reader has been dropped.
+    // Hold this permit until the wrapped operation body is dropped.
     _permit: P,
 }
 
@@ -439,7 +483,6 @@ impl<C: oio::Copy, P: Send + Sync + 'static + Unpin> oio::Copy for ConcurrentLim
 mod tests {
     use super::*;
     use opendal_core::Operator;
-    use opendal_core::OperatorBuilder;
     use opendal_core::services;
     use std::sync::Arc;
     use std::time::Duration;
@@ -457,8 +500,7 @@ mod tests {
 
         let op = Operator::new(services::Memory::default())
             .expect("operator must build")
-            .layer(layer)
-            .finish();
+            .layer(layer);
 
         let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
         assert!(
@@ -479,46 +521,133 @@ mod tests {
     async fn operation_semaphore_limits_copy_and_rename() {
         #[derive(Clone, Debug)]
         struct CopyRenameBackend {
-            info: Arc<AccessorInfo>,
+            info: ServiceInfo,
+            capability: Capability,
         }
 
-        impl Access for CopyRenameBackend {
+        impl Service for CopyRenameBackend {
             type Reader = ();
             type Writer = ();
             type Lister = ();
             type Deleter = ();
-            type Copier = oio::Copier;
+            type Copier = ();
 
-            fn info(&self) -> Arc<AccessorInfo> {
+            fn info(&self) -> ServiceInfo {
                 self.info.clone()
+            }
+
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn read(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpRead,
+            ) -> Result<(RpRead, Self::Reader)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn write(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpWrite,
+            ) -> Result<(RpWrite, Self::Writer)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn list(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpList,
+            ) -> Result<(RpList, Self::Lister)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
 
             async fn copy(
                 &self,
+                _: &OperationContext,
                 _: &str,
                 _: &str,
                 _: OpCopy,
                 _: OpCopier,
             ) -> Result<(RpCopy, Self::Copier)> {
-                Ok((RpCopy::default(), Box::new(())))
+                Ok((RpCopy::default(), ()))
             }
 
-            async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
                 Ok(RpRename::default())
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
         }
 
         let semaphore = Arc::new(Semaphore::new(1));
         let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
-        let info = Arc::new(AccessorInfo::default());
-        info.set_native_capability(Capability {
+        let capability = Capability {
             copy: true,
             rename: true,
             ..Default::default()
-        });
-        let op = OperatorBuilder::new(CopyRenameBackend { info })
-            .layer(layer)
-            .finish();
+        };
+        let op = Operator::from_inner(Arc::new(CopyRenameBackend {
+            info: ServiceInfo::with_scheme("mock"),
+            capability,
+        }))
+        .layer(layer);
 
         let permit = semaphore.clone().acquire_owned(1).await;
 
@@ -547,46 +676,133 @@ mod tests {
     async fn operation_semaphore_held_until_copier_dropped() {
         #[derive(Clone, Debug)]
         struct CopierBackend {
-            info: Arc<AccessorInfo>,
+            info: ServiceInfo,
+            capability: Capability,
         }
 
-        impl Access for CopierBackend {
+        impl Service for CopierBackend {
             type Reader = ();
             type Writer = ();
             type Lister = ();
             type Deleter = ();
-            type Copier = oio::Copier;
+            type Copier = ();
 
-            fn info(&self) -> Arc<AccessorInfo> {
+            fn info(&self) -> ServiceInfo {
                 self.info.clone()
+            }
+
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn read(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpRead,
+            ) -> Result<(RpRead, Self::Reader)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn write(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpWrite,
+            ) -> Result<(RpWrite, Self::Writer)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn list(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpList,
+            ) -> Result<(RpList, Self::Lister)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
 
             async fn copy(
                 &self,
+                _: &OperationContext,
                 _: &str,
                 _: &str,
                 _: OpCopy,
                 _: OpCopier,
             ) -> Result<(RpCopy, Self::Copier)> {
-                Ok((RpCopy::default(), Box::new(())))
+                Ok((RpCopy::default(), ()))
             }
 
-            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
                 Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
         }
 
         let semaphore = Arc::new(Semaphore::new(1));
         let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
-        let info = Arc::new(AccessorInfo::default());
-        info.set_native_capability(Capability {
+        let capability = Capability {
             copy: true,
             stat: true,
             ..Default::default()
-        });
-        let op = OperatorBuilder::new(CopierBackend { info })
-            .layer(layer)
-            .finish();
+        };
+        let op = Operator::from_inner(Arc::new(CopierBackend {
+            info: ServiceInfo::with_scheme("mock"),
+            capability,
+        }))
+        .layer(layer);
 
         let copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
             .await
@@ -630,18 +846,20 @@ mod tests {
 
         #[derive(Clone, Debug)]
         struct HttpBackend {
-            info: Arc<AccessorInfo>,
+            info: ServiceInfo,
+            capability: Capability,
             content: Buffer,
         }
 
         /// Reader returned by this backend.
         pub struct HttpReader {
             backend: HttpBackend,
+            ctx: OperationContext,
         }
 
         impl HttpReader {
-            fn new(backend: HttpBackend, _: &str, _: OpRead) -> Self {
-                Self { backend }
+            fn new(backend: HttpBackend, ctx: OperationContext, _: &str, _: OpRead) -> Self {
+                Self { backend, ctx }
             }
         }
 
@@ -657,7 +875,7 @@ mod tests {
                     None => backend.content.slice(start..),
                 };
                 let req = http::Request::get("http://fake").body(data).unwrap();
-                let resp = backend.info.http_client().fetch(req).await?;
+                let resp = self.ctx.http_client().fetch(req).await?;
                 let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
                 let stream = resp.into_body();
 
@@ -665,51 +883,134 @@ mod tests {
             }
         }
 
-        impl Access for HttpBackend {
+        impl Service for HttpBackend {
             type Reader = oio::StreamReader<HttpReader>;
             type Writer = ();
             type Lister = ();
             type Deleter = ();
-            type Copier = oio::Copier;
+            type Copier = ();
 
-            fn info(&self) -> Arc<AccessorInfo> {
+            fn info(&self) -> ServiceInfo {
                 self.info.clone()
             }
 
-            async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-                Ok((
-                    RpRead::default(),
-                    oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
                 ))
             }
 
-            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            async fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<(RpRead, Self::Reader)> {
+                Ok((
+                    RpRead::default(),
+                    oio::StreamReader::new(HttpReader::new(self.clone(), ctx.clone(), path, args)),
+                ))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
                 Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
                 ))
             }
 
-            async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            async fn write(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpWrite,
+            ) -> Result<(RpWrite, Self::Writer)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
-            async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+
+            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
-            async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+
+            async fn list(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpList,
+            ) -> Result<(RpList, Self::Lister)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+                _: OpCopier,
+            ) -> Result<(RpCopy, Self::Copier)> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ))
             }
         }
 
         let content = Buffer::from(vec![0u8; 4096]);
-        let info = Arc::new(AccessorInfo::default());
-        info.update_http_client(|_| HttpClient::with(EchoFetcher));
-
-        let op = OperatorBuilder::new(HttpBackend {
-            info,
+        let op = Operator::from_inner(Arc::new(HttpBackend {
+            info: ServiceInfo::with_scheme("mock"),
+            capability: Capability {
+                read: true,
+                stat: true,
+                ..Default::default()
+            },
             content: content.clone(),
-        })
-        .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2))
-        .finish();
+        }))
+        .http_client(HttpClient::with(EchoFetcher))
+        .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2));
 
         // chunk=256 ⇒ 16 HTTP requests, concurrent=4, but only 2 HTTP permits.
         let result = timeout(Duration::from_secs(5), async {

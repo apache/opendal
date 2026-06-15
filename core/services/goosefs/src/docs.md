@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         .root("/data")
         .master_addr("10.0.0.1:9200");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
         .master_addr("10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200")
         .write_type("cache_through");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
         .auth_type("simple")
         .auth_username("myuser");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     // No authentication (NOSASL mode)
     let builder = GooseFs::default()
@@ -115,7 +115,7 @@ async fn main() -> Result<()> {
         .master_addr("10.0.0.1:9200")
         .auth_type("nosasl");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

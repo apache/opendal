@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct B2Deleter {
     core: Arc<B2Core>,
+    ctx: OperationContext,
 }
 
 impl B2Deleter {
-    pub fn new(core: Arc<B2Core>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<B2Core>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for B2Deleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.hide_file(&path).await?;
+        let resp = self.core.hide_file(&self.ctx, &path).await?;
 
         let status = resp.status();
 

@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct YandexDiskDeleter {
     core: Arc<YandexDiskCore>,
+    ctx: OperationContext,
 }
 
 impl YandexDiskDeleter {
-    pub fn new(core: Arc<YandexDiskCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<YandexDiskCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for YandexDiskDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.delete(&path).await?;
+        let resp = self.core.delete(&self.ctx, &path).await?;
 
         let status = resp.status();
 

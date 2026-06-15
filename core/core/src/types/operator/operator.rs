@@ -16,13 +16,13 @@
 // under the License.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
 use crate::operator_futures::*;
-use crate::raw::oio::DeleteDyn;
 use crate::raw::*;
 use crate::types::delete::Deleter;
 use crate::*;
@@ -31,9 +31,9 @@ use crate::*;
 ///
 /// For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
 ///
-/// All cloned `Operator` instances share the same internal state, such as
-/// `HttpClient` and `Runtime`. Some layers may modify the internal state of
-/// the `Operator` too like inject logging and metrics for `HttpClient`.
+/// `Operator` is immutable: methods that change layers, HTTP transport, or
+/// executor return a new operator. Existing clones and in-flight operations keep
+/// using the service stack and operation context they already hold.
 ///
 /// ## Build
 ///
@@ -49,7 +49,7 @@ use crate::*;
 /// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     // Build an `Operator` to start operating the storage.
-///     let _: Operator = Operator::new(Memory::default())?.finish();
+///     let _: Operator = Operator::new(Memory::default())?;
 ///
 ///     Ok(())
 /// }
@@ -61,24 +61,22 @@ use crate::*;
 ///
 /// OpenDAL offers various layers for users to choose from. Visit [`layers`] for further details.
 ///
-/// Please note that `Layer` can modify internal contexts such as `HttpClient`
-/// and `Runtime` for all clones of given operator. Therefore, it is recommended
-/// to add layers before interacting with the storage. Adding or duplicating
-/// layers after accessing the storage may result in unexpected behavior.
+/// Layers are replayed from the operator's base service, HTTP transport, and
+/// executor whenever the operator is changed. Cloned operators can therefore
+/// add layers or replace providers independently.
 ///
 /// ```
-/// use opendal_core::layers::HttpClientLayer;
 /// use opendal_core::raw::HttpClient;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
 /// use opendal_core::Result;
 ///
 /// async fn test() -> Result<()> {
-///     let op: Operator = Operator::new(Memory::default())?.finish();
+///     let op: Operator = Operator::new(Memory::default())?;
 ///
 ///     // OpenDAL will replace the default HTTP client now.
 ///     let client = HttpClient::new()?;
-///     let op = op.layer(HttpClientLayer::new(client));
+///     let op = op.http_client(client);
 ///
 ///     Ok(())
 /// }
@@ -88,8 +86,9 @@ use crate::*;
 ///
 /// After the operator is built and the layers are added, users can start operating the storage.
 ///
-/// The operator is `Send`, `Sync`, and `Clone`. It has no internal state, and all APIs only take
-/// a `&self` reference, making it safe to share the operator across threads.
+/// The operator is `Send`, `Sync`, and `Clone`. It holds immutable handles, and
+/// storage operation APIs only take a `&self` reference, making it safe to share
+/// the operator across threads.
 ///
 /// Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
 ///
@@ -115,7 +114,7 @@ use crate::*;
 ///     let builder = services::Memory::default();
 ///
 ///     // Init an operator
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Fetch this file's metadata
 ///     let meta = op.stat("hello.txt").await?;
@@ -142,30 +141,111 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Operator {
-    // accessor is what Operator delegates for
-    accessor: Accessor,
+    // Base providers are the bottom slots that layer and resource changes replay from.
+    base_srv: Servicer,
+    base_http_fetch: HttpFetcher,
+    base_executor: Executor,
+    // Layers are the replayable program shared by the service, HTTP, and executor planes.
+    layers: Arc<[Arc<dyn Layer>]>,
+    // Composed dispatch state. `srv` and `ctx` must always come from the same
+    // fold over `layers` and the base providers.
+    srv: Servicer,
+    ctx: OperationContext,
+}
+
+impl std::fmt::Debug for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Operator")
+            .field("base_service", &self.base_srv)
+            .field("base_executor", &self.base_executor)
+            .field("layers", &self.layers)
+            .field("service", &self.srv)
+            .field("context", &self.ctx)
+            .finish_non_exhaustive()
+    }
 }
 
 /// # Operator basic API.
 impl Operator {
-    /// Fetch the internal accessor.
-    pub fn inner(&self) -> &Accessor {
-        &self.accessor
+    /// Build an operator by replaying layers over the base providers.
+    ///
+    /// This is the single constructor for composed state: `srv` and `ctx` are
+    /// rebuilt together so operation dispatch cannot mix a service stack with
+    /// resources from another layer program.
+    pub(crate) fn with_parts(
+        base_srv: Servicer,
+        base_http_fetch: HttpFetcher,
+        base_executor: Executor,
+        layers: Arc<[Arc<dyn Layer>]>,
+    ) -> Self {
+        let srv = layers
+            .iter()
+            .fold(base_srv.clone(), |srv, layer| layer.apply_service(srv));
+        let http_fetch = layers.iter().fold(base_http_fetch.clone(), |inner, layer| {
+            layer.apply_http_fetch(srv.clone(), inner)
+        });
+        let executor = layers.iter().fold(base_executor.clone(), |inner, layer| {
+            layer.apply_execute(srv.clone(), inner)
+        });
+        let ctx = OperationContext::new(HttpClient::with(http_fetch), executor);
+
+        Self {
+            base_srv,
+            base_http_fetch,
+            base_executor,
+            layers,
+            srv,
+            ctx,
+        }
     }
 
-    /// Convert inner accessor into operator.
-    pub fn from_inner(accessor: Accessor) -> Self {
-        Self { accessor }
+    /// Get the composed `srv` used by the current operator.
+    pub fn service(&self) -> &Servicer {
+        &self.srv
     }
 
-    /// Convert operator into inner accessor.
-    pub fn into_inner(self) -> Accessor {
-        self.accessor
+    /// Get the composed `ctx` passed to `srv` for operations.
+    pub(crate) fn context(&self) -> &OperationContext {
+        &self.ctx
     }
 
-    /// Get information of underlying accessor.
+    /// Fetch the composed `srv`.
+    pub fn inner(&self) -> &Servicer {
+        self.service()
+    }
+
+    /// Convert a `Servicer` into an operator.
+    pub fn from_inner(srv: Servicer) -> Self {
+        Self::from_service(srv)
+    }
+
+    /// Convert a `Servicer` into an operator.
+    pub fn from_service(srv: Servicer) -> Self {
+        Self::with_parts(
+            srv,
+            HttpClient::default().into_inner(),
+            Executor::default(),
+            Arc::from([]),
+        )
+    }
+
+    /// Convert operator into the composed `srv`.
+    pub fn into_inner(self) -> Servicer {
+        self.srv.clone()
+    }
+
+    /// Convert operator into the composed `srv` and `ctx`.
+    #[doc(hidden)]
+    pub fn into_inner_with_context(self) -> (Servicer, OperationContext) {
+        (self.srv.clone(), self.ctx)
+    }
+
+    /// Get information of this operator.
+    ///
+    /// The effective capability is read from the composed `srv`; native
+    /// capability is read from `base_srv`.
     ///
     /// # Examples
     ///
@@ -180,25 +260,46 @@ impl Operator {
     /// # }
     /// ```
     pub fn info(&self) -> OperatorInfo {
-        OperatorInfo::new(self.accessor.info())
+        OperatorInfo::new(
+            self.srv.info(),
+            self.srv.capability(),
+            self.base_srv.capability(),
+        )
     }
 
-    /// Get the executor used by current operator.
-    pub fn executor(&self) -> Executor {
-        self.accessor.info().executor()
+    /// Get the executor used by the current `ctx`.
+    pub fn executor_ref(&self) -> Executor {
+        self.ctx.executor().clone()
     }
 
-    /// Update executor for the context.
-    ///
-    /// All cloned `Operator` instances share the same internal state, such as
-    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
-    /// the `Operator` too like inject logging and metrics for `HttpClient`.
-    ///
-    /// # Note
-    ///
-    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
-    pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
-        self.accessor.info().update_executor(f);
+    /// Replace the base HTTP transport and rebuild composed state.
+    #[must_use]
+    pub fn http_client(self, client: HttpClient) -> Self {
+        Self::with_parts(
+            self.base_srv,
+            client.into_inner(),
+            self.base_executor,
+            self.layers,
+        )
+    }
+
+    /// Replace the base executor and rebuild composed state.
+    #[must_use]
+    pub fn executor(self, executor: Executor) -> Self {
+        Self::with_parts(self.base_srv, self.base_http_fetch, executor, self.layers)
+    }
+
+    /// Apply a layer to this operator and rebuild composed state.
+    #[must_use]
+    pub fn layer<L: Layer>(self, layer: L) -> Self {
+        let mut layers = self.layers.iter().cloned().collect::<Vec<_>>();
+        layers.push(Arc::new(layer) as Arc<dyn Layer>);
+        Self::with_parts(
+            self.base_srv,
+            self.base_http_fetch,
+            self.base_executor,
+            Arc::from(layers),
+        )
     }
 }
 
@@ -297,7 +398,8 @@ impl Operator {
     pub fn stat_with(&self, path: &str) -> FutureStat<impl Future<Output = Result<Metadata>>> {
         let path = normalize_path(path);
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::StatOptions::default(),
             Self::stat_inner,
@@ -344,16 +446,17 @@ impl Operator {
     /// ```
     pub async fn stat_options(&self, path: &str, opts: options::StatOptions) -> Result<Metadata> {
         let path = normalize_path(path);
-        Self::stat_inner(self.accessor.clone(), path, opts).await
+        Self::stat_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     #[inline]
     async fn stat_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         opts: options::StatOptions,
     ) -> Result<Metadata> {
-        let rp = acc.stat(&path, opts.into()).await?;
+        let rp = srv.stat(&ctx, &path, opts.into()).await?;
         Ok(rp.into_metadata())
     }
 
@@ -412,11 +515,13 @@ impl Operator {
                 "the path trying to create should end with `/`",
             )
             .with_operation("create_dir")
-            .with_context("service", self.inner().info().scheme())
+            .with_context("service", self.srv.info().scheme())
             .with_context("path", &path));
         }
 
-        self.inner().create_dir(&path, OpCreateDir::new()).await?;
+        self.srv
+            .create_dir(&self.ctx, &path, OpCreateDir::new())
+            .await?;
 
         Ok(())
     }
@@ -477,7 +582,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::ReadOptions::default(),
             Self::read_inner,
@@ -512,24 +618,29 @@ impl Operator {
     /// ```
     pub async fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         let path = normalize_path(path);
-        Self::read_inner(self.inner().clone(), path, opts).await
+        Self::read_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     #[inline]
-    async fn read_inner(acc: Accessor, path: String, opts: options::ReadOptions) -> Result<Buffer> {
+    async fn read_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        opts: options::ReadOptions,
+    ) -> Result<Buffer> {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("read")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("path", &path),
             );
         }
 
         let (range, args, opts) = opts.into();
-        let (_, reader) = acc.read(&path, args.clone()).await?;
-        let context = ReadContext::new(acc, path, args, opts, reader);
-        let r = Reader::new(context);
+        let (_, reader) = srv.read(&ctx, &path, args.clone()).await?;
+        let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
+        let r = Reader::new(read_context);
         let buf = r.read(range).await?;
         Ok(buf)
     }
@@ -583,7 +694,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::ReaderOptions::default(),
             Self::reader_inner,
@@ -614,7 +726,7 @@ impl Operator {
     /// ```
     pub async fn reader_options(&self, path: &str, opts: options::ReaderOptions) -> Result<Reader> {
         let path = normalize_path(path);
-        Self::reader_inner(self.inner().clone(), path, opts).await
+        Self::reader_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     /// Allow this unused async since we don't want
@@ -622,7 +734,8 @@ impl Operator {
     #[allow(clippy::unused_async)]
     #[inline]
     async fn reader_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         options: options::ReaderOptions,
     ) -> Result<Reader> {
@@ -630,15 +743,15 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("Operator::reader")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("path", path),
             );
         }
 
         let (args, opts) = options.into();
-        let (_, reader) = acc.read(&path, args.clone()).await?;
-        let context = ReadContext::new(acc, path, args, opts, reader);
-        Ok(Reader::new(context))
+        let (_, reader) = srv.read(&ctx, &path, args.clone()).await?;
+        let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
+        Ok(Reader::new(read_context))
     }
 
     /// Write all data to the specified path at once.
@@ -729,10 +842,11 @@ impl Operator {
         let bs = bs.into();
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             (options::WriteOptions::default(), bs),
-            |inner, path, (opts, bs)| Self::write_inner(inner, path, bs, opts),
+            |ctx, srv, path, (opts, bs)| Self::write_inner(ctx, srv, path, bs, opts),
         )
     }
 
@@ -779,12 +893,20 @@ impl Operator {
         opts: options::WriteOptions,
     ) -> Result<Metadata> {
         let path = normalize_path(path);
-        Self::write_inner(self.inner().clone(), path, bs.into(), opts).await
+        Self::write_inner(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            bs.into(),
+            opts,
+        )
+        .await
     }
 
     #[inline]
     async fn write_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         bs: Buffer,
         opts: options::WriteOptions,
@@ -793,15 +915,15 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Operator::write")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("path", &path),
             );
         }
 
         let (args, opts) = opts.into();
 
-        let context = WriteContext::new(acc, path, args, opts);
-        let mut w = Writer::new(context).await?;
+        let write_context = WriteContext::new(ctx, srv, path, args, opts);
+        let mut w = Writer::new(write_context).await?;
         w.write(bs).await?;
         w.close().await
     }
@@ -887,7 +1009,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::WriteOptions::default(),
             Self::writer_inner,
@@ -946,12 +1069,13 @@ impl Operator {
     /// ```
     pub async fn writer_options(&self, path: &str, opts: options::WriteOptions) -> Result<Writer> {
         let path = normalize_path(path);
-        Self::writer_inner(self.inner().clone(), path, opts).await
+        Self::writer_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     #[inline]
     async fn writer_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         opts: options::WriteOptions,
     ) -> Result<Writer> {
@@ -959,14 +1083,14 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Operator::writer")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("path", &path),
             );
         }
 
         let (args, opts) = opts.into();
-        let context = WriteContext::new(acc, path, args, opts);
-        let w = Writer::new(context).await?;
+        let write_context = WriteContext::new(ctx, srv, path, args, opts);
+        let w = Writer::new(write_context).await?;
         Ok(w)
     }
 
@@ -1038,7 +1162,8 @@ impl Operator {
         let to = normalize_path(to);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             from,
             (options::CopyOptions::default(), to),
             Self::copy_inner,
@@ -1055,7 +1180,8 @@ impl Operator {
         let to = normalize_path(to);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             from,
             (options::CopyOptions::default(), to),
             Self::copier_inner,
@@ -1101,7 +1227,13 @@ impl Operator {
         let to = normalize_path(to);
         let opts = opts.into();
 
-        Self::copy_inner(self.inner().clone(), from, (opts, to)).await
+        Self::copy_inner(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (opts, to),
+        )
+        .await
     }
 
     /// Create a copier from `from` to `to` with additional options.
@@ -1115,11 +1247,18 @@ impl Operator {
         let to = normalize_path(to);
         let opts = opts.into();
 
-        Self::copier_inner(self.inner().clone(), from, (opts, to)).await
+        Self::copier_inner(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (opts, to),
+        )
+        .await
     }
 
     async fn copy_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         from: String,
         (opts, to): (options::CopyOptions, String),
     ) -> Result<Metadata> {
@@ -1127,7 +1266,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
                     .with_operation("Operator::copy")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from),
             );
         }
@@ -1136,7 +1275,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
                     .with_operation("Operator::copy")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
         }
@@ -1145,13 +1284,13 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copy")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", &from)
                     .with_context("to", &to),
             );
         }
 
-        let mut copier = Self::copier_inner(acc, from, (opts, to)).await?;
+        let mut copier = Self::copier_inner(ctx, srv, from, (opts, to)).await?;
         match copier.close().await {
             Ok(meta) => Ok(meta),
             Err(err) => {
@@ -1162,7 +1301,8 @@ impl Operator {
     }
 
     async fn copier_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         from: String,
         (opts, to): (options::CopyOptions, String),
     ) -> Result<Copier> {
@@ -1170,7 +1310,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
                     .with_operation("Operator::copier")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from),
             );
         }
@@ -1179,7 +1319,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
                     .with_operation("Operator::copier")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
         }
@@ -1188,14 +1328,14 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copier")
-                    .with_context("service", acc.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", &from)
                     .with_context("to", &to),
             );
         }
 
         let (args, opts) = opts.into();
-        Copier::create(acc, &from, &to, args, opts).await
+        Copier::create(ctx, srv, &from, &to, args, opts).await
     }
 
     /// Rename a file from `from` to `to`.
@@ -1250,7 +1390,9 @@ impl Operator {
             );
         }
 
-        self.inner().rename(&from, &to, OpRename::new()).await?;
+        self.srv
+            .rename(&self.ctx, &from, &to, OpRename::new())
+            .await?;
 
         Ok(())
     }
@@ -1303,7 +1445,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::DeleteOptions::default(),
             Self::delete_inner,
@@ -1336,11 +1479,16 @@ impl Operator {
     /// ```
     pub async fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
         let path = normalize_path(path);
-        Self::delete_inner(self.inner().clone(), path, opts).await
+        Self::delete_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
-    async fn delete_inner(acc: Accessor, path: String, opts: options::DeleteOptions) -> Result<()> {
-        let (_, mut deleter) = acc.delete_dyn().await?;
+    async fn delete_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        opts: options::DeleteOptions,
+    ) -> Result<()> {
+        let (_, mut deleter) = srv.delete(&ctx).await?;
         let args = opts.into();
         deleter.delete_dyn(&path, args).await?;
         deleter.close_dyn().await?;
@@ -1425,7 +1573,7 @@ impl Operator {
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
     pub async fn deleter(&self) -> Result<Deleter> {
-        Deleter::create(self.inner().clone()).await
+        Deleter::create(self.context().clone(), self.service().clone()).await
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -1559,7 +1707,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::ListOptions::default(),
             Self::list_inner,
@@ -1612,17 +1761,18 @@ impl Operator {
     /// ```
     pub async fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
         let path = normalize_path(path);
-        Self::list_inner(self.inner().clone(), path, opts).await
+        Self::list_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     #[inline]
     async fn list_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         opts: options::ListOptions,
     ) -> Result<Vec<Entry>> {
         let args = opts.into();
-        let lister = Lister::create(acc, &path, args).await?;
+        let lister = Lister::create(ctx, srv, &path, args).await?;
         lister.try_collect().await
     }
 
@@ -1699,7 +1849,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             options::ListOptions::default(),
             Self::lister_inner,
@@ -1749,17 +1900,18 @@ impl Operator {
     /// ```
     pub async fn lister_options(&self, path: &str, opts: options::ListOptions) -> Result<Lister> {
         let path = normalize_path(path);
-        Self::lister_inner(self.inner().clone(), path, opts).await
+        Self::lister_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
     #[inline]
     async fn lister_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        let lister = Lister::create(acc, &path, args).await?;
+        let lister = Lister::create(ctx, srv, &path, args).await?;
         Ok(lister)
     }
 }
@@ -1791,7 +1943,7 @@ impl Operator {
 
         let op = OpPresign::new(OpStat::new(), expire);
 
-        let rp = self.inner().presign(&path, op).await?;
+        let rp = self.srv.presign(&self.ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1818,7 +1970,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             (options::StatOptions::default(), expire),
             Self::presign_stat_inner,
@@ -1863,17 +2016,24 @@ impl Operator {
         opts: options::StatOptions,
     ) -> Result<PresignedRequest> {
         let path = normalize_path(path);
-        Self::presign_stat_inner(self.inner().clone(), path, (opts, expire)).await
+        Self::presign_stat_inner(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            (opts, expire),
+        )
+        .await
     }
 
     #[inline]
     async fn presign_stat_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         (opts, expire): (options::StatOptions, Duration),
     ) -> Result<PresignedRequest> {
         let op = OpPresign::new(OpStat::from(opts), expire);
-        let rp = acc.presign(&path, op).await?;
+        let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1915,7 +2075,7 @@ impl Operator {
 
         let op = OpPresign::new(OpRead::new(), expire);
 
-        let rp = self.inner().presign(&path, op).await?;
+        let rp = self.srv.presign(&self.ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1950,7 +2110,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             (options::ReadOptions::default(), expire),
             Self::presign_read_inner,
@@ -1995,18 +2156,25 @@ impl Operator {
         opts: options::ReadOptions,
     ) -> Result<PresignedRequest> {
         let path = normalize_path(path);
-        Self::presign_read_inner(self.inner().clone(), path, (opts, expire)).await
+        Self::presign_read_inner(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            (opts, expire),
+        )
+        .await
     }
 
     #[inline]
     async fn presign_read_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
         let (range, op_read, _) = opts.into();
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
-        let rp = acc.presign(&path, op).await?;
+        let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -2084,7 +2252,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             (options::WriteOptions::default(), expire),
             Self::presign_write_inner,
@@ -2131,18 +2300,25 @@ impl Operator {
         opts: options::WriteOptions,
     ) -> Result<PresignedRequest> {
         let path = normalize_path(path);
-        Self::presign_write_inner(self.inner().clone(), path, (opts, expire)).await
+        Self::presign_write_inner(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            (opts, expire),
+        )
+        .await
     }
 
     #[inline]
     async fn presign_write_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
         let (op_write, _) = opts.into();
         let op = OpPresign::new(op_write, expire);
-        let rp = acc.presign(&path, op).await?;
+        let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -2192,7 +2368,8 @@ impl Operator {
         let path = normalize_path(path);
 
         OperatorFuture::new(
-            self.inner().clone(),
+            self.context().clone(),
+            self.service().clone(),
             path,
             (options::DeleteOptions::default(), expire),
             Self::presign_delete_inner,
@@ -2236,17 +2413,24 @@ impl Operator {
         opts: options::DeleteOptions,
     ) -> Result<PresignedRequest> {
         let path = normalize_path(path);
-        Self::presign_delete_inner(self.inner().clone(), path, (opts, expire)).await
+        Self::presign_delete_inner(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            (opts, expire),
+        )
+        .await
     }
 
     #[inline]
     async fn presign_delete_inner(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
         let op = OpPresign::new(OpDelete::from(opts), expire);
-        let rp = acc.presign(&path, op).await?;
+        let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
 }

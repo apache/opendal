@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let mut builder = Sled::default()
         .datadir("/tmp/opendal/sled");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

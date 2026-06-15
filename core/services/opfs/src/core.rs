@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use super::OPFS_SCHEME;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -24,16 +22,14 @@ use opendal_core::*;
 #[derive(Debug, Clone)]
 pub struct OpfsCore {
     pub root: String,
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 }
 
 impl OpfsCore {
     pub fn new(root: String) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(OPFS_SCHEME);
-        info.set_name("opfs");
-        info.set_root(&root);
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(OPFS_SCHEME, &root, "opfs");
+        let capability = Capability {
             stat: true,
 
             read: true,
@@ -49,11 +45,12 @@ impl OpfsCore {
             delete: true,
 
             ..Default::default()
-        });
+        };
 
         Self {
             root,
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 }

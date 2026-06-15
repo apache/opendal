@@ -15,102 +15,128 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implementation details of [`Access`].
+//! The internal implementation details of [`Service`].
 //!
-//! [`Access`] is the core trait of OpenDAL's raw API. We operate
-//! underlying storage services via APIs provided by [`Access`].
+//! [`Service`] is the core trait of OpenDAL's raw API. We operate
+//! underlying storage services via APIs provided by [`Service`].
 //!
 //! # Introduction
 //!
-//! [`Access`] can be split in the following parts:
+//! [`Service`] can be split in the following parts:
 //!
 //! ```ignore
 //! //                  <----------Trait Bound-------------->
-//! pub trait Access: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: oio::Read;                    // --+
-//!     type Writer: oio::Write;                   //   +--> Associated Type
-//!     type Lister: oio::List;                    //   +
-//!     type Deleter: oio::Delete;                 // --+
+//! pub trait Service: Send + Sync + Debug + Unpin + 'static {
+//!     fn info(&self) -> ServiceInfo;
+//!     fn capability(&self) -> Capability;
 //!
-//!     // APIs
-//!     fn info(&self) -> Arc<AccessorInfo>;
-//!     fn create_dir(
+//!     type Reader: oio::Read;
+//!     type Writer: oio::Write;
+//!     type Lister: oio::List;
+//!     type Deleter: oio::Delete;
+//!     type Copier: oio::Copy;
+//!
+//!     fn read(
 //!         &self,
+//!         ctx: &OperationContext,
 //!         path: &str,
-//!         args: OpCreateDir,
-//!     ) -> impl core::future::Future<Output = Result<RpCreateDir>> + MaybeSend;
+//!         args: OpRead,
+//!     ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
 //! }
 //! ```
 //!
-//! Let's go deep into [`Access`] line by line.
+//! Let's go deep into [`Service`] line by line.
 //!
 //! ## Trait Bound
 //!
-//! First we will read the declare of [`Access`] trait:
+//! First we will read the declaration of [`Service`] trait:
 //!
 //! ```ignore
-//! pub trait Access: Send + Sync + Debug + Unpin + 'static {}
+//! pub trait Service: Send + Sync + Debug + Unpin + 'static {}
 //! ```
 //!
-//! There are many trait boundings here. For now, [`Access`] requires the following bound:
+//! There are many trait boundings here. For now, [`Service`] requires the following bound:
 //!
 //! - [`Send`]: Allow user to send between threads without extra wrapper.
 //! - [`Sync`]: Allow user to sync between threads without extra lock.
-//! - [`Debug`][std::fmt::Debug]: Allow users to print underlying debug information of accessor.
-//! - [`Unpin`]: Make sure `Access` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
-//! - `'static`: Make sure `Access` is not a short-time reference, allow users to use `Access` in closures and futures without playing with lifetime.
+//! - [`Debug`][std::fmt::Debug]: Allow users to print underlying debug information of service.
+//! - [`Unpin`]: Make sure `Service` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
+//! - `'static`: Make sure `Service` is not a short-time reference, allow users to use `Service` in closures and futures without playing with lifetime.
 //!
-//! Implementer of `Access` should take care of the following things:
+//! Implementer of `Service` should take care of the following things:
 //!
 //! - Implement `Debug` for backend, but don't leak credentials.
 //! - Make sure the backend is `Send` and `Sync`, wrap the internal struct with `Arc<Mutex<T>>` if necessary.
 //!
 //! ## Associated Type
 //!
-//! The first block of [`Access`] trait is our associated types. We
-//! require implementers to specify the type to be returned, thus avoiding
-//! the additional overhead of dynamic dispatch.
+//! The middle block of [`Service`] is our associated types. We require
+//! implementers to specify concrete operation body types, avoiding extra
+//! dynamic dispatch inside the backend and typed service wrappers.
 //!
-//! [`Access`] has four associated types so far:
+//! [`Service`] has five associated types so far:
 //!
 //! - `Reader`: reader returned by `read` operation.
 //! - `Writer`: writer returned by `write` operation.
 //! - `Lister`: lister returned by `list` operation.
 //! - `Deleter`: deleter returned by `delete` operation.
+//! - `Copier`: copier returned by `copy` operation.
 //!
-//! Implementer of `Access` should take care the following things:
+//! Backend implementers should take care of the following things:
 //!
-//! - OpenDAL will erase those type at the final stage of Operator building. Please don't return dynamic trait object like `oio::Reader`.
-//! - Use `()` as type if the operation is not supported.
+//! - Return concrete operation body types instead of dynamic trait objects like `oio::Reader`.
+//! - Use `()` as the type if the operation is not supported.
+//! - Implement every operation method; unsupported operations should return
+//!   [`ErrorKind::Unsupported`] explicitly.
+//!
+//! Runtime service wrappers that already receive a [`Servicer`] can forward the
+//! erased `oio::*` body types, but the original backend should not erase itself.
+//!
+//! OpenDAL erases these associated types at the [`ServiceDyn`] boundary.
+//! [`Servicer`] is `Arc<dyn ServiceDyn>` and is the handle used by
+//! [`Operator`] and runtime layer composition. This keeps backend and typed
+//! layer implementations concrete, while the composed operator stack can be
+//! stored and cloned through one object-safe service handle.
 //!
 //! ## API Style
 //!
-//! Every API of [`Access`] follows the same style:
+//! Every API of [`Service`] follows the same style:
 //!
 //! - All APIs have a unique [`Operation`] and [`Capability`]
 //! - All APIs are orthogonal and do not overlap with each other
-//! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
+//! - Most APIs accept [`OperationContext`], `path` and `OpXxx`, and returns `RpXxx` with concrete operation bodies.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_native_capability`:
+//! [`OperationContext`] carries operator resources composed by operator layers,
+//! such as HTTP client and executor. Backend implementations should use this
+//! context instead of storing mutable operator resources in [`ServiceInfo`].
+//!
+//! [`Service`] declares immutable identity facts via [`ServiceInfo`] and
+//! operation capability via [`Service::capability`]:
 //!
 //! ```ignore
-//! impl Access for MyBackend {
-//!     fn info(&self) -> Arc<AccessorInfo> {
-//!         let am = AccessorInfo::default();
-//!         am.set_native_capability(
-//!             Capability {
-//!                 read: true,
-//!                 write: true,
-//!                 ..Default::default()
-//!         });
+//! impl Service for MyBackend {
+//!     type Reader = MyReader;
+//!     type Writer = ();
+//!     type Lister = ();
+//!     type Deleter = ();
+//!     type Copier = ();
 //!
-//!         am.into()
+//!     fn info(&self) -> ServiceInfo {
+//!         ServiceInfo::new(MY_SCHEME, "/", "")
+//!     }
+//!
+//!     fn capability(&self) -> Capability {
+//!         Capability {
+//!             read: true,
+//!             write: true,
+//!             ..Default::default()
+//!         }
 //!     }
 //! }
 //! ```
 //!
-//! Now that you have mastered [`Access`], let's go and implement our own backend!
+//! Now that you have mastered [`Service`], let's go and implement our own backend!
 //!
 //! # Tutorial
 //!
@@ -179,7 +205,7 @@
 //! ///     // NOTE: the root must be absolute path.
 //! ///     builder.root("/path/to/dir");
 //! ///
-//! ///     let op: Operator = Operator::new(builder)?.finish();
+//! ///     let op: Operator = Operator::new(builder)?;
 //! ///
 //! ///     Ok(())
 //! /// }
@@ -235,7 +261,7 @@
 //! impl Builder for DuckBuilder {
 //!     type Config = DuckConfig;
 //!
-//!     fn build(self) -> Result<impl Access>  {
+//!     fn build(self) -> Result<impl Service>  {
 //!         debug!("backend build started: {:?}", &self);
 //!
 //!         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -251,7 +277,7 @@
 //! ## Backend
 //!
 //! I'm sure you can see it already: `DuckBuilder` will build a
-//! `DuckBackend` that implements [`Access`]. The backend is what we used
+//! `DuckBackend` that implements [`Service`]. The backend is what we used
 //! to communicate with the super-powered ducks!
 //!
 //! Let's keep adding more code under `backend.rs`:
@@ -263,42 +289,44 @@
 //!     root: String,
 //! }
 //!
-//! impl Access for DuckBackend {
+//! impl Service for DuckBackend {
 //!     type Reader = DuckReader;
 //!     type Writer = ();
 //!     type Lister = ();
 //!     type Deleter = ();
 //!     type Copier = ();
 //!
-//!     fn info(&self) -> Arc<AccessorInfo> {
-//!         let am = AccessorInfo::default();
-//!         am.set_scheme(DUCK_SCHEME)
-//!             .set_root(&self.root)
-//!             .set_native_capability(
-//!                 Capability {
-//!                     read: true,
-//!                     ..Default::default()
-//!             });
-//!
-//!         am.into()
+//!     fn info(&self) -> ServiceInfo {
+//!         ServiceInfo::new(DUCK_SCHEME, &self.root, "")
 //!     }
 //!
-//!     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+//!     fn capability(&self) -> Capability {
+//!         Capability {
+//!             read: true,
+//!             ..Default::default()
+//!         }
+//!     }
+//!
+//!     async fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
 //!         gagaga!()
 //!     }
 //! }
 //! ```
 //!
-//! Congratulations, we have implemented an [`Access`] that can talk to
+//! Congratulations, we have implemented a [`Service`] that can talk to
 //! Super Power Ducks!
 //!
 //! What!? There are no Super Power Ducks? So sad, but never mind, we have
 //! really powerful storage services [here](https://github.com/apache/opendal/issues/5). Welcome to pick one to implement. I promise you won't
 //! have to `gagaga!()` this time.
 //!
-//! [`Access`]: crate::raw::Access
+//! [`Service`]: crate::raw::Service
+//! [`ServiceDyn`]: crate::raw::ServiceDyn
+//! [`Servicer`]: crate::raw::Servicer
 //! [`Operation`]: crate::raw::Operation
 //! [`Capability`]: crate::Capability
-//! [`AccessorInfo`]: crate::raw::AccessorInfo
+//! [`ServiceInfo`]: crate::raw::ServiceInfo
+//! [`OperationContext`]: crate::raw::OperationContext
+//! [`Operator`]: crate::Operator
 //! [`Builder`]: crate::Builder
 //! [`Configurator`]: crate::Configurator

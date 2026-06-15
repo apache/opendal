@@ -26,17 +26,18 @@ use opendal_core::*;
 
 pub struct ObsDeleter {
     core: Arc<ObsCore>,
+    ctx: OperationContext,
 }
 
 impl ObsDeleter {
-    pub fn new(core: Arc<ObsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<ObsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for ObsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.obs_delete_object(&path).await?;
+        let resp = self.core.obs_delete_object(&self.ctx, &path).await?;
 
         let status = resp.status();
 

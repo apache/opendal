@@ -32,14 +32,20 @@ pub type AzblobWriters = TwoWays<oio::BlockWriter<AzblobWriter>, oio::AppendWrit
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl AzblobWriter {
-    pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
-        AzblobWriter { core, op, path }
+    pub fn new(core: Arc<AzblobCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        AzblobWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     // skip extracting `content-md5` here, as it pertains to the content of the request rather than
@@ -67,7 +73,7 @@ impl oio::AppendWrite for AzblobWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .azblob_get_blob_properties(&self.path, &OpStat::default())
+            .azblob_get_blob_properties(&self.ctx, &self.path, &OpStat::default())
             .await?;
 
         let status = resp.status();
@@ -88,7 +94,7 @@ impl oio::AppendWrite for AzblobWriter {
             StatusCode::NOT_FOUND => {
                 let resp = self
                     .core
-                    .azblob_init_appendable_blob(&self.path, &self.op)
+                    .azblob_init_appendable_blob(&self.ctx, &self.path, &self.op)
                     .await?;
 
                 let status = resp.status();
@@ -109,7 +115,7 @@ impl oio::AppendWrite for AzblobWriter {
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_append_blob(&self.path, offset, size, body)
+            .azblob_append_blob(&self.ctx, &self.path, offset, size, body)
             .await?;
 
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
@@ -125,7 +131,7 @@ impl oio::BlockWrite for AzblobWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_put_blob(&self.path, Some(size), &self.op, body)
+            .azblob_put_blob(&self.ctx, &self.path, Some(size), &self.op, body)
             .await?;
 
         let status = resp.status();
@@ -144,7 +150,7 @@ impl oio::BlockWrite for AzblobWriter {
     async fn write_block(&self, block_id: Uuid, size: u64, body: Buffer) -> Result<()> {
         let resp = self
             .core
-            .azblob_put_block(&self.path, block_id, Some(size), &self.op, body)
+            .azblob_put_block(&self.ctx, &self.path, block_id, Some(size), &self.op, body)
             .await?;
 
         let status = resp.status();
@@ -157,7 +163,7 @@ impl oio::BlockWrite for AzblobWriter {
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_complete_put_block_list(&self.path, block_ids, &self.op)
+            .azblob_complete_put_block_list(&self.ctx, &self.path, block_ids, &self.op)
             .await?;
 
         let meta = AzblobWriter::parse_metadata(resp.headers())?;

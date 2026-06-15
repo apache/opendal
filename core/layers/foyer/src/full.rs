@@ -23,10 +23,10 @@ use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::Metadata;
 use opendal_core::Result;
-use opendal_core::raw::Access;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
+use opendal_core::raw::Service;
 use opendal_core::raw::oio;
 use opendal_core::raw::oio::Read as _;
 use opendal_core::raw::oio::ReadStream;
@@ -36,16 +36,16 @@ use crate::FoyerValue;
 use crate::Inner;
 use crate::error::{FetchError, extract_err};
 
-pub struct FullReader<A: Access> {
-    inner: Arc<Inner<A>>,
+pub struct FullReader {
+    inner: Arc<Inner>,
     size_limit: std::ops::Range<usize>,
     path: String,
     args: OpRead,
 }
 
-impl<A: Access> FullReader<A> {
+impl FullReader {
     pub(crate) fn new(
-        inner: Arc<Inner<A>>,
+        inner: Arc<Inner>,
         size_limit: std::ops::Range<usize>,
         path: String,
         args: OpRead,
@@ -87,8 +87,8 @@ impl<A: Access> FullReader<A> {
     ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, reader) = self
             .inner
-            .accessor
-            .read(&self.path, self.args.clone())
+            .srv
+            .read(&self.inner.ctx, &self.path, self.args.clone())
             .await?;
         let (rp_open, stream) = reader.open(range).await?;
         let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
@@ -98,8 +98,8 @@ impl<A: Access> FullReader<A> {
     async fn fallback_read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         let (rp, reader) = self
             .inner
-            .accessor
-            .read(&self.path, self.args.clone())
+            .srv
+            .read(&self.inner.ctx, &self.path, self.args.clone())
             .await?;
         let (rp_read, buffer) = reader.read(range).await?;
         let rp = rp_read.into_metadata().map(RpRead::new).unwrap_or(rp);
@@ -132,8 +132,8 @@ impl<A: Access> FullReader<A> {
                 async move {
                     // read the metadata first, if it's too large, do not cache
                     let metadata = inner
-                        .accessor
-                        .stat(&path_clone, OpStat::default())
+                        .srv
+                        .stat(&inner.ctx, &path_clone, OpStat::default())
                         .await
                         .map_err(FetchError::from_error)?
                         .into_metadata();
@@ -145,8 +145,8 @@ impl<A: Access> FullReader<A> {
 
                     // fetch the ENTIRE object from remote.
                     let (_, reader) = inner
-                        .accessor
-                        .read(&path_clone, OpRead::default())
+                        .srv
+                        .read(&inner.ctx, &path_clone, OpRead::default())
                         .await
                         .map_err(FetchError::from_error)?;
                     let (_, mut stream) = reader
@@ -186,7 +186,7 @@ impl<A: Access> FullReader<A> {
     }
 }
 
-impl<A: Access> oio::Read for FullReader<A> {
+impl oio::Read for FullReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         match self.read_full_object().await? {
             Some(buffer) => {

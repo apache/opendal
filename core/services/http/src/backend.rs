@@ -103,7 +103,7 @@ impl HttpBuilder {
 impl Builder for HttpBuilder {
     type Config = HttpConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.config.endpoint {
@@ -128,33 +128,32 @@ impl Builder for HttpBuilder {
             auth = Some(format_authorization_by_bearer(token)?)
         }
 
-        let info = AccessorInfo::default();
-        info.set_scheme(HTTP_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
+        let info = ServiceInfo::new(HTTP_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
 
-                read: true,
-                read_with_suffix: true,
+            read: true,
+            read_with_suffix: true,
 
-                read_with_if_match: true,
-                read_with_if_none_match: true,
+            read_with_if_match: true,
+            read_with_if_none_match: true,
 
-                presign: auth.is_none(),
-                presign_read: auth.is_none(),
-                presign_stat: auth.is_none(),
+            presign: auth.is_none(),
+            presign_read: auth.is_none(),
+            presign_stat: auth.is_none(),
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
-        let accessor_info = Arc::new(info);
+        let accessor_info = info;
 
         let core = Arc::new(HttpCore {
             info: accessor_info,
+            capability,
             endpoint: endpoint.to_string(),
             root,
             authorization: auth,
@@ -164,7 +163,7 @@ impl Builder for HttpBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for http.
+/// HttpBackend implements [`Service`] for read-only HTTP directory listings and files.
 #[derive(Clone, Debug)]
 pub struct HttpBackend {
     core: Arc<HttpCore>,
@@ -173,14 +172,16 @@ pub struct HttpBackend {
 /// Reader returned by this backend.
 pub struct HttpReader {
     backend: HttpBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl HttpReader {
-    fn new(backend: HttpBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: HttpBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -192,7 +193,7 @@ impl oio::StreamRead for HttpReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.http_get(path, range, &args).await?;
+        let resp = backend.core.http_get(&self.ctx, path, range, &args).await?;
 
         let status = resp.status();
 
@@ -212,24 +213,40 @@ impl oio::StreamRead for HttpReader {
     }
 }
 
-impl Access for HttpBackend {
+impl Service for HttpBackend {
     type Reader = oio::StreamReader<HttpReader>;
     type Writer = ();
     type Lister = ();
     type Deleter = ();
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.http_head(path, &args).await?;
+        let resp = self.core.http_head(ctx, path, &args).await?;
 
         let status = resp.status();
 
@@ -243,14 +260,86 @@ impl Access for HttpBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(HttpReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<HttpReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(HttpReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         if self.core.has_authorization() {
             return Err(Error::new(
                 ErrorKind::Unsupported,

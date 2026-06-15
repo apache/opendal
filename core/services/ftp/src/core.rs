@@ -33,18 +33,27 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct FtpCore {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
     pool: Arc<bounded::Pool<Manager>>,
 }
 
 impl FtpCore {
-    pub fn new(info: Arc<AccessorInfo>, manager: Manager) -> Self {
+    pub fn new(info: ServiceInfo, capability: Capability, manager: Manager) -> Self {
         let pool = bounded::Pool::new(bounded::PoolConfig::new(64), manager);
-        Self { info, pool }
+        Self {
+            info,
+            capability,
+            pool,
+        }
     }
 
-    pub fn info(&self) -> Arc<AccessorInfo> {
+    pub fn info(&self) -> ServiceInfo {
         self.info.clone()
+    }
+
+    pub fn capability(&self) -> Capability {
+        self.capability
     }
 
     pub async fn ftp_connect(&self, _: Operation) -> Result<bounded::Object<Manager>> {

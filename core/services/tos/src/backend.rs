@@ -136,7 +136,7 @@ impl TosBuilder {
 impl Builder for TosBuilder {
     type Config = TosConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let mut config = self.config;
         let region = config
             .region
@@ -151,10 +151,7 @@ impl Builder for TosBuilder {
         let bucket = config.bucket.clone();
         let root = normalize_root(&config.root.clone().unwrap_or_default());
 
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_http_send(HttpClient::with(GLOBAL_REQWEST_CLIENT.clone()))
-            .with_env(OsEnv);
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
 
@@ -170,70 +167,63 @@ impl Builder for TosBuilder {
         let request_signer = RequestSigner::new(&region);
         let signer = Signer::new(ctx, provider, request_signer);
 
-        let info = {
-            let am = AccessorInfo::default();
-            am.set_scheme(TOS_SCHEME)
-                .set_root(&root)
-                .set_name(&bucket)
-                .set_native_capability(Capability {
-                    stat_with_version: true,
+        let info = ServiceInfo::new(TOS_SCHEME, &root, &bucket);
+        let capability = Capability {
+            stat_with_version: true,
 
-                    read: true,
-                    read_with_suffix: true,
-                    read_with_if_match: true,
-                    read_with_if_none_match: true,
-                    read_with_if_modified_since: true,
-                    read_with_if_unmodified_since: true,
-                    read_with_version: true,
+            read: true,
+            read_with_suffix: true,
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+            read_with_version: true,
 
-                    write: true,
-                    write_can_empty: true,
-                    write_can_multi: true,
-                    write_with_cache_control: true,
-                    write_with_content_type: true,
-                    write_with_content_encoding: true,
-                    write_with_if_match: true,
-                    write_with_if_not_exists: true,
-                    write_with_user_metadata: true,
-                    write_multi_min_size: Some(5 * 1024 * 1024),
-                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                        Some(5 * 1024 * 1024 * 1024)
-                    } else {
-                        Some(usize::MAX)
-                    },
+            write: true,
+            write_can_empty: true,
+            write_can_multi: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_encoding: true,
+            write_with_if_match: true,
+            write_with_if_not_exists: true,
+            write_with_user_metadata: true,
+            write_multi_min_size: Some(5 * 1024 * 1024),
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
 
-                    delete: true,
-                    delete_max_size: Some(1000),
-                    delete_with_version: true,
+            delete: true,
+            delete_max_size: Some(1000),
+            delete_with_version: true,
 
-                    copy: true,
-                    copy_can_multi: true,
-                    copy_multi_min_size: Some(5 * 1024 * 1024),
-                    copy_multi_max_size: if cfg!(target_pointer_width = "64") {
-                        Some(5 * 1024 * 1024 * 1024)
-                    } else {
-                        Some(usize::MAX)
-                    },
+            copy: true,
+            copy_can_multi: true,
+            copy_multi_min_size: Some(5 * 1024 * 1024),
+            copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
 
-                    list: true,
-                    list_with_limit: true,
-                    list_with_start_after: true,
-                    list_with_recursive: true,
-                    list_with_versions: true,
-                    list_with_deleted: true,
+            list: true,
+            list_with_limit: true,
+            list_with_start_after: true,
+            list_with_recursive: true,
+            list_with_versions: true,
+            list_with_deleted: true,
 
-                    stat: true,
-                    stat_with_if_match: true,
-                    stat_with_if_none_match: true,
-                    stat_with_if_modified_since: true,
-                    stat_with_if_unmodified_since: true,
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
 
-                    shared: true,
+            shared: true,
 
-                    ..Default::default()
-                });
-
-            am.into()
+            ..Default::default()
         };
 
         // Extract domain from endpoint, removing http:// or https:// prefix
@@ -247,6 +237,7 @@ impl Builder for TosBuilder {
 
         let core = TosCore {
             info,
+            capability,
             bucket,
             endpoint: endpoint.clone(),
             endpoint_domain: endpoint_domain.to_string(),
@@ -270,14 +261,16 @@ pub struct TosBackend {
 /// Reader returned by this backend.
 pub struct TosReader {
     backend: TosBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl TosReader {
-    fn new(backend: TosBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: TosBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -289,7 +282,10 @@ impl oio::StreamRead for TosReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.tos_get_object(path, range, &args).await?;
+        let resp = backend
+            .core
+            .tos_get_object(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -308,19 +304,35 @@ impl oio::StreamRead for TosReader {
     }
 }
 
-impl Access for TosBackend {
+impl Service for TosBackend {
     type Reader = oio::StreamReader<TosReader>;
     type Writer = oio::MultipartWriter<TosWriter>;
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = TosCopiers;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.tos_head_object(path, args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.tos_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
@@ -359,56 +371,117 @@ impl Access for TosBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(TosReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<TosReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(TosReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = TosWriter::new(self.core.clone(), path, args.clone());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::MultipartWriter<TosWriter>) = {
+            let writer = TosWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
 
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, args.concurrent());
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, args.concurrent());
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let info = self.core.info.clone();
-        let capability = info.full_capability();
-        let deleter = TosDeleter::new(self.core.clone());
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(deleter, capability.delete_max_size),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<TosDeleter>) = {
+            let deleter = TosDeleter::new(self.core.clone(), ctx.clone());
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(deleter, self.core.capability.delete_max_size),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = if args.versions() || args.deleted() {
-            TwoWays::Two(oio::PageLister::new(TosObjectVersionsLister::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        } else {
-            TwoWays::One(oio::PageLister::new(TosLister::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        };
-        Ok((RpList::default(), lister))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, TosListers) = {
+            let lister = if args.versions() || args.deleted() {
+                TwoWays::Two(oio::PageLister::new(TosObjectVersionsLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else {
+                TwoWays::One(oio::PageLister::new(TosLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            };
+            Ok((RpList::default(), lister))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = new_tos_copier(self.core.clone(), from, to, args, opts)?;
-        Ok((RpCopy::default(), copier))
+        let (rp, output): (_, TosCopiers) = {
+            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            Ok((RpCopy::default(), copier))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

@@ -29,13 +29,19 @@ pub type UpyunWriters = oio::MultipartWriter<UpyunWriter>;
 
 pub struct UpyunWriter {
     core: Arc<UpyunCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl UpyunWriter {
-    pub fn new(core: Arc<UpyunCore>, op: OpWrite, path: String) -> Self {
-        UpyunWriter { core, op, path }
+    pub fn new(core: Arc<UpyunCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        UpyunWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 }
 
@@ -43,7 +49,7 @@ impl oio::MultipartWrite for UpyunWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
         let req = self.core.upload(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -56,7 +62,7 @@ impl oio::MultipartWrite for UpyunWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .initiate_multipart_upload(&self.path, &self.op)
+            .initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -86,7 +92,7 @@ impl oio::MultipartWrite for UpyunWriter {
             .core
             .upload_part(&self.path, upload_id, part_number, size, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -108,7 +114,7 @@ impl oio::MultipartWrite for UpyunWriter {
     ) -> Result<Metadata> {
         let resp = self
             .core
-            .complete_multipart_upload(&self.path, upload_id)
+            .complete_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
 
         let status = resp.status();

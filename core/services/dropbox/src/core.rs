@@ -35,7 +35,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct DropboxCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub signer: Arc<Mutex<DropboxSigner>>,
 }
@@ -56,7 +57,7 @@ impl DropboxCore {
         path.trim_end_matches('/').to_string()
     }
 
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
 
         // Access token is valid, use it directly.
@@ -83,7 +84,7 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(request).await?;
+        let resp = ctx.http_client().send(request).await?;
         let body = resp.into_body();
 
         let token: DropboxTokenResponse =
@@ -106,6 +107,7 @@ impl DropboxCore {
 
     pub async fn dropbox_get(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _: &OpRead,
@@ -129,12 +131,13 @@ impl DropboxCore {
 
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().fetch(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().fetch(request).await
     }
 
     pub async fn dropbox_update(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<usize>,
         args: &OpWrite,
@@ -164,11 +167,15 @@ impl DropboxCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dropbox_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
         let args = DropboxDeleteArgs {
             path: self.build_path(path),
@@ -183,11 +190,15 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_create_folder(&self, path: &str) -> Result<RpCreateDir> {
+    pub async fn dropbox_create_folder(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<RpCreateDir> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
         let args = DropboxCreateFolderArgs {
             path: self.build_path(path),
@@ -202,8 +213,8 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        let resp = self.info.http_client().send(request).await?;
+        self.sign(ctx, &mut request).await?;
+        let resp = ctx.http_client().send(request).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
@@ -219,6 +230,7 @@ impl DropboxCore {
 
     pub async fn dropbox_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         recursive: bool,
         limit: Option<usize>,
@@ -242,11 +254,15 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_list_continue(&self, cursor: &str) -> Result<Response<Buffer>> {
+    pub async fn dropbox_list_continue(
+        &self,
+        ctx: &OperationContext,
+        cursor: &str,
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/list_folder/continue".to_string();
 
         let args = DropboxListContinueArgs {
@@ -262,11 +278,16 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn dropbox_copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/copy_v2".to_string();
 
         let args = DropboxCopyArgs {
@@ -283,11 +304,16 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn dropbox_move(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/move_v2".to_string();
 
         let args = DropboxMoveArgs {
@@ -304,11 +330,15 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
-        self.info.http_client().send(request).await
+        self.sign(ctx, &mut request).await?;
+        ctx.http_client().send(request).await
     }
 
-    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dropbox_get_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
             path: self.build_path(path),
@@ -324,9 +354,9 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut request).await?;
+        self.sign(ctx, &mut request).await?;
 
-        self.info.http_client().send(request).await
+        ctx.http_client().send(request).await
     }
 }
 

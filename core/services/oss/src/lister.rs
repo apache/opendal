@@ -30,6 +30,7 @@ pub type OssListers = TwoWays<oio::PageLister<OssLister>, oio::PageLister<OssObj
 
 pub struct OssLister {
     core: Arc<OssCore>,
+    ctx: OperationContext,
 
     path: String,
     delimiter: &'static str,
@@ -42,6 +43,7 @@ pub struct OssLister {
 impl OssLister {
     pub fn new(
         core: Arc<OssCore>,
+        ctx: OperationContext,
         path: &str,
         recursive: bool,
         limit: Option<usize>,
@@ -50,6 +52,7 @@ impl OssLister {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
+            ctx,
             path: path.to_string(),
             delimiter,
             limit,
@@ -63,6 +66,7 @@ impl oio::PageList for OssLister {
         let resp = self
             .core
             .oss_list_object(
+                &self.ctx,
                 &self.path,
                 &ctx.token,
                 self.delimiter,
@@ -122,6 +126,7 @@ impl oio::PageList for OssLister {
 /// refer: https://help.aliyun.com/zh/oss/developer-reference/listobjectversions?spm=a2c4g.11186623.help-menu-31815.d_3_1_1_5_5_2.53f67237GJlMPw&scm=20140722.H_112467._.OR_help-T_cn~zh-V_1
 pub struct OssObjectVersionsLister {
     core: Arc<OssCore>,
+    ctx: OperationContext,
 
     prefix: String,
     args: OpList,
@@ -131,7 +136,7 @@ pub struct OssObjectVersionsLister {
 }
 
 impl OssObjectVersionsLister {
-    pub fn new(core: Arc<OssCore>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<OssCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
@@ -139,6 +144,7 @@ impl OssObjectVersionsLister {
 
         Self {
             core,
+            ctx,
             prefix: path.to_string(),
             args,
             delimiter,
@@ -161,6 +167,7 @@ impl oio::PageList for OssObjectVersionsLister {
         let resp = self
             .core
             .oss_list_object_versions(
+                &self.ctx,
                 &self.prefix,
                 self.delimiter,
                 self.args.limit(),

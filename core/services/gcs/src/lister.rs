@@ -28,6 +28,7 @@ use opendal_core::*;
 /// helps walking directory
 pub struct GcsLister {
     core: Arc<GcsCore>,
+    ctx: OperationContext,
 
     path: String,
     delimiter: &'static str,
@@ -42,6 +43,7 @@ impl GcsLister {
     /// Generate a new directory walker
     pub fn new(
         core: Arc<GcsCore>,
+        ctx: OperationContext,
         path: &str,
         recursive: bool,
         limit: Option<usize>,
@@ -50,6 +52,7 @@ impl GcsLister {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             delimiter,
@@ -64,6 +67,7 @@ impl oio::PageList for GcsLister {
         let resp = self
             .core
             .gcs_list_objects(
+                &self.ctx,
                 &self.path,
                 &ctx.token,
                 self.delimiter,

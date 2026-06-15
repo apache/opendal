@@ -44,6 +44,7 @@ fn parse_next_cursor(link_str: &str) -> Option<String> {
 
 pub struct HfLister {
     core: Arc<HfCore>,
+    ctx: OperationContext,
     /// The directory path to list via the tree API (always ends with `/` or is empty for root).
     list_path: String,
     /// When the original path didn't end with `/`, filter results to this prefix.
@@ -52,10 +53,11 @@ pub struct HfLister {
 }
 
 impl HfLister {
-    pub fn new(core: Arc<HfCore>, path: String, recursive: bool) -> Self {
+    pub fn new(core: Arc<HfCore>, ctx: OperationContext, path: String, recursive: bool) -> Self {
         if path.is_empty() || path.ends_with('/') {
             Self {
                 core,
+                ctx,
                 list_path: path,
                 prefix: None,
                 recursive,
@@ -68,6 +70,7 @@ impl HfLister {
             };
             Self {
                 core,
+                ctx,
                 list_path: parent,
                 prefix: Some(path),
                 recursive,
@@ -89,7 +92,10 @@ impl HfLister {
             .request(http::Method::GET, &url, Operation::List)?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (parts, files) = self.core.send_parse::<Vec<PathInfo>>(req).await?;
+        let (parts, files) = self
+            .core
+            .send_parse::<Vec<PathInfo>>(&self.ctx, req)
+            .await?;
 
         let next_cursor = parts
             .headers

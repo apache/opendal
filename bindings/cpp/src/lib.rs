@@ -259,7 +259,7 @@ impl Operator {
 
     fn info(&self) -> Result<ffi::Capability> {
         let info = self.0.info();
-        let cap = info.full_capability();
+        let cap = info.capability();
 
         Ok(ffi::Capability {
             stat: cap.stat,

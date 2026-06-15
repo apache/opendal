@@ -73,7 +73,7 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
     let scheme = env.new_string(info.scheme().to_string())?;
     let root = env.new_string(info.root().to_string())?;
     let name = env.new_string(info.name().to_string())?;
-    let full_capability_obj = make_capability(env, info.full_capability())?;
+    let full_capability_obj = make_capability(env, info.capability())?;
     let native_capability_obj = make_capability(env, info.native_capability())?;
 
     let result = env

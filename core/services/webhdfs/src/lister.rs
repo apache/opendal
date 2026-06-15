@@ -29,13 +29,15 @@ use opendal_core::*;
 
 pub struct WebhdfsLister {
     core: Arc<WebhdfsCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl WebhdfsLister {
-    pub fn new(core: Arc<WebhdfsCore>, path: &str) -> Self {
+    pub fn new(core: Arc<WebhdfsCore>, ctx: OperationContext, path: &str) -> Self {
         Self {
             core,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -44,7 +46,7 @@ impl WebhdfsLister {
 impl oio::PageList for WebhdfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let file_status = if self.core.disable_list_batch {
-            let resp = self.core.webhdfs_list_status(&self.path).await?;
+            let resp = self.core.webhdfs_list_status(&self.ctx, &self.path).await?;
             match resp.status() {
                 StatusCode::OK => {
                     ctx.done = true;
@@ -68,7 +70,7 @@ impl oio::PageList for WebhdfsLister {
         } else {
             let resp = self
                 .core
-                .webhdfs_list_status_batch(&self.path, &ctx.token)
+                .webhdfs_list_status_batch(&self.ctx, &self.path, &ctx.token)
                 .await?;
             match resp.status() {
                 StatusCode::OK => {

@@ -35,14 +35,21 @@ pub struct VercelArtifactsBackend {
 /// Reader returned by this backend.
 pub struct VercelArtifactsReader {
     backend: VercelArtifactsBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl VercelArtifactsReader {
-    fn new(backend: VercelArtifactsBackend, path: &str, args: OpRead) -> Self {
+    fn new(
+        backend: VercelArtifactsBackend,
+        ctx: OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -56,7 +63,7 @@ impl oio::StreamRead for VercelArtifactsReader {
         let args = self.args.clone();
         let response = backend
             .core
-            .vercel_artifacts_get(path, range, &args)
+            .vercel_artifacts_get(&self.ctx, path, range, &args)
             .await?;
 
         let status = response.status();
@@ -77,19 +84,35 @@ impl oio::StreamRead for VercelArtifactsReader {
     }
 }
 
-impl Access for VercelArtifactsBackend {
+impl Service for VercelArtifactsBackend {
     type Reader = oio::StreamReader<VercelArtifactsReader>;
     type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type Lister = ();
     type Deleter = ();
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let response = self.core.vercel_artifacts_stat(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let response = self.core.vercel_artifacts_stat(ctx, path).await?;
 
         let status = response.status();
 
@@ -102,21 +125,103 @@ impl Access for VercelArtifactsBackend {
             _ => Err(parse_error(response)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(VercelArtifactsReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<VercelArtifactsReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(VercelArtifactsReader::new(
+                    self.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::OneShotWriter<VercelArtifactsWriter>) = {
+            Ok((
+                RpWrite::default(),
+                oio::OneShotWriter::new(VercelArtifactsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args,
+                    path.to_string(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(VercelArtifactsWriter::new(
-                self.core.clone(),
-                args,
-                path.to_string(),
-            )),
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

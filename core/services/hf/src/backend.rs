@@ -186,7 +186,7 @@ impl HfBuilder {
 impl Builder for HfBuilder {
     type Config = HfConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let token = self.hf_token();
@@ -219,20 +219,17 @@ impl Builder for HfBuilder {
         let download_mode = self.config.download_mode.unwrap_or_default();
         debug!("backend use download_mode: {:?}", download_mode);
 
-        let info: Arc<AccessorInfo> = {
-            let am = AccessorInfo::default();
-            am.set_scheme(HF_SCHEME).set_native_capability(Capability {
-                stat: true,
-                read: true,
-                write: token.is_some(),
-                delete: token.is_some(),
-                delete_max_size: Some(100),
-                list: true,
-                list_with_recursive: true,
-                shared: true,
-                ..Default::default()
-            });
-            am.into()
+        let info = ServiceInfo::new(HF_SCHEME, "", "");
+        let capability = Capability {
+            stat: true,
+            read: true,
+            write: token.is_some(),
+            delete: token.is_some(),
+            delete_max_size: Some(100),
+            list: true,
+            list_with_recursive: true,
+            shared: true,
+            ..Default::default()
         };
 
         let repo = HfRepo::new(repo_type, repo_id, Some(revision.clone()));
@@ -241,6 +238,7 @@ impl Builder for HfBuilder {
         Ok(HfBackend {
             core: Arc::new(HfCore::build(
                 info,
+                capability,
                 repo,
                 root,
                 token,
@@ -260,13 +258,15 @@ pub struct HfBackend {
 /// Reader returned by this backend.
 pub struct HfReader {
     backend: HfBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl HfReader {
-    fn new(backend: HfBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: HfBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -276,23 +276,39 @@ impl oio::StreamRead for HfReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let (rp, stream) = HfReadStream::try_new(&backend.core, path, range).await?;
+        let (rp, stream) = HfReadStream::try_new(&backend.core, &self.ctx, path, range).await?;
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 
-impl Access for HfBackend {
+impl Service for HfBackend {
     type Reader = oio::StreamReader<HfReader>;
     type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -303,32 +319,108 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let info = self.core.path_info(path).await?;
+        let info = self.core.path_info(ctx, path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(HfReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<HfReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(HfReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<HfLister>) = {
+            let lister = HfLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.recursive(),
+            );
+            Ok((RpList::default(), oio::PageLister::new(lister)))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, HfWriter) = {
+            let writer =
+                HfWriter::try_new(self.core.clone(), ctx.clone(), path.to_string()).await?;
+            Ok((RpWrite::default(), writer))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<HfDeleter>) = {
+            let deleter = HfDeleter::new(self.core.clone(), ctx.clone());
+            let max_batch_size = self.core.capability.delete_max_size;
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(deleter, max_batch_size),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
-        Ok((RpList::default(), oio::PageLister::new(lister)))
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = HfWriter::try_new(self.core.clone(), path.to_string()).await?;
-        Ok((RpWrite::default(), writer))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = HfDeleter::new(self.core.clone());
-        let max_batch_size = self.core.info.full_capability().delete_max_size;
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(deleter, max_batch_size),
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }
@@ -342,12 +434,11 @@ pub(super) mod test_utils {
     use super::HfBuilder;
     use opendal_core::Capability;
     use opendal_core::Operator;
-    use opendal_core::layers::HttpClientLayer;
-    use opendal_core::raw::{AccessorInfo, HttpClient};
+    use opendal_core::raw::{HttpClient, ServiceInfo};
 
     fn finish_operator(op: Operator) -> Operator {
         let client = HttpClient::with(reqwest::Client::new());
-        op.layer(HttpClientLayer::new(client))
+        op.http_client(client)
     }
 
     pub fn gpt2_operator() -> Operator {
@@ -357,8 +448,7 @@ pub(super) mod test_utils {
                 .repo_id("openai-community/gpt2")
                 .download_mode("http"),
         )
-        .unwrap()
-        .finish();
+        .unwrap();
         finish_operator(op)
     }
 
@@ -368,8 +458,7 @@ pub(super) mod test_utils {
                 .repo_type("dataset")
                 .repo_id("google-research-datasets/mbpp"),
         )
-        .unwrap()
-        .finish();
+        .unwrap();
         finish_operator(op)
     }
 
@@ -377,20 +466,20 @@ pub(super) mod test_utils {
         let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
         let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
 
-        let info = AccessorInfo::default();
-        info.set_scheme("hf").set_native_capability(Capability {
+        let info = ServiceInfo::new("hf", "", "");
+        let capability = Capability {
             read: true,
             write: true,
             delete: true,
             ..Default::default()
-        });
-        info.update_http_client(|_| HttpClient::with(reqwest::Client::new()));
+        };
 
         let repo = HfRepo::new(HfRepoType::Dataset, repo_id, Some("main".to_string()));
 
         Arc::new(
             HfCore::build(
-                Arc::new(info),
+                info,
+                capability,
                 repo,
                 "/".to_string(),
                 Some(token),
@@ -410,8 +499,7 @@ pub(super) mod test_utils {
                 .repo_id(&repo_id)
                 .token(&token),
         )
-        .unwrap()
-        .finish();
+        .unwrap();
         finish_operator(op)
     }
 }

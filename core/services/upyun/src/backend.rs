@@ -102,7 +102,7 @@ impl Builder for UpyunBuilder {
     type Config = UpyunConfig;
 
     /// Builds the backend and returns the result of UpyunBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -138,41 +138,35 @@ impl Builder for UpyunBuilder {
 
         Ok(UpyunBackend {
             core: Arc::new(UpyunCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(UPYUN_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(UPYUN_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            create_dir: true,
+                    create_dir: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_with_cache_control: true,
-                            write_with_content_type: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_with_cache_control: true,
+                    write_with_content_type: true,
 
-                            // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
-                            write_multi_min_size: Some(1024 * 1024),
-                            write_multi_max_size: Some(50 * 1024 * 1024),
+                    // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
+                    write_multi_min_size: Some(1024 * 1024),
+                    write_multi_max_size: Some(50 * 1024 * 1024),
 
-                            delete: true,
-                            rename: true,
-                            copy: true,
+                    delete: true,
+                    rename: true,
+                    copy: true,
 
-                            list: true,
-                            list_with_limit: true,
+                    list: true,
+                    list_with_limit: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 operator,
@@ -192,13 +186,15 @@ pub struct UpyunBackend {
 /// Reader returned by this backend.
 pub struct UpyunReader {
     backend: UpyunBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl UpyunReader {
-    fn new(backend: UpyunBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: UpyunBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -208,7 +204,7 @@ impl oio::StreamRead for UpyunReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.download_file(path, range).await?;
+        let resp = backend.core.download_file(&self.ctx, path, range).await?;
 
         let status = resp.status();
 
@@ -228,19 +224,28 @@ impl oio::StreamRead for UpyunReader {
     }
 }
 
-impl Access for UpyunBackend {
+impl Service for UpyunBackend {
     type Reader = oio::StreamReader<UpyunReader>;
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        let resp = self.core.create_dir(ctx, path).await?;
 
         let status = resp.status();
 
@@ -250,8 +255,8 @@ impl Access for UpyunBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.info(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.info(ctx, path).await?;
 
         let status = resp.status();
 
@@ -260,53 +265,95 @@ impl Access for UpyunBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(UpyunReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<UpyunReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(UpyunReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let writer = UpyunWriter::new(self.core.clone(), args, path.to_string());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, UpyunWriters) = {
+            let concurrent = args.concurrent();
+            let writer = UpyunWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
 
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(UpyunDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<UpyunDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(UpyunDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = UpyunLister::new(self.core.clone(), path, args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<UpyunLister>) = {
+            let l = UpyunLister::new(self.core.clone(), ctx.clone(), path, args.limit());
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.copy(from, to).await?;
+        let (rp, output): (_, ()) = {
+            let resp = self.core.copy(ctx, from, to).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::OK => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let resp = self.core.move_object(from, to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        let resp = self.core.move_object(ctx, from, to).await?;
 
         let status = resp.status();
 
@@ -314,5 +361,17 @@ impl Access for UpyunBackend {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

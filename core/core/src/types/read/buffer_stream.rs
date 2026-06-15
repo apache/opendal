@@ -81,7 +81,7 @@ impl oio::ReadStream for StreamingReader {
                 return Ok(Buffer::new());
             };
 
-            let buf = r.read().await?;
+            let buf = r.read_dyn().await?;
             // Reset reader to None if this reader returns empty buffer.
             if buf.is_empty() {
                 self.reader = None;
@@ -119,7 +119,7 @@ impl ChunkedReader {
     /// We don't need to handle `Executor::timeout` since we are outside the layer.
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
         let tasks = ConcurrentTasks::new(
-            ctx.accessor().info().executor(),
+            ctx.context().executor().clone(),
             ctx.options().concurrent(),
             ctx.options().prefetch(),
             |mut input: ChunkedReadInput| {
@@ -298,7 +298,6 @@ impl BufferStream {
             let range = ctx.parse_into_range(range).await?;
             TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
         } else {
-            let range = ctx.resolve_range_for_stream(range).await?;
             TwoWays::One(StreamingReader::new(ctx.clone(), range))
         };
 
@@ -380,14 +379,16 @@ mod tests {
     use super::*;
 
     async fn new_read_context(
-        acc: crate::raw::Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = acc.read(path, args.clone()).await?;
+        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
         Ok(ReadContext::new(
-            acc,
+            ctx,
+            srv,
             path.to_string(),
             args,
             options,
@@ -397,8 +398,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
-        let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
         let v = BufferStream::create(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
@@ -415,8 +418,9 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new()).await?);
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
 
         let s = BufferStream::create(ctx, 4..8).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();

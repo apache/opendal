@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -25,6 +24,8 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::HeaderValue;
 use http::header::USER_AGENT;
+use reqsign_core::Context;
+use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_volcengine_tos::Credential;
 use reqsign_volcengine_tos::{percent_encode_path, percent_encode_query};
@@ -57,7 +58,8 @@ pub mod constants {
 }
 
 pub struct TosCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub bucket: String,
     pub endpoint: String, // full endpoint with scheme, e.g. https://tos-cn-beijing.volces.com
@@ -88,11 +90,24 @@ impl Debug for TosCore {
 }
 
 impl TosCore {
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_env(OsEnv),
+        )
+    }
+
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
         let (mut parts, body) = req.into_parts();
 
         if !self.skip_signature {
-            self.signer
+            self.signer(ctx)
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
@@ -104,8 +119,7 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        let resp = self
-            .info
+        let resp = ctx
             .http_client()
             .send(Request::from_parts(parts, body))
             .await?;
@@ -113,11 +127,15 @@ impl TosCore {
         Ok(resp)
     }
 
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+    pub async fn fetch(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<HttpBody>> {
         let (mut parts, body) = req.into_parts();
 
         if !self.skip_signature {
-            self.signer
+            self.signer(ctx)
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
@@ -131,8 +149,7 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        self.info
-            .http_client()
+        ctx.http_client()
             .fetch(Request::from_parts(parts, body))
             .await
     }
@@ -272,12 +289,13 @@ impl TosCore {
 
     pub async fn tos_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.tos_get_object_request(path, range, args)?;
-        self.fetch(req).await
+        self.fetch(ctx, req).await
     }
 
     pub fn tos_put_object_request(
@@ -379,12 +397,22 @@ impl TosCore {
         Ok(req)
     }
 
-    pub async fn tos_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
+    pub async fn tos_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.tos_head_object_request(path, args)?;
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn tos_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn tos_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -415,11 +443,12 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_delete_objects(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("https://{}.{}?delete", self.bucket, self.endpoint_domain);
@@ -448,11 +477,12 @@ impl TosCore {
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_copy_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -481,10 +511,14 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn tos_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn tos_initiate_multipart_copy(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -508,7 +542,7 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn tos_upload_part_copy_request(
@@ -540,6 +574,7 @@ impl TosCore {
 
     pub async fn tos_complete_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -571,11 +606,12 @@ impl TosCore {
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_abort_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -594,11 +630,12 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_list_objects_v2(
         &self,
+        ctx: &OperationContext,
         path: &str,
         continuation_token: &str,
         delimiter: &str,
@@ -638,11 +675,12 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -679,11 +717,12 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -731,7 +770,7 @@ impl TosCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn tos_upload_part_request(
@@ -764,6 +803,7 @@ impl TosCore {
 
     pub async fn tos_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -798,11 +838,12 @@ impl TosCore {
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -821,7 +862,7 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

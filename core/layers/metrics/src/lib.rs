@@ -49,8 +49,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(MetricsLayer::default())
-///     .finish();
+///     .layer(MetricsLayer::default());
 /// # Ok(())
 /// # }
 /// ```
@@ -80,7 +79,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
 /// let recorder = builder.build_recorder().expect("failed to build recorder");
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct MetricsLayer {}
 
@@ -91,12 +90,15 @@ impl MetricsLayer {
     }
 }
 
-impl<A: Access> Layer<A> for MetricsLayer {
-    type LayeredAccess = observe::MetricsAccessor<A, MetricsInterceptor>;
-
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
+impl Layer for MetricsLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
         let interceptor = MetricsInterceptor {};
-        observe::MetricsLayer::new(interceptor).layer(inner)
+        observe::MetricsLayer::new(interceptor).apply_service(inner)
+    }
+
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        let interceptor = MetricsInterceptor {};
+        observe::MetricsLayer::new(interceptor).apply_http_fetch(srv, inner)
     }
 }
 

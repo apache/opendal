@@ -33,16 +33,24 @@ pub type CosListers = TwoWays<oio::PageLister<CosLister>, oio::PageLister<CosObj
 
 pub struct CosLister {
     core: Arc<CosCore>,
+    ctx: OperationContext,
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
 }
 
 impl CosLister {
-    pub fn new(core: Arc<CosCore>, path: &str, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<CosCore>,
+        ctx: OperationContext,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
+            ctx,
             path: path.to_string(),
             delimiter,
             limit,
@@ -54,7 +62,13 @@ impl oio::PageList for CosLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .cos_list_objects(&self.path, &ctx.token, self.delimiter, self.limit)
+            .cos_list_objects(
+                &self.ctx,
+                &self.path,
+                &ctx.token,
+                self.delimiter,
+                self.limit,
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -109,6 +123,7 @@ impl oio::PageList for CosLister {
 /// refer: https://cloud.tencent.com/document/product/436/35521
 pub struct CosObjectVersionsLister {
     core: Arc<CosCore>,
+    ctx: OperationContext,
 
     prefix: String,
     args: OpList,
@@ -118,7 +133,7 @@ pub struct CosObjectVersionsLister {
 }
 
 impl CosObjectVersionsLister {
-    pub fn new(core: Arc<CosCore>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<CosCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
@@ -126,6 +141,7 @@ impl CosObjectVersionsLister {
 
         Self {
             core,
+            ctx,
             prefix: path.to_string(),
             args,
             delimiter,
@@ -148,6 +164,7 @@ impl oio::PageList for CosObjectVersionsLister {
         let resp = self
             .core
             .cos_list_object_versions(
+                &self.ctx,
                 &self.prefix,
                 self.delimiter,
                 self.args.limit(),

@@ -28,7 +28,8 @@ use opendal_core::*;
 /// HdfsNativeCore contains code that directly interacts with HDFS Native client.
 #[derive(Clone)]
 pub struct HdfsNativeCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
 }

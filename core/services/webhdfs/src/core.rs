@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
@@ -32,7 +31,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct WebhdfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub endpoint: String,
     pub user_name: Option<String>,
@@ -53,7 +53,11 @@ impl Debug for WebhdfsCore {
 }
 
 impl WebhdfsCore {
-    pub async fn webhdfs_create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn webhdfs_create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -75,12 +79,13 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// create object
     pub async fn webhdfs_create_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
@@ -107,7 +112,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -134,10 +139,15 @@ impl WebhdfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webhdfs_rename_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn webhdfs_rename_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -158,10 +168,10 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    async fn webhdfs_init_append(&self, path: &str) -> Result<String> {
+    async fn webhdfs_init_append(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=APPEND&noredirect=true",
@@ -180,7 +190,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_client().send(req).await?;
 
         let status = resp.status();
 
@@ -198,11 +208,12 @@ impl WebhdfsCore {
 
     pub async fn webhdfs_append(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let mut url = self.webhdfs_init_append(path).await?;
+        let mut url = self.webhdfs_init_append(ctx, path).await?;
         if let Some(user) = &self.user_name {
             url += format!("&user.name={user}").as_str();
         }
@@ -219,12 +230,13 @@ impl WebhdfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// CONCAT will concat sources to the path
     pub async fn webhdfs_concat(
         &self,
+        ctx: &OperationContext,
         path: &str,
         sources: Vec<String>,
     ) -> Result<Response<Buffer>> {
@@ -256,10 +268,14 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webhdfs_list_status(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn webhdfs_list_status(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -276,11 +292,12 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub async fn webhdfs_list_status_batch(
         &self,
+        ctx: &OperationContext,
         path: &str,
         start_after: &str,
     ) -> Result<Response<Buffer>> {
@@ -304,7 +321,7 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
@@ -338,14 +355,19 @@ impl WebhdfsCore {
 
     pub async fn webhdfs_read_file(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
         let req = self.webhdfs_open_request(path, &range)?;
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub(super) async fn webhdfs_get_file_status(&self, path: &str) -> Result<Response<Buffer>> {
+    pub(super) async fn webhdfs_get_file_status(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -364,10 +386,14 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn webhdfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn webhdfs_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
@@ -386,7 +412,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 }
 

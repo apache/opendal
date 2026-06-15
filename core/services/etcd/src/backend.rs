@@ -117,7 +117,7 @@ impl EtcdBuilder {
 impl Builder for EtcdBuilder {
     type Config = EtcdConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let endpoints = self
             .config
             .endpoints
@@ -172,16 +172,14 @@ impl EtcdBuilder {
 #[derive(Debug, Clone)]
 pub struct EtcdBackend {
     core: Arc<EtcdCore>,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl EtcdBackend {
     fn new(core: EtcdCore, root: &str) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(ETCD_SCHEME);
-        info.set_name("etcd");
-        info.set_root(root);
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(ETCD_SCHEME, root, "etcd");
+        let capability = Capability {
             read: true,
 
             write: true,
@@ -194,11 +192,12 @@ impl EtcdBackend {
             shared: true,
 
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 }
@@ -240,18 +239,27 @@ impl oio::StreamRead for EtcdReader {
     }
 }
 
-impl Access for EtcdBackend {
+impl Service for EtcdBackend {
     type Reader = oio::StreamReader<EtcdReader>;
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let abs_path = build_abs_path(&self.info.root(), path);
 
         // In etcd, we simulate directory creation by storing an empty value
@@ -268,7 +276,7 @@ impl Access for EtcdBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let abs_path = build_abs_path(&self.info.root(), path);
 
         // First check if it's a direct key
@@ -298,35 +306,105 @@ impl Access for EtcdBackend {
             }
         }
     }
-    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(EtcdReader::new(self.clone(), path, op)),
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        op: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<EtcdReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(EtcdReader::new(self.clone(), path, op)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _op: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, EtcdWriter) = {
+            let abs_path = build_abs_path(&self.info.root(), path);
+            let writer = EtcdWriter::new(self.core.clone(), abs_path);
+            Ok((RpWrite::new(), writer))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<EtcdDeleter>) = {
+            let deleter = oio::OneShotDeleter::new(EtcdDeleter::new(
+                self.core.clone(),
+                self.info.root().to_string(),
+            ));
+            Ok((RpDelete::default(), deleter))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::HierarchyLister<EtcdLister>) = {
+            let lister = EtcdLister::new(
+                self.core.clone(),
+                self.info.root().to_string(),
+                path.to_string(),
+            )
+            .await?;
+            let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+            Ok((RpList::default(), lister))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let abs_path = build_abs_path(&self.info.root(), path);
-        let writer = EtcdWriter::new(self.core.clone(), abs_path);
-        Ok((RpWrite::new(), writer))
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = oio::OneShotDeleter::new(EtcdDeleter::new(
-            self.core.clone(),
-            self.info.root().to_string(),
-        ));
-        Ok((RpDelete::default(), deleter))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = EtcdLister::new(
-            self.core.clone(),
-            self.info.root().to_string(),
-            path.to_string(),
-        )
-        .await?;
-        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-        Ok((RpList::default(), lister))
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

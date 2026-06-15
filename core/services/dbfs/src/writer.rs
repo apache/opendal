@@ -26,14 +26,15 @@ use opendal_core::*;
 
 pub struct DbfsWriter {
     core: Arc<DbfsCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl DbfsWriter {
     const MAX_SIMPLE_SIZE: usize = 1024 * 1024;
 
-    pub fn new(core: Arc<DbfsCore>, _op: OpWrite, path: String) -> Self {
-        DbfsWriter { core, path }
+    pub fn new(core: Arc<DbfsCore>, ctx: OperationContext, _op: OpWrite, path: String) -> Self {
+        DbfsWriter { core, ctx, path }
     }
 }
 
@@ -53,7 +54,7 @@ impl oio::OneShotWrite for DbfsWriter {
             .core
             .dbfs_create_file_request(&self.path, bs.to_bytes())?;
 
-        let resp = self.core.client.send(req).await?;
+        let resp = self.ctx.http_client().send(req).await?;
 
         let status = resp.status();
         match status {

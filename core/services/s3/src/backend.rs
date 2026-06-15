@@ -724,7 +724,7 @@ impl S3Builder {
 impl Builder for S3Builder {
     type Config = S3Config;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let S3Builder {
@@ -842,13 +842,10 @@ impl Builder for S3Builder {
         let endpoint = Self::build_endpoint(&config, &region);
         debug!("backend use endpoint: {endpoint}");
 
-        let info = Arc::new(AccessorInfo::default());
-
-        // Create the context for reqsign-core
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
-            .with_env(OsEnv);
+        // The base signer context only carries local config readers. HTTP
+        // sending is injected from OperationContext when S3Core signs each
+        // operation.
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut provider = {
             let mut builder = DefaultCredentialProvider::builder();
@@ -876,7 +873,14 @@ impl Builder for S3Builder {
 
         // Insert assume role provider if user provided.
         if let Some(role_arn) = &config.role_arn {
-            let sts_ctx = ctx.clone();
+            // The assume-role provider owns its STS signer, so give it a
+            // concrete HTTP sender instead of relying on a future operation
+            // context.
+            let sts_ctx = ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(HttpClient::with(
+                    GLOBAL_REQWEST_CLIENT.clone(),
+                )));
             let sts_request_signer = AwsV4Signer::new("sts", &region);
             let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
             let mut assume_role_provider =
@@ -916,106 +920,100 @@ impl Builder for S3Builder {
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
-                info: {
-                    info.set_scheme(S3_SCHEME)
-                        .set_root(&root)
-                        .set_name(bucket)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-                            stat_with_if_modified_since: true,
-                            stat_with_if_unmodified_since: true,
-                            stat_with_override_cache_control: true,
-                            stat_with_override_content_disposition: true,
-                            stat_with_override_content_type: true,
-                            stat_with_version: true,
+                info: ServiceInfo::new(S3_SCHEME, &root, bucket),
+                capability: Capability {
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
+                    stat_with_override_cache_control: true,
+                    stat_with_override_content_disposition: true,
+                    stat_with_override_content_type: true,
+                    stat_with_version: true,
 
-                            read: true,
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
-                            read_with_override_cache_control: true,
-                            read_with_override_content_disposition: true,
-                            read_with_override_content_type: true,
-                            read_with_version: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_if_match: true,
+                    read_with_if_none_match: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
+                    read_with_override_cache_control: true,
+                    read_with_override_content_disposition: true,
+                    read_with_override_content_type: true,
+                    read_with_version: true,
+                    read_with_suffix: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_can_append: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_can_append: true,
 
-                            write_with_cache_control: true,
-                            write_with_content_type: true,
-                            write_with_content_disposition: true,
-                            write_with_content_encoding: true,
-                            write_with_if_match: true,
-                            write_with_if_not_exists: true,
-                            write_with_user_metadata: true,
+                    write_with_cache_control: true,
+                    write_with_content_type: true,
+                    write_with_content_disposition: true,
+                    write_with_content_encoding: true,
+                    write_with_if_match: true,
+                    write_with_if_not_exists: true,
+                    write_with_user_metadata: true,
 
-                            // The min multipart size of S3 is 5 MiB.
-                            //
-                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            // The max multipart size of S3 is 5 GiB.
-                            //
-                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            // S3 allows at most 10,000 parts and 5 GiB for each part.
-                            //
-                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                            write_total_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(10_000 * 5 * 1024 * 1024 * 1024)
-                            } else {
-                                None
-                            },
+                    // The min multipart size of S3 is 5 MiB.
+                    //
+                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                    write_multi_min_size: Some(5 * 1024 * 1024),
+                    // The max multipart size of S3 is 5 GiB.
+                    //
+                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
+                    // S3 allows at most 10,000 parts and 5 GiB for each part.
+                    //
+                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                    write_total_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(10_000 * 5 * 1024 * 1024 * 1024)
+                    } else {
+                        None
+                    },
 
-                            delete: true,
-                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
-                            delete_with_version: true,
+                    delete: true,
+                    delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
+                    delete_with_version: true,
 
-                            copy: true,
-                            copy_can_multi: true,
-                            copy_with_if_not_exists: true,
-                            copy_with_if_match: true,
-                            copy_with_source_version: true,
-                            // The min multipart size of S3 is 5 MiB.
-                            //
-                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                            copy_multi_min_size: Some(5 * 1024 * 1024),
-                            // The max multipart size of S3 is 5 GiB.
-                            //
-                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                            copy_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
+                    copy: true,
+                    copy_can_multi: true,
+                    copy_with_if_not_exists: true,
+                    copy_with_if_match: true,
+                    copy_with_source_version: true,
+                    // The min multipart size of S3 is 5 MiB.
+                    //
+                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                    copy_multi_min_size: Some(5 * 1024 * 1024),
+                    // The max multipart size of S3 is 5 GiB.
+                    //
+                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                    copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
 
-                            list: true,
-                            list_with_limit: true,
-                            list_with_start_after: true,
-                            list_with_recursive: true,
-                            list_with_versions: true,
-                            list_with_deleted: true,
+                    list: true,
+                    list_with_limit: true,
+                    list_with_start_after: true,
+                    list_with_recursive: true,
+                    list_with_versions: true,
+                    list_with_deleted: true,
 
-                            presign: true,
-                            presign_stat: true,
-                            presign_read: true,
-                            presign_write: true,
+                    presign: true,
+                    presign_stat: true,
+                    presign_read: true,
+                    presign_write: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    info.clone()
+                    ..Default::default()
                 },
                 bucket: bucket.to_string(),
                 endpoint,
@@ -1046,14 +1044,18 @@ pub struct S3Backend {
 /// Reader returned by this backend.
 pub struct S3Reader {
     backend: S3Backend,
+    // StreamRead::open can run after Service::read returns, so keep the
+    // per-operation context with the reader.
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl S3Reader {
-    fn new(backend: S3Backend, path: &str, args: OpRead) -> Self {
+    fn new(backend: S3Backend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -1065,7 +1067,10 @@ impl oio::StreamRead for S3Reader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.s3_get_object(path, range, &args).await?;
+        let resp = backend
+            .core
+            .s3_get_object(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -1084,19 +1089,35 @@ impl oio::StreamRead for S3Reader {
     }
 }
 
-impl Access for S3Backend {
+impl Service for S3Backend {
     type Reader = oio::StreamReader<S3Reader>;
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
     type Copier = S3Copiers;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.s3_head_object(path, args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
@@ -1119,75 +1140,134 @@ impl Access for S3Backend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(S3Reader::new(self.clone(), path, args)),
-        ))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = S3Writer::new(self.core.clone(), path, args.clone());
-
-        let w = if args.append() {
-            S3Writers::Two(oio::AppendWriter::new(writer))
-        } else {
-            S3Writers::One(oio::MultipartWriter::new(
-                self.core.info.clone(),
-                writer,
-                args.concurrent(),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<S3Reader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(S3Reader::new(self.clone(), ctx.clone(), path, args)),
             ))
-        };
+        }?;
 
-        Ok((RpWrite::default(), w))
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                S3Deleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, S3Writers) = {
+            let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args.clone());
+
+            let w = if args.append() {
+                S3Writers::Two(oio::AppendWriter::new(writer))
+            } else {
+                // Multipart uploads schedule work through the operation
+                // executor supplied by the caller.
+                S3Writers::One(oio::MultipartWriter::new(
+                    ctx.executor().clone(),
+                    writer,
+                    args.concurrent(),
+                ))
+            };
+
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if args.versions() || args.deleted() {
-            ThreeWays::Three(oio::PageLister::new(S3ObjectVersionsLister::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        } else if self.core.disable_list_objects_v2 {
-            ThreeWays::One(oio::PageLister::new(S3ListerV1::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        } else {
-            ThreeWays::Two(oio::PageLister::new(S3ListerV2::new(
-                self.core.clone(),
-                path,
-                args,
-            )))
-        };
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<S3Deleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(
+                    S3Deleter::new(self.core.clone(), ctx.clone()),
+                    self.core.capability.delete_max_size,
+                ),
+            ))
+        }?;
 
-        Ok((RpList::default(), l))
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, S3Listers) = {
+            let l = if args.versions() || args.deleted() {
+                ThreeWays::Three(oio::PageLister::new(S3ObjectVersionsLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else if self.core.disable_list_objects_v2 {
+                ThreeWays::One(oio::PageLister::new(S3ListerV1::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else {
+                ThreeWays::Two(oio::PageLister::new(S3ListerV2::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            };
+
+            Ok((RpList::default(), l))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = new_s3_copier(self.core.clone(), from, to, args, opts)?;
-        Ok((RpCopy::default(), copier))
+        let (rp, output): (_, S3Copiers) = {
+            let copier = new_s3_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            Ok((RpCopy::default(), copier))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
         // We will not send this request out, just for signing.
         let req = match op {
@@ -1208,7 +1288,7 @@ impl Access for S3Backend {
         };
         let req = req?;
 
-        let req = self.core.sign_query(req, expire).await?;
+        let req = self.core.sign_query(ctx, req, expire).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1337,8 +1417,9 @@ mod tests {
 
         let op = OpWrite::default().with_content_type("application/json");
         let args = OpPresign::new(op, Duration::from_secs(3600));
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
         let presigned = backend
-            .presign("test.txt", args)
+            .presign(&ctx, "test.txt", args)
             .await
             .expect("presign")
             .into_presigned_request();

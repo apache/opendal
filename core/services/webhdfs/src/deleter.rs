@@ -27,17 +27,18 @@ use opendal_core::*;
 
 pub struct WebhdfsDeleter {
     core: Arc<WebhdfsCore>,
+    ctx: OperationContext,
 }
 
 impl WebhdfsDeleter {
-    pub fn new(core: Arc<WebhdfsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<WebhdfsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for WebhdfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.webhdfs_delete(&path).await?;
+        let resp = self.core.webhdfs_delete(&self.ctx, &path).await?;
 
         match resp.status() {
             StatusCode::OK => Ok(()),

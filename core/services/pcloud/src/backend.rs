@@ -106,7 +106,7 @@ impl Builder for PcloudBuilder {
     type Config = PcloudConfig;
 
     /// Builds the backend and returns the result of PcloudBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -137,32 +137,26 @@ impl Builder for PcloudBuilder {
 
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(PCLOUD_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(PCLOUD_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            create_dir: true,
+                    create_dir: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
+                    write: true,
 
-                            delete: true,
-                            rename: true,
-                            copy: true,
+                    delete: true,
+                    rename: true,
+                    copy: true,
 
-                            list: true,
+                    list: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint: self.config.endpoint.clone(),
@@ -182,13 +176,15 @@ pub struct PcloudBackend {
 /// Reader returned by this backend.
 pub struct PcloudReader {
     backend: PcloudBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl PcloudReader {
-    fn new(backend: PcloudBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: PcloudBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -198,9 +194,9 @@ impl oio::StreamRead for PcloudReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let link = backend.core.get_file_link(path).await?;
+        let link = backend.core.get_file_link(&self.ctx, path).await?;
 
-        let resp = backend.core.download(&link, range).await?;
+        let resp = backend.core.download(&self.ctx, &link, range).await?;
 
         let status = resp.status();
 
@@ -220,24 +216,33 @@ impl oio::StreamRead for PcloudReader {
     }
 }
 
-impl Access for PcloudBackend {
+impl Service for PcloudBackend {
     type Reader = oio::StreamReader<PcloudReader>;
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.ensure_dir_exists(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.ensure_dir_exists(ctx, path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.stat(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        let resp = self.core.stat(ctx, path).await?;
 
         let status = resp.status();
 
@@ -264,76 +269,117 @@ impl Access for PcloudBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(PcloudReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<PcloudReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(PcloudReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = PcloudWriter::new(self.core.clone(), path.to_string());
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, PcloudWriters) = {
+            let writer = PcloudWriter::new(self.core.clone(), ctx.clone(), path.to_string());
 
-        let w = oio::OneShotWriter::new(writer);
+            let w = oio::OneShotWriter::new(writer);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(PcloudDeleter::new(self.core.clone())),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<PcloudDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(PcloudDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = PcloudLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<PcloudLister>) = {
+            let l = PcloudLister::new(self.core.clone(), ctx.clone(), path);
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.core.ensure_dir_exists(to).await?;
+        let (rp, output): (_, ()) = {
+            self.core.ensure_dir_exists(ctx, to).await?;
 
-        let resp = if from.ends_with('/') {
-            self.core.copy_folder(from, to).await?
-        } else {
-            self.core.copy_file(from, to).await?
-        };
+            let resp = if from.ends_with('/') {
+                self.core.copy_folder(ctx, from, to).await?
+            } else {
+                self.core.copy_file(ctx, from, to).await?
+            };
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body();
-                let resp: PcloudError =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                let result = resp.result;
-                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
-                    return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
+            match status {
+                StatusCode::OK => {
+                    let bs = resp.into_body();
+                    let resp: PcloudError =
+                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    let result = resp.result;
+                    if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
+                        Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")))
+                    } else if result != 0 {
+                        Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
+                    } else {
+                        Ok((RpCopy::default(), ()))
+                    }
                 }
-                if result != 0 {
-                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
-                }
-
-                Ok((RpCopy::default(), ()))
+                _ => Err(parse_error(resp)),
             }
-            _ => Err(parse_error(resp)),
-        }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.core.ensure_dir_exists(to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        self.core.ensure_dir_exists(ctx, to).await?;
 
         let resp = if from.ends_with('/') {
-            self.core.rename_folder(from, to).await?
+            self.core.rename_folder(ctx, from, to).await?
         } else {
-            self.core.rename_file(from, to).await?
+            self.core.rename_file(ctx, from, to).await?
         };
 
         let status = resp.status();
@@ -355,5 +401,17 @@ impl Access for PcloudBackend {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

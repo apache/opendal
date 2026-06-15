@@ -103,37 +103,35 @@ impl GdriveBuilder {
 impl Builder for GdriveBuilder {
     type Config = GdriveConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        let info = AccessorInfo::default();
-        info.set_scheme(GDRIVE_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                stat: true,
+        let info = ServiceInfo::new(GDRIVE_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
-                read_with_suffix: true,
+            read: true,
+            read_with_suffix: true,
 
-                list: true,
-                list_with_recursive: true,
+            list: true,
+            list_with_recursive: true,
 
-                write: true,
+            write: true,
 
-                create_dir: true,
-                delete: true,
-                delete_with_recursive: true,
-                rename: true,
-                copy: true,
+            create_dir: true,
+            delete: true,
+            delete_with_recursive: true,
+            rename: true,
+            copy: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
-        let accessor_info = Arc::new(info);
-        let mut signer = GdriveSigner::new(accessor_info.clone());
+        let accessor_info = info;
+        let mut signer = GdriveSigner::new();
         match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
@@ -181,9 +179,10 @@ impl Builder for GdriveBuilder {
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
                 info: accessor_info.clone(),
+                capability,
                 root,
                 signer: signer.clone(),
-                path_index: GdrivePathIndex::new(GdrivePathQuery::new(accessor_info, signer)),
+                path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
                 recent_entries: Mutex::default(),
             }),
         })

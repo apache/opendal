@@ -27,34 +27,35 @@ use std::time::Duration;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add timeout for every operation to avoid slow or unexpected hang operations.
+/// Add timeouts to operations to avoid slow or unexpectedly hanging work.
 ///
-/// For example, a dead connection could hang a databases sql query. TimeoutLayer
-/// will break this connection and returns an error so users can handle it by
-/// retrying or print to users.
+/// For example, a dead connection could hang a database SQL query. `TimeoutLayer`
+/// will break this connection and return an error so users can handle it by
+/// retrying or reporting it.
 ///
 /// # Notes
 ///
-/// `TimeoutLayer` treats all operations in two kinds:
+/// `TimeoutLayer` applies two timeout budgets:
 ///
-/// - Non IO Operation like `stat`, `delete` they operate on a single file. We control
-///   them by setting `timeout`.
-/// - IO Operation like `read`, `Reader::read` and `Writer::write`, they operate on data directly, we
-///   control them by setting `io_timeout`.
+/// - `timeout` bounds control operations such as `stat`, `create_dir`, `rename`,
+///   `copy`, `delete`, and `presign`.
+/// - `io_timeout` bounds operations that open IO bodies, such as `read`, `write`,
+///   and `list`, and every method call on returned readers, writers, listers,
+///   deleters, and copiers.
 ///
 /// # Default
 ///
 /// - timeout: 60 seconds
 /// - io_timeout: 10 seconds
 ///
-/// # Panics
+/// # Cancellation Safety
 ///
-/// TimeoutLayer will drop the future if the timeout is reached. This might cause the internal state
-/// of the future to be broken. If underlying future moves ownership into the future, it will be
-/// dropped and will neven return back.
+/// `TimeoutLayer` enforces deadlines by dropping the in-flight future when a
+/// timeout is reached. This can break lower layers that rely on a future being
+/// resolved to restore internal state.
 ///
-/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time, please make sure
-/// timeout layer showed up before retry layer.
+/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time,
+/// please make sure timeout layer is added before retry layer.
 ///
 /// ```no_run
 /// # use std::time::Duration;
@@ -67,20 +68,19 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
-///     // This is fine, since timeout happen during retry.
+///     // This is fine: each retry attempt is timed out.
 ///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
 ///     .layer(RetryLayer::default())
-///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
-///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
-///     .finish();
+///     // This is wrong: timeout can drop RetryLayer's future before it restores body state.
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)));
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Examples
 ///
-/// The following examples will create a timeout layer with 10 seconds timeout for all non-io
-/// operations, 3 seconds timeout for all io operations.
+/// The following example creates a timeout layer with a 10-second timeout for
+/// control operations and a 3-second timeout for IO operations.
 ///
 /// ```no_run
 /// # use std::time::Duration;
@@ -96,27 +96,30 @@ use opendal_core::*;
 ///         TimeoutLayer::default()
 ///             .with_timeout(Duration::from_secs(10))
 ///             .with_io_timeout(Duration::from_secs(3)),
-///     )
-///     .finish();
+///     );
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Implementation Notes
 ///
-/// TimeoutLayer is using [`tokio::time::timeout`] to implement timeout for operations. And IO
-/// Operations insides `reader`, `writer` will use `Pin<Box<tokio::time::Sleep>>` to track the
-/// timeout.
+/// `TimeoutLayer` uses [`tokio::time::timeout`] to bound service calls and IO
+/// body methods. It also supplies an executor timeout so concurrent block write
+/// and copy tasks can fail instead of waiting forever.
 ///
-/// This might introduce a bit overhead for IO operations, but it's the only way to implement
-/// timeout correctly. We used to implement timeout layer in zero cost way that only stores
-/// a [`Instant`] and check the timeout by comparing the instant with current time.
-/// However, it doesn't work for all cases.
+/// This introduces a small amount of overhead for IO operations, but it is needed
+/// to implement timeouts correctly. OpenDAL used to implement this as a
+/// zero-cost deadline check that only stored an [`Instant`] and compared it with
+/// the current time. However, that approach does not work for all cases.
 ///
-/// For examples, users TCP connection could be in [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die) state. In this state, no IO event will be emitted. The runtime
-/// will never poll our future again. From the application side, this future is hanging forever
-/// until this TCP connection is closed for reaching the linux [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html) times.
-#[derive(Clone)]
+/// For example, a user's TCP connection could enter the
+/// [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die)
+/// state. In this state, no IO event will be emitted, so the runtime will never
+/// poll the future again. From the application side, this future hangs until the
+/// connection is closed after reaching the Linux
+/// [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html)
+/// limit.
+#[derive(Clone, Debug)]
 pub struct TimeoutLayer {
     timeout: Duration,
     io_timeout: Duration,
@@ -137,7 +140,7 @@ impl TimeoutLayer {
         Self::default()
     }
 
-    /// Set timeout for TimeoutLayer with given value.
+    /// Set the timeout for control operations.
     ///
     /// This timeout is for all non-io operations like `stat`, `delete`.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -145,7 +148,7 @@ impl TimeoutLayer {
         self
     }
 
-    /// Set io timeout for TimeoutLayer with given value.
+    /// Set the timeout for IO operations and body methods.
     ///
     /// This timeout is for all io operations like `read`, `Reader::read` and `Writer::write`.
     pub fn with_io_timeout(mut self, timeout: Duration) -> Self {
@@ -154,18 +157,21 @@ impl TimeoutLayer {
     }
 }
 
-impl<A: Access> Layer<A> for TimeoutLayer {
-    type LayeredAccess = TimeoutAccessor<A>;
+impl Layer for TimeoutLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-        info.update_executor(|exec| {
-            Executor::with(TimeoutExecutor::new(exec.into_inner(), self.io_timeout))
-        });
+    fn apply_execute(&self, _srv: Servicer, inner: Executor) -> Executor {
+        // Concurrent block IO paths read this timeout from the operation context's executor.
+        Executor::with(TimeoutExecutor::new(inner.into_inner(), self.io_timeout))
+    }
+}
 
-        TimeoutAccessor {
+impl TimeoutLayer {
+    fn layer(&self, inner: Servicer) -> TimeoutService {
+        TimeoutService {
             inner,
-
             timeout: self.timeout,
             io_timeout: self.io_timeout,
         }
@@ -174,14 +180,13 @@ impl<A: Access> Layer<A> for TimeoutLayer {
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct TimeoutAccessor<A: Access> {
-    inner: A,
-
+pub struct TimeoutService {
+    inner: Servicer,
     timeout: Duration,
     io_timeout: Duration,
 }
 
-impl<A: Access> TimeoutAccessor<A> {
+impl TimeoutService {
     async fn timeout<F: Future<Output = Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
         tokio::time::timeout(self.timeout, fut).await.map_err(|_| {
             Error::new(ErrorKind::Unexpected, "operation timeout reached")
@@ -207,74 +212,106 @@ impl<A: Access> TimeoutAccessor<A> {
     }
 }
 
-impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
-    type Inner = A;
-    type Reader = TimeoutWrapper<A::Reader>;
-    type Writer = TimeoutWrapper<A::Writer>;
-    type Lister = TimeoutWrapper<A::Lister>;
-    type Deleter = TimeoutWrapper<A::Deleter>;
-    type Copier = TimeoutWrapper<A::Copier>;
+impl Service for TimeoutService {
+    type Reader = TimeoutWrapper<oio::Reader>;
+    type Writer = TimeoutWrapper<oio::Writer>;
+    type Lister = TimeoutWrapper<oio::Lister>;
+    type Deleter = TimeoutWrapper<oio::Deleter>;
+    type Copier = TimeoutWrapper<oio::Copier>;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.timeout(Operation::CreateDir, self.inner.create_dir(path, args))
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.timeout(Operation::CreateDir, self.inner.create_dir(ctx, path, args))
             .await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.io_timeout(Operation::Read, self.inner.read(path, args))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        self.io_timeout(Operation::Read, self.inner.read(ctx, path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.io_timeout(Operation::Write, self.inner.write(path, args))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        self.io_timeout(Operation::Write, self.inner.write(ctx, path, args))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.timeout(
-            Operation::Copy,
-            self.inner.copy(from, to, args, opts.clone()),
-        )
-        .await
-        .map(|(rp, c)| (rp, TimeoutWrapper::new(c, self.io_timeout)))
+        self.timeout(Operation::Copy, self.inner.copy(ctx, from, to, args, opts))
+            .await
+            .map(|(rp, c)| (rp, TimeoutWrapper::new(c, self.io_timeout)))
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.timeout(Operation::Rename, self.inner.rename(from, to, args))
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.timeout(Operation::Rename, self.inner.rename(ctx, from, to, args))
             .await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.timeout(Operation::Stat, self.inner.stat(path, args))
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.timeout(Operation::Stat, self.inner.stat(ctx, path, args))
             .await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.timeout(Operation::Delete, self.inner.delete())
-            .await
-            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.io_timeout(Operation::List, self.inner.list(path, args))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        self.timeout(Operation::Delete, self.inner.delete(ctx))
             .await
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.timeout(Operation::Presign, self.inner.presign(path, args))
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        self.io_timeout(Operation::List, self.inner.list(ctx, path, args))
+            .await
+            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.timeout(Operation::Presign, self.inner.presign(ctx, path, args))
             .await
     }
 }
@@ -424,51 +461,116 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService;
 
-    impl Access for MockService {
-        type Reader = oio::Reader;
-        type Writer = oio::Writer;
-        type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
-        type Copier = oio::Copier;
+    impl Service for MockService {
+        type Reader = MockReader;
+        type Writer = ();
+        type Lister = MockLister;
+        type Deleter = ();
+        type Copier = MockCopier;
 
-        fn info(&self) -> Arc<AccessorInfo> {
-            let am = AccessorInfo::default();
-            am.set_native_capability(Capability {
-                read: true,
-                delete: true,
-                ..Default::default()
-            });
-
-            am.into()
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
         }
 
-        /// This function will build a reader that always return pending.
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                Box::new(MockReader),
+        fn capability(&self) -> Capability {
+            Capability {
+                read: true,
+                delete: true,
+                list: true,
+                copy: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             ))
         }
 
-        /// This function will never return.
-        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-            sleep(Duration::from_secs(u64::MAX)).await;
-
-            Ok((RpDelete::default(), Box::new(())))
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), Box::new(MockLister)))
+        /// Return a reader whose operations never complete.
+        async fn read(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpRead,
+        ) -> Result<(RpRead, Self::Reader)> {
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                MockReader,
+            ))
+        }
+
+        async fn write(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpWrite,
+        ) -> Result<(RpWrite, Self::Writer)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        /// Never return, so the service-level timeout can fire.
+        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            sleep(Duration::from_secs(u64::MAX)).await;
+
+            Ok((RpDelete::default(), ()))
+        }
+
+        async fn list(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpList,
+        ) -> Result<(RpList, Self::Lister)> {
+            Ok((RpList::default(), MockLister))
         }
 
         async fn copy(
             &self,
+            _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
         ) -> Result<(RpCopy, Self::Copier)> {
-            Ok((RpCopy::default(), Box::new(MockCopier)))
+            Ok((RpCopy::default(), MockCopier))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 
@@ -476,15 +578,12 @@ mod tests {
     struct MockReader;
 
     impl oio::Read for MockReader {
-        fn open(
-            &self,
-            _: BytesRange,
-        ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> {
-            pending()
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            pending().await
         }
 
-        fn read(&self, _: BytesRange) -> impl Future<Output = Result<(RpRead, Buffer)>> {
-            pending()
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            pending().await
         }
     }
 
@@ -492,8 +591,8 @@ mod tests {
     struct MockLister;
 
     impl oio::List for MockLister {
-        fn next(&mut self) -> impl Future<Output = Result<Option<oio::Entry>>> {
-            pending()
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            pending().await
         }
     }
 
@@ -501,8 +600,8 @@ mod tests {
     struct MockDeleter;
 
     impl oio::Delete for MockDeleter {
-        fn delete(&mut self, _: &str, _: OpDelete) -> impl Future<Output = Result<()>> {
-            pending()
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            pending().await
         }
 
         async fn close(&mut self) -> Result<()> {
@@ -514,16 +613,16 @@ mod tests {
     struct MockCopier;
 
     impl oio::Copy for MockCopier {
-        fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> {
-            pending()
+        async fn next(&mut self) -> Result<Option<usize>> {
+            pending().await
         }
 
-        fn close(&mut self) -> impl Future<Output = Result<Metadata>> {
-            pending()
+        async fn close(&mut self) -> Result<Metadata> {
+            pending().await
         }
 
-        fn abort(&mut self) -> impl Future<Output = Result<()>> {
-            pending()
+        async fn abort(&mut self) -> Result<()> {
+            pending().await
         }
     }
 
@@ -596,10 +695,12 @@ mod tests {
     async fn test_copy_io_timeout() {
         use oio::Copy;
 
-        let acc = TimeoutLayer::default()
+        let service = TimeoutLayer::default()
             .with_io_timeout(Duration::from_millis(100))
-            .layer(MockService);
-        let (_, mut copier) = Access::copy(&acc, "f", "t", OpCopy::default(), OpCopier::default())
+            .apply_service(Arc::new(MockService));
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let (_, mut copier) = service
+            .copy(&ctx, "f", "t", OpCopy::default(), OpCopier::default())
             .await
             .unwrap();
 
@@ -611,15 +712,13 @@ mod tests {
     async fn test_list_timeout_raw() {
         use oio::List;
 
-        let acc = MockService;
         let timeout_layer = TimeoutLayer::default()
             .with_timeout(Duration::from_secs(1))
             .with_io_timeout(Duration::from_secs(1));
-        let timeout_acc = timeout_layer.layer(acc);
+        let service = timeout_layer.apply_service(Arc::new(MockService));
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
 
-        let (_, mut lister) = Access::list(&timeout_acc, "test", OpList::default())
-            .await
-            .unwrap();
+        let (_, mut lister) = service.list(&ctx, "test", OpList::default()).await.unwrap();
 
         let res = lister.next().await;
         assert!(res.is_err());

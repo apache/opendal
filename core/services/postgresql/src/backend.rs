@@ -98,7 +98,7 @@ impl PostgresqlBuilder {
 impl Builder for PostgresqlBuilder {
     type Config = PostgresqlConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let conn = match self.config.connection_string {
             Some(v) => v,
             None => {
@@ -148,16 +148,14 @@ impl Builder for PostgresqlBuilder {
 pub struct PostgresqlBackend {
     core: Arc<PostgresqlCore>,
     root: String,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
 }
 
 impl PostgresqlBackend {
     pub fn new(core: PostgresqlCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(POSTGRESQL_SCHEME);
-        info.set_name(&core.table);
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(POSTGRESQL_SCHEME, "/", &core.table);
+        let capability = Capability {
             read: true,
             stat: true,
             write: true,
@@ -165,17 +163,18 @@ impl PostgresqlBackend {
             delete: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
@@ -219,18 +218,34 @@ impl oio::StreamRead for PostgresqlReader {
     }
 }
 
-impl Access for PostgresqlBackend {
+impl Service for PostgresqlBackend {
     type Reader = oio::StreamReader<PostgresqlReader>;
     type Writer = PostgresqlWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -248,22 +263,98 @@ impl Access for PostgresqlBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(PostgresqlReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<PostgresqlReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(PostgresqlReader::new(self.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, PostgresqlWriter) = {
+            let p = build_abs_path(&self.root, path);
+            Ok((RpWrite::new(), PostgresqlWriter::new(self.core.clone(), p)))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<PostgresqlDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(PostgresqlDeleter::new(
+                    self.core.clone(),
+                    self.root.clone(),
+                )),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), PostgresqlWriter::new(self.core.clone(), p)))
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(PostgresqlDeleter::new(self.core.clone(), self.root.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

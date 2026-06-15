@@ -78,7 +78,7 @@ impl Builder for AlluxioBuilder {
     type Config = AlluxioConfig;
 
     /// Builds the backend and returns the result of AlluxioBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -94,33 +94,27 @@ impl Builder for AlluxioBuilder {
 
         Ok(AlluxioBackend {
             core: Arc::new(AlluxioCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(ALLUXIO_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(ALLUXIO_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            // FIXME:
-                            //
-                            // alluxio's read support is not implemented correctly
-                            // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-                            read: false,
+                    // FIXME:
+                    //
+                    // alluxio's read support is not implemented correctly
+                    // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
+                    read: false,
 
-                            write: true,
-                            write_can_multi: true,
+                    write: true,
+                    write_can_multi: true,
 
-                            create_dir: true,
-                            delete: true,
+                    create_dir: true,
+                    delete: true,
 
-                            list: true,
+                    list: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint,
@@ -137,13 +131,15 @@ pub struct AlluxioBackend {
 /// Reader returned by this backend.
 pub struct AlluxioReader {
     backend: AlluxioBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl AlluxioReader {
-    fn new(backend: AlluxioBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: AlluxioBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -153,9 +149,9 @@ impl oio::StreamRead for AlluxioReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let stream_id = backend.core.open_file(path).await?;
+        let stream_id = backend.core.open_file(&self.ctx, path).await?;
 
-        let resp = backend.core.read(stream_id, range).await?;
+        let resp = backend.core.read(&self.ctx, stream_id, range).await?;
         if !resp.status().is_success() {
             let (part, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
@@ -169,56 +165,133 @@ impl oio::StreamRead for AlluxioReader {
     }
 }
 
-impl Access for AlluxioBackend {
+impl Service for AlluxioBackend {
     type Reader = oio::StreamReader<AlluxioReader>;
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.create_dir(ctx, path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let file_info = self.core.get_status(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+        let file_info = self.core.get_status(ctx, path).await?;
 
         Ok(RpStat::new(file_info.try_into()?))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(AlluxioReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<AlluxioReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(AlluxioReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, AlluxioWriters) = {
+            let w = AlluxioWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<AlluxioDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(AlluxioDeleter::new(self.core.clone(), ctx.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<AlluxioLister>) = {
+            let l = AlluxioLister::new(self.core.clone(), ctx.clone(), path);
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AlluxioWriter::new(self.core.clone(), args.clone(), path.to_string());
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(AlluxioDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AlluxioLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        self.core.rename(from, to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        self.core.rename(ctx, from, to).await?;
 
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }
 

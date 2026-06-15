@@ -27,15 +27,17 @@ use opendal_core::*;
 
 pub struct WebdavLister {
     core: Arc<WebdavCore>,
+    ctx: OperationContext,
 
     path: String,
     args: OpList,
 }
 
 impl WebdavLister {
-    pub fn new(core: Arc<WebdavCore>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<WebdavCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         Self {
             core,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -44,7 +46,10 @@ impl WebdavLister {
 
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.webdav_list(&self.path, &self.args).await?;
+        let resp = self
+            .core
+            .webdav_list(&self.ctx, &self.path, &self.args)
+            .await?;
 
         // jfrog artifactory's webdav services have some strange behavior.
         // We add this flag to check if the server is jfrog artifactory.

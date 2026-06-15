@@ -68,7 +68,7 @@ impl FsBuilder {
 impl Builder for FsBuilder {
     type Config = FsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = match self.config.root.map(PathBuf::from) {
@@ -136,38 +136,32 @@ impl Builder for FsBuilder {
 
         Ok(FsBackend {
             core: Arc::new(FsCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(FS_SCHEME)
-                        .set_root(&root.to_string_lossy())
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(FS_SCHEME, root.to_string_lossy(), ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
+                    read: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_if_not_exists: true,
-                            #[cfg(unix)]
-                            write_with_user_metadata: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_append: true,
+                    write_can_multi: true,
+                    write_with_if_not_exists: true,
+                    #[cfg(unix)]
+                    write_with_user_metadata: true,
 
-                            create_dir: true,
-                            delete: true,
-                            delete_with_recursive: true,
+                    create_dir: true,
+                    delete: true,
+                    delete_with_recursive: true,
 
-                            list: true,
+                    list: true,
 
-                            copy: true,
-                            rename: true,
+                    copy: true,
+                    rename: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 atomic_write_dir,
@@ -177,7 +171,7 @@ impl Builder for FsBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for posix-like fs.
+/// FsBackend implements [`Service`] for POSIX-like file systems.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
     core: Arc<FsCore>,
@@ -222,85 +216,148 @@ impl oio::PositionRead for FsReader {
     }
 }
 
-impl Access for FsBackend {
+impl Service for FsBackend {
     type Reader = oio::PositionReader<FsReader>;
     type Writer = FsWriters;
     type Lister = Option<FsLister<tokio::fs::ReadDir>>;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.core.fs_create_dir(path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let m = self.core.fs_stat(path).await?;
         Ok(RpStat::new(m))
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let file = self.core.fs_open(path).await?;
-        Ok((
-            RpRead::default(),
-            oio::PositionReader::new(FsReader::new(self.core.clone(), file)),
-        ))
-    }
-
-    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let is_append = op.append();
-        let concurrent = op.concurrent();
-
-        let writer = FsWriter::create(self.core.clone(), path, op).await?;
-
-        let writer = if is_append {
-            FsWriters::One(writer)
-        } else {
-            FsWriters::Two(oio::PositionWriter::new(
-                self.info().clone(),
-                writer,
-                concurrent,
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::PositionReader<FsReader>) = {
+            let file = self.core.fs_open(path).await?;
+            Ok((
+                RpRead::default(),
+                oio::PositionReader::new(FsReader::new(self.core.clone(), file)),
             ))
-        };
+        }?;
 
-        Ok((RpWrite::default(), writer))
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
-        ))
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        op: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, FsWriters) = {
+            let is_append = op.append();
+            let concurrent = op.concurrent();
+
+            let writer = FsWriter::create(self.core.clone(), path, op).await?;
+
+            let writer = if is_append {
+                FsWriters::One(writer)
+            } else {
+                FsWriters::Two(oio::PositionWriter::new(
+                    ctx.executor().clone(),
+                    writer,
+                    concurrent,
+                ))
+            };
+
+            Ok((RpWrite::default(), writer))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        match self.core.fs_list(path).await? {
-            Some(f) => {
-                let rd = FsLister::new(&self.core.root, path, f);
-                Ok((RpList::default(), Some(rd)))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<FsDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, Option<FsLister<tokio::fs::ReadDir>>) = {
+            match self.core.fs_list(path).await? {
+                Some(f) => {
+                    let rd = FsLister::new(&self.core.root, path, f);
+                    Ok((RpList::default(), Some(rd)))
+                }
+                None => Ok((RpList::default(), None)),
             }
-            None => Ok((RpList::default(), None)),
-        }
+        }?;
+
+        Ok((rp, output))
     }
 
     async fn copy(
         &self,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.core.fs_copy(from, to).await?;
-        Ok((RpCopy::default(), ()))
+        let (rp, output): (_, ()) = {
+            self.core.fs_copy(from, to).await?;
+            Ok((RpCopy::default(), ()))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }
 

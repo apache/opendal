@@ -28,19 +28,28 @@ use super::error::parse_error;
 
 pub struct LakefsWriter {
     core: Arc<LakefsCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl LakefsWriter {
-    pub fn new(core: Arc<LakefsCore>, path: String, op: OpWrite) -> Self {
-        LakefsWriter { core, path, op }
+    pub fn new(core: Arc<LakefsCore>, ctx: OperationContext, path: String, op: OpWrite) -> Self {
+        LakefsWriter {
+            core,
+            ctx,
+            path,
+            op,
+        }
     }
 }
 
 impl oio::OneShotWrite for LakefsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.upload_object(&self.path, &self.op, bs).await?;
+        let resp = self
+            .core
+            .upload_object(&self.ctx, &self.path, &self.op, bs)
+            .await?;
 
         let status = resp.status();
 
@@ -59,7 +68,8 @@ impl oio::OneShotWrite for LakefsWriter {
                     }
                     Err(_) => {
                         // Upload response doesn't contain ObjectStats, fetch via stat API
-                        let stat_resp = self.core.get_object_metadata(&self.path).await?;
+                        let stat_resp =
+                            self.core.get_object_metadata(&self.ctx, &self.path).await?;
 
                         match stat_resp.status() {
                             StatusCode::OK => {

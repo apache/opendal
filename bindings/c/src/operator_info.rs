@@ -259,7 +259,7 @@ impl opendal_operator_info {
     pub unsafe extern "C" fn opendal_operator_info_get_full_capability(
         &self,
     ) -> opendal_capability {
-        let cap = self.deref().full_capability();
+        let cap = self.deref().capability();
         cap.into()
     }
 

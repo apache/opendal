@@ -19,16 +19,16 @@
 //! So we can't write the following code:
 //!
 //! ```txt
-//! impl Access for S3Backend {
-//!     type Writer = impl oio::Write;
+//! impl Service for S3Backend {
+//!     fn write(...) -> Result<(RpWrite, oio::Writer)>;
 //! }
 //! ```
 //!
 //! Which means we have to write the type directly like:
 //!
 //! ```txt
-//! impl Access for OssBackend {
-//!     type Writer = raw::TwoWays<
+//! impl Service for OssBackend {
+//!     let writer = raw::TwoWays<
 //!         oio::MultipartWriter<OssWriter>,
 //!         oio::AppendWriter<OssWriter>,
 //!     >;

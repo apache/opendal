@@ -34,7 +34,6 @@ pub struct DbfsCore {
     pub root: String,
     pub endpoint: String,
     pub token: String,
-    pub client: HttpClient,
 }
 
 impl Debug for DbfsCore {
@@ -48,7 +47,11 @@ impl Debug for DbfsCore {
 }
 
 impl DbfsCore {
-    pub async fn dbfs_create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dbfs_create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/api/2.0/dbfs/mkdirs", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -66,10 +69,14 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn dbfs_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dbfs_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let url = format!("{}/api/2.0/dbfs/delete", self.endpoint);
         let mut req = Request::post(&url);
 
@@ -90,10 +97,15 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn dbfs_rename(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn dbfs_rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let source = build_rooted_abs_path(&self.root, from);
         let target = build_rooted_abs_path(&self.root, to);
 
@@ -112,10 +124,10 @@ impl DbfsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn dbfs_list(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dbfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -132,7 +144,7 @@ impl DbfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        ctx.http_client().send(req).await
     }
 
     pub fn dbfs_create_file_request(&self, path: &str, body: Bytes) -> Result<Request<Buffer>> {
@@ -155,7 +167,11 @@ impl DbfsCore {
         req.body(body).map_err(new_request_build_error)
     }
 
-    pub async fn dbfs_get_status(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn dbfs_get_status(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -173,16 +189,16 @@ impl DbfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn dbfs_ensure_parent_path(&self, path: &str) -> Result<()> {
-        let resp = self.dbfs_get_status(path).await?;
+    pub async fn dbfs_ensure_parent_path(&self, ctx: &OperationContext, path: &str) -> Result<()> {
+        let resp = self.dbfs_get_status(ctx, path).await?;
 
         match resp.status() {
             StatusCode::OK => return Ok(()),
             StatusCode::NOT_FOUND => {
-                self.dbfs_create_dir(path).await?;
+                self.dbfs_create_dir(ctx, path).await?;
             }
             _ => return Err(parse_error(resp)),
         }

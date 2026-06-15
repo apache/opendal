@@ -45,7 +45,8 @@ pub(super) mod constants {
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
 #[derive(Clone)]
 pub struct B2Core {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub signer: Arc<RwLock<B2Signer>>,
 
     /// The root of this core.
@@ -68,12 +69,16 @@ impl Debug for B2Core {
 
 impl B2Core {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     /// [b2_authorize_account](https://www.backblaze.com/apidocs/b2-authorize-account)
-    pub async fn get_auth_info(&self) -> Result<AuthInfo> {
+    pub async fn get_auth_info(&self, ctx: &OperationContext) -> Result<AuthInfo> {
         {
             let signer = self.signer.read().await;
 
@@ -98,7 +103,7 @@ impl B2Core {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.info.http_client().send(req).await?;
+            let resp = ctx.http_client().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -127,13 +132,14 @@ impl B2Core {
 impl B2Core {
     pub async fn download_file_by_name(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         // Construct headers to add to the request
         let url = format!(
@@ -155,11 +161,14 @@ impl B2Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
-        let auth_info = self.get_auth_info().await?;
+    pub(super) async fn get_upload_url(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<GetUploadUrlResponse> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!(
             "{}/b2api/v2/b2_get_upload_url?bucketId={}",
@@ -175,7 +184,7 @@ impl B2Core {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -190,12 +199,13 @@ impl B2Core {
 
     pub async fn get_download_authorization(
         &self,
+        ctx: &OperationContext,
         path: &str,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         // Construct headers to add to the request
         let url = format!(
@@ -218,7 +228,7 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
         match status {
@@ -234,12 +244,13 @@ impl B2Core {
 
     pub async fn upload_file(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let resp = self.get_upload_url().await?;
+        let resp = self.get_upload_url(ctx).await?;
 
         let p = build_abs_path(&self.root, path);
 
@@ -281,13 +292,18 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn start_large_file(&self, path: &str, args: &OpWrite) -> Result<Response<Buffer>> {
+    pub async fn start_large_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_start_large_file", auth_info.api_url);
 
@@ -326,11 +342,15 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get_upload_part_url(&self, file_id: &str) -> Result<GetUploadPartUrlResponse> {
-        let auth_info = self.get_auth_info().await?;
+    pub async fn get_upload_part_url(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<GetUploadPartUrlResponse> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!(
             "{}/b2api/v2/b2_get_upload_part_url?fileId={}",
@@ -346,7 +366,7 @@ impl B2Core {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
         match status {
@@ -362,12 +382,13 @@ impl B2Core {
 
     pub async fn upload_part(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         part_number: usize,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let resp = self.get_upload_part_url(file_id).await?;
+        let resp = self.get_upload_part_url(ctx, file_id).await?;
 
         let mut req = Request::post(resp.upload_url);
 
@@ -384,15 +405,16 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn finish_large_file(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         part_sha1_array: Vec<String>,
     ) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_finish_large_file", auth_info.api_url);
 
@@ -414,11 +436,15 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+    pub async fn cancel_large_file(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_cancel_large_file", auth_info.api_url);
 
@@ -439,12 +465,17 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get_file_info(&self, path: &str, delimiter: Option<&str>) -> Result<File> {
+    pub async fn get_file_info(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        delimiter: Option<&str>,
+    ) -> Result<File> {
         let resp = self
-            .list_file_names_raw(Some(path), delimiter, None, None, Operation::Stat)
+            .list_file_names_raw(ctx, Some(path), delimiter, None, None, Operation::Stat)
             .await?;
 
         let status = resp.status();
@@ -465,24 +496,26 @@ impl B2Core {
 
     pub async fn list_file_names(
         &self,
+        ctx: &OperationContext,
         prefix: Option<&str>,
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        self.list_file_names_raw(prefix, delimiter, limit, start_after, Operation::List)
+        self.list_file_names_raw(ctx, prefix, delimiter, limit, start_after, Operation::List)
             .await
     }
 
     async fn list_file_names_raw(
         &self,
+        ctx: &OperationContext,
         prefix: Option<&str>,
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
         operation: Operation,
     ) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_list_file_names", auth_info.api_url);
 
@@ -517,13 +550,18 @@ impl B2Core {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy_file(&self, source_file_id: String, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_file(
+        &self,
+        ctx: &OperationContext,
+        source_file_id: String,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let to = build_abs_path(&self.root, to);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_copy_file", auth_info.api_url);
 
@@ -546,13 +584,13 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn hide_file(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_hide_file", auth_info.api_url);
 
@@ -575,7 +613,7 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

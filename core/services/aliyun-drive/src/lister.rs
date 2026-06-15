@@ -30,6 +30,7 @@ use opendal_core::raw::*;
 
 pub struct AliyunDriveLister {
     core: Arc<AliyunDriveCore>,
+    ctx: OperationContext,
 
     parent: Option<AliyunDriveParent>,
     limit: Option<usize>,
@@ -44,11 +45,13 @@ pub struct AliyunDriveParent {
 impl AliyunDriveLister {
     pub fn new(
         core: Arc<AliyunDriveCore>,
+        ctx: OperationContext,
         parent: Option<AliyunDriveParent>,
         limit: Option<usize>,
     ) -> Self {
         AliyunDriveLister {
             core,
+            ctx,
             parent,
             limit,
         }
@@ -77,7 +80,10 @@ impl oio::PageList for AliyunDriveLister {
             Some(ctx.token.clone())
         };
 
-        let res = self.core.list(&parent.file_id, self.limit, offset).await;
+        let res = self
+            .core
+            .list(&self.ctx, &parent.file_id, self.limit, offset)
+            .await;
         let res = match res {
             Err(err) if err.kind() == ErrorKind::NotFound => {
                 ctx.done = true;

@@ -83,7 +83,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
     let mut writer = op.writer_with(&path);
     if let Some(buffer) = input.buffer {
         writer = writer.chunk(buffer);
-    } else if let Some(min_size) = op.info().full_capability().write_multi_min_size {
+    } else if let Some(min_size) = op.info().capability().write_multi_min_size {
         writer = writer.chunk(min_size);
     }
     if let Some(concurrent) = input.concurrent {
@@ -116,14 +116,13 @@ static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
     std::fs::create_dir_all(&root).expect("create fuzz root dir must succeed");
     Operator::new(opendal::services::Fs::default().root(&root.to_string_lossy()))
         .expect("operator init must succeed")
-        .finish()
 });
 
 fuzz_target!(|input: FuzzInput| {
     let _ = logforth::starter_log::stderr().try_apply();
 
     let op = OPERATOR.clone();
-    if !op.info().full_capability().write_can_multi {
+    if !op.info().capability().write_can_multi {
         log::warn!("service doesn't support write multi, skip fuzzing");
         return;
     }

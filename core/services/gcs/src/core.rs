@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -35,7 +34,7 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use reqsign_google::Credential;
 use serde::Deserialize;
 use serde::Serialize;
@@ -59,12 +58,14 @@ pub mod constants {
 }
 
 pub struct GcsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub bucket: String,
     pub root: String,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -83,14 +84,22 @@ impl Debug for GcsCore {
 }
 
 impl GcsCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            self.sign_ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -106,14 +115,19 @@ impl GcsCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -130,8 +144,12 @@ impl GcsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 }
 
@@ -214,14 +232,15 @@ impl GcsCore {
 
     pub async fn gcs_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.gcs_get_object_request(path, range, args)?;
 
-        let req = self.sign(req).await?;
-        self.info.http_client().fetch(req).await
+        let req = self.sign(ctx, req).await?;
+        ctx.http_client().fetch(req).await
     }
 
     pub fn gcs_insert_object_request(
@@ -419,21 +438,26 @@ impl GcsCore {
 
     pub async fn gcs_get_object_metadata(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.gcs_head_object_request(path, args)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn gcs_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let req = self.gcs_delete_object_request(path)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
@@ -453,7 +477,11 @@ impl GcsCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn gcs_delete_objects(
+        &self,
+        ctx: &OperationContext,
+        paths: Vec<String>,
+    ) -> Result<Response<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -471,12 +499,13 @@ impl GcsCore {
             .extension(ServiceOperation("BatchDeleteObjects"));
         let req = multipart.apply(req)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_rewrite_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -517,12 +546,13 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         page_token: &str,
         delimiter: &str,
@@ -563,13 +593,14 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         op: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -616,12 +647,13 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_upload_part(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -649,12 +681,13 @@ impl GcsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -686,12 +719,13 @@ impl GcsCore {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -710,8 +744,8 @@ impl GcsCore {
             .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn build_metadata_from_object_response(path: &str, data: Buffer) -> Result<Metadata> {

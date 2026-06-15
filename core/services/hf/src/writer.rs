@@ -26,6 +26,7 @@ use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload, XetUploadComm
 /// Writer that always uses the XET protocol for uploads.
 pub struct HfWriter {
     core: Arc<HfCore>,
+    ctx: OperationContext,
     path: String,
     xet_commit: XetUploadCommit,
     xet_stream: XetStreamUpload,
@@ -41,7 +42,7 @@ impl HfWriter {
     /// An XET upload commit and stream are created eagerly so that
     /// subsequent [`write`](oio::Write::write) calls can stream data
     /// directly into the XET CAS.
-    pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
+    pub async fn try_new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Result<Self> {
         let commit = core.xet_upload_commit().await?;
         let stream = commit
             .upload_stream(None, Sha256Policy::Compute)
@@ -52,6 +53,7 @@ impl HfWriter {
             })?;
         Ok(HfWriter {
             core,
+            ctx,
             path,
             xet_commit: commit,
             xet_stream: stream,
@@ -86,10 +88,13 @@ impl HfWriter {
         if self.core.repo.is_bucket() {
             let xet_hash = file_info.hash().to_string();
             self.core
-                .commit_bucket(vec![BucketOperation::AddFile {
-                    path: repo_path,
-                    xet_hash,
-                }])
+                .commit_bucket(
+                    &self.ctx,
+                    vec![BucketOperation::AddFile {
+                        path: repo_path,
+                        xet_hash,
+                    }],
+                )
                 .await?;
         } else {
             let sha256 = file_info.sha256().ok_or_else(|| {
@@ -102,7 +107,7 @@ impl HfWriter {
                 size: content_length,
             };
             self.core
-                .commit_git(vec![], vec![lfs_file], vec![], vec![])
+                .commit_git(&self.ctx, vec![], vec![lfs_file], vec![], vec![])
                 .await?;
         }
 

@@ -30,12 +30,13 @@ pub type TosCopiers = oio::MultipartCopier<TosCopier>;
 
 pub fn new_tos_copier(
     core: Arc<TosCore>,
+    ctx: &OperationContext,
     from: &str,
     to: &str,
     args: OpCopy,
     opts: OpCopier,
 ) -> Result<TosCopiers> {
-    let capability = core.info.full_capability();
+    let capability = core.capability;
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
         Error::new(
             ErrorKind::Unexpected,
@@ -61,9 +62,10 @@ pub fn new_tos_copier(
     };
 
     Ok(oio::MultipartCopier::new(
-        core.info.clone(),
+        (ctx.executor().clone(), capability),
         TosCopier {
             core,
+            ctx: ctx.clone(),
             from: from.to_string(),
             to: to.to_string(),
             args,
@@ -77,6 +79,7 @@ pub fn new_tos_copier(
 
 pub struct TosCopier {
     core: Arc<TosCore>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -86,7 +89,7 @@ impl oio::MultipartCopy for TosCopier {
     async fn source_metadata(&self) -> Result<Metadata> {
         let resp = self
             .core
-            .tos_head_object(&self.from, OpStat::default())
+            .tos_head_object(&self.ctx, &self.from, OpStat::default())
             .await?;
 
         match resp.status() {
@@ -101,7 +104,7 @@ impl oio::MultipartCopy for TosCopier {
     async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
-            .tos_copy_object(&self.from, &self.to, &self.args)
+            .tos_copy_object(&self.ctx, &self.from, &self.to, &self.args)
             .await?;
 
         match resp.status() {
@@ -125,7 +128,10 @@ impl oio::MultipartCopy for TosCopier {
     }
 
     async fn initiate_copy(&self) -> Result<String> {
-        let resp = self.core.tos_initiate_multipart_copy(&self.to).await?;
+        let resp = self
+            .core
+            .tos_initiate_multipart_copy(&self.ctx, &self.to)
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -157,7 +163,7 @@ impl oio::MultipartCopy for TosCopier {
                 part_number,
                 range,
             })?;
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -198,7 +204,7 @@ impl oio::MultipartCopy for TosCopier {
 
         let resp = self
             .core
-            .tos_complete_multipart_copy(&self.to, upload_id, parts, &self.args)
+            .tos_complete_multipart_copy(&self.ctx, &self.to, upload_id, parts, &self.args)
             .await?;
 
         match resp.status() {
@@ -227,7 +233,7 @@ impl oio::MultipartCopy for TosCopier {
     async fn abort_copy(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .tos_abort_multipart_copy(&self.to, upload_id)
+            .tos_abort_multipart_copy(&self.ctx, &self.to, upload_id)
             .await?;
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),

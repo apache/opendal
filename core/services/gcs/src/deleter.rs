@@ -27,17 +27,18 @@ use opendal_core::*;
 
 pub struct GcsDeleter {
     core: Arc<GcsCore>,
+    ctx: OperationContext,
 }
 
 impl GcsDeleter {
-    pub fn new(core: Arc<GcsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<GcsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::BatchDelete for GcsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.gcs_delete_object(&path).await?;
+        let resp = self.core.gcs_delete_object(&self.ctx, &path).await?;
 
         // deleting not existing objects is ok
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
@@ -49,7 +50,10 @@ impl oio::BatchDelete for GcsDeleter {
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
         let paths: Vec<String> = batch.into_iter().map(|(p, _)| p).collect();
-        let resp = self.core.gcs_delete_objects(paths.clone()).await?;
+        let resp = self
+            .core
+            .gcs_delete_objects(&self.ctx, paths.clone())
+            .await?;
 
         let status = resp.status();
 

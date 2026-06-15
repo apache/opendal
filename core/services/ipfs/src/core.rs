@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -27,7 +26,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct IpfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub root: String,
 }
@@ -42,7 +42,12 @@ impl Debug for IpfsCore {
 }
 
 impl IpfsCore {
-    pub async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn ipfs_get(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -55,10 +60,10 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn ipfs_head(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipfs_head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -67,10 +72,10 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
-    pub async fn ipfs_list(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn ipfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -85,7 +90,7 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_client().send(req).await
     }
 
     /// IPFS's stat behavior highly depends on its implementation.
@@ -190,13 +195,13 @@ impl IpfsCore {
     /// - HTTP Status Code == 302 => directory
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
-    pub async fn ipfs_stat(&self, path: &str) -> Result<Metadata> {
+    pub async fn ipfs_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(Metadata::new(EntryMode::DIR));
         }
 
-        let resp = self.ipfs_head(path).await?;
+        let resp = self.ipfs_head(ctx, path).await?;
         let status = resp.status();
 
         match status {

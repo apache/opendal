@@ -24,6 +24,22 @@ use super::core::normalize_dir_path;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+pub trait GdrivePathQueryer {
+    async fn root(&self, ctx: &OperationContext) -> Result<String>;
+    async fn query(
+        &self,
+        ctx: &OperationContext,
+        parent_id: &str,
+        name: &str,
+    ) -> Result<Option<String>>;
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        parent_id: &str,
+        name: &str,
+    ) -> Result<String>;
+}
+
 #[derive(Default)]
 struct GdrivePathIndexState {
     entries: HashMap<String, String>,
@@ -33,13 +49,13 @@ struct GdrivePathIndexState {
 ///
 /// The index keeps canonical directory paths (`dir/`) internally, supports exact upserts,
 /// can invalidate subtrees, and can refresh ancestor chains before re-resolving stale paths.
-pub struct GdrivePathIndex<Q: PathQuery> {
+pub struct GdrivePathIndex<Q: GdrivePathQueryer> {
     query: Q,
     state: Mutex<GdrivePathIndexState>,
     ensure_dir_lock: Mutex<()>,
 }
 
-impl<Q: PathQuery> GdrivePathIndex<Q> {
+impl<Q: GdrivePathQueryer> GdrivePathIndex<Q> {
     pub fn new(query: Q) -> Self {
         Self {
             query,
@@ -48,8 +64,8 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
         }
     }
 
-    async fn root_id(&self) -> Result<String> {
-        self.query.root().await
+    async fn root_id(&self, ctx: &OperationContext) -> Result<String> {
+        self.query.root(ctx).await
     }
 
     fn canonical_dir_path(path: &str) -> String {
@@ -92,6 +108,7 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
 
     async fn resolve_from_chain(
         &self,
+        ctx: &OperationContext,
         chain: Vec<String>,
         start_index: usize,
         start_id: String,
@@ -100,7 +117,7 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
 
         for path in chain.into_iter().skip(start_index) {
             let name = get_basename(&path);
-            current_id = match self.query.query(&current_id, name).await? {
+            current_id = match self.query.query(ctx, &current_id, name).await? {
                 Some(id) => {
                     let cache_path = path;
                     if cache_path.ends_with('/') {
@@ -117,14 +134,18 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
         Ok(Some(current_id))
     }
 
-    async fn lookup_resolve_plan(&self, path: &str) -> Result<(Option<String>, Vec<String>)> {
+    async fn lookup_resolve_plan(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<(Option<String>, Vec<String>)> {
         if path.is_empty() || path == "/" {
-            return Ok((Some(self.root_id().await?), Vec::new()));
+            return Ok((Some(self.root_id(ctx).await?), Vec::new()));
         }
 
         let chain = Self::resolution_chain(path);
         if chain.is_empty() {
-            return Ok((Some(self.root_id().await?), Vec::new()));
+            return Ok((Some(self.root_id(ctx).await?), Vec::new()));
         }
 
         let (start_id, start_index) = {
@@ -152,9 +173,9 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
     }
 
     /// Get the id for the given path.
-    pub async fn get(&self, path: &str) -> Result<Option<String>> {
+    pub async fn get(&self, ctx: &OperationContext, path: &str) -> Result<Option<String>> {
         if path.is_empty() || path == "/" {
-            return self.root_id().await.map(Some);
+            return self.root_id(ctx).await.map(Some);
         }
 
         if let Some(id) = {
@@ -164,12 +185,16 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
             return Ok(Some(id));
         }
 
-        let (start_id, missing_paths) = self.lookup_resolve_plan(path).await?;
+        let (start_id, missing_paths) = self.lookup_resolve_plan(ctx, path).await?;
         match start_id {
-            Some(start_id) => self.resolve_from_chain(missing_paths, 0, start_id).await,
+            Some(start_id) => {
+                self.resolve_from_chain(ctx, missing_paths, 0, start_id)
+                    .await
+            }
             None => {
-                let root_id = self.root_id().await?;
-                self.resolve_from_chain(missing_paths, 0, root_id).await
+                let root_id = self.root_id(ctx).await?;
+                self.resolve_from_chain(ctx, missing_paths, 0, root_id)
+                    .await
             }
         }
     }
@@ -227,12 +252,12 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
     }
 
     /// Ensure input dir exists.
-    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
+    pub async fn ensure_dir(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let _guard = self.ensure_dir_lock.lock().await;
 
         let path = Self::canonical_dir_path(path);
         if path.is_empty() {
-            return self.root_id().await;
+            return self.root_id(ctx).await;
         }
 
         let mut tmp = String::new();
@@ -249,7 +274,7 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
 
         let mut refreshed = false;
         'retry: loop {
-            let mut parent_id = self.root_id().await?;
+            let mut parent_id = self.root_id(ctx).await?;
             for parent in &parents {
                 if let Some(value) = {
                     let state = self.state.lock().await;
@@ -260,9 +285,9 @@ impl<Q: PathQuery> GdrivePathIndex<Q> {
                 }
 
                 let name = get_basename(parent);
-                let value = match self.query.query(&parent_id, name).await {
+                let value = match self.query.query(ctx, &parent_id, name).await {
                     Ok(Some(value)) => value,
-                    Ok(None) => match self.query.create_dir(&parent_id, name).await {
+                    Ok(None) => match self.query.create_dir(ctx, &parent_id, name).await {
                         Ok(value) => value,
                         Err(err) if !refreshed && err.kind() == ErrorKind::NotFound => {
                             refreshed = true;
@@ -333,12 +358,17 @@ mod tests {
         }
     }
 
-    impl PathQuery for TestQuery {
-        async fn root(&self) -> Result<String> {
+    impl GdrivePathQueryer for TestQuery {
+        async fn root(&self, _: &OperationContext) -> Result<String> {
             Ok(self.root_id.clone())
         }
 
-        async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
+        async fn query(
+            &self,
+            _: &OperationContext,
+            parent_id: &str,
+            name: &str,
+        ) -> Result<Option<String>> {
             if self.stale_parents.lock().await.contains(parent_id) {
                 return Err(Error::new(ErrorKind::NotFound, "stale parent"));
             }
@@ -350,7 +380,12 @@ mod tests {
                 .cloned())
         }
 
-        async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            parent_id: &str,
+            name: &str,
+        ) -> Result<String> {
             if self.stale_parents.lock().await.contains(parent_id) {
                 return Err(Error::new(ErrorKind::NotFound, "stale parent"));
             }
@@ -364,11 +399,12 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_replaces_existing_path() {
         let index = GdrivePathIndex::new(TestQuery::new());
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
         index.upsert_file("root/file", "old-id").await;
         index.upsert_file("root/file", "new-id").await;
 
         assert_eq!(
-            index.get("root/file").await.unwrap().as_deref(),
+            index.get(&ctx, "root/file").await.unwrap().as_deref(),
             Some("new-id")
         );
     }
@@ -376,15 +412,16 @@ mod tests {
     #[tokio::test]
     async fn test_dir_upsert_replaces_file_mapping() {
         let index = GdrivePathIndex::new(TestQuery::new());
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
         index.upsert_file("root/dir", "file-id").await;
         index.upsert_dir("root/dir", "dir-id").await;
 
         assert_eq!(
-            index.get("root/dir").await.unwrap().as_deref(),
+            index.get(&ctx, "root/dir").await.unwrap().as_deref(),
             Some("dir-id")
         );
         assert_eq!(
-            index.get("root/dir/").await.unwrap().as_deref(),
+            index.get(&ctx, "root/dir/").await.unwrap().as_deref(),
             Some("dir-id")
         );
     }
@@ -397,9 +434,10 @@ mod tests {
         query.insert("remote-root", "root/", "svc-root").await;
         query.insert("svc-root", "dir/", "dir-old").await;
         query.insert("dir-old", "file", "file-old").await;
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
 
         assert_eq!(
-            index.get("root/dir/file").await.unwrap().as_deref(),
+            index.get(&ctx, "root/dir/file").await.unwrap().as_deref(),
             Some("file-old")
         );
 
@@ -409,7 +447,7 @@ mod tests {
         index.invalidate_dir("root/dir/").await;
 
         assert_eq!(
-            index.get("root/dir/file").await.unwrap().as_deref(),
+            index.get(&ctx, "root/dir/file").await.unwrap().as_deref(),
             Some("file-new")
         );
     }
@@ -421,8 +459,11 @@ mod tests {
 
         let index = GdrivePathIndex::new(query.clone());
 
-        let (first, second) =
-            tokio::join!(index.ensure_dir("root/dir"), index.ensure_dir("root/dir"));
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let (first, second) = tokio::join!(
+            index.ensure_dir(&ctx, "root/dir"),
+            index.ensure_dir(&ctx, "root/dir")
+        );
 
         assert_eq!(first.unwrap(), second.unwrap());
         assert_eq!(query.create_count.load(Ordering::SeqCst), 1);
@@ -435,16 +476,17 @@ mod tests {
 
         let index = GdrivePathIndex::new(query.clone());
         index.upsert_dir("root/", "root-old").await;
+        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
 
         query.mark_stale_parent("root-old").await;
         query.insert("remote-root", "root/", "root-new").await;
 
-        let dir_id = index.ensure_dir("root/dir").await.unwrap();
+        let dir_id = index.ensure_dir(&ctx, "root/dir").await.unwrap();
 
         assert_eq!(dir_id, "root-new:dir/");
         assert_eq!(query.create_count.load(Ordering::SeqCst), 1);
         assert_eq!(
-            index.get("root/dir").await.unwrap().as_deref(),
+            index.get(&ctx, "root/dir").await.unwrap().as_deref(),
             Some("root-new:dir/")
         );
     }

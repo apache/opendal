@@ -27,13 +27,19 @@ use opendal_core::*;
 
 pub struct DropboxWriter {
     core: Arc<DropboxCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl DropboxWriter {
-    pub fn new(core: Arc<DropboxCore>, op: OpWrite, path: String) -> Self {
-        DropboxWriter { core, op, path }
+    pub fn new(core: Arc<DropboxCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        DropboxWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     fn parse_metadata(decoded_response: DropboxMetadataResponse) -> Result<Metadata> {
@@ -67,7 +73,7 @@ impl oio::OneShotWrite for DropboxWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .dropbox_update(&self.path, Some(bs.len()), &self.op, bs)
+            .dropbox_update(&self.ctx, &self.path, Some(bs.len()), &self.op, bs)
             .await?;
         let status = resp.status();
         match status {

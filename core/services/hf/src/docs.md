@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         .root("/path/to/dir")
         .token("access_token");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
         .repo_id("username/my-bucket")
         .token("access_token");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

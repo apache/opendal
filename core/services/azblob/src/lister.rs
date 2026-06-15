@@ -28,6 +28,7 @@ use opendal_core::*;
 
 pub struct AzblobLister {
     core: Arc<AzblobCore>,
+    ctx: OperationContext,
 
     path: String,
     delimiter: &'static str,
@@ -35,11 +36,18 @@ pub struct AzblobLister {
 }
 
 impl AzblobLister {
-    pub fn new(core: Arc<AzblobCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<AzblobCore>,
+        ctx: OperationContext,
+        path: String,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
         Self {
             core,
+            ctx,
             path,
             delimiter,
             limit,
@@ -51,7 +59,13 @@ impl oio::PageList for AzblobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azblob_list_blobs(&self.path, &ctx.token, self.delimiter, self.limit)
+            .azblob_list_blobs(
+                &self.ctx,
+                &self.path,
+                &ctx.token,
+                self.delimiter,
+                self.limit,
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {

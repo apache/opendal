@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use super::error::*;
 use opendal_core::raw::*;
@@ -27,7 +26,8 @@ use opendal_core::*;
 
 #[derive(Debug)]
 pub struct FsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
     pub buf_pool: oio::PooledBuf,

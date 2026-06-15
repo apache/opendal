@@ -34,11 +34,11 @@ use prometheus_client::registry::Metric;
 use prometheus_client::registry::Registry;
 use prometheus_client::registry::Unit;
 
-/// Add [prometheus-client](https://docs.rs/prometheus-client) for every operation.
+/// Add [prometheus-client](https://docs.rs/prometheus-client) metrics for OpenDAL operations and HTTP fetches.
 ///
 /// # Prometheus Metrics
 ///
-/// We provide several metrics, please see the documentation of [`observe`] module.
+/// This layer registers operation metrics and HTTP fetch metrics. Please see the documentation of [`observe`] module for metric details.
 /// For a more detailed explanation of these metrics and how they are used, please refer to the [Prometheus documentation](https://prometheus.io/docs/introduction/overview/).
 ///
 /// # Examples
@@ -55,8 +55,7 @@ use prometheus_client::registry::Unit;
 /// let mut registry = prometheus_client::registry::Registry::default();
 ///
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(PrometheusClientLayer::builder().register(&mut registry))
-///     .finish();
+///     .layer(PrometheusClientLayer::builder().register(&mut registry));
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
@@ -76,7 +75,7 @@ use prometheus_client::registry::Unit;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PrometheusClientLayer {
     interceptor: PrometheusClientInterceptor,
 }
@@ -88,11 +87,14 @@ impl PrometheusClientLayer {
     }
 }
 
-impl<A: Access> Layer<A> for PrometheusClientLayer {
-    type LayeredAccess = observe::MetricsAccessor<A, PrometheusClientInterceptor>;
+impl Layer for PrometheusClientLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_service(inner)
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
+    // Reuse the same interceptor because this layer registers both operation and HTTP metrics.
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_fetch(srv, inner)
     }
 }
 
@@ -194,8 +196,7 @@ impl PrometheusClientLayerBuilder {
     /// let mut registry = prometheus_client::registry::Registry::default();
     ///
     /// let _ = Operator::new(builder)?
-    ///     .layer(PrometheusClientLayer::builder().register(&mut registry))
-    ///     .finish();
+    ///     .layer(PrometheusClientLayer::builder().register(&mut registry));
     /// # Ok(())
     /// # }
     /// ```

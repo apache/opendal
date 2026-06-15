@@ -15,15 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::sync::Arc;
-
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
@@ -240,7 +238,8 @@ pub(super) struct LastCommit {
 
 #[derive(Clone)]
 pub struct HfCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub repo: HfRepo,
     pub root: String,
     pub token: Option<String>,
@@ -260,8 +259,10 @@ impl Debug for HfCore {
 }
 
 impl HfCore {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        info: Arc<AccessorInfo>,
+        info: ServiceInfo,
+        capability: Capability,
         repo: HfRepo,
         root: String,
         token: Option<String>,
@@ -271,6 +272,7 @@ impl HfCore {
     ) -> Self {
         Self {
             info,
+            capability,
             repo,
             root,
             token,
@@ -281,7 +283,8 @@ impl HfCore {
     }
 
     pub fn build(
-        info: Arc<AccessorInfo>,
+        info: ServiceInfo,
+        capability: Capability,
         repo: HfRepo,
         root: String,
         token: Option<String>,
@@ -294,6 +297,7 @@ impl HfCore {
 
         Ok(Self::new(
             info,
+            capability,
             repo,
             root,
             token,
@@ -406,8 +410,12 @@ impl HfCore {
     ///
     /// Uses `fetch` so error response bodies are never read into memory —
     /// `parse_error` reads only response headers.
-    async fn send(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        let resp = self.info.http_client().fetch(req).await?;
+    async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<HttpBody>> {
+        let resp = ctx.http_client().fetch(req).await?;
         let (parts, body) = resp.into_parts();
         if parts.status.is_success() {
             Ok(Response::from_parts(parts, body))
@@ -423,16 +431,17 @@ impl HfCore {
     /// deserialized body so callers can inspect headers when needed.
     pub(super) async fn send_parse<T: serde::de::DeserializeOwned>(
         &self,
+        ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<(http::response::Parts, T)> {
-        let (parts, mut body) = self.send(req).await?.into_parts();
+        let (parts, mut body) = self.send(ctx, req).await?.into_parts();
         let buffer = body.to_buffer().await?;
         let parsed =
             serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
         Ok((parts, parsed))
     }
 
-    pub(super) async fn path_info(&self, path: &str) -> Result<PathInfo> {
+    pub(super) async fn path_info(&self, ctx: &OperationContext, path: &str) -> Result<PathInfo> {
         let uri = self.uri(path);
         let url = uri.paths_info_url(&self.endpoint);
         let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
@@ -442,7 +451,7 @@ impl HfCore {
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(Bytes::from(form_body)))
             .map_err(new_request_build_error)?;
-        let (_, mut files) = self.send_parse::<Vec<PathInfo>>(req).await?;
+        let (_, mut files) = self.send_parse::<Vec<PathInfo>>(ctx, req).await?;
 
         // NOTE: if the file is not found, the server will return 200 with an empty array
         if files.is_empty() {
@@ -459,6 +468,7 @@ impl HfCore {
     /// redirect is followed and the file bytes are streamed directly.
     pub(super) async fn resolve(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         mode: HfDownloadMode,
@@ -477,14 +487,19 @@ impl HfCore {
         }
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.info.http_client().fetch(req).await?;
+        let resp = ctx.http_client().fetch(req).await?;
 
         if !resp.status().is_success() {
+            let status = resp.status();
             // Drop the streaming body without reading it — parse_error reads
             // only response headers, so there is no need to buffer the body
             // (which may be a large HTML error page).
             let (parts, _) = resp.into_parts();
-            return Err(parse_error(parts));
+            let mut err = parse_error(parts);
+            if status == http::StatusCode::NOT_FOUND && self.path_info(ctx, path).await.is_ok() {
+                err = err.set_temporary();
+            }
+            return Err(err);
         }
 
         Ok(resp)
@@ -495,6 +510,7 @@ impl HfCore {
     /// Counterpart of [`commit_bucket`](Self::commit_bucket) for bucket repos.
     pub(super) async fn commit_git(
         &self,
+        ctx: &OperationContext,
         regular_files: Vec<CommitFile>,
         lfs_files: Vec<LfsFile>,
         deleted_files: Vec<DeletedFile>,
@@ -519,14 +535,18 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        let (_, resp) = self.send_parse::<CommitResponse>(req).await?;
+        let (_, resp) = self.send_parse::<CommitResponse>(ctx, req).await?;
         Ok(resp)
     }
 
     /// Commit file changes to a bucket repo via the NDJSON batch API.
     ///
     /// Counterpart of [`commit_git`](Self::commit_git) for git-based repos.
-    pub(super) async fn commit_bucket(&self, operations: Vec<BucketOperation>) -> Result<()> {
+    pub(super) async fn commit_bucket(
+        &self,
+        ctx: &OperationContext,
+        operations: Vec<BucketOperation>,
+    ) -> Result<()> {
         if operations.is_empty() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -550,7 +570,7 @@ impl HfCore {
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await?;
+        self.send(ctx, req).await?;
         Ok(())
     }
 }
@@ -637,20 +657,20 @@ pub(crate) mod test_utils {
         repo_id: &str,
         revision: &str,
         endpoint: &str,
-    ) -> (HfCore, MockHttpClient) {
+    ) -> (HfCore, OperationContext, MockHttpClient) {
         let mock_client = MockHttpClient::new();
         let http_client = HttpClient::with(mock_client.clone());
+        let ctx = OperationContext::new(http_client, Executor::default());
 
-        let info = AccessorInfo::default();
-        info.set_scheme("hf")
-            .set_native_capability(Capability::default());
-        info.update_http_client(|_| http_client);
+        let info = ServiceInfo::new("hf", "", "");
+        let capability = Capability::default();
 
         let xet_session = XetSessionBuilder::new()
             .build()
             .expect("failed to create xet session");
         let core = HfCore::new(
-            Arc::new(info),
+            info,
+            capability,
             HfRepo::new(repo_type, repo_id.to_string(), Some(revision.to_string())),
             "/".to_string(),
             None,
@@ -659,7 +679,7 @@ pub(crate) mod test_utils {
             HfDownloadMode::Xet,
         );
 
-        (core, mock_client)
+        (core, ctx, mock_client)
     }
 }
 
@@ -671,14 +691,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_hf_path_info_url_model() -> Result<()> {
-        let (core, mock_client) = create_test_core(
+        let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
 
-        core.path_info("test.txt").await?;
+        core.path_info(&ctx, "test.txt").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -691,14 +711,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_hf_path_info_url_dataset() -> Result<()> {
-        let (core, mock_client) = create_test_core(
+        let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Dataset,
             "test-org/test-dataset",
             "v1.0.0",
             "https://huggingface.co",
         );
 
-        core.path_info("data/file.csv").await?;
+        core.path_info(&ctx, "data/file.csv").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -711,14 +731,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_hf_path_info_url_custom_endpoint() -> Result<()> {
-        let (core, mock_client) = create_test_core(
+        let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-org/test-dataset",
             "refs/convert/parquet",
             "https://custom-hf.example.com",
         );
 
-        core.path_info("model.bin").await?;
+        core.path_info(&ctx, "model.bin").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -731,14 +751,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_hf_path_info_url_space() -> Result<()> {
-        let (core, mock_client) = create_test_core(
+        let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Space,
             "test-user/test-space",
             "main",
             "https://huggingface.co",
         );
 
-        core.path_info("app.py").await?;
+        core.path_info(&ctx, "app.py").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(

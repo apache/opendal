@@ -125,7 +125,7 @@ impl Builder for SwiftBuilder {
     type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -168,57 +168,52 @@ impl Builder for SwiftBuilder {
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(SWIFT_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-                            stat_with_if_modified_since: true,
-                            stat_with_if_unmodified_since: true,
+                info: ServiceInfo::new(SWIFT_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
 
-                            read: true,
-                            read_with_suffix: true,
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
+                    read: true,
+                    read_with_suffix: true,
+                    read_with_if_match: true,
+                    read_with_if_none_match: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            write_with_content_type: true,
-                            write_with_content_disposition: true,
-                            write_with_content_encoding: true,
-                            write_with_cache_control: true,
-                            write_with_user_metadata: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_multi_min_size: Some(5 * 1024 * 1024),
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
+                    write_with_content_type: true,
+                    write_with_content_disposition: true,
+                    write_with_content_encoding: true,
+                    write_with_cache_control: true,
+                    write_with_user_metadata: true,
 
-                            delete: true,
-                            delete_max_size: Some(10000),
+                    delete: true,
+                    delete_max_size: Some(10000),
 
-                            copy: true,
+                    copy: true,
 
-                            list: true,
-                            list_with_recursive: true,
+                    list: true,
+                    list_with_recursive: true,
 
-                            presign: has_temp_url_key,
-                            presign_stat: has_temp_url_key,
-                            presign_read: has_temp_url_key,
-                            presign_write: has_temp_url_key,
+                    presign: has_temp_url_key,
+                    presign_stat: has_temp_url_key,
+                    presign_read: has_temp_url_key,
+                    presign_write: has_temp_url_key,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint,
@@ -240,14 +235,16 @@ pub struct SwiftBackend {
 /// Reader returned by this backend.
 pub struct SwiftReader {
     backend: SwiftBackend,
+    ctx: OperationContext,
     path: String,
     args: OpRead,
 }
 
 impl SwiftReader {
-    fn new(backend: SwiftBackend, path: &str, args: OpRead) -> Self {
+    fn new(backend: SwiftBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
             args,
         }
@@ -259,7 +256,10 @@ impl oio::StreamRead for SwiftReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let resp = backend.core.swift_read(path, range, &args).await?;
+        let resp = backend
+            .core
+            .swift_read(&self.ctx, path, range, &args)
+            .await?;
 
         let status = resp.status();
 
@@ -279,19 +279,35 @@ impl oio::StreamRead for SwiftReader {
     }
 }
 
-impl Access for SwiftBackend {
+impl Service for SwiftBackend {
     type Reader = oio::StreamReader<SwiftReader>;
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(ctx, path, &args).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
@@ -307,43 +323,85 @@ impl Access for SwiftBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(SwiftReader::new(self.clone(), path, args)),
-        ))
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<SwiftReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(SwiftReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, oio::MultipartWriter<SwiftWriter>) = {
+            let concurrent = args.concurrent();
+            let writer = SwiftWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-        Ok((RpWrite::default(), w))
+            Ok((RpWrite::default(), w))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                SwiftDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::BatchDeleter<SwiftDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::BatchDeleter::new(
+                    SwiftDeleter::new(self.core.clone(), ctx.clone()),
+                    self.core.capability.delete_max_size,
+                ),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SwiftLister::new(
-            self.core.clone(),
-            path.to_string(),
-            args.recursive(),
-            args.limit(),
-        );
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, oio::PageLister<SwiftLister>) = {
+            let l = SwiftLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+            );
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok((RpList::default(), oio::PageLister::new(l)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
 
         let method = match &op {
@@ -372,20 +430,38 @@ impl Access for SwiftBackend {
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        // cannot copy objects larger than 5 GB.
-        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
-        let resp = self.core.swift_copy(from, to).await?;
+        let (rp, output): (_, ()) = {
+            // cannot copy objects larger than 5 GB.
+            // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
+            let resp = self.core.swift_copy(ctx, from, to).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::CREATED | StatusCode::OK => Ok((RpCopy::default(), ())),
+                _ => Err(parse_error(resp)),
+            }
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

@@ -15,28 +15,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use crate::raw::*;
 use crate::*;
 
 /// Metadata for operator, users can use this metadata to get information of operator.
-#[derive(Clone, Debug, Default)]
-pub struct OperatorInfo(Arc<AccessorInfo>);
+#[derive(Clone, Debug)]
+pub struct OperatorInfo {
+    info: ServiceInfo,
+    capability: Capability,
+    native_capability: Capability,
+}
 
 impl OperatorInfo {
-    pub(super) fn new(acc: Arc<AccessorInfo>) -> Self {
-        OperatorInfo(acc)
+    pub(super) fn new(
+        info: ServiceInfo,
+        capability: Capability,
+        native_capability: Capability,
+    ) -> Self {
+        Self {
+            info,
+            capability,
+            native_capability,
+        }
     }
 
     /// Scheme of operator.
     pub fn scheme(&self) -> &'static str {
-        self.0.scheme()
+        self.info.scheme()
     }
 
-    /// Root of operator, will be in format like `/path/to/dir/`
+    /// Root of operator, will be in format like `/path/to/dir/`.
     pub fn root(&self) -> String {
-        self.0.root().to_string()
+        self.info.root().to_string()
     }
 
     /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
@@ -46,16 +56,16 @@ impl OperatorInfo {
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
     pub fn name(&self) -> String {
-        self.0.name().to_string()
+        self.info.name().to_string()
     }
 
-    /// Get [`Full Capability`] of operator.
-    pub fn full_capability(&self) -> Capability {
-        self.0.full_capability()
+    /// Get effective capability of operator.
+    pub fn capability(&self) -> Capability {
+        self.capability
     }
 
-    /// Get [`Native Capability`] of operator.
+    /// Get native capability of the base service.
     pub fn native_capability(&self) -> Capability {
-        self.0.native_capability()
+        self.native_capability
     }
 }

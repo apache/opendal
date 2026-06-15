@@ -27,6 +27,7 @@ use super::error::parse_error;
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,
+    ctx: OperationContext,
     path: String,
     delimiter: &'static str,
     amount: Option<usize>,
@@ -36,6 +37,7 @@ pub struct LakefsLister {
 impl LakefsLister {
     pub fn new(
         core: Arc<LakefsCore>,
+        ctx: OperationContext,
         path: String,
         amount: Option<usize>,
         after: Option<&str>,
@@ -44,6 +46,7 @@ impl LakefsLister {
         let delimiter = if recursive { "" } else { "/" };
         Self {
             core,
+            ctx,
             path,
             delimiter,
             amount,
@@ -57,6 +60,7 @@ impl oio::PageList for LakefsLister {
         let response = self
             .core
             .list_objects(
+                &self.ctx,
                 &self.path,
                 self.delimiter,
                 &self.amount,

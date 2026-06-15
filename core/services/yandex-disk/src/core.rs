@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
@@ -32,7 +31,8 @@ use opendal_core::*;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// Yandex Disk oauth access_token.
@@ -49,8 +49,12 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_client().send(req).await
     }
 
     #[inline]
@@ -64,7 +68,7 @@ impl YandexDiskCore {
 
 impl YandexDiskCore {
     /// Get upload url.
-    async fn get_upload_url(&self, path: &str) -> Result<String> {
+    async fn get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -81,7 +85,7 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -98,17 +102,22 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn upload(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
-        let upload_url = self.get_upload_url(path).await?;
+    pub async fn upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url(ctx, path).await?;
         let req = Request::put(upload_url)
             .extension(Operation::Write)
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    async fn get_download_url(&self, path: &str) -> Result<String> {
+    async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -125,7 +134,7 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -142,25 +151,30 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn download(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let download_url = self.get_download_url(path).await?;
+    pub async fn download(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(ctx, path).await?;
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_client().fetch(req).await
     }
 
-    pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
+    pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
         for i in 0..paths.len() - 1 {
             let path = paths[..i + 1].join("/");
-            let resp = self.create_dir(&path).await?;
+            let resp = self.create_dir(ctx, &path).await?;
 
             let status = resp.status();
 
@@ -172,7 +186,7 @@ impl YandexDiskCore {
         Ok(())
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path=/{}",
             percent_encode_path(path),
@@ -187,10 +201,15 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -209,10 +228,15 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn move_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -231,10 +255,10 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -251,11 +275,12 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn metainformation(
         &self,
+        ctx: &OperationContext,
         path: &str,
         limit: Option<usize>,
         offset: Option<String>,
@@ -284,7 +309,7 @@ impl YandexDiskCore {
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 

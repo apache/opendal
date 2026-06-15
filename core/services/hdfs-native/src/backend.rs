@@ -92,7 +92,7 @@ impl HdfsNativeBuilder {
 impl Builder for HdfsNativeBuilder {
     type Config = HdfsNativeConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.config.name_node {
@@ -120,31 +120,25 @@ impl Builder for HdfsNativeBuilder {
         // need to check if root dir exists, create if not
         Ok(HdfsNativeBackend {
             core: Arc::new(HdfsNativeCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(HDFS_NATIVE_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(HDFS_NATIVE_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
+                    read: true,
 
-                            write: true,
-                            write_can_append: true,
+                    write: true,
+                    write_can_append: true,
 
-                            create_dir: true,
-                            delete: true,
+                    create_dir: true,
+                    delete: true,
 
-                            list: true,
+                    list: true,
 
-                            rename: true,
+                    rename: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 client: Arc::new(client),
@@ -204,64 +198,136 @@ impl oio::PositionRead for HdfsNativeReader {
     }
 }
 
-impl Access for HdfsNativeBackend {
+impl Service for HdfsNativeBackend {
     type Reader = oio::PositionReader<HdfsNativeReader>;
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.core.hdfs_create_dir(path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let m = self.core.hdfs_stat(path).await?;
         Ok(RpStat::new(m))
     }
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let file = self.core.hdfs_open(path).await?;
-        Ok((
-            RpRead::default(),
-            oio::PositionReader::new(HdfsNativeReader::new(file)),
-        ))
+    async fn read(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::PositionReader<HdfsNativeReader>) = {
+            let file = self.core.hdfs_open(path).await?;
+            Ok((
+                RpRead::default(),
+                oio::PositionReader::new(HdfsNativeReader::new(file)),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (f, initial_size) = self.core.hdfs_write(path, &args).await?;
+    async fn write(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, HdfsNativeWriter) = {
+            let (f, initial_size) = self.core.hdfs_write(path, &args).await?;
 
-        Ok((RpWrite::new(), HdfsNativeWriter::new(f, initial_size)))
+            Ok((RpWrite::new(), HdfsNativeWriter::new(f, initial_size)))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(HdfsNativeDeleter::new(Arc::clone(&self.core))),
-        ))
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        let (rp, output): (_, oio::OneShotDeleter<HdfsNativeDeleter>) = {
+            Ok((
+                RpDelete::default(),
+                oio::OneShotDeleter::new(HdfsNativeDeleter::new(Arc::clone(&self.core))),
+            ))
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        match self.core.hdfs_list(path).await? {
-            Some((p, current_path)) => Ok((
-                RpList::default(),
-                Some(HdfsNativeLister::new(
-                    &self.core.root,
-                    &self.core.client,
-                    &p,
-                    current_path,
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        let (rp, output): (_, Option<HdfsNativeLister>) = {
+            match self.core.hdfs_list(path).await? {
+                Some((p, current_path)) => Ok((
+                    RpList::default(),
+                    Some(HdfsNativeLister::new(
+                        &self.core.root,
+                        &self.core.client,
+                        &p,
+                        current_path,
+                    )),
                 )),
-            )),
-            None => Ok((RpList::default(), None)),
-        }
+                None => Ok((RpList::default(), None)),
+            }
+        }?;
+
+        Ok((rp, output))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         self.core.hdfs_rename(from, to).await?;
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

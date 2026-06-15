@@ -206,6 +206,10 @@ pub static LABEL_STATUS_CODE: &str = "status_code";
 pub static LABEL_SERVICE_OPERATION: &str = "service_operation";
 
 /// MetricLabels are the labels for the metrics.
+///
+/// `scheme`, `namespace`, and `root` always come from the final service stack's
+/// [`ServiceInfo`]. HTTP requests only provide request-level labels such as
+/// [`Operation`] and [`ServiceOperation`] through extensions.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct MetricLabels {
     /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
@@ -234,7 +238,7 @@ pub struct MetricLabels {
 
 impl MetricLabels {
     /// Create a new set of MetricLabels.
-    fn new(info: Arc<AccessorInfo>, op: &'static str) -> Self {
+    fn new(info: ServiceInfo, op: &'static str) -> Self {
         MetricLabels {
             scheme: info.scheme(),
             namespace: info.name(),
@@ -450,21 +454,24 @@ impl<I: MetricsIntercept> MetricsLayer<I> {
     }
 }
 
-impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
-    type LayeredAccess = MetricsAccessor<A, I>;
+impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
+    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+        // HTTP metrics share the same interceptor and service identity as operation metrics.
+        Arc::new(MetricsHttpFetcher {
+            inner,
+            info: srv.info(),
+            interceptor: self.interceptor.clone(),
+        })
+    }
+}
+
+impl<I: MetricsIntercept> MetricsLayer<I> {
+    fn layer(&self, inner: Servicer) -> MetricsAccessor<I> {
         let info = inner.info();
-
-        // Update http client with metrics http fetcher.
-        info.update_http_client(|client| {
-            HttpClient::with(MetricsHttpFetcher {
-                inner: client.into_inner(),
-                info: info.clone(),
-                interceptor: self.interceptor.clone(),
-            })
-        });
-
         MetricsAccessor {
             inner,
             info,
@@ -475,7 +482,7 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
 
 struct MetricsHttpFetcher<I: MetricsIntercept> {
     inner: HttpFetcher,
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
     interceptor: I,
 }
 
@@ -700,13 +707,13 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
 }
 
 #[doc(hidden)]
-pub struct MetricsAccessor<A: Access, I: MetricsIntercept> {
-    inner: A,
-    info: Arc<AccessorInfo>,
+pub struct MetricsAccessor<I: MetricsIntercept> {
+    inner: Servicer,
+    info: ServiceInfo,
     interceptor: I,
 }
 
-impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
+impl<I: MetricsIntercept> Debug for MetricsAccessor<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsAccessor")
             .field("inner", &self.inner)
@@ -714,19 +721,27 @@ impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
     }
 }
 
-impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
-    type Inner = A;
-    type Reader = MetricsReader<A::Reader, I>;
-    type Writer = MetricsWrapper<A::Writer, I>;
-    type Lister = MetricsWrapper<A::Lister, I>;
-    type Deleter = MetricsWrapper<A::Deleter, I>;
-    type Copier = MetricsWrapper<A::Copier, I>;
+impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
+    type Reader = MetricsReader<oio::Reader, I>;
+    type Writer = MetricsWrapper<oio::Writer, I>;
+    type Lister = MetricsWrapper<oio::Lister, I>;
+    type Deleter = MetricsWrapper<oio::Deleter, I>;
+    type Copier = MetricsWrapper<oio::Copier, I>;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let labels = MetricLabels::new(self.info.clone(), Operation::CreateDir.into_static());
 
         let start = Instant::now();
@@ -737,8 +752,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .create_dir(path, args)
+            .inner
+            .create_dir(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -757,7 +772,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
         let start = Instant::now();
@@ -767,7 +787,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.read(path, args).await {
+        match self.inner.read(ctx, path, args).await {
             Ok((rp, reader)) => {
                 guard.complete();
                 Ok((
@@ -786,7 +806,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
         let start = Instant::now();
@@ -796,7 +821,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.write(path, args).await {
+        match self.inner.write(ctx, path, args).await {
             Ok((rp, writer)) => {
                 guard.defuse();
                 Ok((
@@ -817,6 +842,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
     async fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
@@ -831,7 +857,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.copy(from, to, args, opts.clone()).await {
+        match self.inner.copy(ctx, from, to, args, opts.clone()).await {
             Ok((rp, copier)) => {
                 guard.defuse();
                 Ok((
@@ -850,7 +876,13 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
 
         let start = Instant::now();
@@ -861,8 +893,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .rename(from, to, args)
+            .inner
+            .rename(ctx, from, to, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -881,7 +913,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
 
         let start = Instant::now();
@@ -892,8 +924,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .stat(path, args)
+            .inner
+            .stat(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -912,7 +944,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
         let start = Instant::now();
@@ -922,7 +954,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.delete().await {
+        match self.inner.delete(ctx).await {
             Ok((rp, deleter)) => {
                 guard.defuse();
                 Ok((
@@ -941,7 +973,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
         let start = Instant::now();
@@ -951,7 +988,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.list(path, args).await {
+        match self.inner.list(ctx, path, args).await {
             Ok((rp, lister)) => {
                 guard.defuse();
                 Ok((
@@ -970,7 +1007,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Presign.into_static());
 
         let start = Instant::now();
@@ -981,8 +1023,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .presign(path, args)
+            .inner
+            .presign(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -1363,8 +1405,8 @@ mod tests {
         }
     }
 
-    fn test_info() -> Arc<AccessorInfo> {
-        Arc::new(AccessorInfo::default())
+    fn test_info() -> ServiceInfo {
+        ServiceInfo::new("test", "", "")
     }
 
     fn test_labels() -> MetricLabels {
@@ -1786,9 +1828,9 @@ mod tests {
             .unwrap();
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
 
-        let chunk = oio::ReadStreamDyn::read_dyn(&mut *stream).await.unwrap();
+        let chunk = oio::ReadStream::read(&mut stream).await.unwrap();
         assert_eq!(chunk.len(), 5);
-        let chunk = oio::ReadStreamDyn::read_dyn(&mut *stream).await.unwrap();
+        let chunk = oio::ReadStream::read(&mut stream).await.unwrap();
         assert!(chunk.is_empty());
         drop(stream);
         drop(reader);

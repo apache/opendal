@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     let mut builder = Redis::default();
 
     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

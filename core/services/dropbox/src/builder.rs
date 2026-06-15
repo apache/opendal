@@ -98,7 +98,7 @@ impl DropboxBuilder {
 impl Builder for DropboxBuilder {
     type Config = DropboxConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
 
         let signer = match (self.config.access_token, self.config.refresh_token) {
@@ -149,35 +149,29 @@ impl Builder for DropboxBuilder {
 
         Ok(DropboxBackend {
             core: Arc::new(DropboxCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(DROPBOX_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(DROPBOX_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
-                            read_with_suffix: true,
+                    read: true,
+                    read_with_suffix: true,
 
-                            write: true,
+                    write: true,
 
-                            create_dir: true,
+                    create_dir: true,
 
-                            delete: true,
+                    delete: true,
 
-                            list: true,
-                            list_with_recursive: true,
+                    list: true,
+                    list_with_recursive: true,
 
-                            copy: true,
+                    copy: true,
 
-                            rename: true,
+                    rename: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 signer: Arc::new(Mutex::new(signer)),

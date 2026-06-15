@@ -120,7 +120,7 @@ impl GhacBuilder {
 impl Builder for GhacBuilder {
     type Config = GhacConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -153,25 +153,18 @@ impl Builder for GhacBuilder {
         }
 
         let core = GhacCore {
-            info: {
-                let am = AccessorInfo::default();
-                am.set_scheme(GHAC_SCHEME)
-                    .set_root(&root)
-                    .set_name(&version)
-                    .set_native_capability(Capability {
-                        stat: true,
+            info: ServiceInfo::new(GHAC_SCHEME, &root, &version),
+            capability: Capability {
+                stat: true,
 
-                        read: true,
+                read: true,
 
-                        write: true,
-                        write_can_multi: true,
+                write: true,
+                write_can_multi: true,
 
-                        shared: true,
+                shared: true,
 
-                        ..Default::default()
-                    });
-
-                am.into()
+                ..Default::default()
             },
             root,
 
@@ -212,13 +205,15 @@ pub struct GhacBackend {
 /// Reader returned by this backend.
 pub struct GhacReader {
     backend: GhacBackend,
+    ctx: OperationContext,
     path: String,
 }
 
 impl GhacReader {
-    fn new(backend: GhacBackend, path: &str, _: OpRead) -> Self {
+    fn new(backend: GhacBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
         Self {
             backend,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -228,7 +223,7 @@ impl oio::StreamRead for GhacReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.ghac_read(path, range).await?;
+        let resp = backend.core.ghac_read(&self.ctx, path, range).await?;
 
         let status = resp.status();
         let (rp, stream) = match status {
@@ -247,15 +242,31 @@ impl oio::StreamRead for GhacReader {
     }
 }
 
-impl Access for GhacBackend {
+impl Service for GhacBackend {
     type Reader = oio::StreamReader<GhacReader>;
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
+    }
+
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Some self-hosted GHES instances are backed by AWS S3 services which only returns
@@ -263,8 +274,8 @@ impl Access for GhacBackend {
     /// `HEAD` instead.
     ///
     /// In this way, we can support both self-hosted GHES and `github.com`.
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.ghac_stat(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+        let resp = self.core.ghac_stat(ctx, path).await?;
 
         let status = resp.status();
         match status {
@@ -275,19 +286,101 @@ impl Access for GhacBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(GhacReader::new(self.clone(), path, args)),
+    async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        let (rp, output): (_, oio::StreamReader<GhacReader>) = {
+            Ok((
+                RpRead::default(),
+                oio::StreamReader::new(GhacReader::new(self.clone(), ctx.clone(), path, args)),
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        let (rp, output): (_, GhacWriter) = {
+            let url = self.core.ghac_get_upload_url(ctx, path).await?;
+
+            Ok((
+                RpWrite::default(),
+                GhacWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    ctx.executor().clone(),
+                    path.to_string(),
+                    url,
+                )?,
+            ))
+        }?;
+
+        Ok((rp, output))
+    }
+
+    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let url = self.core.ghac_get_upload_url(path).await?;
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
 
-        Ok((
-            RpWrite::default(),
-            GhacWriter::new(self.core.clone(), path.to_string(), url)?,
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

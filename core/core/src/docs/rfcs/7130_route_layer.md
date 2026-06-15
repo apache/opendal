@@ -41,12 +41,13 @@ use opendal::Result;
 use opendal_layer_timeout::TimeoutLayer;
 
 fn build_default() -> Result<Operator> {
-    Operator::new(services::Memory::default())?
+    Operator::new(services::Memory::default())?.finish()
 }
 
 fn build_parquet_fast_path() -> Result<Operator> {
     Operator::new(services::Memory::default())?
         .layer(TimeoutLayer::default().with_timeout(Duration::from_secs(3)))
+        .finish()
 }
 ```
 

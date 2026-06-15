@@ -20,7 +20,7 @@ let mut builder = Fs::default();
 builder.root("/tmp");
 
 // Build an `Operator` to start operating the storage.
-let op: Operator = Operator::new(builder)?;
+let op: Operator = Operator::new(builder)?.finish();
 ```
 
 The benefit of builder is that it is type safe and easy to use. However, it is not flexible enough to configure services. Users must create a new builder for each service they wish to configure, translating user input into the API calls for each respective builder.

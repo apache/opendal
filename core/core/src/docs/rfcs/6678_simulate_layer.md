@@ -41,7 +41,7 @@ use opendal::Operator;
 // Default: all simulations enabled
 let op = Operator::new(Fs::default())?
     .layer(SimulateLayer::default())
-    ;
+    .finish();
 
 // Selective simulation with method chaining
 let op = Operator::new(Fs::default())?
@@ -52,12 +52,12 @@ let op = Operator::new(Fs::default())?
             .with_stat_dir(false)           // Disable stat dir simulation
             .with_create_dir(false)         // Disable create_dir simulation
     )
-    ;
+    .finish();
 
 // Performance-critical: no simulation overhead
 let op = Operator::new(S3::default())?
     // Don't add SimulateLayer - use native capabilities only
-    ;
+    .finish();
 ```
 
 ## For binding users (Python/Java/Ruby)
@@ -104,7 +104,7 @@ opendal = { version = "0.x", default-features = false }
 // Required after this version
 let op = Operator::new(Fs::default())?
     .layer(SimulateLayer::default())
-    ;
+    .finish();
 ```
 
 ### Phase 4: Next major version (Clean slate - 12 months)
@@ -257,7 +257,7 @@ impl Operator {
     pub fn new(scheme: &str, options: HashMap<String, String>) -> PyResult<Self> {
         let op = ocore::Operator::new(accessor)?
             .layer(ocore::layers::SimulateLayer::default())  // Auto-apply in bindings
-            ;
+            .finish();
         Ok(Self { core: op })
     }
 }
@@ -438,7 +438,7 @@ Add compile-time or runtime warnings when `SimulateLayer` is used with backends 
 // Future enhancement
 let op = Operator::new(S3::default())?
     .layer(SimulateLayer::default())  // Warning: S3 supports all features natively
-    ;
+    .finish();
 ```
 
 ## Conditional simulation based on operations
@@ -487,5 +487,5 @@ Use const generics or compile-time feature detection to make simulation truly ze
 // Speculative future optimization
 let op = Operator::new(S3::default())?
     .layer(SimulateLayer::default())  // Optimized away at compile time for S3
-    ;
+    .finish();
 ```

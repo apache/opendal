@@ -53,7 +53,7 @@ use opendal::{
 
 #[tokio::main]
 async fn main() -> opendal::Result<()> {
-    let cache = Operator::new(Memory::default())?;
+    let cache = Operator::new(Memory::default())?.finish();
 
     let policy = WholeCachePolicy::new()
         .fill_on_read_miss(true)
@@ -62,7 +62,7 @@ async fn main() -> opendal::Result<()> {
 
     let op = Operator::new(/* source service builder */)?
         .layer(CacheLayer::new(cache, policy))
-        ;
+        .finish();
 
     let _ = op.read("path/to/file").await?;
     Ok(())
@@ -90,20 +90,20 @@ use opendal::{
 };
 
 fn build_routed_operator() -> opendal::Result<Operator> {
-    let default_op = Operator::new(/* source service builder */)?;
+    let default_op = Operator::new(/* source service builder */)?.finish();
 
-    let json_cache = Operator::new(Memory::default())?;
+    let json_cache = Operator::new(Memory::default())?.finish();
     let json_op = Operator::new(/* source service builder */)?
         .layer(CacheLayer::new(json_cache, WholeCachePolicy::new()))
-        ;
+        .finish();
 
-    let parquet_cache = Operator::new(Memory::default())?;
+    let parquet_cache = Operator::new(Memory::default())?.finish();
     let parquet_op = Operator::new(/* source service builder */)?
         .layer(CacheLayer::new(
             parquet_cache,
             ChunkedCachePolicy::new(8 * 1024 * 1024),
         ))
-        ;
+        .finish();
 
     let op = default_op.layer(
         RouteLayer::builder()

@@ -36,7 +36,7 @@ fn crc64_nvme_of(data: &[u8]) -> Vec<u8> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = services::Memory::default();
-    let op = Operator::new(builder)?;
+    let op = Operator::new(builder)?.finish();
 
     let data = b"hello checksum".to_vec();
     let expected = Checksum::new(ChecksumAlgo::Crc64Nvme, crc64_nvme_of(&data));
@@ -57,7 +57,7 @@ use opendal::{Operator, Result};
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = services::Memory::default();
-    let op = Operator::new(builder)?;
+    let op = Operator::new(builder)?.finish();
 
     let meta = op.stat("foo.txt").await?;
     if let Some(cs) = meta.checksum() {
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     // any mismatch errors out.
     let op = Operator::new(builder)?
         .layer(ChecksumLayer::new().preferred(vec![ChecksumAlgo::Crc64Nvme, ChecksumAlgo::Sha256]).enforce(true))
-        ;
+        .finish();
 
     // User does not provide checksum; layer will compute and attach automatically.
     op.write("bar.bin", b"data".to_vec()).await?;
@@ -101,7 +101,7 @@ use opendal::{Checksum, ChecksumAlgo, Operator, Result, ErrorKind};
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = services::Memory::default();
-    let op = Operator::new(builder)?;
+    let op = Operator::new(builder)?.finish();
 
     let wrong = Checksum::new(ChecksumAlgo::Sha256, vec![0; 32]);
     let res = op

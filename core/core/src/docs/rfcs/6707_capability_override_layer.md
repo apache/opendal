@@ -33,7 +33,7 @@ let op = Operator::new(S3::default().bucket("demo"))?
         cap.write_with_if_match = false;
         cap
     }))
-    ;
+    .finish();
 ```
 
 The closure receives the current `Capability` (already filled by the backend) and must return the adjusted value. Only the accessor's *full* capability is patched; native capability remains intact so completion layers can still infer what the backend supports natively (`core/src/layers/complete.rs:23-62`). Downstream layers—`CorrectnessCheckLayer`, retry, delete helpers—observe the overridden full capability (`core/src/layers/correctness_check.rs:23-115`), so they continue to guard unsupported options.

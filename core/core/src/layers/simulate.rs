@@ -325,6 +325,16 @@ impl Service for SimulateService {
         self.inner.copy(ctx, from, to, args, opts).await
     }
 
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.simulate_stat(ctx, path, args).await
     }

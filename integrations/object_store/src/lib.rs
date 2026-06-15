@@ -84,9 +84,7 @@ mod assert_send {
 
     #[allow(dead_code)]
     fn assertion() {
-        let op = Operator::new(opendal::services::Memory::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(opendal::services::Memory::default()).unwrap();
         let store = super::OpendalStore::new(op);
         assert_send(store.put(&"test".into(), PutPayload::new()));
         assert_send(store.get(&"test".into()));

@@ -193,8 +193,7 @@ impl Service for MiniMokaBackend {
     type Copier = ();
 
     fn info(&self) -> ServiceInfo {
-        let info = ServiceInfo::new(MINI_MOKA_SCHEME, &self.root, "");
-        info
+        ServiceInfo::new(MINI_MOKA_SCHEME, &self.root, "")
     }
 
     fn capability(&self) -> Capability {

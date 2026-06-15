@@ -170,7 +170,7 @@ impl Builder for FtpBuilder {
             enable_secure,
         };
 
-        let core = Arc::new(FtpCore::new(info.into(), capability, manager.clone()));
+        let core = Arc::new(FtpCore::new(info, capability, manager.clone()));
         Ok(FtpBackend { core })
     }
 }

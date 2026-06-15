@@ -51,7 +51,7 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(CapabilityCheckLayer::new())
+///     .layer(CapabilityCheckLayer::new());
 /// # Ok(())
 /// # }
 /// ```

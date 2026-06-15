@@ -146,8 +146,7 @@ impl Service for DbfsBackend {
     type Copier = ();
 
     fn info(&self) -> ServiceInfo {
-        let am = ServiceInfo::new(DBFS_SCHEME, &self.core.root, "");
-        am.into()
+        ServiceInfo::new(DBFS_SCHEME, &self.core.root, "")
     }
 
     fn capability(&self) -> Capability {

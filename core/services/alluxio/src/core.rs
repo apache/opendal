@@ -344,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_rejects_range() {
         let core = AlluxioCore {
-            info: ServiceInfo::new("alluxio", "", "").into(),
+            info: ServiceInfo::new("alluxio", "", ""),
             capability: Capability::default(),
             root: "/".to_string(),
             endpoint: "http://127.0.0.1:1".to_string(),

@@ -107,7 +107,7 @@ All public metadata APIs that previously exposed `chrono::DateTime<Utc>` now use
 
 ### KV-style services no longer pretend to support `list`
 
-Services that never returned meaningful results for `Operator::list` (such as D1, FoundationDB, GridFS, Memcached, MongoDB, MySQL, Persy, PostgreSQL, Redb, Redis, SurrealDB, TiKV, etc.) now rely on the default `Unsupported` implementation. Those features will be implemented later.
+Services that never returned meaningful results for `Operator::list` (such as D1, FoundationDB, GridFS, Memcached, MongoDB, MySQL, Persy, PostgreSQL, Redb, Redis, SurrealDB, TiKV, etc.) now return explicit `Unsupported` errors from their service implementations. Those features will be implemented later.
 
 ## Raw API
 

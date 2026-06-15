@@ -169,6 +169,18 @@ impl Service for MonoiofsBackend {
         Ok((rp, output))
     }
 
+    async fn list(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     async fn rename(
         &self,
         _ctx: &OperationContext,
@@ -272,5 +284,17 @@ impl Service for MonoiofsBackend {
         }?;
 
         Ok((rp, output))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

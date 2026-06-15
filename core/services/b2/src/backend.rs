@@ -279,6 +279,18 @@ impl Service for B2Backend {
         self.core.capability
     }
 
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
     /// So we call list api to get file info
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -389,6 +401,19 @@ impl Service for B2Backend {
         }?;
 
         Ok((rp, output))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     async fn presign(

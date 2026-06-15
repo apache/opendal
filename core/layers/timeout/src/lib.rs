@@ -482,6 +482,25 @@ mod tests {
             }
         }
 
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
         /// Return a reader whose operations never complete.
         async fn read(
             &self,
@@ -492,6 +511,18 @@ mod tests {
             Ok((
                 RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
                 MockReader,
+            ))
+        }
+
+        async fn write(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpWrite,
+        ) -> Result<(RpWrite, Self::Writer)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             ))
         }
 
@@ -520,6 +551,26 @@ mod tests {
             _: OpCopier,
         ) -> Result<(RpCopy, Self::Copier)> {
             Ok((RpCopy::default(), MockCopier))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 

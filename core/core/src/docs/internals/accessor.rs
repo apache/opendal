@@ -86,6 +86,8 @@
 //!
 //! - Return concrete operation body types instead of dynamic trait objects like `oio::Reader`.
 //! - Use `()` as the type if the operation is not supported.
+//! - Implement every operation method; unsupported operations should return
+//!   [`ErrorKind::Unsupported`] explicitly.
 //!
 //! Runtime service wrappers that already receive a [`Servicer`] can forward the
 //! erased `oio::*` body types, but the original backend should not erase itself.
@@ -102,7 +104,7 @@
 //!
 //! - All APIs have a unique [`Operation`] and [`Capability`]
 //! - All APIs are orthogonal and do not overlap with each other
-//! - Most APIs accept `path`, [`OperationContext`] and `OpXxx`, and returns `RpXxx` with concrete operation bodies.
+//! - Most APIs accept [`OperationContext`], `path` and `OpXxx`, and returns `RpXxx` with concrete operation bodies.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
 //! [`OperationContext`] carries operator resources composed by operator layers,

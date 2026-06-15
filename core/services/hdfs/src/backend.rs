@@ -320,6 +320,20 @@ impl Service for HdfsBackend {
         Ok((rp, output))
     }
 
+    async fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     async fn rename(
         &self,
         _ctx: &OperationContext,
@@ -329,5 +343,17 @@ impl Service for HdfsBackend {
     ) -> Result<RpRename> {
         self.core.hdfs_rename(from, to)?;
         Ok(RpRename::new())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

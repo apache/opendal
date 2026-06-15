@@ -22,10 +22,6 @@ use std::sync::Arc;
 use crate::raw::*;
 use crate::*;
 
-fn unsupported_error() -> Error {
-    Error::new(ErrorKind::Unsupported, "operation is not supported")
-}
-
 /// Immutable identity facts for a storage service.
 ///
 /// Runtime resources and composed capabilities are kept outside this value so
@@ -149,8 +145,8 @@ impl OperationContext {
 /// Underlying trait of all storage services.
 ///
 /// Every storage backend supported by OpenDAL implements [`Service`]. Backends
-/// only need to implement operations they actually support; the default
-/// implementation returns [`ErrorKind::Unsupported`].
+/// must implement every operation so unsupported behavior is explicit at the
+/// implementation boundary.
 ///
 /// # Operations
 ///
@@ -180,9 +176,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     ///
     /// Layers may transform capabilities, so callers should use this value for
     /// the current stack instead of assuming the backend's native capability.
-    fn capability(&self) -> Capability {
-        Capability::default()
-    }
+    fn capability(&self) -> Capability;
 
     /// Invoke the `create` operation on the specified path.
     ///
@@ -197,10 +191,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpCreateDir,
-    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend;
 
     /// Invoke the `stat` operation on the specified path.
     ///
@@ -216,10 +207,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpStat,
-    ) -> impl Future<Output = Result<RpStat>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<RpStat>> + MaybeSend;
 
     /// Invoke the `read` operation on the specified path.
     ///
@@ -234,10 +222,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
 
     /// Invoke the `write` operation on the specified path.
     ///
@@ -251,10 +236,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend;
 
     /// Invoke the `delete` operation.
     ///
@@ -267,10 +249,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     fn delete(
         &self,
         ctx: &OperationContext,
-    ) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
-        let _ = ctx;
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend;
 
     /// Invoke the `list` operation on the specified path.
     ///
@@ -285,10 +264,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend;
 
     /// Invoke the `copy` operation on the specified `from` path and `to` path.
     ///
@@ -305,10 +281,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
-        let (_, _, _, _, _) = (ctx, from, to, args, opts);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend;
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
     ///
@@ -323,10 +296,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         from: &str,
         to: &str,
         args: OpRename,
-    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
-        let (_, _, _, _) = (ctx, from, to, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<RpRename>> + MaybeSend;
 
     /// Invoke the `presign` operation on the specified path.
     ///
@@ -337,10 +307,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         ctx: &OperationContext,
         path: &str,
         args: OpPresign,
-    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
-        let (_, _, _) = (ctx, path, args);
-        async { Err(unsupported_error()) }
-    }
+    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend;
 }
 
 /// `ServiceDyn` is the dyn version of [`Service`].
@@ -640,5 +607,101 @@ impl Service for () {
 
     fn capability(&self) -> Capability {
         Capability::default()
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn read(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpRead,
+    ) -> Result<(RpRead, Self::Reader)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn write(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpWrite,
+    ) -> Result<(RpWrite, Self::Writer)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn list(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpList,
+    ) -> Result<(RpList, Self::Lister)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn copy(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpCopy,
+        _: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

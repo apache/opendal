@@ -469,12 +469,36 @@ mod tests {
             }
         }
 
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
         async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
             if self.paths.lock().unwrap().contains(path) {
                 Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
             } else {
                 Err(Error::new(ErrorKind::NotFound, "path not found"))
             }
+        }
+
+        async fn read(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpRead,
+        ) -> Result<(RpRead, Self::Reader)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
 
         async fn write(
@@ -489,6 +513,25 @@ mod tests {
                     paths: self.paths.clone(),
                     path: path.to_string(),
                 },
+            ))
+        }
+
+        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn list(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpList,
+        ) -> Result<(RpList, Self::Lister)> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             ))
         }
 
@@ -520,6 +563,13 @@ mod tests {
             }
             paths.insert(to.to_string());
             Ok(RpRename::default())
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 

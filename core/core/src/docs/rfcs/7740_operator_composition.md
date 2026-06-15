@@ -70,7 +70,7 @@ impl Layer for TracingLayer {
 }
 ```
 
-No generic parameter, no `LayeredAccess`, no associated types, no `update_*` calls. A layer that changes capability does so in its wrapper's `capability()` method; for layers that transform capability without wrapping any operation, `raw` provides a `with_capability(service, f)` helper.
+No generic parameter, no `LayeredAccess`, no associated types, no `update_*` calls. A layer that changes capability does so in its wrapper's `capability()` method, even if the wrapper only forwards operations unchanged.
 
 One contract is new and strict: **layer-owned state lives in the `Layer` struct; wrappers are cheap projections.** `apply_*` hooks are re-invoked whenever an operator rebuilds its composition, so state created inside a hook would be silently duplicated. A cache layer holds its cache in the layer and lets wrappers reference it — which is how the foyer layer is already written; rebuilding turns the convention into a contract. Consequently, one `Layer` instance applied to two operators shares its state.
 
@@ -96,7 +96,7 @@ impl Service for S3Service {
 }
 ```
 
-Every operation method takes `ctx: &OperationContext` as its first parameter. The split between `ctx` and `args` is provenance: `Op*` structs carry the caller's intent (range, version, concurrency), `ctx` carries the environment provided from above (HTTP client, executor, effective capability). The `Op*` / `Rp*` grammar stays pure.
+Every operation method takes `ctx: &OperationContext` as its first parameter. The split between `ctx` and `args` is provenance: `Op*` structs carry the caller's intent (range, version, concurrency), `ctx` carries the runtime resources provided from above (HTTP client and executor). The `Op*` / `Rp*` grammar stays pure.
 
 `ServiceInfo` is a plain immutable struct of identity facts (scheme, root, name) constructed once at build time — no lock, no setters. Capability is deliberately not part of it: info is forwarded by wrappers untouched, while capability is transformed by them, so they have different homes. Services that need HTTP during signing refresh their signer from `ctx` at the operation boundary (for example via reqsign's `with_context`).
 
@@ -107,6 +107,8 @@ Every operation method takes `ctx: &OperationContext` as its first parameter. Th
 The oio traits keep the same split as `Service`: implementors use static traits (`Read`, `ReadStream`, `Write`, `List`, `Delete`, and `Copy`) that return `impl Future + MaybeSend`, while erased handles use the corresponding dyn adapters (`ReadDyn`, `ReadStreamDyn`, `WriteDyn`, `ListDyn`, `DeleteDyn`, and `CopyDyn`). `HttpFetch`, `HttpFetchDyn`, and `HttpFetcher` keep the same shape as before. `Execute` is already object-safe and unchanged.
 
 `Service` deliberately stays implementor-friendly: operation methods return `impl Future + MaybeSend`, so impl blocks can use `async fn`. `ServiceDyn` is the object-safe adapter with the same operations returning `BoxedFuture`; a blanket `impl<T: Service> ServiceDyn for T` performs the boxing. The operator stack stores `Servicer`, while service and layer wrappers implement `Service`. This preserves one dynamic production stack without forcing every backend to spell boxed futures and lifetimes by hand.
+
+`Service` does not provide operation defaults. Backends and layer wrappers must implement every operation method, and unsupported operations return `ErrorKind::Unsupported` explicitly at the implementation boundary.
 
 ## The trait surface
 
@@ -186,11 +188,11 @@ Invariants, all guaranteed by construction:
 - Applying a layer twice stacks twice on every plane consistently.
 - Layers are pure values; hooks take `&self` and must tolerate repeated invocation.
 
-Capability is deliberately not a fourth plane: its bottom value is a property of the operation-plane provider, so it composes as a `Service` method — a wrapper overrides `capability()` and consults `self.inner.capability()`, in exactly the order a separate hook would have folded. This also makes a layer's capability claim and its operation implementation adjacent in one struct, where today they are two registrations that can silently drift. The `native_` / `full_` naming pair disappears: `op.info()` exposes `capability()` read from the composed service and `native_capability()` read from `base_service`.
+Capability is deliberately not a fourth plane: its bottom value is a property of the operation-plane provider, so it composes as a `Service` method — a wrapper overrides `capability()` and consults `self.inner.capability()`, in exactly the order a separate hook would have folded. This also makes a layer's capability claim and its operation implementation adjacent in one struct, where today they are two registrations that can silently drift. The `full_capability` name disappears: `op.info()` exposes `capability()` read from the composed service and `native_capability()` read from `base_service`.
 
 ## Operation dispatch
 
-`op.read()` calls `service.read(&context, path, args)`. The operator itself is the public-API-to-raw boundary; there is no injection machinery and no entry layer. Readers, writers, listers, and deleters clone the individual pieces they need from `ctx` at construction; background tasks spawned by writers capture the executor the same way. A middle layer can override resources per operation by constructing a modified `OperationContext` and forwarding it to `inner` — per-tenant HTTP clients and per-call executors need no additional mechanism. HTTP request extensions carry request-level facts such as `Operation` and `ServiceOperation`; service identity stays in `ServiceInfo` and is observed by resource hooks through the final `Servicer`.
+`op.read()` calls `srv.read(&ctx, path, args)`. The operator itself is the public-API-to-raw boundary; there is no injection machinery and no entry layer. Readers, writers, listers, and deleters clone the individual pieces they need from `ctx` at construction; background tasks spawned by writers capture the executor the same way. A middle layer can override resources per operation by constructing a modified `OperationContext` and forwarding it to `inner` — per-tenant HTTP clients and per-call executors need no additional mechanism. HTTP request extensions carry request-level facts such as `Operation` and `ServiceOperation`; service identity stays in `ServiceInfo` and is observed by resource hooks through the final `Servicer`.
 
 Nothing in this structure is interior-mutable. A mutation creates new values; existing handles and in-flight operations keep theirs. The Java binding's `op.clone().layer(concurrent_limit)` leak is structurally impossible.
 
@@ -204,7 +206,7 @@ Estimates, to be confirmed by a benchmark gate (five-layer fully-dyn stack versu
 
 ## Deletions
 
-`TypeEraseLayer`; `Access`, `AccessDyn`, and associated-type plumbing (renamed into the `Service` / `ServiceDyn` pair); `HttpFetchDyn`; `HttpClientLayer`; `OperatorBuilder` and `finish()`; `update_http_client`, `update_executor`, `update_full_capability`, `Operator::update_executor`; `AccessorInfo`'s `RwLock`, poisoning recovery, and all `set_*` setters (identity facts are constructor arguments); the `set_native_capability` / `full_capability` overwrite hazard.
+`TypeEraseLayer`; `Access`, `AccessDyn`, and associated-type plumbing (renamed into the `Service` / `ServiceDyn` pair); `HttpClientLayer`; `OperatorBuilder` and `finish()`; `update_http_client`, `update_executor`, `update_full_capability`, `Operator::update_executor`; `AccessorInfo`'s `RwLock`, poisoning recovery, and all `set_*` setters (identity facts are constructor arguments); the `set_native_capability` / `full_capability` overwrite hazard.
 
 ## No compatibility logic
 
@@ -243,7 +245,6 @@ Alternatives considered:
 # Unresolved questions
 
 - Benchmark gate: measure a five-layer fully-dyn stack against the current architecture on the memory backend before implementation starts.
-- Whether the composed HTTP handle inside `OperationContext` keeps the `HttpClient` type name together with its `send` / `fetch` helpers.
 - Whether `blocking::Operator` needs any surface change (expected: no, it wraps the async operator).
 
 # Future possibilities

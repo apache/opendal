@@ -1136,6 +1136,18 @@ mod tests {
             }
         }
 
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
             Ok(RpStat::new(
                 Metadata::new(EntryMode::FILE).with_content_length(13),
@@ -1196,6 +1208,26 @@ mod tests {
                 MockCopier {
                     attempt: self.attempt.clone(),
                 },
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             ))
         }
     }

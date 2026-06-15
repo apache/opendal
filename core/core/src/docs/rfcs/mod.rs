@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Simplify Stateful Operation Factory
+#[doc = include_str!("7744_simplify_stateful_operation_factory.md")]
+pub mod rfc_7744_simplify_stateful_operation_factory {}
+
 /// Operator Composition
 #[doc = include_str!("7740_operator_composition.md")]
 pub mod rfc_7740_operator_composition {}

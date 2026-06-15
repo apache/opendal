@@ -55,7 +55,7 @@ use rand::rngs::StdRng;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(ChaosLayer::new(0.1))
+///     .layer(ChaosLayer::new(0.1));
 /// # Ok(())
 /// # }
 /// ```

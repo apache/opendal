@@ -418,7 +418,7 @@ The following decisions are part of this model.
 
 ## 10. Revision Triggers
 
-This model should be revisited when any of the following changes happen:
+We will revisit this threat model when any of the changes:
 
 - A service or layer starts storing credentials outside process memory.
 - A service or layer adds a new local filesystem write surface.

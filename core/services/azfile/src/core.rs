@@ -49,6 +49,7 @@ pub struct AzfileCore {
     pub endpoint: String,
     pub share_name: String,
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 }
 
 impl Debug for AzfileCore {
@@ -64,10 +65,9 @@ impl Debug for AzfileCore {
 impl AzfileCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
         self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
-                .with_env(reqsign_core::OsEnv),
+            self.sign_ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
         )
     }
 

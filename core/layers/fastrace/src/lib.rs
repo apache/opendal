@@ -20,6 +20,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
+use std::future::Future;
 use std::sync::Arc;
 
 use fastrace::prelude::*;
@@ -291,123 +292,109 @@ impl<R> FastraceWrapper<R> {
             inner,
         }
     }
+
+    fn with_span(span: Arc<Span>, inner: R) -> Self {
+        Self { span, inner }
+    }
 }
 
 impl<R: oio::ReadStream> oio::ReadStream for FastraceWrapper<R> {
-    #[trace(enter_on_poll = true)]
-    async fn read(&mut self) -> Result<Buffer> {
-        self.inner.read().await
+    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
+        self.inner.read()
     }
 }
 
 impl<R: oio::Read> oio::Read for FastraceWrapper<R> {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        // The stream is polled after open completes, so give it its own parent span.
-        let stream_span = Span::enter_with_parent(Operation::Read.into_static(), &self.span);
-        let (rp, stream) = self
-            .inner
-            .open(range)
-            .in_span(Span::enter_with_parent(
-                Operation::Read.into_static(),
-                &self.span,
+    fn open(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Box<dyn oio::ReadStreamDyn>)>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let span = self.span.clone();
+        let fut = self.inner.open(range);
+        async move {
+            let (rp, stream) = fut.await?;
+            Ok((
+                rp,
+                Box::new(FastraceWrapper::with_span(span, stream)) as Box<dyn oio::ReadStreamDyn>,
             ))
-            .await?;
-        Ok((
-            rp,
-            Box::new(FastraceWrapper::new(stream_span, stream)) as Box<dyn oio::ReadStreamDyn>,
-        ))
+        }
     }
 
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.inner
-            .read(range)
-            .in_span(Span::enter_with_parent(
-                Operation::Read.into_static(),
-                &self.span,
-            ))
-            .await
+    fn read(
+        &self,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<(RpRead, Buffer)>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Read.into_static());
+        self.inner.read(range)
     }
 }
 
 impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner
-            .write(bs)
-            .in_span(Span::enter_with_parent(
-                Operation::Write.into_static(),
-                &self.span,
-            ))
-            .await
+    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
+        self.inner.write(bs)
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner
-            .abort()
-            .in_span(Span::enter_with_parent(
-                Operation::Write.into_static(),
-                &self.span,
-            ))
-            .await
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
+        self.inner.abort()
     }
 
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner
-            .close()
-            .in_span(Span::enter_with_parent(
-                Operation::Write.into_static(),
-                &self.span,
-            ))
-            .await
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
+        self.inner.close()
     }
 }
 
 impl<R: oio::List> oio::List for FastraceWrapper<R> {
-    #[trace(enter_on_poll = true)]
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner.next().await
+    fn next(&mut self) -> impl Future<Output = Result<Option<oio::Entry>>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::List.into_static());
+        self.inner.next()
     }
 }
 
 impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
-    #[trace(enter_on_poll = true)]
-    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+    fn delete<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
+        self.inner.delete(path, args)
     }
 
-    #[trace(enter_on_poll = true)]
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
+        self.inner.close()
     }
 }
 
 impl<C: oio::Copy> oio::Copy for FastraceWrapper<C> {
-    async fn next(&mut self) -> Result<Option<usize>> {
-        self.inner
-            .next()
-            .in_span(Span::enter_with_parent(
-                Operation::Copy.into_static(),
-                &self.span,
-            ))
-            .await
+    fn next(&mut self) -> impl Future<Output = Result<Option<usize>>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.next()
     }
 
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner
-            .close()
-            .in_span(Span::enter_with_parent(
-                Operation::Copy.into_static(),
-                &self.span,
-            ))
-            .await
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.close()
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner
-            .abort()
-            .in_span(Span::enter_with_parent(
-                Operation::Copy.into_static(),
-                &self.span,
-            ))
-            .await
+    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Copy.into_static());
+        self.inner.abort()
     }
 }

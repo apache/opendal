@@ -332,8 +332,9 @@ impl Builder for GcsBuilder {
             credential_chain = credential_chain.push_front(customized_credential_chain);
         }
 
+        let sign_ctx = ctx;
         let signer = Signer::new(
-            ctx,
+            sign_ctx.clone(),
             credential_chain,
             RequestSigner::new("storage").with_scope(&scope),
         );
@@ -407,6 +408,7 @@ impl Builder for GcsBuilder {
                 bucket: bucket.to_string(),
                 root,
                 signer,
+                sign_ctx,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 skip_signature,

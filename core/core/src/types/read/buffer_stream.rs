@@ -298,7 +298,6 @@ impl BufferStream {
             let range = ctx.parse_into_range(range).await?;
             TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
         } else {
-            let range = ctx.resolve_range_for_stream(range).await?;
             TwoWays::One(StreamingReader::new(ctx.clone(), range))
         };
 

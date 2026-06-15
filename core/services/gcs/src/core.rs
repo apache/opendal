@@ -65,6 +65,7 @@ pub struct GcsCore {
     pub root: String,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -85,10 +86,9 @@ impl Debug for GcsCore {
 impl GcsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
         self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
-                .with_env(reqsign_core::OsEnv),
+            self.sign_ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
         )
     }
 

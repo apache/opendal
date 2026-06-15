@@ -138,8 +138,10 @@ impl<I: LoggingInterceptor> Layer for LoggingLayer<I> {
 
 impl<I: LoggingInterceptor> LoggingLayer<I> {
     fn layer(&self, inner: Servicer) -> LoggingService<I> {
+        let info = inner.info();
         LoggingService {
             inner,
+            info,
             logger: self.logger.clone(),
         }
     }
@@ -208,7 +210,6 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                     format!("{err:?}")
                 }
             );
-            return;
         }
 
         log!(
@@ -236,6 +237,7 @@ impl Display for LoggingContext<'_> {
 #[doc(hidden)]
 pub struct LoggingService<I: LoggingInterceptor> {
     inner: Servicer,
+    info: ServiceInfo,
     logger: I,
 }
 
@@ -243,18 +245,19 @@ impl<I: LoggingInterceptor> Debug for LoggingService<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LoggingService")
             .field("inner", &self.inner)
+            .field("info", &self.info)
             .finish_non_exhaustive()
     }
 }
 
 impl<I: LoggingInterceptor> LoggingService<I> {
     fn log_start(&self, op: Operation, context: &[(&str, &str)]) {
-        self.logger.log(&self.info(), op, context, "started", None);
+        self.logger.log(&self.info, op, context, "started", None);
     }
 
     fn log_finish(&self, op: Operation, context: &[(&str, &str)], err: Option<&Error>) {
         let message = if err.is_some() { "failed" } else { "finished" };
-        self.logger.log(&self.info(), op, context, message, err);
+        self.logger.log(&self.info, op, context, message, err);
     }
 }
 
@@ -266,7 +269,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     type Copier = LoggingCopier<oio::Copier, I>;
 
     fn info(&self) -> ServiceInfo {
-        self.inner.info()
+        self.info.clone()
     }
 
     fn capability(&self) -> Capability {
@@ -301,7 +304,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             .await
             .map(|(rp, r)| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Read,
                     &[("path", path)],
                     "created reader",
@@ -309,12 +312,12 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                 );
                 (
                     rp,
-                    LoggingReader::new(self.info(), self.logger.clone(), path, r),
+                    LoggingReader::new(self.info.clone(), self.logger.clone(), path, r),
                 )
             })
             .inspect_err(|err| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Read,
                     &[("path", path)],
                     "failed",
@@ -335,7 +338,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             .await
             .map(|(rp, w)| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Write,
                     &[("path", path)],
                     "created writer",
@@ -343,12 +346,12 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                 );
                 (
                     rp,
-                    LoggingWriter::new(self.info(), self.logger.clone(), path, w),
+                    LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w),
                 )
             })
             .inspect_err(|err| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Write,
                     &[("path", path)],
                     "failed",
@@ -371,12 +374,15 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             .await
             .map(|(rp, d)| {
                 self.logger
-                    .log(&self.info(), Operation::Delete, &[], "finished", None);
-                (rp, LoggingDeleter::new(self.info(), self.logger.clone(), d))
+                    .log(&self.info, Operation::Delete, &[], "finished", None);
+                (
+                    rp,
+                    LoggingDeleter::new(self.info.clone(), self.logger.clone(), d),
+                )
             })
             .inspect_err(|err| {
                 self.logger
-                    .log(&self.info(), Operation::Delete, &[], "failed", Some(err));
+                    .log(&self.info, Operation::Delete, &[], "failed", Some(err));
             })
     }
 
@@ -394,7 +400,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             .await
             .map(|(rp, c)| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Copy,
                     &[("from", from), ("to", to)],
                     "created copier",
@@ -402,12 +408,12 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                 );
                 (
                     rp,
-                    LoggingCopier::new(self.info(), self.logger.clone(), from, to, c),
+                    LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c),
                 )
             })
             .inspect_err(|err| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::Copy,
                     &[("from", from), ("to", to)],
                     "failed",
@@ -445,7 +451,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             .await
             .map(|(rp, v)| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::List,
                     &[("path", path)],
                     "created lister",
@@ -453,12 +459,12 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                 );
                 (
                     rp,
-                    LoggingLister::new(self.info(), self.logger.clone(), path, v),
+                    LoggingLister::new(self.info.clone(), self.logger.clone(), path, v),
                 )
             })
             .inspect_err(|err| {
                 self.logger.log(
-                    &self.info(),
+                    &self.info,
                     Operation::List,
                     &[("path", path)],
                     "failed",

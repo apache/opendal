@@ -58,6 +58,7 @@ pub struct AzdlsCore {
     pub enable_hns: bool,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 }
 
 impl Debug for AzdlsCore {
@@ -74,10 +75,9 @@ impl Debug for AzdlsCore {
 impl AzdlsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
         self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
-                .with_env(reqsign_core::OsEnv),
+            self.sign_ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
         )
     }
 

@@ -545,8 +545,9 @@ impl Builder for OssBuilder {
             provider = ProvideCredentialChain::new().push(assume_role_with_ak);
         }
 
+        let sign_ctx = ctx;
         let request_signer = RequestSigner::new(bucket);
-        let signer = Signer::new(ctx, provider, request_signer);
+        let signer = Signer::new(sign_ctx.clone(), provider, request_signer);
 
         let info = ServiceInfo::new(OSS_SCHEME, &root, bucket);
         let capability = Capability {
@@ -622,6 +623,7 @@ impl Builder for OssBuilder {
                 presign_endpoint,
                 skip_signature,
                 signer,
+                sign_ctx,
                 server_side_encryption,
                 server_side_encryption_key_id,
             }),

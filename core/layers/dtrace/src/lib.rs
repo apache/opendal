@@ -231,6 +231,16 @@ impl Service for DTraceService {
         result
     }
 
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, stat_start, c_path.as_ptr());

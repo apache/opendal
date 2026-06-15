@@ -129,6 +129,19 @@ impl Service for ThrottleAccessor {
         self.inner.capability()
     }
 
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
     async fn read(
         &self,
         ctx: &OperationContext,
@@ -172,6 +185,16 @@ impl Service for ThrottleAccessor {
         self.inner.delete(ctx).await
     }
 
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
     async fn list(
         &self,
         ctx: &OperationContext,
@@ -179,6 +202,15 @@ impl Service for ThrottleAccessor {
         args: OpList,
     ) -> Result<(RpList, Self::Lister)> {
         self.inner.list(ctx, path, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 

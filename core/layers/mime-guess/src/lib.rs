@@ -135,6 +135,15 @@ impl Service for MimeGuessAccessor {
         self.0.capability()
     }
 
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.0.create_dir(ctx, path, args).await
+    }
+
     async fn read(
         &self,
         ctx: &OperationContext,
@@ -171,6 +180,16 @@ impl Service for MimeGuessAccessor {
             .map(|rp| rpstat_with_mime(path, rp))
     }
 
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.0.rename(ctx, from, to, args).await
+    }
+
     async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         self.0.delete(ctx).await
     }
@@ -182,6 +201,15 @@ impl Service for MimeGuessAccessor {
         args: OpList,
     ) -> Result<(RpList, Self::Lister)> {
         self.0.list(ctx, path, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.0.presign(ctx, path, args).await
     }
 }
 

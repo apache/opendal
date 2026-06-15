@@ -77,6 +77,7 @@ pub struct OssCore {
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 }
 
 impl Debug for OssCore {
@@ -93,10 +94,9 @@ impl Debug for OssCore {
 impl OssCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
         self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
-                .with_env(reqsign_core::OsEnv),
+            self.sign_ctx
+                .clone()
+                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
         )
     }
 

@@ -394,11 +394,10 @@ impl Service for TosBackend {
 
     async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
         let (rp, output): (_, oio::BatchDeleter<TosDeleter>) = {
-            let capability = self.core.capability;
             let deleter = TosDeleter::new(self.core.clone(), ctx.clone());
             Ok((
                 RpDelete::default(),
-                oio::BatchDeleter::new(deleter, capability.delete_max_size),
+                oio::BatchDeleter::new(deleter, self.core.capability.delete_max_size),
             ))
         }?;
 

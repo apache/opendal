@@ -226,7 +226,8 @@ impl Builder for AzfileBuilder {
             credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
-        let signer = Signer::new(ctx, credential, RequestSigner::new());
+        let sign_ctx = ctx;
+        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
 
         let info = ServiceInfo::new(AZFILE_SCHEME, &root, "");
         let capability = Capability {
@@ -255,6 +256,7 @@ impl Builder for AzfileBuilder {
                 root,
                 endpoint,
                 signer,
+                sign_ctx,
                 share_name: self.config.share_name.clone(),
             }),
         })

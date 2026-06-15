@@ -92,6 +92,18 @@ impl Service for AwaitTreeAccessor {
         self.inner.capability()
     }
 
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner
+            .create_dir(ctx, path, args)
+            .instrument_await(format!("opendal::{}", Operation::CreateDir))
+            .await
+    }
+
     async fn read(
         &self,
         ctx: &OperationContext,

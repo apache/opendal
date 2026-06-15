@@ -67,9 +67,7 @@ impl Service for CompleteService {
     }
 
     fn capability(&self) -> Capability {
-        let mut cap = self.inner.capability();
-        cap.read_with_suffix = cap.read;
-        cap
+        self.inner.capability()
     }
 
     async fn create_dir(
@@ -87,16 +85,8 @@ impl Service for CompleteService {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, Self::Reader)> {
-        let native_read_with_suffix = self.inner.capability().read_with_suffix;
-        let (rp, reader) = self.inner.read(ctx, path, args.clone()).await?;
-        let reader = CompleteReader::new(
-            ctx.clone(),
-            self.inner.clone(),
-            path.to_string(),
-            args,
-            native_read_with_suffix,
-            reader,
-        );
+        let (rp, reader) = self.inner.read(ctx, path, args).await?;
+        let reader = CompleteReader::new(reader);
         Ok((rp, reader))
     }
 
@@ -223,60 +213,16 @@ impl oio::List for CompleteLister {
 
 pub struct CompleteReader<R> {
     inner: R,
-    ctx: OperationContext,
-    srv: Servicer,
-    path: String,
-    args: OpRead,
-    native_read_with_suffix: bool,
 }
 
 impl<R> CompleteReader<R> {
-    pub fn new(
-        ctx: OperationContext,
-        srv: Servicer,
-        path: String,
-        args: OpRead,
-        native_read_with_suffix: bool,
-        inner: R,
-    ) -> Self {
-        Self {
-            inner,
-            ctx,
-            srv,
-            path,
-            args,
-            native_read_with_suffix,
-        }
-    }
-
-    async fn resolve_range(&self, range: BytesRange) -> Result<BytesRange> {
-        if !range.is_suffix() || self.native_read_with_suffix {
-            return Ok(range);
-        }
-
-        let BytesRange::Suffix { size } = range else {
-            unreachable!("checked by BytesRange::is_suffix")
-        };
-
-        let mut op = OpStat::new();
-        if let Some(version) = self.args.version() {
-            op = op.with_version(version);
-        }
-
-        let content_length = self
-            .srv
-            .stat(&self.ctx, &self.path, op)
-            .await?
-            .into_metadata()
-            .content_length();
-        let start = content_length.saturating_sub(size);
-        Ok(BytesRange::new(start, Some(content_length - start)))
+    pub fn new(inner: R) -> Self {
+        Self { inner }
     }
 }
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let range = self.resolve_range(range).await?;
         let size = if range.is_suffix() {
             None
         } else {
@@ -291,7 +237,6 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let range = self.resolve_range(range).await?;
         let size = if range.is_suffix() {
             None
         } else {
@@ -514,18 +459,9 @@ mod tests {
     }
 
     fn new_test_reader(buffer: impl Into<Buffer>) -> CompleteReader<MockReadReader> {
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
-        let srv = Arc::new(()) as Servicer;
-        CompleteReader::new(
-            ctx,
-            srv,
-            "test".to_string(),
-            OpRead::new(),
-            true,
-            MockReadReader {
-                buffer: buffer.into(),
-            },
-        )
+        CompleteReader::new(MockReadReader {
+            buffer: buffer.into(),
+        })
     }
 
     #[tokio::test]

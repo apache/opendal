@@ -91,6 +91,16 @@ impl Service for AsyncBacktraceAccessor {
     }
 
     #[async_backtrace::framed]
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    #[async_backtrace::framed]
     async fn read(
         &self,
         ctx: &OperationContext,

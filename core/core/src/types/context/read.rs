@@ -114,7 +114,7 @@ impl ReadContext {
     }
 
     async fn content_length(&self) -> Result<u64> {
-        if let Some(v) = self.options().content_length_hint() {
+        if let Some(v) = self.args().content_length_hint() {
             return Ok(v);
         }
 
@@ -162,20 +162,6 @@ impl ReadContext {
         };
 
         Ok(start..end)
-    }
-
-    /// Resolve suffix ranges unless the underlying reader can handle them natively.
-    pub(crate) async fn resolve_range_for_stream(
-        &self,
-        range: impl Into<BytesRange>,
-    ) -> Result<BytesRange> {
-        let range = range.into();
-        if range.is_suffix() && !self.srv.capability().read_with_suffix {
-            let range = self.parse_into_range(range).await?;
-            Ok(range.into())
-        } else {
-            Ok(range)
-        }
     }
 }
 
@@ -271,7 +257,16 @@ mod tests {
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
-        let args = crate::raw::OpRead::new();
+        new_read_context_with_args(ctx, srv, path, crate::raw::OpRead::new(), options).await
+    }
+
+    async fn new_read_context_with_args(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: &str,
+        args: crate::raw::OpRead,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
         let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
         Ok(ReadContext::new(
             ctx,
@@ -352,16 +347,15 @@ mod tests {
     #[tokio::test]
     async fn test_parse_into_range_uses_content_length_hint() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let (_, args, options) = options::ReadOptions {
+            content_length_hint: Some(42),
+            ..Default::default()
+        }
+        .into();
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context(
-            ctx,
-            srv,
-            "test",
-            OpReader::new().with_content_length_hint(42),
-        )
-        .await?;
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options).await?;
 
         let range = ctx.parse_into_range(10..).await?;
 
@@ -372,16 +366,15 @@ mod tests {
     #[tokio::test]
     async fn test_parse_into_range_suffix_uses_content_length_hint() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let (_, args, options) = options::ReadOptions {
+            content_length_hint: Some(42),
+            ..Default::default()
+        }
+        .into();
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context(
-            ctx,
-            srv,
-            "test",
-            OpReader::new().with_content_length_hint(42),
-        )
-        .await?;
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options).await?;
 
         let range = ctx.parse_into_range(BytesRange::suffix(10)).await?;
 

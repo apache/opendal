@@ -28,6 +28,7 @@ use crate::*;
 /// Simulate missing capabilities for backends in a configurable way.
 #[derive(Debug, Clone)]
 pub struct SimulateLayer {
+    read_with_suffix: bool,
     list_recursive: bool,
     stat_dir: bool,
     create_dir: bool,
@@ -37,6 +38,7 @@ pub struct SimulateLayer {
 impl Default for SimulateLayer {
     fn default() -> Self {
         Self {
+            read_with_suffix: true,
             list_recursive: true,
             stat_dir: true,
             create_dir: true,
@@ -46,6 +48,12 @@ impl Default for SimulateLayer {
 }
 
 impl SimulateLayer {
+    /// Enable or disable suffix read simulation. Default: true.
+    pub fn with_read_with_suffix(mut self, enabled: bool) -> Self {
+        self.read_with_suffix = enabled;
+        self
+    }
+
     /// Enable or disable recursive list simulation. Default: true.
     pub fn with_list_recursive(mut self, enabled: bool) -> Self {
         self.list_recursive = enabled;
@@ -72,34 +80,37 @@ impl SimulateLayer {
 }
 
 impl Layer for SimulateLayer {
-    fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+    fn apply_service(&self, srv: Servicer) -> Servicer {
+        Arc::new(self.layer(srv))
     }
 }
 
 impl SimulateLayer {
-    fn layer(&self, inner: Servicer) -> SimulateService {
+    fn layer(&self, srv: Servicer) -> SimulateService {
         SimulateService {
+            srv,
             config: self.clone(),
-            inner,
         }
     }
 }
 
 /// Service that applies capability simulation.
 pub struct SimulateService {
+    srv: Servicer,
     config: SimulateLayer,
-    inner: Servicer,
 }
 
 impl Debug for SimulateService {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.inner.fmt(f)
+        self.srv.fmt(f)
     }
 }
 
 impl SimulateService {
     fn simulate_capability(&self, mut cap: Capability) -> Capability {
+        if self.config.read_with_suffix && cap.read {
+            cap.read_with_suffix = true;
+        }
         if self.config.create_dir && cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
@@ -115,19 +126,19 @@ impl SimulateService {
         path: &str,
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let capability = self.inner.capability();
+        let capability = self.srv.capability();
 
         if capability.create_dir || !self.config.create_dir {
-            return self.inner.create_dir(ctx, path, args).await;
+            return self.srv.create_dir(ctx, path, args).await;
         }
 
         if capability.write_can_empty && capability.list {
-            let (_, mut w) = self.inner.write(ctx, path, OpWrite::default()).await?;
+            let (_, mut w) = self.srv.write(ctx, path, OpWrite::default()).await?;
             oio::Write::close(&mut w).await?;
             return Ok(RpCreateDir::default());
         }
 
-        self.inner.create_dir(ctx, path, args).await
+        self.srv.create_dir(ctx, path, args).await
     }
 
     async fn simulate_stat(
@@ -136,7 +147,7 @@ impl SimulateService {
         path: &str,
         args: OpStat,
     ) -> Result<RpStat> {
-        let capability = self.inner.capability();
+        let capability = self.srv.capability();
 
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -145,7 +156,7 @@ impl SimulateService {
         if path.ends_with('/') {
             if capability.create_dir {
                 let meta = self
-                    .inner
+                    .srv
                     .stat(ctx, path, args.clone())
                     .await?
                     .into_metadata();
@@ -162,7 +173,7 @@ impl SimulateService {
 
             if self.config.stat_dir && capability.list_with_recursive {
                 let (_, mut l) = self
-                    .inner
+                    .srv
                     .list(
                         ctx,
                         path,
@@ -181,7 +192,7 @@ impl SimulateService {
             }
         }
 
-        self.inner.stat(ctx, path, args).await
+        self.srv.stat(ctx, path, args).await
     }
 
     async fn simulate_list(
@@ -190,7 +201,7 @@ impl SimulateService {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, SimulateLister)> {
-        let cap = self.inner.capability();
+        let cap = self.srv.capability();
 
         let recursive = args.recursive();
         let forward = args;
@@ -202,34 +213,34 @@ impl SimulateService {
         ) {
             // Backend supports recursive list, forward directly.
             (_, true, _) => {
-                let (rp, p) = self.inner.list(ctx, path, forward).await?;
+                let (rp, p) = self.srv.list(ctx, path, forward).await?;
                 (rp, SimulateLister::One(p))
             }
             // Simulate recursive via flat list when enabled.
             (true, false, true) => {
                 if path.ends_with('/') {
-                    let p = ServicerFlatLister::new(ctx.clone(), self.inner.clone(), path);
+                    let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), path);
                     (RpList::default(), SimulateLister::Two(p))
                 } else {
                     let parent = get_parent(path);
-                    let p = ServicerFlatLister::new(ctx.clone(), self.inner.clone(), parent);
+                    let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), parent);
                     let p = PrefixLister::new(p, path);
                     (RpList::default(), SimulateLister::Four(p))
                 }
             }
             // Recursive requested but simulation disabled; rely on backend and propagate errors.
             (true, false, false) => {
-                let (rp, p) = self.inner.list(ctx, path, forward).await?;
+                let (rp, p) = self.srv.list(ctx, path, forward).await?;
                 (rp, SimulateLister::One(p))
             }
             // Non-recursive list: keep existing prefix handling semantics.
             (false, false, _) => {
                 if path.ends_with('/') {
-                    let (rp, p) = self.inner.list(ctx, path, forward).await?;
+                    let (rp, p) = self.srv.list(ctx, path, forward).await?;
                     (rp, SimulateLister::One(p))
                 } else {
                     let parent = get_parent(path);
-                    let (rp, p) = self.inner.list(ctx, parent, forward).await?;
+                    let (rp, p) = self.srv.list(ctx, parent, forward).await?;
                     let p = PrefixLister::new(p, path);
                     (rp, SimulateLister::Three(p))
                 }
@@ -242,9 +253,9 @@ impl SimulateService {
     async fn simulate_delete_with_recursive(
         &self,
         ctx: &OperationContext,
-        deleter: &mut oio::Deleter,
         path: &str,
         args: OpDelete,
+        deleter: &mut oio::Deleter,
     ) -> Result<()> {
         if !self.capability().delete_with_recursive {
             return Err(Error::new(
@@ -273,18 +284,18 @@ impl SimulateService {
 }
 
 impl Service for SimulateService {
-    type Reader = oio::Reader;
+    type Reader = SimulateReader;
     type Writer = oio::Writer;
     type Lister = SimulateLister;
     type Deleter = SimulateDeleter;
     type Copier = oio::Copier;
 
     fn info(&self) -> ServiceInfo {
-        self.inner.info()
+        self.srv.info()
     }
 
     fn capability(&self) -> Capability {
-        self.simulate_capability(self.inner.capability())
+        self.simulate_capability(self.srv.capability())
     }
 
     async fn create_dir(
@@ -302,7 +313,19 @@ impl Service for SimulateService {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(ctx, path, args).await
+        let capability = self.srv.capability();
+        let simulate_read_with_suffix =
+            self.config.read_with_suffix && capability.read && !capability.read_with_suffix;
+        let (rp, reader) = self.srv.read(ctx, path, args.clone()).await?;
+        let reader = SimulateReader::new(
+            ctx.clone(),
+            self.srv.clone(),
+            path.to_string(),
+            args,
+            reader,
+            simulate_read_with_suffix,
+        );
+        Ok((rp, reader))
     }
 
     async fn write(
@@ -311,7 +334,7 @@ impl Service for SimulateService {
         path: &str,
         args: OpWrite,
     ) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(ctx, path, args).await
+        self.srv.write(ctx, path, args).await
     }
 
     async fn copy(
@@ -322,7 +345,7 @@ impl Service for SimulateService {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+        self.srv.copy(ctx, from, to, args, opts).await
     }
 
     async fn rename(
@@ -332,7 +355,7 @@ impl Service for SimulateService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        self.inner.rename(ctx, from, to, args).await
+        self.srv.rename(ctx, from, to, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -340,15 +363,10 @@ impl Service for SimulateService {
     }
 
     async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, deleter) = self.inner.delete(ctx).await?;
+        let (rp, deleter) = self.srv.delete(ctx).await?;
         Ok((
             rp,
-            SimulateDeleter::new(
-                self.config.clone(),
-                self.inner.clone(),
-                ctx.clone(),
-                deleter,
-            ),
+            SimulateDeleter::new(ctx.clone(), self.srv.clone(), self.config.clone(), deleter),
         ))
     }
 
@@ -367,7 +385,7 @@ impl Service for SimulateService {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
-        self.inner.presign(ctx, path, args).await
+        self.srv.presign(ctx, path, args).await
     }
 }
 
@@ -377,6 +395,79 @@ pub type SimulateLister = FourWays<
     PrefixLister<oio::Lister>,
     PrefixLister<ServicerFlatLister>,
 >;
+
+pub struct SimulateReader {
+    ctx: OperationContext,
+    srv: Servicer,
+    path: String,
+    args: OpRead,
+    inner: oio::Reader,
+    simulate_read_with_suffix: bool,
+}
+
+impl SimulateReader {
+    fn new(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        args: OpRead,
+        inner: oio::Reader,
+        simulate_read_with_suffix: bool,
+    ) -> Self {
+        Self {
+            ctx,
+            srv,
+            path,
+            args,
+            inner,
+            simulate_read_with_suffix,
+        }
+    }
+
+    async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self.args.content_length_hint() {
+            return Ok(v);
+        }
+
+        let mut op = OpStat::new();
+        if let Some(version) = self.args.version() {
+            op = op.with_version(version);
+        }
+
+        Ok(self
+            .srv
+            .stat(&self.ctx, &self.path, op)
+            .await?
+            .into_metadata()
+            .content_length())
+    }
+
+    async fn resolve_range(&self, range: BytesRange) -> Result<BytesRange> {
+        if !self.simulate_read_with_suffix || !range.is_suffix() {
+            return Ok(range);
+        }
+
+        let BytesRange::Suffix { size } = range else {
+            unreachable!("checked by BytesRange::is_suffix")
+        };
+
+        let content_length = self.content_length().await?;
+        let start = content_length.saturating_sub(size);
+        Ok(BytesRange::new(start, Some(content_length - start)))
+    }
+}
+
+impl oio::Read for SimulateReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let range = self.resolve_range(range).await?;
+        self.inner.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let range = self.resolve_range(range).await?;
+        self.inner.read(range).await
+    }
+}
 
 pub struct ServicerFlatLister {
     ctx: OperationContext,
@@ -491,24 +582,24 @@ impl oio::List for ServicerFlatLister {
 
 /// Deleter wrapper that simulates recursive deletion.
 pub struct SimulateDeleter {
-    config: SimulateLayer,
-    inner: Servicer,
     ctx: OperationContext,
-    deleter: oio::Deleter,
+    srv: Servicer,
+    config: SimulateLayer,
+    inner: oio::Deleter,
 }
 
 impl SimulateDeleter {
     pub fn new(
-        config: SimulateLayer,
-        inner: Servicer,
         ctx: OperationContext,
-        deleter: oio::Deleter,
+        srv: Servicer,
+        config: SimulateLayer,
+        inner: oio::Deleter,
     ) -> Self {
         Self {
+            ctx,
+            srv,
             config,
             inner,
-            ctx,
-            deleter,
         }
     }
 }
@@ -516,27 +607,132 @@ impl SimulateDeleter {
 impl oio::Delete for SimulateDeleter {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         if args.recursive() {
-            let cap = self.inner.capability();
+            let cap = self.srv.capability();
 
             if cap.delete_with_recursive {
-                return self.deleter.delete(path, args).await;
+                return self.inner.delete(path, args).await;
             }
 
             if self.config.delete_recursive {
                 let service = SimulateService {
+                    srv: self.srv.clone(),
                     config: self.config.clone(),
-                    inner: self.inner.clone(),
                 };
                 return service
-                    .simulate_delete_with_recursive(&self.ctx, &mut self.deleter, path, args)
+                    .simulate_delete_with_recursive(&self.ctx, path, args, &mut self.inner)
                     .await;
             }
         }
 
-        self.deleter.delete(path, args).await
+        self.inner.delete(path, args).await
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.deleter.close().await
+        self.inner.close().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct MockService {
+        capability: Capability,
+    }
+
+    impl Service for MockService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
+        }
+
+        fn capability(&self) -> Capability {
+            self.capability
+        }
+    }
+
+    struct MockReader {
+        observed_range: Arc<Mutex<Option<BytesRange>>>,
+    }
+
+    impl oio::Read for MockReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            *self.observed_range.lock().expect("mutex must not poison") = Some(range);
+            Ok((RpRead::default(), Box::new(Buffer::new())))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            *self.observed_range.lock().expect("mutex must not poison") = Some(range);
+            Ok((RpRead::default(), Buffer::new()))
+        }
+    }
+
+    #[test]
+    fn simulate_layer_exposes_read_with_suffix() {
+        let capability = Capability {
+            read: true,
+            read_with_suffix: false,
+            ..Default::default()
+        };
+        let srv = Arc::new(MockService { capability }) as Servicer;
+
+        let srv = SimulateLayer::default().apply_service(srv);
+
+        assert!(srv.capability().read_with_suffix);
+    }
+
+    #[test]
+    fn simulate_layer_can_disable_read_with_suffix() {
+        let capability = Capability {
+            read: true,
+            read_with_suffix: false,
+            ..Default::default()
+        };
+        let srv = Arc::new(MockService { capability }) as Servicer;
+
+        let srv = SimulateLayer::default()
+            .with_read_with_suffix(false)
+            .apply_service(srv);
+
+        assert!(!srv.capability().read_with_suffix);
+    }
+
+    #[tokio::test]
+    async fn simulate_reader_uses_content_length_hint_for_suffix() -> Result<()> {
+        let observed_range = Arc::new(Mutex::new(None));
+        let (_, args, _) = options::ReadOptions {
+            content_length_hint: Some(42),
+            ..Default::default()
+        }
+        .into();
+        let reader = SimulateReader::new(
+            OperationContext::new(HttpClient::default(), Executor::default()),
+            Arc::new(MockService {
+                capability: Capability::default(),
+            }),
+            "test".to_string(),
+            args,
+            Box::new(MockReader {
+                observed_range: observed_range.clone(),
+            }),
+            true,
+        );
+
+        oio::Read::read(&reader, BytesRange::suffix(10)).await?;
+
+        assert_eq!(
+            *observed_range.lock().expect("mutex must not poison"),
+            Some(BytesRange::new(32, Some(10)))
+        );
+
+        Ok(())
     }
 }

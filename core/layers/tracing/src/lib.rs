@@ -217,9 +217,10 @@ impl Service for TracingService {
         path: &str,
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
+        let span = span!(Level::DEBUG, "create_dir", path, ?args);
         self.inner
             .create_dir(ctx, path, args)
-            .instrument(span!(Level::DEBUG, "create_dir", path))
+            .instrument(span)
             .await
     }
 
@@ -264,9 +265,10 @@ impl Service for TracingService {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
+        let span = span!(Level::DEBUG, "copy", from, to, ?args, ?opts);
         self.inner
             .copy(ctx, from, to, args, opts)
-            .instrument(span!(Level::DEBUG, "copy", from, to))
+            .instrument(span)
             .await
     }
 
@@ -277,17 +279,16 @@ impl Service for TracingService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
+        let span = span!(Level::DEBUG, "rename", from, to, ?args);
         self.inner
             .rename(ctx, from, to, args)
-            .instrument(span!(Level::DEBUG, "rename", from, to))
+            .instrument(span)
             .await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner
-            .stat(ctx, path, args)
-            .instrument(span!(Level::DEBUG, "stat", path))
-            .await
+        let span = span!(Level::DEBUG, "stat", path, ?args);
+        self.inner.stat(ctx, path, args).instrument(span).await
     }
 
     async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
@@ -321,10 +322,8 @@ impl Service for TracingService {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
-        self.inner
-            .presign(ctx, path, args)
-            .instrument(span!(Level::DEBUG, "presign", path))
-            .await
+        let span = span!(Level::DEBUG, "presign", path, ?args);
+        self.inner.presign(ctx, path, args).instrument(span).await
     }
 }
 

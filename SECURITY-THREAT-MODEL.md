@@ -47,9 +47,11 @@ answering three questions:
 4. Which of the following categories apply to a security report: OpenDAL vulnerabilities,
 hardening requests, user misuse, or out-of-scope deployment issues?
 
-The most important premise is:
+The most important premises are:
 
-> OpenDAL trusts the storage service that the caller configured it to access.
+```suggestion
+> OpenDAL trusts storage services for fulfilling storage capabilities defined per documentation.
+> OpenDAL also trusts users to provide secure configuration and use OpenDAL as users' storage layer.
 
 If a caller intentionally points OpenDAL at an untrusted S3-compatible endpoint,
 WebDAV server, FTP server, database, local path, or other backend, the caller

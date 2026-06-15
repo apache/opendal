@@ -394,7 +394,7 @@ otherwise.
 - A caller reads a huge object with an API that materializes the whole object in
   memory.
 
-### 8.3 Usually hardening or documentation
+### 8.3 Security and documentation improvement
 
 - A common misuse is easy enough that many users repeat it.
 - A service's local filesystem behavior is surprising but not clearly contrary

@@ -41,7 +41,6 @@ static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
     std::fs::create_dir_all(&root).expect("create fuzz root dir must succeed");
     Operator::new(opendal::services::Fs::default().root(&root.to_string_lossy()))
         .expect("operator init must succeed")
-        .finish()
 });
 
 async fn fuzz_path(op: Operator, input: FuzzInput) {

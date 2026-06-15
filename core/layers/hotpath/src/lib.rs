@@ -73,7 +73,7 @@ const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 /// # async fn main() -> Result<()> {
 /// let _guard = hotpath::HotpathGuardBuilder::new("opendal").build();
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(HotpathLayer::new())
+///     .layer(HotpathLayer::new());
 /// op.write("test", "hello").await?;
 /// # Ok(())
 /// # }

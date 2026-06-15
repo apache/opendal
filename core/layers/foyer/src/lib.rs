@@ -109,7 +109,7 @@ impl Code for FoyerValue {
 ///     .await?;
 ///
 /// let op = Operator::new(Memory::default())?
-///     .layer(FoyerLayer::new(cache))
+///     .layer(FoyerLayer::new(cache));
 /// # Ok(())
 /// # }
 /// ```

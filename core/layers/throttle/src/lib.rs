@@ -61,7 +61,7 @@ use opendal_core::*;
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))
+///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024));
 /// # Ok(())
 /// # }
 /// ```

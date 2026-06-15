@@ -49,7 +49,7 @@ use opendal_core::*;
 /// }
 ///
 /// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
-///     .layer(iil)
+///     .layer(iil);
 /// # Ok(())
 /// # }
 /// ```

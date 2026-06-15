@@ -59,7 +59,7 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(MimeGuessLayer::new())
+///     .layer(MimeGuessLayer::new());
 /// # Ok(())
 /// # }
 /// ```

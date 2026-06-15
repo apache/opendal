@@ -17,6 +17,8 @@
 
 #![no_main]
 
+use std::sync::LazyLock;
+
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
@@ -104,20 +106,30 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
     Ok(())
 }
 
+static OPERATOR: LazyLock<Operator> = LazyLock::new(|| {
+    if let Some(op) = init_test_service().expect("operator init must succeed") {
+        return op;
+    }
+
+    log::warn!("OPENDAL_TEST is not set; falling back to a temporary fs operator");
+    let root = std::env::temp_dir().join(format!("opendal-fuzz-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).expect("create fuzz root dir must succeed");
+    Operator::new(opendal::services::Fs::default().root(&root.to_string_lossy()))
+        .expect("operator init must succeed")
+});
+
 fuzz_target!(|input: FuzzInput| {
     let _ = logforth::starter_log::stderr().try_apply();
 
-    let op = init_test_service().expect("operator init must succeed");
-    if let Some(op) = op {
-        if !op.info().capability().write_can_multi {
-            log::warn!("service doesn't support write multi, skip fuzzing");
-            return;
-        }
-
-        TEST_RUNTIME.block_on(async {
-            fuzz_writer(op, input.clone())
-                .await
-                .unwrap_or_else(|err| panic!("fuzz reader must succeed: {err:?}"));
-        })
+    let op = OPERATOR.clone();
+    if !op.info().capability().write_can_multi {
+        log::warn!("service doesn't support write multi, skip fuzzing");
+        return;
     }
+
+    TEST_RUNTIME.block_on(async {
+        fuzz_writer(op, input.clone())
+            .await
+            .unwrap_or_else(|err| panic!("fuzz writer must succeed: {err:?}"));
+    })
 });

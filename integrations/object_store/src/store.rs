@@ -1045,6 +1045,15 @@ mod tests {
                 self.srv.capability()
             }
 
+            async fn create_dir(
+                &self,
+                ctx: &opendal::raw::OperationContext,
+                path: &str,
+                args: opendal::raw::OpCreateDir,
+            ) -> opendal::Result<opendal::raw::RpCreateDir> {
+                self.srv.create_dir(ctx, path, args).await
+            }
+
             async fn stat(
                 &self,
                 ctx: &opendal::raw::OperationContext,
@@ -1108,6 +1117,15 @@ mod tests {
                 args: opendal::raw::OpRename,
             ) -> opendal::Result<opendal::raw::RpRename> {
                 self.srv.rename(ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &opendal::raw::OperationContext,
+                path: &str,
+                args: opendal::raw::OpPresign,
+            ) -> opendal::Result<opendal::raw::RpPresign> {
+                self.srv.presign(ctx, path, args).await
             }
         }
     }

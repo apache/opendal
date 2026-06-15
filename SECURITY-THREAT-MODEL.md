@@ -53,16 +53,15 @@ The most important premises are:
 > OpenDAL trusts storage services for fulfilling storage capabilities defined per documentation.
 > OpenDAL also trusts users to provide secure configuration and use OpenDAL as users' storage layer.
 
-If a caller intentionally points OpenDAL at an untrusted S3-compatible endpoint,
-WebDAV server, FTP server, database, local path, or other backend, the caller
-is responsible for the consequences of trusting that backend. OpenDAL does not
+If a user intentionally uses OpenDAL to access an untrusted S3-compatible endpoint,
+WebDAV server, FTP server, database, local path, or other backend, the user
+is responsible for the consequences of configured service. OpenDAL does not
 authenticate remote object contents, prove remote metadata correctness, or
-protect the caller from a malicious storage service that the caller chose.
+protect the user from a malicious storage service that the user chose.
 
-That premise does not remove OpenDAL's responsibility for its own library
-boundary. OpenDAL must still preserve its API contracts, keep credentials
-isolated, avoid leaking secrets through debug or observability output, and avoid
-memory-safety violations in code reachable through the public API.
+That premise does not remove OpenDAL's responsibility for OpenDAL library
+boundary. OpenDAL must still preserve OpenDAL API contracts, isolate credentials, avoid leaking secrets in debug or observability output, and avoid
+memory-safety violations in code reachable through OpenDAL public API.
 
 ## 3. System Model
 

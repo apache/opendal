@@ -673,7 +673,7 @@ impl Operator {
     ///     The capability of the operator.
     pub fn capability(&self) -> PyResult<capability::Capability> {
         Ok(capability::Capability::new(
-            self.core.info().full_capability(),
+            self.core.info().capability(),
         ))
     }
 
@@ -1783,7 +1783,7 @@ impl AsyncOperator {
     ///     The capability of the operator.
     pub fn capability(&self) -> PyResult<Capability> {
         Ok(capability::Capability::new(
-            self.core.info().full_capability(),
+            self.core.info().capability(),
         ))
     }
 

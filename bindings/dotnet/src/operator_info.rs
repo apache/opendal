@@ -34,7 +34,7 @@ pub fn into_operator_info(info: opendal::OperatorInfo) -> OpendalOperatorInfo {
         scheme: into_string_ptr(info.scheme().to_string()),
         root: into_string_ptr(info.root()),
         name: into_string_ptr(info.name()),
-        full_capability: Capability::new(info.full_capability()),
+        full_capability: Capability::new(info.capability()),
         native_capability: Capability::new(info.native_capability()),
     }
 }

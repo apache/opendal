@@ -99,7 +99,7 @@ impl Operator {
     #[napi]
     pub fn capability(&self) -> Result<capability::Capability> {
         Ok(capability::Capability::new(
-            self.async_op.info().full_capability(),
+            self.async_op.info().capability(),
         ))
     }
 

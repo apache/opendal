@@ -43,7 +43,7 @@ use opendal::Writer;
 ///     cfg.bucket = "my_bucket".to_string();
 ///
 ///     // Create a new operator
-///     let operator = Operator::from_config(cfg).unwrap().finish();
+///     let operator = Operator::from_config(cfg).unwrap();
 ///     let path = "/path/to/file.parquet";
 ///
 ///     // Create an async writer
@@ -114,7 +114,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "data/test.txt";
         let mut writer = AsyncWriter::new(op.writer(path).await.unwrap());
         let bytes = Bytes::from_static(b"hello, world!");
@@ -129,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_abort() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "data/test.txt";
         let mut writer = AsyncWriter::new(op.writer(path).await.unwrap());
         let bytes = Bytes::from_static(b"hello, world!");
@@ -144,7 +144,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_writer() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = Operator::new(services::Memory::default()).unwrap();
         let path = "/path/to/file.parquet";
 
         let writer = AsyncWriter::new(

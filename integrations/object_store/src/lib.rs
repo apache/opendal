@@ -39,7 +39,7 @@
 //!     .region("my_region");
 //!
 //!     // Create a new operator
-//!     let operator = Operator::new(builder).unwrap().finish();
+//!     let operator = Operator::new(builder).unwrap();
 //!
 //!     // Create a new object store
 //!     let object_store = Arc::new(OpendalStore::new(operator));

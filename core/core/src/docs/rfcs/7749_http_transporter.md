@@ -1,6 +1,6 @@
 - Proposal Name: `http_transporter`
 - Start Date: 2026-06-16
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#7749](https://github.com/apache/opendal/pull/7749)
 - Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary

@@ -22,8 +22,8 @@
 pub mod rfc_0000_example {}
 
 /// HTTP Transporter
-#[doc = include_str!("0000_http_transporter.md")]
-pub mod rfc_0000_http_transporter {}
+#[doc = include_str!("7749_http_transporter.md")]
+pub mod rfc_7749_http_transporter {}
 
 /// Simplify Stateful Operation Factory
 #[doc = include_str!("7744_simplify_stateful_operation_factory.md")]

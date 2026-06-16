@@ -119,7 +119,9 @@ impl AzfileCore {
             req = req.header(RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -169,7 +171,9 @@ impl AzfileCore {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -206,7 +210,9 @@ impl AzfileCore {
             BytesRange::from(position..position + size).to_header(),
         );
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutRange"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -228,7 +234,9 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileProperties"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -251,7 +259,9 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetDirectoryProperties"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -308,7 +318,9 @@ impl AzfileCore {
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -335,7 +347,9 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateDirectory"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -360,7 +374,9 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -385,7 +401,9 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteDirectory"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -425,7 +443,9 @@ impl AzfileCore {
 
         let req = Request::get(url.finish());
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListDirectoriesAndFiles"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;

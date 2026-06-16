@@ -170,7 +170,9 @@ impl CosCore {
             req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -222,7 +224,9 @@ impl CosCore {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -268,7 +272,9 @@ impl CosCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -299,7 +305,9 @@ impl CosCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -339,7 +347,9 @@ impl CosCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("AppendObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -360,6 +370,7 @@ impl CosCore {
 
         let mut req = Request::put(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header("x-cos-copy-source", &source);
 
         // For a bucket which has never enabled versioning, x-cos-forbid-overwrite
@@ -404,6 +415,7 @@ impl CosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -443,7 +455,9 @@ impl CosCore {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -473,7 +487,9 @@ impl CosCore {
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -507,7 +523,9 @@ impl CosCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -536,6 +554,7 @@ impl CosCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -574,6 +593,7 @@ impl CosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

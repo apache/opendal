@@ -146,6 +146,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -185,6 +186,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -224,6 +226,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -243,6 +246,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -285,6 +289,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("AppendObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -305,6 +310,7 @@ impl ObsCore {
 
         let req = Request::put(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header("x-obs-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -340,6 +346,7 @@ impl ObsCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -364,6 +371,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -398,6 +406,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"))
             // Set body
             .body(body)
             .map_err(new_request_build_error)?;
@@ -435,6 +444,7 @@ impl ObsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -460,6 +470,7 @@ impl ObsCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

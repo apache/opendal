@@ -86,14 +86,26 @@ updates:
           # Please upgrade to new APIs when updating "rand"
           - "rand"
           - "getrandom"
-  
+
   # Cargo dependencies - bindings, example, tests
   - package-ecosystem: "cargo"
-    directories: # use `directories` to apply glob pattern. `directory` doesn't support glob pattern.
-      - "**/*"
+    directories:
+      - "/bindings/c"
+      - "/bindings/cpp"
+      - "/bindings/dart/rust"
+      - "/bindings/dotnet"
+      - "/bindings/haskell"
+      - "/bindings/lua"
+      - "/bindings/ocaml"
+      - "/bindings/php"
+      - "/bindings/python"
+      - "/bindings/ruby"
+      - "/dev"
+      - "/integrations/parquet"
+      - "/integrations/unftp-sbe"
     open-pull-requests-limit: 5
-    exclude-paths:
-      - "core/**"
+    schedule:
+      interval: "quarterly"
     cooldown:
       semver-patch-days: 90
       include:

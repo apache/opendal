@@ -70,7 +70,7 @@ func testRenameNonExistingSource(assert *require.Assertions, op *opendal.Operato
 }
 
 func testRenameSourceDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
@@ -85,7 +85,7 @@ func testRenameSourceDir(assert *require.Assertions, op *opendal.Operator, fixtu
 }
 
 func testRenameTargetDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 

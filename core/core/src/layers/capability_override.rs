@@ -283,7 +283,7 @@ mod tests {
     use crate::services;
 
     #[test]
-    fn capability_override_updates_effective_capability_only() -> Result<()> {
+    fn capability_override_updates_capability() -> Result<()> {
         let op = Operator::new(services::Memory::default())?.layer(CapabilityOverrideLayer::new(
             |mut cap| {
                 cap.read = false;
@@ -294,12 +294,6 @@ mod tests {
 
         assert!(!op.info().capability().read);
         assert_eq!(op.info().capability().delete_max_size, Some(7));
-
-        assert!(op.info().native_capability().read);
-        assert_ne!(
-            op.info().native_capability().delete_max_size,
-            op.info().capability().delete_max_size
-        );
 
         Ok(())
     }

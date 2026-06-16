@@ -23,20 +23,11 @@ use crate::*;
 pub struct OperatorInfo {
     info: ServiceInfo,
     capability: Capability,
-    native_capability: Capability,
 }
 
 impl OperatorInfo {
-    pub(super) fn new(
-        info: ServiceInfo,
-        capability: Capability,
-        native_capability: Capability,
-    ) -> Self {
-        Self {
-            info,
-            capability,
-            native_capability,
-        }
+    pub(super) fn new(info: ServiceInfo, capability: Capability) -> Self {
+        Self { info, capability }
     }
 
     /// Scheme of operator.
@@ -62,10 +53,5 @@ impl OperatorInfo {
     /// Get effective capability of operator.
     pub fn capability(&self) -> Capability {
         self.capability
-    }
-
-    /// Get native capability of the base service.
-    pub fn native_capability(&self) -> Capability {
-        self.native_capability
     }
 }

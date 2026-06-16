@@ -244,8 +244,7 @@ impl Operator {
 
     /// Get information of this operator.
     ///
-    /// The effective capability is read from the composed `srv`; native
-    /// capability is read from `base_srv`.
+    /// The effective capability is read from the composed `srv`.
     ///
     /// # Examples
     ///
@@ -260,11 +259,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn info(&self) -> OperatorInfo {
-        OperatorInfo::new(
-            self.srv.info(),
-            self.srv.capability(),
-            self.base_srv.capability(),
-        )
+        OperatorInfo::new(self.srv.info(), self.srv.capability())
     }
 
     /// Get the executor used by the current `ctx`.

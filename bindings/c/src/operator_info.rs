@@ -254,21 +254,10 @@ impl opendal_operator_info {
             .into_raw()
     }
 
-    /// \brief Return the operator's full capability
+    /// \brief Return the operator's capability
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info_get_full_capability(
-        &self,
-    ) -> opendal_capability {
+    pub unsafe extern "C" fn opendal_operator_info_get_capability(&self) -> opendal_capability {
         let cap = self.deref().capability();
-        cap.into()
-    }
-
-    /// \brief Return the operator's native capability
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info_get_native_capability(
-        &self,
-    ) -> opendal_capability {
-        let cap = self.deref().native_capability();
         cap.into()
     }
 }

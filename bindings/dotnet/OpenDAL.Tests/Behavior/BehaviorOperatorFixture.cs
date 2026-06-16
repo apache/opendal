@@ -57,7 +57,7 @@ public sealed class BehaviorOperatorFixture : IDisposable
             op = op.WithLayer(new CapabilityOverrideLayer(capabilityOverrides));
         }
 
-        capability = op.Info.FullCapability;
+        capability = op.Info.Capability;
     }
 
     public bool IsEnabled => op is not null;

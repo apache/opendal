@@ -145,12 +145,8 @@ pub const OperatorInfo = struct {
         return std.mem.span(ptr);
     }
 
-    pub fn fullCapability(self: *const OperatorInfo) c.opendal_capability {
-        return c.opendal_operator_info_get_full_capability(self.inner);
-    }
-
-    pub fn nativeCapability(self: *const OperatorInfo) c.opendal_capability {
-        return c.opendal_operator_info_get_native_capability(self.inner);
+    pub fn capability(self: *const OperatorInfo) c.opendal_capability {
+        return c.opendal_operator_info_get_capability(self.inner);
     }
 };
 

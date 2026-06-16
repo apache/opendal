@@ -57,7 +57,7 @@ func testDeleteFile(assert *require.Assertions, op *opendal.Operator, fixture *f
 }
 
 func testDeleteEmptyDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
@@ -86,7 +86,7 @@ func testDeleteNotExisting(assert *require.Assertions, op *opendal.Operator, fix
 }
 
 func testDeleteWithRecursive(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 

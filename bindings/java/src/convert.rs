@@ -16,10 +16,14 @@
 // under the License.
 
 use crate::Result;
-use jni::JNIEnv;
+use jni::Env;
+use jni::jni_sig;
+use jni::jni_str;
+use jni::objects::JByteArray;
+use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::objects::{JByteArray, JMap};
+use jni::strings::JNIString;
 use jni::sys::jlong;
 use opendal::{Error, ErrorKind};
 use std::collections::HashMap;
@@ -30,29 +34,33 @@ pub(crate) fn usize_to_jlong(n: Option<usize>) -> jlong {
     n.map_or(-1, |v| v as jlong)
 }
 
-pub(crate) fn jmap_to_hashmap(
-    env: &mut JNIEnv,
-    params: &JObject,
-) -> Result<HashMap<String, String>> {
-    let map = JMap::from_env(env, params)?;
+pub(crate) fn jmap_to_hashmap(env: &mut Env, params: &JObject) -> Result<HashMap<String, String>> {
+    // `cast_local` consumes its argument, so duplicate the borrowed reference
+    // into an owned local reference before casting.
+    let owned = env.new_local_ref(params)?;
+    let map = env.cast_local::<JMap>(owned)?;
     let mut iter = map.iter(env)?;
 
     let mut result: HashMap<String, String> = HashMap::new();
-    while let Some(e) = iter.next(env)? {
-        let k = JString::from(e.0);
-        let v = JString::from(e.1);
-        result.insert(env.get_string(&k)?.into(), env.get_string(&v)?.into());
+    while let Some(entry) = iter.next(env)? {
+        let k = entry.key(env)?;
+        let v = entry.value(env)?;
+        // SAFETY: a `java.util.Map<String, String>` only yields String keys and values.
+        let k = unsafe { JString::from_raw(env, k.into_raw()) };
+        let v = unsafe { JString::from_raw(env, v.into_raw()) };
+        result.insert(k.mutf8_chars(env)?.into(), v.mutf8_chars(env)?.into());
     }
 
     Ok(result)
 }
 
 pub(crate) fn hashmap_to_jmap<'a>(
-    env: &mut JNIEnv<'a>,
+    env: &mut Env<'a>,
     map: &HashMap<String, String>,
 ) -> Result<JObject<'a>> {
-    let map_object = env.new_object("java/util/HashMap", "()V", &[])?;
-    let jmap = env.get_map(&map_object)?;
+    let map_object = env.new_object(jni_str!("java/util/HashMap"), jni_sig!("()V"), &[])?;
+    let owned = env.new_local_ref(&map_object)?;
+    let jmap = env.cast_local::<JMap>(owned)?;
     for (k, v) in map {
         let key = env.new_string(k)?;
         let value = env.new_string(v)?;
@@ -61,44 +69,53 @@ pub(crate) fn hashmap_to_jmap<'a>(
     Ok(map_object)
 }
 
-pub(crate) fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {
-    s.map_or_else(
-        || Ok(JObject::null()),
-        |v| Ok(env.new_string(v.to_string())?.into()),
-    )
+pub(crate) fn string_to_jstring<'a>(env: &mut Env<'a>, s: Option<&str>) -> Result<JObject<'a>> {
+    s.map_or_else(|| Ok(JObject::null()), |v| Ok(env.new_string(v)?.into()))
 }
 
-pub(crate) fn read_bool_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<bool> {
-    Ok(env.get_field(obj, field, "Z")?.z()?)
+pub(crate) fn read_bool_field(env: &mut Env<'_>, obj: &JObject, field: &str) -> Result<bool> {
+    Ok(env
+        .get_field(obj, JNIString::new(field), jni_sig!("Z"))?
+        .z()?)
 }
 
-pub(crate) fn read_int64_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<i64> {
-    Ok(env.get_field(obj, field, "J")?.j()?)
+pub(crate) fn read_int64_field(env: &mut Env<'_>, obj: &JObject, field: &str) -> Result<i64> {
+    Ok(env
+        .get_field(obj, JNIString::new(field), jni_sig!("J"))?
+        .j()?)
 }
 
-pub(crate) fn read_int_field(env: &mut JNIEnv<'_>, obj: &JObject, field: &str) -> Result<i32> {
-    Ok(env.get_field(obj, field, "I")?.i()?)
+pub(crate) fn read_int_field(env: &mut Env<'_>, obj: &JObject, field: &str) -> Result<i32> {
+    Ok(env
+        .get_field(obj, JNIString::new(field), jni_sig!("I"))?
+        .i()?)
 }
 
 pub(crate) fn read_string_field(
-    env: &mut JNIEnv<'_>,
+    env: &mut Env<'_>,
     obj: &JObject,
     field: &str,
 ) -> Result<Option<String>> {
-    let result = env.get_field(obj, field, "Ljava/lang/String;")?.l()?;
+    let result = env
+        .get_field(obj, JNIString::new(field), jni_sig!("Ljava/lang/String;"))?
+        .l()?;
     if result.is_null() {
         Ok(None)
     } else {
-        Ok(Some(jstring_to_string(env, &JString::from(result))?))
+        // SAFETY: the field is declared as `java.lang.String`.
+        let result = unsafe { JString::from_raw(env, result.into_raw()) };
+        Ok(Some(jstring_to_string(env, &result)?))
     }
 }
 
 pub(crate) fn read_map_field(
-    env: &mut JNIEnv<'_>,
+    env: &mut Env<'_>,
     obj: &JObject,
     field: &str,
 ) -> Result<Option<HashMap<String, String>>> {
-    let result = env.get_field(obj, field, "Ljava/util/Map;")?.l()?;
+    let result = env
+        .get_field(obj, JNIString::new(field), jni_sig!("Ljava/util/Map;"))?
+        .l()?;
     if result.is_null() {
         Ok(None)
     } else {
@@ -107,7 +124,7 @@ pub(crate) fn read_map_field(
 }
 
 pub(crate) fn read_jlong_field_to_usize(
-    env: &mut JNIEnv,
+    env: &mut Env,
     options: &JObject,
     field_name: &str,
 ) -> Result<Option<usize>> {
@@ -123,19 +140,23 @@ pub(crate) fn read_jlong_field_to_usize(
 }
 
 pub(crate) fn read_instant_field_to_timestamp(
-    env: &mut JNIEnv<'_>,
+    env: &mut Env<'_>,
     obj: &JObject,
     field: &str,
 ) -> Result<Option<opendal::raw::Timestamp>> {
-    let result = env.get_field(obj, field, "Ljava/time/Instant;")?.l()?;
+    let result = env
+        .get_field(obj, JNIString::new(field), jni_sig!("Ljava/time/Instant;"))?
+        .l()?;
     if result.is_null() {
         return Ok(None);
     }
 
     let epoch_second = env
-        .call_method(&result, "getEpochSecond", "()J", &[])?
+        .call_method(&result, jni_str!("getEpochSecond"), jni_sig!("()J"), &[])?
         .j()?;
-    let nano = env.call_method(&result, "getNano", "()I", &[])?.i()?;
+    let nano = env
+        .call_method(&result, jni_str!("getNano"), jni_sig!("()I"), &[])?
+        .i()?;
     match opendal::raw::Timestamp::new(epoch_second, nano) {
         Ok(ts) => Ok(Some(ts)),
         Err(err) => Err(Error::new(
@@ -170,7 +191,7 @@ pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<
 }
 
 pub(crate) fn bytes_to_jbytearray<'a>(
-    env: &mut JNIEnv<'a>,
+    env: &mut Env<'a>,
     bytes: impl AsRef<[u8]>,
 ) -> Result<JByteArray<'a>> {
     let bytes = bytes.as_ref();
@@ -178,11 +199,6 @@ pub(crate) fn bytes_to_jbytearray<'a>(
     Ok(res)
 }
 
-/// # Safety
-///
-/// The caller must guarantee that the Object passed in is an instance
-/// of `java.lang.String`, passing in anything else will lead to undefined behavior.
-pub(crate) fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
-    let res = unsafe { env.get_string_unchecked(s)? };
-    Ok(res.into())
+pub(crate) fn jstring_to_string(env: &mut Env, s: &JString) -> Result<String> {
+    Ok(s.mutf8_chars(env)?.into())
 }

@@ -147,6 +147,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -185,6 +186,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("BulkDelete"))
             .body(Buffer::from(bytes::Bytes::from(body_str)))
             .map_err(new_request_build_error)?;
 
@@ -221,6 +223,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -270,6 +273,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CreateObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -317,6 +321,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -362,6 +367,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -402,6 +408,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("ShowObjectMetadata"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -447,6 +454,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadSegment"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -490,6 +498,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadManifest"))
             .body(Buffer::from(bytes::Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -525,6 +534,7 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -551,6 +561,7 @@ impl SwiftCore {
 
                 let req = req
                     .extension(Operation::Delete)
+                    .extension(ServiceOperation("DeleteObject"))
                     .body(Buffer::new())
                     .map_err(new_request_build_error)?;
 

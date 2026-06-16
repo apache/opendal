@@ -119,6 +119,7 @@ impl GhacCore {
 
                 let req = req
                     .extension(Operation::Read)
+                    .extension(ServiceOperation("GetCacheEntry"))
                     .body(Buffer::new())
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;
@@ -153,6 +154,7 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Read)
+                    .extension(ServiceOperation("GetCacheEntryDownloadURL"))
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;
@@ -193,6 +195,7 @@ impl GhacCore {
         let req = Request::get(location)
             .header(header::RANGE, "bytes=0-0")
             .extension(Operation::Stat)
+            .extension(ServiceOperation("DownloadCache"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -214,6 +217,7 @@ impl GhacCore {
         }
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadCache"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -241,6 +245,7 @@ impl GhacCore {
 
                 let req = req
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("ReserveCache"))
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;
@@ -278,6 +283,7 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("CreateCacheEntry"))
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;
@@ -322,6 +328,7 @@ impl GhacCore {
         );
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadCache"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -348,6 +355,7 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_JSON)
                     .header(CONTENT_LENGTH, bs.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("CommitCache"))
                     .body(Buffer::from(bs))
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;
@@ -377,6 +385,7 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("FinalizeCacheEntryUpload"))
                     .body(body)
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_client().send(req).await?;

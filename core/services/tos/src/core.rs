@@ -517,6 +517,7 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -548,6 +549,7 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CreateMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -573,6 +575,7 @@ impl TosCore {
 
         let req = Request::put(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_TOS_COPY_SOURCE, source)
             .header(constants::X_TOS_COPY_SOURCE_RANGE, input.range.to_header());
 
@@ -612,6 +615,7 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
@@ -636,6 +640,7 @@ impl TosCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -681,6 +686,7 @@ impl TosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -723,6 +729,7 @@ impl TosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -775,7 +782,9 @@ impl TosCore {
             }
         }
 
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -804,6 +813,7 @@ impl TosCore {
         let req = Request::put(&url)
             .header(CONTENT_LENGTH, size)
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -844,6 +854,7 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
@@ -868,6 +879,7 @@ impl TosCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

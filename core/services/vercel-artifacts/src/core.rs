@@ -63,7 +63,9 @@ impl VercelArtifactsCore {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadArtifact"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -91,7 +93,9 @@ impl VercelArtifactsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, size);
 
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadArtifact"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -116,7 +120,9 @@ impl VercelArtifactsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, 0);
 
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("ArtifactExists"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

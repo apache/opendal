@@ -374,8 +374,13 @@ impl HfCore {
         method: http::Method,
         url: &str,
         op: Operation,
+        service_operation: &'static str,
     ) -> Result<http::request::Builder> {
-        let mut req = Request::builder().method(method).uri(url).extension(op);
+        let mut req = Request::builder()
+            .method(method)
+            .uri(url)
+            .extension(op)
+            .extension(ServiceOperation(service_operation));
         match &self.token {
             Some(token) => {
                 if let Ok(auth) = format_authorization_by_bearer(token) {
@@ -447,7 +452,7 @@ impl HfCore {
         let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Stat)?
+            .request(http::Method::POST, &url, Operation::Stat, "PathInfo")?
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(Bytes::from(form_body)))
             .map_err(new_request_build_error)?;
@@ -476,7 +481,7 @@ impl HfCore {
         let uri = self.uri(path);
         let url = uri.resolve_url(&self.endpoint, self.repo.revision());
 
-        let mut req = self.request(http::Method::GET, &url, Operation::Read)?;
+        let mut req = self.request(http::Method::GET, &url, Operation::Read, "Resolve")?;
 
         if mode == HfDownloadMode::Xet {
             req = req.header(header::ACCEPT, "application/vnd.xet-fileinfo+json");
@@ -529,7 +534,7 @@ impl HfCore {
         let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Write)?
+            .request(http::Method::POST, &url, Operation::Write, "CommitGit")?
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::CONTENT_LENGTH, json_body.len())
             .body(Buffer::from(json_body))
@@ -564,7 +569,7 @@ impl HfCore {
         }
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Write)?
+            .request(http::Method::POST, &url, Operation::Write, "CommitBucket")?
             .header(header::CONTENT_TYPE, "application/x-ndjson")
             .header(header::CONTENT_LENGTH, body.len())
             .body(Buffer::from(Bytes::from(body)))

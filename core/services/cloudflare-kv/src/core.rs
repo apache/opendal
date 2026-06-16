@@ -68,6 +68,7 @@ impl CloudflareKvCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetMetadata"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -82,6 +83,7 @@ impl CloudflareKvCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetValue"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -99,7 +101,9 @@ impl CloudflareKvCore {
 
         let req = Request::put(url);
         let req = self.sign(req);
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("WriteValue"));
 
         let mut multipart = Multipart::new()
             .part(FormDataPart::new("value").content(value))
@@ -132,6 +136,7 @@ impl CloudflareKvCore {
         let req_body = &json!(paths);
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("BulkDelete"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(Buffer::from(req_body.to_string()))
             .map_err(new_request_build_error)?;
@@ -161,6 +166,7 @@ impl CloudflareKvCore {
         let req = self.sign(req);
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListKeys"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

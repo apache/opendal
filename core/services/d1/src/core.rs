@@ -49,7 +49,13 @@ impl Debug for D1Core {
 }
 
 impl D1Core {
-    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<Buffer>> {
+    fn create_d1_query_request(
+        &self,
+        sql: &str,
+        params: Vec<Value>,
+        op: Operation,
+        service_operation: &'static str,
+    ) -> Result<Request<Buffer>> {
         let p = format!(
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
@@ -72,7 +78,9 @@ impl D1Core {
         });
 
         let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
-        req.body(Buffer::from(body))
+        req.extension(op)
+            .extension(ServiceOperation(service_operation))
+            .body(Buffer::from(body))
             .map_err(new_request_build_error)
     }
 
@@ -81,7 +89,8 @@ impl D1Core {
             "SELECT {} FROM {} WHERE {} = ? LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let req = self.create_d1_query_request(&query, vec![path.into()])?;
+        let req =
+            self.create_d1_query_request(&query, vec![path.into()], Operation::Read, "Get")?;
 
         let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
@@ -108,7 +117,7 @@ impl D1Core {
         );
 
         let params = vec![path.into(), value.to_vec().into()];
-        let req = self.create_d1_query_request(&query, params)?;
+        let req = self.create_d1_query_request(&query, params, Operation::Write, "Set")?;
 
         let resp = ctx.http_client().send(req).await?;
         let status = resp.status();
@@ -120,7 +129,8 @@ impl D1Core {
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = ?", self.table, self.key_field);
-        let req = self.create_d1_query_request(&query, vec![path.into()])?;
+        let req =
+            self.create_d1_query_request(&query, vec![path.into()], Operation::Delete, "Delete")?;
 
         let resp = ctx.http_client().send(req).await?;
         let status = resp.status();

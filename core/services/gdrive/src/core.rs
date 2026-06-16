@@ -246,6 +246,7 @@ impl GdriveCore {
             "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
         ))
         .extension(Operation::Stat)
+        .extension(ServiceOperation("GetFile"))
         .body(Buffer::new())
         .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
@@ -286,6 +287,7 @@ impl GdriveCore {
 
         let mut req = Request::get(&url)
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -316,6 +318,7 @@ impl GdriveCore {
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
@@ -363,6 +366,7 @@ impl GdriveCore {
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
@@ -408,6 +412,7 @@ impl GdriveCore {
         let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveFile"))
             .body(Buffer::from(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
 
@@ -430,6 +435,7 @@ impl GdriveCore {
 
         let mut req = Request::patch(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("TrashFile"))
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -460,7 +466,8 @@ impl GdriveCore {
 
         let req = Request::post(url)
             .header("X-Upload-Content-Length", size)
-            .extension(Operation::Write);
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         let multipart = Multipart::new()
             .part(
@@ -507,6 +514,7 @@ impl GdriveCore {
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -557,6 +565,7 @@ impl GdriveCore {
 
         let mut req = Request::post(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"))
             .body(body)
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
@@ -815,6 +824,7 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         let mut req = Request::get(&url)
             .extension(Operation::Stat)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -857,6 +867,7 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         let mut req = Request::post(url)
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;

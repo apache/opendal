@@ -208,6 +208,7 @@ impl KoofrCore {
                 let req = req
                     .header(header::CONTENT_TYPE, "application/json")
                     .extension(Operation::CreateDir)
+                    .extension(ServiceOperation("CreateFolder"))
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
@@ -243,6 +244,7 @@ impl KoofrCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("FilesInfo"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -272,6 +274,7 @@ impl KoofrCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("FilesGet"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -314,7 +317,9 @@ impl KoofrCore {
 
         let req = self.sign(ctx, req).await?;
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("FilesPut"));
 
         let req = multipart.apply(req)?;
 
@@ -339,6 +344,7 @@ impl KoofrCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("FilesRemove"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -377,6 +383,7 @@ impl KoofrCore {
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::Copy)
+            .extension(ServiceOperation("FilesCopy"))
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -415,6 +422,7 @@ impl KoofrCore {
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::Rename)
+            .extension(ServiceOperation("FilesMove"))
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
@@ -439,6 +447,7 @@ impl KoofrCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("FilesList"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

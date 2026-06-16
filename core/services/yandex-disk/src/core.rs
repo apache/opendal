@@ -78,7 +78,9 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadUrl"));
 
         let req = self.sign(req);
 
@@ -111,6 +113,7 @@ impl YandexDiskCore {
         let upload_url = self.get_upload_url(ctx, path).await?;
         let req = Request::put(upload_url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("Upload"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -127,7 +130,9 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetDownloadUrl"));
 
         let req = self.sign(req);
 
@@ -161,6 +166,7 @@ impl YandexDiskCore {
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("Download"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -194,7 +200,9 @@ impl YandexDiskCore {
 
         let req = Request::put(url);
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateResource"));
 
         let req = self.sign(req);
 
@@ -221,7 +229,9 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyResource"));
 
         let req = self.sign(req);
 
@@ -248,7 +258,9 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveResource"));
 
         let req = self.sign(req);
 
@@ -268,7 +280,9 @@ impl YandexDiskCore {
 
         let req = Request::delete(url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteResource"));
 
         let req = self.sign(req);
 
@@ -302,7 +316,9 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetMetainformation"));
 
         let req = self.sign(req);
 

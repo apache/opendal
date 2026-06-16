@@ -42,7 +42,7 @@ impl Operator {
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
-        Ok(Operator::from_service(service)
+        Ok(Operator::from_parts(OperationContext::default(), service)
             .layer(ErrorContextLayer)
             .layer(SimulateLayer::default())
             .layer(CompleteLayer)

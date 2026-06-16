@@ -67,6 +67,7 @@ use crate::*;
 ///
 /// ```
 /// use opendal_core::HttpTransporter;
+/// use opendal_core::OperationContext;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
 /// use opendal_core::Result;
@@ -76,7 +77,7 @@ use crate::*;
 ///
 ///     // OpenDAL will replace the default HTTP transport now.
 ///     let transport = HttpTransporter::default();
-///     let op = op.http_transport(transport);
+///     let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ///
 ///     Ok(())
 /// }
@@ -145,10 +146,11 @@ use crate::*;
 pub struct Operator {
     // Base providers are the bottom slots that layer and resource changes replay from.
     base_srv: Servicer,
-    base_http_transport: HttpTransporter,
-    base_executor: Executor,
+    base_ctx: OperationContext,
+
     // Layers are the replayable program shared by the service, HTTP, and executor planes.
-    layers: Arc<[Arc<dyn Layer>]>,
+    layers: Arc<Vec<Arc<dyn Layer>>>,
+
     // Composed dispatch state. `srv` and `ctx` must always come from the same
     // fold over `layers` and the base providers.
     srv: Servicer,
@@ -158,49 +160,57 @@ pub struct Operator {
 impl std::fmt::Debug for Operator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Operator")
-            .field("base_service", &self.base_srv)
-            .field("base_executor", &self.base_executor)
-            .field("layers", &self.layers)
             .field("service", &self.srv)
             .field("context", &self.ctx)
+            .field("layers", &self.layers)
             .finish_non_exhaustive()
     }
 }
 
 /// # Operator basic API.
 impl Operator {
-    /// Build an operator by replaying layers over the base providers.
-    ///
-    /// This is the single constructor for composed state: `srv` and `ctx` are
-    /// rebuilt together so operation dispatch cannot mix a service stack with
-    /// resources from another layer program.
-    pub(crate) fn with_parts(
-        base_srv: Servicer,
-        base_http_transport: HttpTransporter,
-        base_executor: Executor,
-        layers: Arc<[Arc<dyn Layer>]>,
-    ) -> Self {
-        let srv = layers
-            .iter()
-            .fold(base_srv.clone(), |srv, layer| layer.apply_service(srv));
-        let http_transport = layers
-            .iter()
-            .fold(base_http_transport.clone(), |inner, layer| {
-                layer.apply_http_transport(srv.clone(), inner)
-            });
-        let executor = layers.iter().fold(base_executor.clone(), |inner, layer| {
-            layer.apply_execute(srv.clone(), inner)
-        });
-        let ctx = OperationContext::from_parts(http_transport, executor);
+    /// Convert a `Servicer` into an operator.
+    #[deprecated(since = "0.58.0", note = "use `Operator::from_parts` instead")]
+    pub fn from_inner(srv: Servicer) -> Self {
+        Self::from_parts(OperationContext::default(), srv)
+    }
 
+    /// Build an operator from its composed `ctx` and `service`.
+    ///
+    /// Pairs with [`Operator::into_parts`]. The operator starts with no layers;
+    /// `ctx` and `service` are used directly for dispatch.
+    pub fn from_parts(ctx: OperationContext, srv: Servicer) -> Self {
         Self {
-            base_srv,
-            base_http_transport,
-            base_executor,
-            layers,
+            base_srv: srv.clone(),
+            base_ctx: ctx.clone(),
+            layers: Arc::new(Vec::new()),
             srv,
             ctx,
         }
+    }
+
+    /// Split the operator into its composed `ctx` and `service` for direct dispatch.
+    pub fn into_parts(self) -> (OperationContext, Servicer) {
+        (self.ctx, self.srv)
+    }
+
+    /// Replay layers over the base providers to compute composed dispatch state.
+    ///
+    /// `srv` and `ctx` must always come from this single fold, so operation
+    /// dispatch cannot mix a service stack with resources from another layer
+    /// program.
+    fn apply_layers(
+        base_srv: &Servicer,
+        base_ctx: &OperationContext,
+        layers: &[Arc<dyn Layer>],
+    ) -> (Servicer, OperationContext) {
+        let srv = layers
+            .iter()
+            .fold(base_srv.clone(), |srv, layer| layer.apply_service(srv));
+        let ctx = layers.iter().fold(base_ctx.clone(), |inner, layer| {
+            layer.apply_context(srv.clone(), inner)
+        });
+        (srv, ctx)
     }
 
     /// Get the composed `srv` used by the current operator.
@@ -209,39 +219,8 @@ impl Operator {
     }
 
     /// Get the composed `ctx` passed to `srv` for operations.
-    pub(crate) fn context(&self) -> &OperationContext {
+    pub fn context(&self) -> &OperationContext {
         &self.ctx
-    }
-
-    /// Fetch the composed `srv`.
-    pub fn inner(&self) -> &Servicer {
-        self.service()
-    }
-
-    /// Convert a `Servicer` into an operator.
-    pub fn from_inner(srv: Servicer) -> Self {
-        Self::from_service(srv)
-    }
-
-    /// Convert a `Servicer` into an operator.
-    pub fn from_service(srv: Servicer) -> Self {
-        Self::with_parts(
-            srv,
-            HttpTransporter::default(),
-            Executor::default(),
-            Arc::from([]),
-        )
-    }
-
-    /// Convert operator into the composed `srv`.
-    pub fn into_inner(self) -> Servicer {
-        self.srv.clone()
-    }
-
-    /// Convert operator into the composed `srv` and `ctx`.
-    #[doc(hidden)]
-    pub fn into_inner_with_context(self) -> (Servicer, OperationContext) {
-        (self.srv.clone(), self.ctx)
     }
 
     /// Get information of this operator.
@@ -264,39 +243,33 @@ impl Operator {
         OperatorInfo::new(self.srv.info(), self.srv.capability())
     }
 
-    /// Get the executor used by the current `ctx`.
-    pub fn executor_ref(&self) -> Executor {
-        self.ctx.executor().clone()
-    }
-
-    /// Replace the base HTTP transport and rebuild composed state.
+    /// Replace the base operation context and rebuild composed state.
     #[must_use]
-    pub fn http_transport(self, transport: HttpTransporter) -> Self {
-        Self::with_parts(self.base_srv, transport, self.base_executor, self.layers)
-    }
-
-    /// Replace the base executor and rebuild composed state.
-    #[must_use]
-    pub fn executor(self, executor: Executor) -> Self {
-        Self::with_parts(
-            self.base_srv,
-            self.base_http_transport,
-            executor,
-            self.layers,
-        )
+    pub fn with_context(self, ctx: OperationContext) -> Self {
+        let (srv, composed) = Self::apply_layers(&self.base_srv, &ctx, &self.layers);
+        Self {
+            base_srv: self.base_srv,
+            base_ctx: ctx,
+            layers: self.layers,
+            srv,
+            ctx: composed,
+        }
     }
 
     /// Apply a layer to this operator and rebuild composed state.
     #[must_use]
     pub fn layer<L: Layer>(self, layer: L) -> Self {
-        let mut layers = self.layers.iter().cloned().collect::<Vec<_>>();
+        let mut layers = Arc::unwrap_or_clone(self.layers);
         layers.push(Arc::new(layer) as Arc<dyn Layer>);
-        Self::with_parts(
-            self.base_srv,
-            self.base_http_transport,
-            self.base_executor,
-            Arc::from(layers),
-        )
+        let layers = Arc::new(layers);
+        let (srv, ctx) = Self::apply_layers(&self.base_srv, &self.base_ctx, &layers);
+        Self {
+            base_srv: self.base_srv,
+            base_ctx: self.base_ctx,
+            layers,
+            srv,
+            ctx,
+        }
     }
 }
 

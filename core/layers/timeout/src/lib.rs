@@ -162,9 +162,13 @@ impl Layer for TimeoutLayer {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_execute(&self, _srv: Servicer, inner: Executor) -> Executor {
+    fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
         // Concurrent block IO paths read this timeout from the operation context's executor.
-        Executor::with(TimeoutExecutor::new(inner.into_inner(), self.io_timeout))
+        let executor = Executor::with(TimeoutExecutor::new(
+            inner.executor().clone().into_inner(),
+            self.io_timeout,
+        ));
+        inner.with_executor(executor)
     }
 }
 
@@ -578,7 +582,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_timeout() {
         let srv = MockService;
-        let op = Operator::from_inner(Arc::new(srv))
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(srv))
             .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(1)));
 
         let fut = async {
@@ -597,7 +601,7 @@ mod tests {
     #[tokio::test]
     async fn test_io_timeout() {
         let srv = MockService;
-        let op = Operator::from_inner(Arc::new(srv))
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(srv))
             .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(1)));
 
         let reader = op.reader("test").await.unwrap();
@@ -612,7 +616,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_timeout() {
         let srv = MockService;
-        let op = Operator::from_inner(Arc::new(srv)).layer(
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(srv)).layer(
             TimeoutLayer::default()
                 .with_timeout(Duration::from_secs(1))
                 .with_io_timeout(Duration::from_secs(1)),

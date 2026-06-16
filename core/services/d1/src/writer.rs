@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use super::core::*;
-use opendal_core::raw::{OperationContext, oio};
+use opendal_core::raw::oio;
 use opendal_core::*;
 
 pub struct D1Writer {

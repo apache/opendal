@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use super::core::AlluxioCore;
 use opendal_core::ErrorKind;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;

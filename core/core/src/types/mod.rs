@@ -77,4 +77,5 @@ pub use bytes_range::BytesRange;
 pub mod options;
 
 mod context;
+pub use context::OperationContext;
 pub(crate) use context::*;

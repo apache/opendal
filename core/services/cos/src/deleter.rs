@@ -21,6 +21,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
 

@@ -387,7 +387,7 @@ mod tests {
     }
 
     fn build_operator(layer: ImmutableIndexLayer) -> Operator {
-        Operator::from_inner(Arc::new(MockService)).layer(layer)
+        Operator::from_parts(OperationContext::default(), Arc::new(MockService)).layer(layer)
     }
 
     fn setup() {

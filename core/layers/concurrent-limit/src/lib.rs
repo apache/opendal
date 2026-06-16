@@ -165,13 +165,14 @@ where
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+    fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
         // Wrap the current HTTP transport so HTTP permits are held until the
         // response body is dropped.
-        HttpTransporter::new(ConcurrentLimitHttpTransport::<S> {
-            inner,
+        let transport = HttpTransporter::new(ConcurrentLimitHttpTransport::<S> {
+            inner: inner.http_transport().clone(),
             http_semaphore: self.http_semaphore.clone(),
-        })
+        });
+        inner.with_http_transport(transport)
     }
 }
 
@@ -649,10 +650,13 @@ mod tests {
             rename: true,
             ..Default::default()
         };
-        let op = Operator::from_inner(Arc::new(CopyRenameBackend {
-            info: ServiceInfo::with_scheme("mock"),
-            capability,
-        }))
+        let op = Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(CopyRenameBackend {
+                info: ServiceInfo::with_scheme("mock"),
+                capability,
+            }),
+        )
         .layer(layer);
 
         let permit = semaphore.clone().acquire_owned(1).await;
@@ -806,10 +810,13 @@ mod tests {
             stat: true,
             ..Default::default()
         };
-        let op = Operator::from_inner(Arc::new(CopierBackend {
-            info: ServiceInfo::with_scheme("mock"),
-            capability,
-        }))
+        let op = Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(CopierBackend {
+                info: ServiceInfo::with_scheme("mock"),
+                capability,
+            }),
+        )
         .layer(layer);
 
         let mut copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
@@ -1003,16 +1010,21 @@ mod tests {
         }
 
         let content = Buffer::from(vec![0u8; 4096]);
-        let op = Operator::from_inner(Arc::new(HttpBackend {
-            info: ServiceInfo::with_scheme("mock"),
-            capability: Capability {
-                read: true,
-                stat: true,
-                ..Default::default()
-            },
-            content: content.clone(),
-        }))
-        .http_transport(HttpTransporter::new(EchoTransport))
+        let op = Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(HttpBackend {
+                info: ServiceInfo::with_scheme("mock"),
+                capability: Capability {
+                    read: true,
+                    stat: true,
+                    ..Default::default()
+                },
+                content: content.clone(),
+            }),
+        )
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(EchoTransport)),
+        )
         .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2));
 
         // chunk=256 ⇒ 16 HTTP requests, concurrent=4, but only 2 HTTP permits.

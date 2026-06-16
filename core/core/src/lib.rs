@@ -65,6 +65,7 @@
 //! ```no_run
 //! use opendal_core::layers::CapabilityOverrideLayer;
 //! use opendal_core::HttpTransporter;
+//! use opendal_core::OperationContext;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -78,7 +79,7 @@
 //!     let transport = HttpTransporter::default();
 //!     let op = Operator::new(builder)?
 //!         // Replace the base HTTP transport.
-//!         .http_transport(transport)
+//!         .with_context(OperationContext::new().with_http_transport(transport))
 //!         .layer(CapabilityOverrideLayer::new(|cap| cap));
 //!
 //!     Ok(())
@@ -105,6 +106,7 @@
 //! ```no_run
 //! use opendal_core::options;
 //! use opendal_core::HttpTransporter;
+//! use opendal_core::OperationContext;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -118,7 +120,7 @@
 //!     let transport = HttpTransporter::default();
 //!     let op = Operator::new(builder)?
 //!         // Replace the base HTTP transport.
-//!         .http_transport(transport);
+//!         .with_context(OperationContext::new().with_http_transport(transport));
 //!
 //!     // Fetch this file's metadata
 //!     let meta = op.stat("hello.txt").await?;

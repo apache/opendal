@@ -52,7 +52,7 @@ pub struct RouteLayerBuilder {
 impl RouteLayerBuilder {
     /// Add a route with a glob pattern.
     pub fn route(mut self, pattern: impl AsRef<str>, op: Operator) -> Self {
-        let (srv, ctx) = op.into_inner_with_context();
+        let (ctx, srv) = op.into_parts();
         self.routes.push(RouteEntry {
             pattern: pattern.as_ref().to_string(),
             target: RouteTarget { srv, ctx },
@@ -384,10 +384,13 @@ mod tests {
     }
 
     fn build_mock_operator(name: &'static str) -> Operator {
-        Operator::from_service(Arc::new(MockService {
-            info: ServiceInfo::new("mock", "", name),
-            paths: Arc::new(Mutex::new(HashSet::new())),
-        }))
+        Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(MockService {
+                info: ServiceInfo::new("mock", "", name),
+                paths: Arc::new(Mutex::new(HashSet::new())),
+            }),
+        )
     }
 
     async fn build_fs_operator(label: &str) -> Result<(Operator, PathBuf)> {

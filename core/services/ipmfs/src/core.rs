@@ -50,7 +50,9 @@ impl IpmfsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("Stat"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -75,7 +77,9 @@ impl IpmfsCore {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::Read)
+            .extension(ServiceOperation("Read"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().fetch(req).await
@@ -90,7 +94,9 @@ impl IpmfsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("Rm"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -109,7 +115,9 @@ impl IpmfsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::List)
+            .extension(ServiceOperation("Ls"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -128,7 +136,9 @@ impl IpmfsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkdir"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -151,7 +161,9 @@ impl IpmfsCore {
 
         let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
 
-        let req: http::request::Builder = Request::post(url);
+        let req: http::request::Builder = Request::post(url)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("Write"));
         let req = multipart.apply(req)?;
 
         ctx.http_client().send(req).await

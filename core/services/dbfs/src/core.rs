@@ -67,7 +67,11 @@ impl DbfsCore {
         });
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkdirs"))
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }
@@ -95,7 +99,11 @@ impl DbfsCore {
 
         let body = Buffer::from(Bytes::from(request_body.to_string()));
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }
@@ -122,7 +130,11 @@ impl DbfsCore {
 
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("Move"))
+            .body(body)
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }
@@ -142,7 +154,11 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("List"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }
@@ -164,7 +180,10 @@ impl DbfsCore {
 
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
-        req.body(body).map_err(new_request_build_error)
+        req.extension(Operation::Write)
+            .extension(ServiceOperation("Put"))
+            .body(body)
+            .map_err(new_request_build_error)
     }
 
     pub async fn dbfs_get_status(
@@ -187,7 +206,11 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetStatus"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }

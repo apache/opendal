@@ -58,7 +58,11 @@ impl IpfsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("Get"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().fetch(req).await
     }
@@ -68,7 +72,9 @@ impl IpfsCore {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url);
+        let req = Request::head(&url)
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("Head"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -88,7 +94,11 @@ impl IpfsCore {
         // ref: https://github.com/ipfs/specs/blob/main/http-gateways/PATH_GATEWAY.md
         req = req.header(http::header::ACCEPT, "application/vnd.ipld.raw");
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("List"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
     }

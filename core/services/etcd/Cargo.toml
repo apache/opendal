@@ -31,7 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-etcd-client = { version = "0.18.0", features = ["tls"] }
+etcd-client = { version = "0.19.0", features = ["tls"] }
 fastpool = "1.0.2"
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }

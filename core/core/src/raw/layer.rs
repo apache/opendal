@@ -24,7 +24,7 @@ use crate::*;
 ///
 /// A layer receives the current stack for each plane and returns the stack that
 /// should be used by operators built with this layer. Implementations can wrap
-/// the operation service, HTTP fetcher, task executor, or any combination of
+/// the operation service, HTTP transport, task executor, or any combination of
 /// them.
 ///
 /// Hooks take `&self`, so layers that keep mutable state must use interior
@@ -39,10 +39,10 @@ pub trait Layer: Send + Sync + Debug + Unpin + 'static {
         srv
     }
 
-    /// Intercept the HTTP fetch stack.
+    /// Intercept the HTTP transport stack.
     ///
     /// Return `inner` unchanged for layers that do not affect HTTP requests.
-    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
         let _ = srv;
         inner
     }

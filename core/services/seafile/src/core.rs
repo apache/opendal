@@ -69,7 +69,7 @@ impl SeafileCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// get auth info
@@ -95,7 +95,7 @@ impl SeafileCore {
                 .body(Buffer::from(Bytes::from(body)))
                 .map_err(new_request_build_error)?;
 
-            let resp = ctx.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -124,7 +124,7 @@ impl SeafileCore {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = ctx.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
 
             let status = resp.status();
 
@@ -313,7 +313,7 @@ impl SeafileCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     /// file detail

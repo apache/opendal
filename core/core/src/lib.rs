@@ -60,11 +60,11 @@
 //! The next setup is to compose layers. Layers are modules that provide extra
 //! features for every operation. All builtin layers could be found at [`layers`].
 //!
-//! Let's use [`layers::CapabilityOverrideLayer`] and a custom [`HttpClient`] as an example.
+//! Let's use [`layers::CapabilityOverrideLayer`] and a custom [`HttpTransporter`] as an example.
 //!
 //! ```no_run
 //! use opendal_core::layers::CapabilityOverrideLayer;
-//! use opendal_core::raw::HttpClient;
+//! use opendal_core::HttpTransporter;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -75,10 +75,10 @@
 //!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
-//!     let client = HttpClient::new()?;
+//!     let transport = HttpTransporter::default();
 //!     let op = Operator::new(builder)?
-//!         // Init with custom HTTP client.
-//!         .http_client(client)
+//!         // Replace the base HTTP transport.
+//!         .http_transport(transport)
 //!         .layer(CapabilityOverrideLayer::new(|cap| cap));
 //!
 //!     Ok(())
@@ -104,7 +104,7 @@
 //!
 //! ```no_run
 //! use opendal_core::options;
-//! use opendal_core::raw::HttpClient;
+//! use opendal_core::HttpTransporter;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -115,10 +115,10 @@
 //!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
-//!     let client = HttpClient::new()?;
+//!     let transport = HttpTransporter::default();
 //!     let op = Operator::new(builder)?
-//!         // Init with custom HTTP client.
-//!         .http_client(client);
+//!         // Replace the base HTTP transport.
+//!         .http_transport(transport);
 //!
 //!     // Fetch this file's metadata
 //!     let meta = op.stat("hello.txt").await?;

@@ -77,7 +77,7 @@ impl AzdlsCore {
         self.signer.clone().with_context(
             self.sign_ctx
                 .clone()
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
+                .with_http_send(ctx.http_transport().clone()),
         )
     }
 
@@ -109,7 +109,7 @@ impl AzdlsCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -156,7 +156,7 @@ impl AzdlsCore {
             .map_err(new_request_build_error)?;
 
         let req = self.sign(ctx, req).await?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`

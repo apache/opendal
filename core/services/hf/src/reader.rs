@@ -169,10 +169,9 @@ mod tests {
         use base64::Engine;
 
         let core = testing_dataset_core();
-        let ctx = OperationContext::new(
-            HttpClient::with(reqwest::Client::new()),
-            Executor::default(),
-        );
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+            opendal_http_transport_reqwest::ReqwestTransport::default(),
+        ));
         let content = b"non-xet fallback test content";
         let path = "tests/non-xet-fallback.txt";
 

@@ -140,7 +140,7 @@ impl S3Core {
         self.signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_http_send(ctx.http_transport().clone())
                 .with_env(reqsign_core::OsEnv),
         )
     }
@@ -180,7 +180,7 @@ impl S3Core {
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
         if self.skip_signature {
-            return ctx.http_client().send(req).await;
+            return ctx.http_transport().send(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
@@ -198,7 +198,7 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        ctx.http_client()
+        ctx.http_transport()
             .send(Request::from_parts(parts, body))
             .await
     }
@@ -209,7 +209,7 @@ impl S3Core {
         req: Request<Buffer>,
     ) -> Result<Response<HttpBody>> {
         if self.skip_signature {
-            return ctx.http_client().fetch(req).await;
+            return ctx.http_transport().fetch(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
@@ -227,7 +227,7 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        ctx.http_client()
+        ctx.http_transport()
             .fetch(Request::from_parts(parts, body))
             .await
     }

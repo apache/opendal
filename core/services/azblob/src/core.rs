@@ -95,7 +95,7 @@ impl AzblobCore {
         self.signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_http_send(ctx.http_transport().clone())
                 .with_env(reqsign_core::OsEnv),
         )
     }
@@ -167,7 +167,7 @@ impl AzblobCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
@@ -271,7 +271,7 @@ impl AzblobCore {
         let req = self.azblob_get_blob_request(path, range, args)?;
         let req = self.sign(ctx, req).await?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub fn azblob_put_blob_request(

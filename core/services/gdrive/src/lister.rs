@@ -797,7 +797,7 @@ mod tests {
     }
 
     fn mock_operation_context() -> OperationContext {
-        OperationContext::new(HttpClient::default(), Executor::default())
+        OperationContext::new()
     }
 
     #[tokio::test]

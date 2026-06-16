@@ -67,7 +67,7 @@ impl AzfileCore {
         self.signer.clone().with_context(
             self.sign_ctx
                 .clone()
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
+                .with_http_send(ctx.http_transport().clone()),
         )
     }
 
@@ -95,7 +95,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn azfile_read(
@@ -125,7 +125,7 @@ impl AzfileCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn azfile_create_file(

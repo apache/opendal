@@ -15,173 +15,74 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Reqwest based HTTP transport for Apache OpenDAL.
+
+#![deny(missing_docs)]
+
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
-use std::ops::Deref;
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::LazyLock;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::oio::ReadStream;
 use bytes::Bytes;
-use futures::Future;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
 use http_body::Frame;
 use http_body::SizeHint;
+use opendal_core::Buffer;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
+use opendal_core::HttpBody;
+use opendal_core::HttpTransport;
+use opendal_core::Result;
+use opendal_core::raw::parse_content_encoding;
+use opendal_core::raw::parse_content_length;
 
-use super::HttpBody;
-use super::parse_content_encoding;
-use super::parse_content_length;
-use crate::raw::*;
-use crate::*;
+static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
-/// Http client used across opendal for loading credentials.
-/// This is merely a temporary solution because reqsign requires a reqwest client to be passed.
-/// We will remove it after the next major version of reqsign, which will enable users to provide their own client.
-#[allow(dead_code)]
-pub static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
-
-/// HttpFetcher is a type erased [`HttpFetch`].
-pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
-
-/// An HTTP client instance for OpenDAL's services.
+/// A [`reqwest::Client`] backed HTTP transport.
 ///
 /// # Notes
 ///
-/// * A http client must support redirections that follows 3xx response.
+/// Reqwest must be configured with a TLS feature before sending HTTPS requests.
 #[derive(Clone)]
-pub struct HttpClient {
-    fetcher: HttpFetcher,
+pub struct ReqwestTransport {
+    client: reqwest::Client,
 }
 
-/// A reqsign `HttpSend` implementation backed by an OpenDAL HTTP client.
-#[derive(Clone)]
-pub struct HttpClientHttpSend {
-    client: HttpClient,
+impl Debug for ReqwestTransport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReqwestTransport").finish()
+    }
 }
 
-impl HttpClientHttpSend {
-    /// Create a new [`HttpClientHttpSend`].
-    pub fn new(client: HttpClient) -> Self {
+impl Default for ReqwestTransport {
+    fn default() -> Self {
+        Self::new(DEFAULT_REQWEST_CLIENT.clone())
+    }
+}
+
+impl From<reqwest::Client> for ReqwestTransport {
+    fn from(client: reqwest::Client) -> Self {
+        Self::new(client)
+    }
+}
+
+impl ReqwestTransport {
+    /// Create a new transport from a [`reqwest::Client`].
+    pub fn new(client: reqwest::Client) -> Self {
         Self { client }
     }
 }
 
-/// We don't want users to know details about our clients.
-impl Debug for HttpClient {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HttpClient").finish()
-    }
-}
-
-impl Debug for HttpClientHttpSend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HttpClientHttpSend").finish()
-    }
-}
-
-impl Default for HttpClient {
-    fn default() -> Self {
-        Self {
-            fetcher: Arc::new(GLOBAL_REQWEST_CLIENT.clone()),
-        }
-    }
-}
-
-impl HttpClient {
-    /// Create a new http client in async context.
-    pub fn new() -> Result<Self> {
-        Ok(Self::default())
-    }
-
-    /// Construct `Self` with given [`reqwest::Client`]
-    pub fn with(client: impl HttpFetch) -> Self {
-        let fetcher = Arc::new(client);
-        Self { fetcher }
-    }
-
-    /// Get the inner http client.
-    pub fn into_inner(self) -> HttpFetcher {
-        self.fetcher
-    }
-
-    /// Send a request and consume response.
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        let (parts, mut body) = self.fetch(req).await?.into_parts();
-        let buffer = body.read_all().await?;
-        Ok(Response::from_parts(parts, buffer))
-    }
-
-    /// Fetch a request and return a streamable [`HttpBody`].
-    ///
-    /// Services can use [`HttpBody`] as [`Access::Read`].
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        self.fetcher.fetch(req).await
-    }
-}
-
-impl reqsign_core::HttpSend for HttpClient {
-    async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
-        let req = req.map(Buffer::from);
-        let resp = self.send(req).await.map_err(|err| {
-            let retryable = err.is_temporary();
-            reqsign_core::Error::unexpected("send request via OpenDAL HttpClient")
-                .with_source(err)
-                .set_retryable(retryable)
-        })?;
-
-        let (parts, body) = resp.into_parts();
-        Ok(Response::from_parts(parts, body.to_bytes()))
-    }
-}
-
-impl reqsign_core::HttpSend for HttpClientHttpSend {
-    async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
-        reqsign_core::HttpSend::http_send(&self.client, req).await
-    }
-}
-
-/// HttpFetch is the trait to fetch a request in async way.
-/// User should implement this trait to provide their own http client.
-pub trait HttpFetch: Send + Sync + Unpin + 'static {
-    /// Fetch a request in async way.
-    fn fetch(
-        &self,
-        req: Request<Buffer>,
-    ) -> impl Future<Output = Result<Response<HttpBody>>> + MaybeSend;
-}
-
-/// HttpFetchDyn is the dyn version of [`HttpFetch`]
-/// which make it possible to use as `Arc<dyn HttpFetchDyn>`.
-/// User should never implement this trait, but use `HttpFetch` instead.
-pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
-    /// The dyn version of [`HttpFetch::fetch`].
-    ///
-    /// This function returns a boxed future to make it object safe.
-    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>>;
-}
-
-impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
-    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>> {
-        Box::pin(self.fetch(req))
-    }
-}
-
-impl<T: HttpFetchDyn + ?Sized> HttpFetch for Arc<T> {
-    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        self.deref().fetch_dyn(req).await
-    }
-}
-
-impl HttpFetch for reqwest::Client {
+impl HttpTransport for ReqwestTransport {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
@@ -192,12 +93,15 @@ impl HttpFetch for reqwest::Client {
 
         let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
-                .with_operation("http_util::Client::send::fetch")
+                .with_operation("reqwest::fetch")
                 .with_context("url", uri.to_string())
                 .set_source(err)
         })?;
 
-        let mut req_builder = self.request(parts.method, url).headers(parts.headers);
+        let mut req_builder = self
+            .client
+            .request(parts.method, url)
+            .headers(parts.headers);
 
         // Client under wasm doesn't support set version.
         #[cfg(not(target_arch = "wasm32"))]
@@ -219,7 +123,7 @@ impl HttpFetch for reqwest::Client {
 
         let mut resp = req_builder.send().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "send http request")
-                .with_operation("http_util::Client::send")
+                .with_operation("reqwest::send")
                 .with_context("url", uri.to_string())
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err)
@@ -256,7 +160,7 @@ impl HttpFetch for reqwest::Client {
                 .map_ok(Buffer::from)
                 .map_err(move |err| {
                     Error::new(ErrorKind::Unexpected, "read data from http response")
-                        .with_operation("http_util::Client::send")
+                        .with_operation("reqwest::fetch")
                         .with_context("url", uri.to_string())
                         .with_temporary(is_temporary_error(&err))
                         .set_source(err)

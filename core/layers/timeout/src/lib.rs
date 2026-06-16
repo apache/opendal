@@ -647,7 +647,7 @@ mod tests {
         let service = TimeoutLayer::default()
             .with_io_timeout(Duration::from_millis(100))
             .apply_service(Arc::new(MockService));
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         let mut copier = service
             .copy(&ctx, "f", "t", OpCopy::default(), OpCopier::default())
             .unwrap();
@@ -664,7 +664,7 @@ mod tests {
             .with_timeout(Duration::from_secs(1))
             .with_io_timeout(Duration::from_secs(1));
         let service = timeout_layer.apply_service(Arc::new(MockService));
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
 
         let mut lister = service.list(&ctx, "test", OpList::default()).unwrap();
 

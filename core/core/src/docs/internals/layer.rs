@@ -33,7 +33,7 @@
 //! ```ignore
 //! pub trait Layer: Send + Sync + Debug + Unpin + 'static {
 //!     fn apply_service(&self, srv: Servicer) -> Servicer;
-//!     fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher;
+//!     fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter;
 //!     fn apply_execute(&self, srv: Servicer, inner: Executor) -> Executor;
 //! }
 //! ```
@@ -66,7 +66,7 @@
 //! forwarding calls to [`ServiceDyn`], while the wrapper keeps concrete
 //! operation body types until it is returned as a [`Servicer`].
 //!
-//! Resource-only layers can implement only `apply_http_fetch` or
+//! Resource-only layers can implement only `apply_http_transport` or
 //! `apply_execute`. If they do not need the final service stack, they should
 //! name that parameter `_srv`. Layers that need consistent policy across planes
 //! can implement multiple hooks, for example operation and HTTP concurrency
@@ -76,7 +76,7 @@
 //! [`Service`]: crate::raw::Service
 //! [`ServiceDyn`]: crate::raw::ServiceDyn
 //! [`Servicer`]: crate::raw::Servicer
-//! [`HttpFetcher`]: crate::raw::HttpFetcher
+//! [`HttpTransporter`]: crate::HttpTransporter
 //! [`Executor`]: crate::Executor
 //! [`OperationContext`]: crate::raw::OperationContext
 //! [`Operator`]: crate::Operator

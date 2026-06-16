@@ -24,6 +24,7 @@ use metrics::Label;
 use metrics::counter;
 use metrics::gauge;
 use metrics::histogram;
+use opendal_core::HttpTransporter;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
 
@@ -96,9 +97,9 @@ impl Layer for MetricsLayer {
         observe::MetricsLayer::new(interceptor).apply_service(inner)
     }
 
-    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
         let interceptor = MetricsInterceptor {};
-        observe::MetricsLayer::new(interceptor).apply_http_fetch(srv, inner)
+        observe::MetricsLayer::new(interceptor).apply_http_transport(srv, inner)
     }
 }
 

@@ -61,7 +61,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -131,7 +131,7 @@ impl PcloudCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {

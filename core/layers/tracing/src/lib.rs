@@ -144,9 +144,9 @@ impl Layer for TracingLayer {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_fetch(&self, _srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
         // Give outbound HTTP requests and their response bodies dedicated spans.
-        Arc::new(TracingHttpFetcher { inner })
+        HttpTransporter::new(TracingHttpTransport { inner })
     }
 }
 
@@ -156,11 +156,11 @@ impl TracingLayer {
     }
 }
 
-struct TracingHttpFetcher {
-    inner: HttpFetcher,
+struct TracingHttpTransport {
+    inner: HttpTransporter,
 }
 
-impl HttpFetch for TracingHttpFetcher {
+impl HttpTransport for TracingHttpTransport {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
         let span = span!(Level::DEBUG, "http::fetch", ?req);
 

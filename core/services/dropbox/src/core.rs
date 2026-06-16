@@ -84,7 +84,7 @@ impl DropboxCore {
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(request).await?;
+        let resp = ctx.http_transport().send(request).await?;
         let body = resp.into_body();
 
         let token: DropboxTokenResponse =
@@ -134,7 +134,7 @@ impl DropboxCore {
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().fetch(request).await
+        ctx.http_transport().fetch(request).await
     }
 
     pub async fn dropbox_update(
@@ -172,7 +172,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_delete(
@@ -196,7 +196,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_create_folder(
@@ -220,7 +220,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        let resp = ctx.http_client().send(request).await?;
+        let resp = ctx.http_transport().send(request).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
@@ -262,7 +262,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_list_continue(
@@ -287,7 +287,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_copy(
@@ -314,7 +314,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_move(
@@ -341,7 +341,7 @@ impl DropboxCore {
             .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     pub async fn dropbox_get_metadata(
@@ -367,7 +367,7 @@ impl DropboxCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 }
 

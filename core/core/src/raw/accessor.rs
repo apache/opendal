@@ -92,27 +92,32 @@ impl ServiceInfo {
 
 /// Composed resources passed from operator to services and layers.
 ///
-/// Layers that replace the HTTP client or executor must keep forwarding
+/// Layers that replace the HTTP transport or executor must keep forwarding
 /// requests or tasks to the previous value. Otherwise, composed features such as
 /// retry, timeout, tracing, and metrics can be bypassed.
 #[derive(Clone, Debug)]
 pub struct OperationContext {
-    http_client: HttpClient,
+    http_transport: HttpTransporter,
     executor: Executor,
 }
 
 impl OperationContext {
+    /// Create a new operation context with default resources.
+    pub fn new() -> Self {
+        Self::from_parts(HttpTransporter::default(), Executor::default())
+    }
+
     /// Create a new operation context from composed resources.
-    pub fn new(http_client: HttpClient, executor: Executor) -> Self {
+    pub fn from_parts(http_transport: HttpTransporter, executor: Executor) -> Self {
         Self {
-            http_client,
+            http_transport,
             executor,
         }
     }
 
-    /// Get the composed HTTP client.
-    pub fn http_client(&self) -> &HttpClient {
-        &self.http_client
+    /// Get the composed HTTP transport.
+    pub fn http_transport(&self) -> &HttpTransporter {
+        &self.http_transport
     }
 
     /// Get the composed executor.
@@ -121,14 +126,14 @@ impl OperationContext {
     }
 
     /// Split into composed resources.
-    pub fn into_parts(self) -> (HttpClient, Executor) {
-        (self.http_client, self.executor)
+    pub fn into_parts(self) -> (HttpTransporter, Executor) {
+        (self.http_transport, self.executor)
     }
 
-    /// Return a copy of this context with a different HTTP client.
-    pub fn with_http_client(&self, http_client: HttpClient) -> Self {
+    /// Return a copy of this context with a different HTTP transport.
+    pub fn with_http_transport(&self, http_transport: HttpTransporter) -> Self {
         Self {
-            http_client,
+            http_transport,
             executor: self.executor.clone(),
         }
     }
@@ -136,9 +141,15 @@ impl OperationContext {
     /// Return a copy of this context with a different executor.
     pub fn with_executor(&self, executor: Executor) -> Self {
         Self {
-            http_client: self.http_client.clone(),
+            http_transport: self.http_transport.clone(),
             executor,
         }
+    }
+}
+
+impl Default for OperationContext {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -69,7 +69,7 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub(crate) async fn vercel_artifacts_put(
@@ -99,7 +99,7 @@ impl VercelArtifactsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub(crate) async fn vercel_artifacts_stat(
@@ -126,6 +126,6 @@ impl VercelArtifactsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }

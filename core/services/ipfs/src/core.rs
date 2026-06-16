@@ -64,7 +64,7 @@ impl IpfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn ipfs_head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -78,7 +78,7 @@ impl IpfsCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn ipfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -100,7 +100,7 @@ impl IpfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// IPFS's stat behavior highly depends on its implementation.

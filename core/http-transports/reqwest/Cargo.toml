@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL Hugging Face service implementation"
-name = "opendal-service-hf"
+description = "Apache OpenDAL reqwest HTTP transport implementation"
+name = "opendal-http-transport-reqwest"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -30,21 +30,17 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = []
+rustls = ["reqwest/rustls"]
+rustls-no-provider = ["reqwest/rustls-no-provider"]
+
 [dependencies]
 bytes = { workspace = true }
-hf-xet = "1.5.0"
+futures = { workspace = true, features = ["std"] }
 http = { workspace = true }
-log = { workspace = true }
+http-body = "1"
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
-percent-encoding = "2"
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-
-[dev-dependencies]
-base64 = { workspace = true }
-futures = { workspace = true }
-opendal-http-transport-reqwest = { path = "../../http-transports/reqwest", version = "0.57.0", features = [
-  "rustls",
-] }
-serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.13.4", features = [
+  "stream",
+], default-features = false }

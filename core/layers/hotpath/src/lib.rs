@@ -90,8 +90,8 @@ impl Layer for HotpathLayer {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_fetch(&self, _srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
-        Arc::new(HotpathHttpFetcher { inner })
+    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+        HttpTransporter::new(HotpathHttpTransport { inner })
     }
 }
 
@@ -259,11 +259,11 @@ impl<C: oio::Copy> oio::Copy for HotpathWrapper<C> {
     }
 }
 
-struct HotpathHttpFetcher {
-    inner: HttpFetcher,
+struct HotpathHttpTransport {
+    inner: HttpTransporter,
 }
 
-impl HttpFetch for HotpathHttpFetcher {
+impl HttpTransport for HotpathHttpTransport {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
         let resp = hotpath::measure_async(LABEL_HTTP_FETCH, self.inner.fetch(req)).await?;
         let (parts, body) = resp.into_parts();

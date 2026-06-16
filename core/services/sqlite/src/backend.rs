@@ -492,7 +492,7 @@ mod test {
             .unwrap();
 
         let accessor = SqliteBackend::new(core);
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         let mut writer = accessor.write(&ctx, "hello", OpWrite::default()).unwrap();
         writer.write(Buffer::from("hello world")).await.unwrap();
         writer.close().await.unwrap();

@@ -683,7 +683,7 @@ impl S3Builder {
         // Try to detect region by HeadBucket.
         let req = http::Request::head(&url).body(Buffer::new()).ok()?;
 
-        let client = HttpClient::new().ok()?;
+        let client = HttpTransporter::default();
         let res = client
             .send(req)
             .await
@@ -876,11 +876,7 @@ impl Builder for S3Builder {
             // The assume-role provider owns its STS signer, so give it a
             // concrete HTTP sender instead of relying on a future operation
             // context.
-            let sts_ctx = ctx
-                .clone()
-                .with_http_send(HttpClientHttpSend::new(HttpClient::with(
-                    GLOBAL_REQWEST_CLIENT.clone(),
-                )));
+            let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
             let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
             let mut assume_role_provider =
@@ -1401,7 +1397,7 @@ mod tests {
 
         let op = OpWrite::default().with_content_type("application/json");
         let args = OpPresign::new(op, Duration::from_secs(3600));
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         let presigned = backend
             .presign(&ctx, "test.txt", args)
             .await

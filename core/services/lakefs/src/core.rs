@@ -77,7 +77,7 @@ impl LakefsCore {
             .extension(ServiceOperation("StatObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn get_object_content(
@@ -113,7 +113,7 @@ impl LakefsCore {
             .extension(ServiceOperation("GetObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn list_objects(
@@ -157,7 +157,7 @@ impl LakefsCore {
             .extension(ServiceOperation("ListObjects"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn upload_object(
@@ -189,7 +189,7 @@ impl LakefsCore {
             .extension(ServiceOperation("UploadObject"));
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn delete_object(
@@ -220,7 +220,7 @@ impl LakefsCore {
             .extension(ServiceOperation("DeleteObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn copy_object(
@@ -258,7 +258,7 @@ impl LakefsCore {
             .extension(ServiceOperation("CopyObject"))
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Parse LakefsStatus into Metadata

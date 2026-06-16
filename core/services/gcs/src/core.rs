@@ -88,7 +88,7 @@ impl GcsCore {
         self.signer.clone().with_context(
             self.sign_ctx
                 .clone()
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
+                .with_http_send(ctx.http_transport().clone()),
         )
     }
 
@@ -149,7 +149,7 @@ impl GcsCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -240,7 +240,7 @@ impl GcsCore {
         let req = self.gcs_get_object_request(path, range, args)?;
 
         let req = self.sign(ctx, req).await?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub fn gcs_insert_object_request(

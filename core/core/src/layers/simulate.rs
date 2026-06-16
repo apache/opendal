@@ -783,7 +783,7 @@ mod tests {
         }
         .into();
         let reader = SimulateReader::new(
-            OperationContext::new(HttpClient::default(), Executor::default()),
+            OperationContext::new(),
             Arc::new(MockService {
                 capability: Capability::default(),
             }),

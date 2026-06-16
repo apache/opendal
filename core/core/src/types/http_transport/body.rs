@@ -19,15 +19,21 @@ use std::cmp::Ordering;
 
 use futures::Stream;
 use futures::StreamExt;
-use oio::ReadStream;
 
-use crate::raw::*;
-use crate::*;
+use crate::raw::oio;
+use crate::raw::oio::ReadStream;
+use crate::types::Buffer;
+use crate::types::Error;
+use crate::types::ErrorKind;
+use crate::types::Result;
 
-/// The streaming body that OpenDAL's HttpClient returned.
+/// The streaming body returned by [`HttpTransporter`].
 ///
-/// We implement [`oio::ReadStream`] for the `HttpBody`. Services can use `HttpBody` as
-/// [`Access::Read`].
+/// We implement [`oio::ReadStream`] for `HttpBody`. Services can use
+/// `HttpBody` as [`Service::Reader`].
+///
+/// [`HttpTransporter`]: super::HttpTransporter
+/// [`Service::Reader`]: crate::raw::Service::Reader
 pub struct HttpBody {
     #[cfg(not(target_arch = "wasm32"))]
     stream: Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
@@ -39,12 +45,12 @@ pub struct HttpBody {
 
 /// # Safety
 ///
-/// HttpBody is `Send` on non wasm32 targets.
+/// `HttpBody` is `Send` on non-wasm targets.
 unsafe impl Send for HttpBody {}
 
 /// # Safety
 ///
-/// HttpBody is sync on non wasm32 targets.
+/// `HttpBody` is `Sync` on non-wasm targets.
 unsafe impl Sync for HttpBody {}
 
 impl HttpBody {
@@ -99,7 +105,11 @@ impl HttpBody {
         self
     }
 
-    /// Check if the consumed data is equal to the expected content length.
+    /// Read all data from the stream.
+    pub async fn to_buffer(&mut self) -> Result<Buffer> {
+        self.read_all().await
+    }
+
     #[inline]
     fn check(&self) -> Result<()> {
         let Some(expect) = self.size else {
@@ -120,11 +130,6 @@ impl HttpBody {
             )
             .set_temporary()),
         }
-    }
-
-    /// Read all data from the stream.
-    pub async fn to_buffer(&mut self) -> Result<Buffer> {
-        self.read_all().await
     }
 }
 

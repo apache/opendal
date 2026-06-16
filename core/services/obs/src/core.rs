@@ -63,7 +63,7 @@ impl ObsCore {
         self.signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_http_send(ctx.http_transport().clone())
                 .with_env(reqsign_core::OsEnv),
         )
     }
@@ -101,7 +101,7 @@ impl ObsCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -117,7 +117,7 @@ impl ObsCore {
 
         let req = self.sign(ctx, req).await?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub fn obs_get_object_request(

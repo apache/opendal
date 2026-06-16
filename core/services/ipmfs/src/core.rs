@@ -55,7 +55,7 @@ impl IpmfsCore {
             .extension(ServiceOperation("Stat"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn ipmfs_read(
@@ -82,7 +82,7 @@ impl IpmfsCore {
             .extension(ServiceOperation("Read"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn ipmfs_rm(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -99,7 +99,7 @@ impl IpmfsCore {
             .extension(ServiceOperation("Rm"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub(crate) async fn ipmfs_ls(
@@ -120,7 +120,7 @@ impl IpmfsCore {
             .extension(ServiceOperation("Ls"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn ipmfs_mkdir(
@@ -141,7 +141,7 @@ impl IpmfsCore {
             .extension(ServiceOperation("Mkdir"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Support write from reader.
@@ -166,6 +166,6 @@ impl IpmfsCore {
             .extension(ServiceOperation("Write"));
         let req = multipart.apply(req)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }

@@ -139,7 +139,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -193,7 +193,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn webdav_put(
@@ -231,7 +231,7 @@ impl WebdavCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Set user-defined metadata using WebDAV PROPPATCH method.
@@ -271,7 +271,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webdav_delete(
@@ -294,7 +294,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webdav_copy(
@@ -329,7 +329,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webdav_move(
@@ -364,7 +364,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webdav_list(
@@ -396,7 +396,7 @@ impl WebdavCore {
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Create dir recursively for given path.
@@ -460,7 +460,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {

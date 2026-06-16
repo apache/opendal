@@ -144,33 +144,23 @@ impl Service for MimeGuessAccessor {
         self.0.create_dir(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.0.read(ctx, path, args).await
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.0.read(ctx, path, args)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.0.write(ctx, path, opwrite_with_mime(path, args)).await
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.0.write(ctx, path, opwrite_with_mime(path, args))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.0.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.0.copy(ctx, from, to, args, opts)
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -190,17 +180,12 @@ impl Service for MimeGuessAccessor {
         self.0.rename(ctx, from, to, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.0.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.0.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.0.list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.0.list(ctx, path, args)
     }
 
     async fn presign(

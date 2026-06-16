@@ -15,35 +15,58 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use send_wrapper::SendWrapper;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::FileSystemDirectoryHandle;
 
+use super::core::OpfsCore;
 use super::error::*;
+use super::utils::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct OpfsLister {
-    iter: SendWrapper<js_sys::AsyncIterator>,
+    core: Arc<OpfsCore>,
+    iter: Option<SendWrapper<js_sys::AsyncIterator>>,
     path: String,
 }
 
 impl OpfsLister {
-    pub fn new(dir: FileSystemDirectoryHandle, path: String) -> Self {
+    pub fn new(core: Arc<OpfsCore>, path: String) -> Self {
         // Entry paths must not start with '/'.
         // For root listing, path is "/" — normalize to "".
         let path = if path == "/" { String::new() } else { path };
         Self {
-            iter: SendWrapper::new(dir.entries()),
+            core,
+            iter: None,
             path,
         }
+    }
+
+    async fn init_iter(&mut self) -> Result<()> {
+        if self.iter.is_some() {
+            return Ok(());
+        }
+
+        let p = build_abs_path(&self.core.root, &self.path);
+        let dir = get_directory_handle(&p, false).await?;
+        self.iter = Some(SendWrapper::new(dir.entries()));
+
+        Ok(())
     }
 }
 
 impl oio::List for OpfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let result = JsFuture::from(self.iter.next().map_err(parse_js_error)?)
+        self.init_iter().await?;
+
+        let iter = self
+            .iter
+            .as_ref()
+            .expect("opfs list iterator must be initialized");
+        let result = JsFuture::from(iter.next().map_err(parse_js_error)?)
             .await
             .map_err(parse_js_error)?;
 

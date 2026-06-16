@@ -28,7 +28,7 @@ use super::deleter::HfDeleter;
 use super::lister::HfLister;
 use super::reader::HfReadStream;
 use super::uri::{HfRepo, HfRepoType};
-use super::writer::HfWriter;
+use super::writer::HfLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -283,7 +283,7 @@ impl oio::StreamRead for HfReader {
 
 impl Service for HfBackend {
     type Reader = oio::StreamReader<HfReader>;
-    type Writer = HfWriter;
+    type Writer = HfLazyWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
     type Copier = ();
@@ -322,77 +322,59 @@ impl Service for HfBackend {
         let info = self.core.path_info(ctx, path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<HfReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(HfReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<HfReader> = {
+            Ok(oio::StreamReader::new(HfReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<HfLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<HfLister> = {
             let lister = HfLister::new(
                 self.core.clone(),
                 ctx.clone(),
                 path.to_string(),
                 args.recursive(),
             );
-            Ok((RpList::default(), oio::PageLister::new(lister)))
+            Ok(oio::PageLister::new(lister))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, HfWriter) = {
-            let writer =
-                HfWriter::try_new(self.core.clone(), ctx.clone(), path.to_string()).await?;
-            Ok((RpWrite::default(), writer))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        Ok(HfLazyWriter::new(
+            self.core.clone(),
+            ctx.clone(),
+            path.to_string(),
+        ))
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<HfDeleter>) = {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<HfDeleter> = {
             let deleter = HfDeleter::new(self.core.clone(), ctx.clone());
             let max_batch_size = self.core.capability.delete_max_size;
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(deleter, max_batch_size),
-            ))
+            Ok(oio::BatchDeleter::new(deleter, max_batch_size))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

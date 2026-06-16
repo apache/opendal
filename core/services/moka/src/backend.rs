@@ -324,72 +324,58 @@ impl Service for MokaBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<MokaReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(MokaReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<MokaReader> = {
+            Ok(oio::StreamReader::new(MokaReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, MokaWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: MokaWriter = {
             let p = build_abs_path(&self.root, path);
-            Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p, args)))
+            Ok(MokaWriter::new(self.core.clone(), p, args))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<MokaDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(MokaDeleter::new(self.core.clone(), self.root.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<MokaDeleter> = {
+            Ok(oio::OneShotDeleter::new(MokaDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<MokaLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<MokaLister> = {
             // For moka, we don't distinguish between files and directories
             // Just return the lister to iterate through all matching keys
             let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

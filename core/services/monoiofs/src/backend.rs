@@ -92,12 +92,89 @@ pub struct MonoiofsBackend {
     core: Arc<MonoiofsCore>,
 }
 
+pub struct MonoiofsLazyReader {
+    core: Arc<MonoiofsCore>,
+    path: PathBuf,
+}
+
+impl MonoiofsLazyReader {
+    fn new(core: Arc<MonoiofsCore>, path: PathBuf) -> Self {
+        Self { core, path }
+    }
+
+    async fn reader(&self) -> Result<oio::PositionReader<MonoiofsReader>> {
+        let reader = MonoiofsReader::new(self.core.clone(), self.path.clone()).await?;
+        Ok(oio::PositionReader::new(reader))
+    }
+}
+
+impl oio::Read for MonoiofsLazyReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.reader().await?.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.reader().await?.read(range).await
+    }
+}
+
+pub struct MonoiofsLazyWriter {
+    core: Arc<MonoiofsCore>,
+    path: String,
+    append: bool,
+    inner: Option<MonoiofsWriter>,
+}
+
+impl MonoiofsLazyWriter {
+    fn new(core: Arc<MonoiofsCore>, path: &str, args: OpWrite) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            append: args.append(),
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut MonoiofsWriter> {
+        if self.inner.is_none() {
+            let path = self.core.prepare_write_path(&self.path).await?;
+            let writer = MonoiofsWriter::new(self.core.clone(), path, self.append).await?;
+            self.inner = Some(writer);
+        }
+
+        Ok(self
+            .inner
+            .as_mut()
+            .expect("monoiofs writer must be initialized"))
+    }
+}
+
+impl oio::Write for MonoiofsLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "Monoiofs doesn't support abort",
+            )),
+        }
+    }
+}
+
 impl Service for MonoiofsBackend {
-    type Reader = oio::PositionReader<MonoiofsReader>;
-    type Writer = MonoiofsWriter;
+    type Reader = MonoiofsLazyReader;
+    type Writer = MonoiofsLazyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -128,53 +205,26 @@ impl Service for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::PositionReader<MonoiofsReader>) = {
-            let path = self.core.prepare_path(path)?;
-            let reader = MonoiofsReader::new(self.core.clone(), path).await?;
-            Ok((RpRead::default(), oio::PositionReader::new(reader)))
-        }?;
-
-        Ok((rp, output))
+    fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
+        let path = self.core.prepare_path(path)?;
+        Ok(MonoiofsLazyReader::new(self.core.clone(), path))
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, MonoiofsWriter) = {
-            let path = self.core.prepare_write_path(path).await?;
-            let writer = MonoiofsWriter::new(self.core.clone(), path, args.append()).await?;
-            Ok((RpWrite::default(), writer))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        Ok(MonoiofsLazyWriter::new(self.core.clone(), path, args))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<MonoiofsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(MonoiofsDeleter::new(self.core.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<MonoiofsDeleter> = {
+            Ok(oio::OneShotDeleter::new(MonoiofsDeleter::new(
+                self.core.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -219,71 +269,72 @@ impl Service for MonoiofsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let from = self.core.prepare_path(from)?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let from = self.core.prepare_path(from)?;
+        let to = to.to_string();
+
+        let copier = oio::OneShotCopier::new(async move {
             // ensure file exists
-            self.core
-                .dispatch({
-                    let from = from.clone();
-                    move || monoio::fs::metadata(from)
-                })
-                .await
-                .map_err(new_std_io_error)?;
-            let to = self.core.prepare_write_path(to).await?;
-            self.core
-                .dispatch({
-                    let core = self.core.clone();
-                    move || async move {
-                        let from = OpenOptions::new().read(true).open(from).await?;
-                        let to = OpenOptions::new()
-                            .write(true)
-                            .create(true)
-                            .truncate(true)
-                            .open(to)
-                            .await?;
+            core.dispatch({
+                let from = from.clone();
+                move || monoio::fs::metadata(from)
+            })
+            .await
+            .map_err(new_std_io_error)?;
+            let to = core.prepare_write_path(&to).await?;
+            core.dispatch({
+                let core = core.clone();
+                move || async move {
+                    let from = OpenOptions::new().read(true).open(from).await?;
+                    let to = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(to)
+                        .await?;
 
-                        // AsyncReadRent and AsyncWriteRent is not implemented
-                        // for File, so we can't write this:
-                        // monoio::io::copy(&mut from, &mut to).await?;
+                    // AsyncReadRent and AsyncWriteRent is not implemented
+                    // for File, so we can't write this:
+                    // monoio::io::copy(&mut from, &mut to).await?;
 
-                        let mut pos = 0;
-                        // allocate and resize buffer
-                        let mut buf = core.buf_pool.get();
-                        // set capacity of buf to exact size to avoid excessive read
-                        buf.reserve(BUFFER_SIZE);
-                        let _ = buf.split_off(BUFFER_SIZE);
+                    let mut pos = 0;
+                    // allocate and resize buffer
+                    let mut buf = core.buf_pool.get();
+                    // set capacity of buf to exact size to avoid excessive read
+                    buf.reserve(BUFFER_SIZE);
+                    let _ = buf.split_off(BUFFER_SIZE);
 
-                        loop {
-                            let result;
-                            (result, buf) = from.read_at(buf, pos).await;
-                            if result? == 0 {
-                                // EOF
-                                break;
-                            }
-                            let result;
-                            (result, buf) = to.write_all_at(buf, pos).await;
-                            result?;
-                            pos += buf.len() as u64;
-                            buf.clear();
+                    loop {
+                        let result;
+                        (result, buf) = from.read_at(buf, pos).await;
+                        if result? == 0 {
+                            // EOF
+                            break;
                         }
-                        core.buf_pool.put(buf);
-                        Ok(())
+                        let result;
+                        (result, buf) = to.write_all_at(buf, pos).await;
+                        result?;
+                        pos += buf.len() as u64;
+                        buf.clear();
                     }
-                })
-                .await
-                .map_err(new_std_io_error)?;
-            Ok((RpCopy::default(), ()))
-        }?;
+                    core.buf_pool.put(buf);
+                    Ok(())
+                }
+            })
+            .await
+            .map_err(new_std_io_error)?;
+            Ok(Metadata::default())
+        });
 
-        Ok((rp, output))
+        Ok(copier)
     }
 
     async fn presign(

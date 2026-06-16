@@ -32,12 +32,8 @@ use opendal_core::*;
 
 const LABEL_CREATE_DIR: &str = "opendal.create_dir";
 const LABEL_READ: &str = "opendal.read";
-const LABEL_WRITE: &str = "opendal.write";
-const LABEL_COPY: &str = "opendal.copy";
 const LABEL_RENAME: &str = "opendal.rename";
 const LABEL_STAT: &str = "opendal.stat";
-const LABEL_DELETE: &str = "opendal.delete";
-const LABEL_LIST: &str = "opendal.list";
 const LABEL_PRESIGN: &str = "opendal.presign";
 
 const LABEL_READER_READ: &str = "opendal.reader.read";
@@ -135,39 +131,25 @@ impl Service for HotpathAccessor {
         hotpath::measure_async(LABEL_CREATE_DIR, self.inner.create_dir(ctx, path, args)).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, reader) =
-            hotpath::measure_async(LABEL_READ, self.inner.read(ctx, path, args)).await?;
-        Ok((rp, HotpathWrapper::new(reader)))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args).map(HotpathWrapper::new)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, writer) =
-            hotpath::measure_async(LABEL_WRITE, self.inner.write(ctx, path, args)).await?;
-        Ok((rp, HotpathWrapper::new(writer)))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args).map(HotpathWrapper::new)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, copier) =
-            hotpath::measure_async(LABEL_COPY, self.inner.copy(ctx, from, to, args, opts)).await?;
-        Ok((rp, HotpathWrapper::new(copier)))
+    ) -> Result<Self::Copier> {
+        self.inner
+            .copy(ctx, from, to, args, opts)
+            .map(HotpathWrapper::new)
     }
 
     async fn rename(
@@ -184,20 +166,12 @@ impl Service for HotpathAccessor {
         hotpath::measure_async(LABEL_STAT, self.inner.stat(ctx, path, args)).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, deleter) = hotpath::measure_async(LABEL_DELETE, self.inner.delete(ctx)).await?;
-        Ok((rp, HotpathWrapper::new(deleter)))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx).map(HotpathWrapper::new)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, lister) =
-            hotpath::measure_async(LABEL_LIST, self.inner.list(ctx, path, args)).await?;
-        Ok((rp, HotpathWrapper::new(lister)))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args).map(HotpathWrapper::new)
     }
 
     async fn presign(

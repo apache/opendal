@@ -93,12 +93,7 @@ impl Service for CorrectnessService {
         self.inner.capability()
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let capability = self.capability();
         let scheme = self.info().scheme();
         if !capability.read_with_version && args.version().is_some() {
@@ -129,15 +124,10 @@ impl Service for CorrectnessService {
             ));
         }
 
-        self.inner.read(ctx, path, args).await
+        self.inner.read(ctx, path, args)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let capability = self.capability();
         let scheme = self.info().scheme();
         if args.append() && !capability.write_can_append {
@@ -164,7 +154,7 @@ impl Service for CorrectnessService {
             }
         }
 
-        self.inner.write(ctx, path, args).await
+        self.inner.write(ctx, path, args)
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -201,21 +191,20 @@ impl Service for CorrectnessService {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await.map(|(rp, deleter)| {
-            let deleter = CheckWrapper::new(deleter, self.info().scheme(), self.capability());
-            (rp, deleter)
-        })
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner
+            .delete(ctx)
+            .map(|deleter| CheckWrapper::new(deleter, self.info().scheme(), self.capability()))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let capability = self.capability();
         let scheme = self.info().scheme();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
@@ -236,16 +225,11 @@ impl Service for CorrectnessService {
             ));
         }
 
-        self.inner.copy(ctx, from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
     }
 
     async fn create_dir(
@@ -369,48 +353,30 @@ mod tests {
             Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                MockReader,
-            ))
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(MockReader)
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), MockWriter))
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(MockWriter)
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), ()))
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Ok(())
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-            Ok((RpDelete::default(), MockDeleter))
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(MockDeleter)
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
+        ) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -443,13 +409,16 @@ mod tests {
     impl oio::Read for MockReader {
         async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             Ok((
-                RpRead::default(),
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
                 Box::new(Buffer::new()) as Box<dyn oio::ReadStreamDyn>,
             ))
         }
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
-            Ok((RpRead::default(), Buffer::new()))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Buffer::new(),
+            ))
         }
     }
 

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use self::oio::Entry;
 use super::core::AliyunDriveCore;
+use super::core::AliyunDriveFile;
 use super::core::AliyunDriveFileList;
 use bytes::Buf;
 use opendal_core::EntryMode;
@@ -33,9 +34,11 @@ pub struct AliyunDriveLister {
     ctx: OperationContext,
 
     parent: Option<AliyunDriveParent>,
+    path: Option<String>,
     limit: Option<usize>,
 }
 
+#[derive(Clone)]
 pub struct AliyunDriveParent {
     pub file_id: String,
     pub path: String,
@@ -43,24 +46,49 @@ pub struct AliyunDriveParent {
 }
 
 impl AliyunDriveLister {
-    pub fn new(
+    pub fn new_with_path(
         core: Arc<AliyunDriveCore>,
         ctx: OperationContext,
-        parent: Option<AliyunDriveParent>,
+        path: String,
         limit: Option<usize>,
     ) -> Self {
         AliyunDriveLister {
             core,
             ctx,
-            parent,
+            parent: None,
+            path: Some(path),
             limit,
+        }
+    }
+
+    async fn parent(&self) -> Result<Option<AliyunDriveParent>> {
+        if let Some(parent) = &self.parent {
+            return Ok(Some(parent.clone()));
+        }
+
+        let Some(path) = &self.path else {
+            return Ok(None);
+        };
+
+        match self.core.get_by_path(&self.ctx, path).await {
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err),
+            Ok(res) => {
+                let file: AliyunDriveFile =
+                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                Ok(Some(AliyunDriveParent {
+                    file_id: file.file_id,
+                    path: path.to_string(),
+                    updated_at: file.updated_at,
+                }))
+            }
         }
     }
 }
 
 impl oio::PageList for AliyunDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let Some(parent) = &self.parent else {
+        let Some(parent) = self.parent().await? else {
             ctx.done = true;
             return Ok(());
         };

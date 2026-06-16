@@ -142,47 +142,35 @@ impl Service for ThrottleAccessor {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let limiter = self.rate_limiter.clone();
 
         self.inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, ThrottleWrapper::new(r, limiter)))
+            .map(|r| ThrottleWrapper::new(r, limiter))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let limiter = self.rate_limiter.clone();
 
         self.inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
+            .map(|w| ThrottleWrapper::new(w, limiter))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
     async fn rename(
@@ -195,13 +183,8 @@ impl Service for ThrottleAccessor {
         self.inner.rename(ctx, from, to, args).await
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
     }
 
     async fn presign(

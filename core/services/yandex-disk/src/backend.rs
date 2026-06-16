@@ -176,7 +176,7 @@ impl Service for YandexDiskBackend {
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -216,48 +216,43 @@ impl Service for YandexDiskBackend {
         }
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            self.core.ensure_dir_exists(ctx, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
-            let resp = self.core.copy(ctx, from, to).await?;
+        Ok(oio::OneShotCopier::new(async move {
+            core.ensure_dir_exists(&ctx, &to).await?;
+
+            let resp = core.copy(&ctx, &from, &to).await?;
 
             let status = resp.status();
 
             match status {
-                StatusCode::OK | StatusCode::CREATED => Ok((RpCopy::default(), ())),
+                StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<YandexDiskReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(YandexDiskReader::new(
-                    self.clone(),
-                    ctx.clone(),
-                    path,
-                    args,
-                )),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<YandexDiskReader> = {
+            Ok(oio::StreamReader::new(YandexDiskReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
@@ -278,46 +273,36 @@ impl Service for YandexDiskBackend {
         }
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, YandexDiskWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        let output: YandexDiskWriters = {
             let writer = YandexDiskWriter::new(self.core.clone(), ctx.clone(), path.to_string());
 
             let w = oio::OneShotWriter::new(writer);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<YandexDiskDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(YandexDiskDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<YandexDiskDeleter> = {
+            Ok(oio::OneShotDeleter::new(YandexDiskDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<YandexDiskLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<YandexDiskLister> = {
             let l = YandexDiskLister::new(self.core.clone(), ctx.clone(), path, args.limit());
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn presign(

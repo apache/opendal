@@ -194,73 +194,56 @@ impl Service for DashmapBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<DashmapReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(DashmapReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<DashmapReader> = {
+            Ok(oio::StreamReader::new(DashmapReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, DashmapWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: DashmapWriter = {
             let p = build_abs_path(&self.root, path);
-            Ok((
-                RpWrite::new(),
-                DashmapWriter::new(self.core.clone(), p, args),
-            ))
+            Ok(DashmapWriter::new(self.core.clone(), p, args))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<DashmapDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(DashmapDeleter::new(self.core.clone(), self.root.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<DashmapDeleter> = {
+            Ok(oio::OneShotDeleter::new(DashmapDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<DashmapLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<DashmapLister> = {
             let lister = DashmapLister::new(self.core.clone(), self.root.clone(), path.to_string());
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

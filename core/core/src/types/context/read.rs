@@ -251,23 +251,23 @@ mod tests {
 
     use super::*;
 
-    async fn new_read_context(
+    fn new_read_context(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
-        new_read_context_with_args(ctx, srv, path, crate::raw::OpRead::new(), options).await
+        new_read_context_with_args(ctx, srv, path, crate::raw::OpRead::new(), options)
     }
 
-    async fn new_read_context_with_args(
+    fn new_read_context_with_args(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         args: crate::raw::OpRead,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
-        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
             ctx,
             srv,
@@ -289,8 +289,12 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx =
-            Arc::new(new_read_context(ctx, srv, "test", OpReader::new().with_chunk(3)).await?);
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_chunk(3),
+        )?);
         let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -312,8 +316,12 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx =
-            Arc::new(new_read_context(ctx, srv, "test", OpReader::new().with_chunk(3)).await?);
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_chunk(3),
+        )?);
         let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, None));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
@@ -331,7 +339,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context(ctx, srv, "test", OpReader::new()).await?;
+        let ctx = new_read_context(ctx, srv, "test", OpReader::new())?;
 
         let result = ctx
             .parse_into_range(BytesRange::new(u64::MAX, Some(1)))
@@ -355,7 +363,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context_with_args(ctx, srv, "test", args, options).await?;
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options)?;
 
         let range = ctx.parse_into_range(10..).await?;
 
@@ -374,7 +382,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context_with_args(ctx, srv, "test", args, options).await?;
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options)?;
 
         let range = ctx.parse_into_range(BytesRange::suffix(10)).await?;
 

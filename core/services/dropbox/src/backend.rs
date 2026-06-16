@@ -85,7 +85,7 @@ impl Service for DropboxBackend {
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -159,102 +159,85 @@ impl Service for DropboxBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<DropboxReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(DropboxReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<DropboxReader> = {
+            Ok(oio::StreamReader::new(DropboxReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::OneShotWriter<DropboxWriter>) = {
-            Ok((
-                RpWrite::default(),
-                oio::OneShotWriter::new(DropboxWriter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    args,
-                    String::from(path),
-                )),
-            ))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<DropboxWriter> = {
+            Ok(oio::OneShotWriter::new(DropboxWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args,
+                String::from(path),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<DropboxDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<DropboxDeleter> = {
+            Ok(oio::OneShotDeleter::new(DropboxDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<DropboxLister>) = {
-            Ok((
-                RpList::default(),
-                oio::PageLister::new(DropboxLister::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    path.to_string(),
-                    args.recursive(),
-                    args.limit(),
-                )),
-            ))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<DropboxLister> = {
+            Ok(oio::PageLister::new(DropboxLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let resp = self.core.dropbox_copy(ctx, from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.dropbox_copy(&ctx, &from, &to).await?;
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok((RpCopy::default(), ())),
+                StatusCode::OK => Ok(Metadata::default()),
                 _ => {
                     let err = parse_error(resp);
                     match err.kind() {
-                        ErrorKind::NotFound => Ok((RpCopy::default(), ())),
+                        ErrorKind::NotFound => Ok(Metadata::default()),
                         _ => Err(err),
                     }
                 }
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

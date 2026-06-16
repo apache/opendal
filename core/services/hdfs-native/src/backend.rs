@@ -198,10 +198,117 @@ impl oio::PositionRead for HdfsNativeReader {
     }
 }
 
+pub struct HdfsNativeLazyReader {
+    core: Arc<HdfsNativeCore>,
+    path: String,
+}
+
+impl HdfsNativeLazyReader {
+    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+        }
+    }
+
+    async fn reader(&self) -> Result<oio::PositionReader<HdfsNativeReader>> {
+        let file = self.core.hdfs_open(&self.path).await?;
+        Ok(oio::PositionReader::new(HdfsNativeReader::new(file)))
+    }
+}
+
+impl oio::Read for HdfsNativeLazyReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.reader().await?.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.reader().await?.read(range).await
+    }
+}
+
+pub struct HdfsNativeLazyWriter {
+    core: Arc<HdfsNativeCore>,
+    path: String,
+    args: OpWrite,
+    inner: Option<HdfsNativeWriter>,
+}
+
+impl HdfsNativeLazyWriter {
+    fn new(core: Arc<HdfsNativeCore>, path: &str, args: OpWrite) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            args,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut HdfsNativeWriter> {
+        if self.inner.is_none() {
+            let (f, initial_size) = self.core.hdfs_write(&self.path, &self.args).await?;
+            self.inner = Some(HdfsNativeWriter::new(f, initial_size));
+        }
+
+        Ok(self.inner.as_mut().expect("writer must be initialized"))
+    }
+}
+
+impl oio::Write for HdfsNativeLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner().await?.abort().await
+    }
+}
+
+pub struct HdfsNativeLazyLister {
+    core: Arc<HdfsNativeCore>,
+    path: String,
+    inner: Option<Option<HdfsNativeLister>>,
+}
+
+impl HdfsNativeLazyLister {
+    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            inner: None,
+        }
+    }
+}
+
+impl oio::List for HdfsNativeLazyLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if self.inner.is_none() {
+            self.inner = Some(match self.core.hdfs_list(&self.path).await? {
+                Some((p, current_path)) => Some(HdfsNativeLister::new(
+                    &self.core.root,
+                    &self.core.client,
+                    &p,
+                    current_path,
+                )),
+                None => None,
+            });
+        }
+
+        match self.inner.as_mut().expect("lister must be initialized") {
+            Some(lister) => lister.next().await,
+            None => Ok(None),
+        }
+    }
+}
+
 impl Service for HdfsNativeBackend {
-    type Reader = oio::PositionReader<HdfsNativeReader>;
-    type Writer = HdfsNativeWriter;
-    type Lister = Option<HdfsNativeLister>;
+    type Reader = HdfsNativeLazyReader;
+    type Writer = HdfsNativeLazyWriter;
+    type Lister = HdfsNativeLazyLister;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
     type Copier = ();
 
@@ -227,81 +334,36 @@ impl Service for HdfsNativeBackend {
         let m = self.core.hdfs_stat(path).await?;
         Ok(RpStat::new(m))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::PositionReader<HdfsNativeReader>) = {
-            let file = self.core.hdfs_open(path).await?;
-            Ok((
-                RpRead::default(),
-                oio::PositionReader::new(HdfsNativeReader::new(file)),
-            ))
-        }?;
-
-        Ok((rp, output))
+    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+        Ok(HdfsNativeLazyReader::new(self.core.clone(), path))
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, HdfsNativeWriter) = {
-            let (f, initial_size) = self.core.hdfs_write(path, &args).await?;
-
-            Ok((RpWrite::new(), HdfsNativeWriter::new(f, initial_size)))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        Ok(HdfsNativeLazyWriter::new(self.core.clone(), path, args))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<HdfsNativeDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(HdfsNativeDeleter::new(Arc::clone(&self.core))),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<HdfsNativeDeleter> = {
+            Ok(oio::OneShotDeleter::new(HdfsNativeDeleter::new(
+                Arc::clone(&self.core),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, Option<HdfsNativeLister>) = {
-            match self.core.hdfs_list(path).await? {
-                Some((p, current_path)) => Ok((
-                    RpList::default(),
-                    Some(HdfsNativeLister::new(
-                        &self.core.root,
-                        &self.core.client,
-                        &p,
-                        current_path,
-                    )),
-                )),
-                None => Ok((RpList::default(), None)),
-            }
-        }?;
-
-        Ok((rp, output))
+    fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        Ok(HdfsNativeLazyLister::new(self.core.clone(), path))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

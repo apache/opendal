@@ -29,7 +29,7 @@ use super::config::GhacConfig;
 use super::core::GhacCore;
 use super::core::*;
 use super::error::parse_error;
-use super::writer::GhacWriter;
+use super::writer::GhacLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -244,7 +244,7 @@ impl oio::StreamRead for GhacReader {
 
 impl Service for GhacBackend {
     type Reader = oio::StreamReader<GhacReader>;
-    type Writer = GhacWriter;
+    type Writer = GhacLazyWriter;
     type Lister = ();
     type Deleter = ();
     type Copier = ();
@@ -286,73 +286,50 @@ impl Service for GhacBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<GhacReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(GhacReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GhacReader> = {
+            Ok(oio::StreamReader::new(GhacReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, GhacWriter) = {
-            let url = self.core.ghac_get_upload_url(ctx, path).await?;
-
-            Ok((
-                RpWrite::default(),
-                GhacWriter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    ctx.executor().clone(),
-                    path.to_string(),
-                    url,
-                )?,
-            ))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        Ok(GhacLazyWriter::new(
+            self.core.clone(),
+            ctx.clone(),
+            ctx.executor().clone(),
+            path.to_string(),
+        ))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

@@ -371,58 +371,45 @@ impl Service for TosBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<TosReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(TosReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<TosReader> = {
+            Ok(oio::StreamReader::new(TosReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::MultipartWriter<TosWriter>) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::MultipartWriter<TosWriter> = {
             let writer = TosWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
 
             let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, args.concurrent());
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<TosDeleter>) = {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<TosDeleter> = {
             let deleter = TosDeleter::new(self.core.clone(), ctx.clone());
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(deleter, self.core.capability.delete_max_size),
+            Ok(oio::BatchDeleter::new(
+                deleter,
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, TosListers) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: TosListers = {
             let lister = if args.versions() || args.deleted() {
                 TwoWays::Two(oio::PageLister::new(TosObjectVersionsLister::new(
                     self.core.clone(),
@@ -438,26 +425,26 @@ impl Service for TosBackend {
                     args,
                 )))
             };
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, TosCopiers) = {
+    ) -> Result<Self::Copier> {
+        let output: TosCopiers = {
             let copier = new_tos_copier(self.core.clone(), ctx, from, to, args, opts)?;
-            Ok((RpCopy::default(), copier))
+            Ok(copier)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn rename(

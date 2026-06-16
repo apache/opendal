@@ -160,63 +160,41 @@ impl Service for FastraceAccessor {
         self.inner.create_dir(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let _guard = Span::enter_with_local_parent(Operation::Read.into_static());
-        self.inner.read(ctx, path, args).await.map(|(rp, r)| {
-            (
-                rp,
-                FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Read.into_static()),
-                    r,
-                ),
+        self.inner.read(ctx, path, args).map(|r| {
+            FastraceWrapper::new(
+                Span::enter_with_local_parent(Operation::Read.into_static()),
+                r,
             )
         })
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let _guard = Span::enter_with_local_parent(Operation::Write.into_static());
-        self.inner.write(ctx, path, args).await.map(|(rp, r)| {
-            (
-                rp,
-                FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Write.into_static()),
-                    r,
-                ),
+        self.inner.write(ctx, path, args).map(|r| {
+            FastraceWrapper::new(
+                Span::enter_with_local_parent(Operation::Write.into_static()),
+                r,
             )
         })
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let _guard = Span::enter_with_local_parent(Operation::Copy.into_static());
-        self.inner
-            .copy(ctx, from, to, args, opts)
-            .await
-            .map(|(rp, c)| {
-                (
-                    rp,
-                    FastraceWrapper::new(
-                        Span::enter_with_local_parent(Operation::Copy.into_static()),
-                        c,
-                    ),
-                )
-            })
+        self.inner.copy(ctx, from, to, args, opts).map(|c| {
+            FastraceWrapper::new(
+                Span::enter_with_local_parent(Operation::Copy.into_static()),
+                c,
+            )
+        })
     }
 
     async fn rename(
@@ -235,33 +213,22 @@ impl Service for FastraceAccessor {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let _guard = Span::enter_with_local_parent(Operation::Delete.into_static());
-        self.inner.delete(ctx).await.map(|(rp, r)| {
-            (
-                rp,
-                FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::Delete.into_static()),
-                    r,
-                ),
+        self.inner.delete(ctx).map(|r| {
+            FastraceWrapper::new(
+                Span::enter_with_local_parent(Operation::Delete.into_static()),
+                r,
             )
         })
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let _guard = Span::enter_with_local_parent(Operation::List.into_static());
-        self.inner.list(ctx, path, args).await.map(|(rp, s)| {
-            (
-                rp,
-                FastraceWrapper::new(
-                    Span::enter_with_local_parent(Operation::List.into_static()),
-                    s,
-                ),
+        self.inner.list(ctx, path, args).map(|s| {
+            FastraceWrapper::new(
+                Span::enter_with_local_parent(Operation::List.into_static()),
+                s,
             )
         })
     }

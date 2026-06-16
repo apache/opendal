@@ -133,7 +133,7 @@ impl SimulateService {
         }
 
         if capability.write_can_empty && capability.list {
-            let (_, mut w) = self.srv.write(ctx, path, OpWrite::default()).await?;
+            let mut w = self.srv.write(ctx, path, OpWrite::default())?;
             oio::Write::close(&mut w).await?;
             return Ok(RpCreateDir::default());
         }
@@ -172,14 +172,11 @@ impl SimulateService {
             }
 
             if self.config.stat_dir && capability.list_with_recursive {
-                let (_, mut l) = self
-                    .srv
-                    .list(
-                        ctx,
-                        path,
-                        OpList::default().with_recursive(true).with_limit(1),
-                    )
-                    .await?;
+                let mut l = self.srv.list(
+                    ctx,
+                    path,
+                    OpList::default().with_recursive(true).with_limit(1),
+                )?;
 
                 return if l.next().await?.is_some() {
                     Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
@@ -195,59 +192,59 @@ impl SimulateService {
         self.srv.stat(ctx, path, args).await
     }
 
-    async fn simulate_list(
+    fn simulate_list(
         &self,
         ctx: &OperationContext,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, SimulateLister)> {
+    ) -> Result<SimulateLister> {
         let cap = self.srv.capability();
 
         let recursive = args.recursive();
         let forward = args;
 
-        let (rp, lister) = match (
+        let lister = match (
             recursive,
             cap.list_with_recursive,
             self.config.list_recursive,
         ) {
             // Backend supports recursive list, forward directly.
             (_, true, _) => {
-                let (rp, p) = self.srv.list(ctx, path, forward).await?;
-                (rp, SimulateLister::One(p))
+                let p = self.srv.list(ctx, path, forward)?;
+                SimulateLister::One(p)
             }
             // Simulate recursive via flat list when enabled.
             (true, false, true) => {
                 if path.ends_with('/') {
                     let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), path);
-                    (RpList::default(), SimulateLister::Two(p))
+                    SimulateLister::Two(p)
                 } else {
                     let parent = get_parent(path);
                     let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), parent);
                     let p = PrefixLister::new(p, path);
-                    (RpList::default(), SimulateLister::Four(p))
+                    SimulateLister::Four(p)
                 }
             }
             // Recursive requested but simulation disabled; rely on backend and propagate errors.
             (true, false, false) => {
-                let (rp, p) = self.srv.list(ctx, path, forward).await?;
-                (rp, SimulateLister::One(p))
+                let p = self.srv.list(ctx, path, forward)?;
+                SimulateLister::One(p)
             }
             // Non-recursive list: keep existing prefix handling semantics.
             (false, false, _) => {
                 if path.ends_with('/') {
-                    let (rp, p) = self.srv.list(ctx, path, forward).await?;
-                    (rp, SimulateLister::One(p))
+                    let p = self.srv.list(ctx, path, forward)?;
+                    SimulateLister::One(p)
                 } else {
                     let parent = get_parent(path);
-                    let (rp, p) = self.srv.list(ctx, parent, forward).await?;
+                    let p = self.srv.list(ctx, parent, forward)?;
                     let p = PrefixLister::new(p, path);
-                    (rp, SimulateLister::Three(p))
+                    SimulateLister::Three(p)
                 }
             }
         };
 
-        Ok((rp, lister))
+        Ok(lister)
     }
 
     async fn simulate_delete_with_recursive(
@@ -266,9 +263,7 @@ impl SimulateService {
 
         let non_recursive = args.clone().with_recursive(false);
 
-        let (_rp, mut lister) = self
-            .simulate_list(ctx, path, OpList::new().with_recursive(true))
-            .await?;
+        let mut lister = self.simulate_list(ctx, path, OpList::new().with_recursive(true))?;
 
         while let Some(entry) = lister.next().await? {
             let entry = entry.into_entry();
@@ -307,16 +302,11 @@ impl Service for SimulateService {
         self.simulate_create_dir(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let capability = self.srv.capability();
         let simulate_read_with_suffix =
             self.config.read_with_suffix && capability.read && !capability.read_with_suffix;
-        let (rp, reader) = self.srv.read(ctx, path, args.clone()).await?;
+        let reader = self.srv.read(ctx, path, args.clone())?;
         let reader = SimulateReader::new(
             ctx.clone(),
             self.srv.clone(),
@@ -325,27 +315,22 @@ impl Service for SimulateService {
             reader,
             simulate_read_with_suffix,
         );
-        Ok((rp, reader))
+        Ok(reader)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.srv.write(ctx, path, args).await
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.srv.write(ctx, path, args)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.srv.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.srv.copy(ctx, from, to, args, opts)
     }
 
     async fn rename(
@@ -362,21 +347,18 @@ impl Service for SimulateService {
         self.simulate_stat(ctx, path, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, deleter) = self.srv.delete(ctx).await?;
-        Ok((
-            rp,
-            SimulateDeleter::new(ctx.clone(), self.srv.clone(), self.config.clone(), deleter),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let deleter = self.srv.delete(ctx)?;
+        Ok(SimulateDeleter::new(
+            ctx.clone(),
+            self.srv.clone(),
+            self.config.clone(),
+            deleter,
         ))
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.simulate_list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.simulate_list(ctx, path, args)
     }
 
     async fn presign(
@@ -491,7 +473,7 @@ impl oio::List for ServicerFlatLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = match self.srv.list(&self.ctx, de.path(), OpList::new()).await {
+                let mut l = match self.srv.list(&self.ctx, de.path(), OpList::new()) {
                     Ok(v) => v,
                     Err(e) if e.kind() == ErrorKind::PermissionDenied => {
                         log::warn!(
@@ -677,57 +659,42 @@ mod tests {
             ))
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
+        ) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -762,12 +729,18 @@ mod tests {
     impl oio::Read for MockReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
-            Ok((RpRead::default(), Box::new(Buffer::new())))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(Buffer::new()),
+            ))
         }
 
         async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
-            Ok((RpRead::default(), Buffer::new()))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Buffer::new(),
+            ))
         }
     }
 

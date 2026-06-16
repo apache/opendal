@@ -396,58 +396,29 @@ impl Service for TailCutService {
         .await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.with_deadline(Operation::Read, None, self.inner.read(ctx, path, args))
-            .await
-            .map(|(rp, r)| {
-                (
-                    rp,
-                    TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner
+            .read(ctx, path, args)
+            .map(|r| TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.with_deadline(Operation::Write, None, self.inner.write(ctx, path, args))
-            .await
-            .map(|(rp, w)| {
-                (
-                    rp,
-                    TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner
+            .write(ctx, path, args)
+            .map(|w| TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.with_deadline(
-            Operation::Copy,
-            None,
-            self.inner.copy(ctx, from, to, args, opts),
-        )
-        .await
-        .map(|(rp, c)| {
-            (
-                rp,
-                TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()),
-            )
-        })
+    ) -> Result<Self::Copier> {
+        self.inner
+            .copy(ctx, from, to, args, opts)
+            .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
     }
 
     async fn rename(
@@ -470,31 +441,16 @@ impl Service for TailCutService {
             .await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.with_deadline(Operation::Delete, None, self.inner.delete(ctx))
-            .await
-            .map(|(rp, d)| {
-                (
-                    rp,
-                    TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner
+            .delete(ctx)
+            .map(|d| TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.with_deadline(Operation::List, None, self.inner.list(ctx, path, args))
-            .await
-            .map(|(rp, l)| {
-                (
-                    rp,
-                    TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner
+            .list(ctx, path, args)
+            .map(|l| TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()))
     }
 
     async fn presign(

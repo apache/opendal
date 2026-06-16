@@ -41,7 +41,7 @@
 //!         ctx: &OperationContext,
 //!         path: &str,
 //!         args: OpRead,
-//!     ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
+//!     ) -> impl Future<Output = Result<Self::Reader>> + MaybeSend;
 //! }
 //! ```
 //!
@@ -307,7 +307,7 @@
 //!         }
 //!     }
 //!
-//!     async fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+//!     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
 //!         gagaga!()
 //!     }
 //! }

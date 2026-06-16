@@ -181,52 +181,40 @@ impl Service for DTraceService {
         result
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, read_start, c_path.as_ptr());
         let result = self
             .inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, path)));
+            .map(|r| DtraceLayerWrapper::new(r, path));
         probe_lazy!(opendal, read_end, c_path.as_ptr());
         result
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, write_start, c_path.as_ptr());
         let result = self
             .inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, DtraceLayerWrapper::new(r, path)));
+            .map(|r| DtraceLayerWrapper::new(r, path));
 
         probe_lazy!(opendal, write_end, c_path.as_ptr());
         result
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let c_from = CString::new(from).unwrap();
         probe_lazy!(opendal, copy_start, c_from.as_ptr());
-        let result = self.inner.copy(ctx, from, to, args, opts).await;
+        let result = self.inner.copy(ctx, from, to, args, opts);
         probe_lazy!(opendal, copy_end, c_from.as_ptr());
         result
     }
@@ -249,19 +237,14 @@ impl Service for DTraceService {
         result
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, list_start, c_path.as_ptr());
-        let result = self.inner.list(ctx, path, args).await;
+        let result = self.inner.list(ctx, path, args);
         probe_lazy!(opendal, list_end, c_path.as_ptr());
         result
     }

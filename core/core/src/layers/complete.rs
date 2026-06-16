@@ -79,37 +79,26 @@ impl Service for CompleteService {
         self.inner.create_dir(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, reader) = self.inner.read(ctx, path, args).await?;
-        let reader = CompleteReader::new(reader);
-        Ok((rp, reader))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let reader = self.inner.read(ctx, path, args)?;
+        Ok(CompleteReader::new(reader))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let append = args.append();
-        let (rp, w) = self.inner.write(ctx, path, args).await?;
-        Ok((rp, CompleteWriter::new(w, append)))
+        let w = self.inner.write(ctx, path, args)?;
+        Ok(CompleteWriter::new(w, append))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
     async fn rename(
@@ -126,19 +115,13 @@ impl Service for CompleteService {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, lister) = self.inner.list(ctx, path, args).await?;
-        let lister = CompleteLister::new(ctx.clone(), self.inner.clone(), lister);
-        Ok((rp, lister))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let lister = self.inner.list(ctx, path, args)?;
+        Ok(CompleteLister::new(ctx.clone(), self.inner.clone(), lister))
     }
 
     async fn presign(
@@ -454,7 +437,12 @@ mod tests {
         }
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
-            Ok((RpRead::default(), self.buffer.clone()))
+            Ok((
+                RpRead::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(self.buffer.len() as u64),
+                ),
+                self.buffer.clone(),
+            ))
         }
     }
 

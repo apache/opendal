@@ -201,6 +201,125 @@ impl FtpReader {
     }
 }
 
+pub struct FtpLazyWriter {
+    core: Arc<FtpCore>,
+    path: String,
+    append: bool,
+    inner: Option<FtpWriter>,
+}
+
+impl FtpLazyWriter {
+    fn new(core: Arc<FtpCore>, path: &str, op: OpWrite) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            append: op.append(),
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut FtpWriter> {
+        if self.inner.is_none() {
+            let parent = get_parent(&self.path);
+            let paths: Vec<&str> = parent.split('/').collect();
+
+            // TODO: we can optimize this by checking dir existence first.
+            let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
+            let mut curr_path = String::new();
+
+            for path in paths {
+                if path.is_empty() {
+                    continue;
+                }
+                curr_path.push_str(path);
+                curr_path.push('/');
+                match ftp_stream.mkdir(&curr_path).await {
+                    // Do nothing if status is FileUnavailable or OK(()) is return.
+                    Err(FtpError::UnexpectedResponse(Response {
+                        status: Status::FileUnavailable,
+                        ..
+                    }))
+                    | Ok(()) => (),
+                    Err(e) => {
+                        return Err(format_ftp_error(e));
+                    }
+                }
+            }
+
+            let tmp_path = (!self.append).then_some(build_tmp_path_of(&self.path));
+            let w = FtpWriter::new(ftp_stream, self.path.clone(), tmp_path);
+            self.inner = Some(w);
+        }
+
+        Ok(self.inner.as_mut().expect("ftp writer must be initialized"))
+    }
+}
+
+impl oio::Write for FtpLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match &mut self.inner {
+            Some(w) => w.close().await,
+            None => Ok(Metadata::default()),
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "FtpWriter doesn't support abort",
+            )),
+        }
+    }
+}
+
+pub struct FtpLazyLister {
+    core: Arc<FtpCore>,
+    path: String,
+    inner: Option<FtpLister>,
+}
+
+impl FtpLazyLister {
+    fn new(core: Arc<FtpCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut FtpLister> {
+        if self.inner.is_none() {
+            let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
+
+            let pathname = if self.path == "/" {
+                None
+            } else {
+                Some(self.path.as_str())
+            };
+            let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
+
+            self.inner = Some(FtpLister::new(
+                if self.path == "/" { "" } else { &self.path },
+                files,
+            ));
+        }
+
+        Ok(self.inner.as_mut().expect("ftp lister must be initialized"))
+    }
+}
+
+impl oio::List for FtpLazyLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner().await?.next().await
+    }
+}
+
 impl oio::StreamRead for FtpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
@@ -216,8 +335,8 @@ impl oio::StreamRead for FtpReader {
 
 impl Service for FtpBackend {
     type Reader = oio::StreamReader<FtpReader>;
-    type Writer = FtpWriter;
-    type Lister = FtpLister;
+    type Writer = FtpLazyWriter;
+    type Lister = FtpLazyLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
     type Copier = ();
 
@@ -276,105 +395,41 @@ impl Service for FtpBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<FtpReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(FtpReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<FtpReader> = {
+            Ok(oio::StreamReader::new(FtpReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, FtpWriter) = {
-            // Ensure the parent dir exists.
-            let parent = get_parent(path);
-            let paths: Vec<&str> = parent.split('/').collect();
-
-            // TODO: we can optimize this by checking dir existence first.
-            let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
-            let mut curr_path = String::new();
-
-            for path in paths {
-                if path.is_empty() {
-                    continue;
-                }
-                curr_path.push_str(path);
-                curr_path.push('/');
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(format_ftp_error(e));
-                    }
-                }
-            }
-
-            let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
-            let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
-
-            Ok((RpWrite::new(), w))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(FtpLazyWriter::new(self.core.clone(), path, op))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<FtpDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone())),
-            ))
-        }?;
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<FtpDeleter> =
+            { Ok(oio::OneShotDeleter::new(FtpDeleter::new(self.core.clone()))) }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, FtpLister) = {
-            let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
-
-            let pathname = if path == "/" { None } else { Some(path) };
-            let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
-
-            Ok((
-                RpList::default(),
-                FtpLister::new(if path == "/" { "" } else { path }, files),
-            ))
-        }?;
-
-        Ok((rp, output))
+    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        Ok(FtpLazyLister::new(self.core.clone(), path))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

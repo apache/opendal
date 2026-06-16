@@ -219,9 +219,59 @@ impl oio::StreamRead for HdfsReader {
     }
 }
 
+pub struct HdfsLazyWriter {
+    core: Arc<HdfsCore>,
+    path: String,
+    op: OpWrite,
+    inner: Option<HdfsWriter<hdrs::AsyncFile>>,
+}
+
+impl HdfsLazyWriter {
+    fn new(core: Arc<HdfsCore>, path: &str, op: OpWrite) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            op,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut HdfsWriter<hdrs::AsyncFile>> {
+        if self.inner.is_none() {
+            let (target_path, tmp_path, f, target_exists, initial_size) =
+                self.core.hdfs_write(&self.path, &self.op).await?;
+
+            self.inner = Some(HdfsWriter::new(
+                target_path,
+                tmp_path,
+                f,
+                Arc::clone(&self.core.client),
+                target_exists,
+                initial_size,
+            ));
+        }
+
+        Ok(self.inner.as_mut().expect("writer must be initialized"))
+    }
+}
+
+impl oio::Write for HdfsLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner().await?.abort().await
+    }
+}
+
 impl Service for HdfsBackend {
     type Reader = oio::StreamReader<HdfsReader>;
-    type Writer = HdfsWriter<hdrs::AsyncFile>;
+    type Writer = HdfsLazyWriter;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
     type Copier = ();
@@ -248,86 +298,54 @@ impl Service for HdfsBackend {
         let m = self.core.hdfs_stat(path)?;
         Ok(RpStat::new(m))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<HdfsReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(HdfsReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<HdfsReader> = {
+            Ok(oio::StreamReader::new(HdfsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, HdfsWriter<hdrs::AsyncFile>) = {
-            let (target_path, tmp_path, f, target_exists, initial_size) =
-                self.core.hdfs_write(path, &op).await?;
+    fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(HdfsLazyWriter::new(self.core.clone(), path, op))
+    }
 
-            Ok((
-                RpWrite::new(),
-                HdfsWriter::new(
-                    target_path,
-                    tmp_path,
-                    f,
-                    Arc::clone(&self.core.client),
-                    target_exists,
-                    initial_size,
-                ),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<HdfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(HdfsDeleter::new(Arc::clone(
+                &self.core,
+            ))))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<HdfsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(HdfsDeleter::new(Arc::clone(&self.core))),
-            ))
-        }?;
-
-        Ok((rp, output))
-    }
-
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, Option<HdfsLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        let output: Option<HdfsLister> = {
             match self.core.hdfs_list(path)? {
                 Some(f) => {
                     let rd = HdfsLister::new(&self.core.root, f, path);
-                    Ok((RpList::default(), Some(rd)))
+                    Ok(Some(rd))
                 }
-                None => Ok((RpList::default(), None)),
+                None => Ok(None),
             }
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

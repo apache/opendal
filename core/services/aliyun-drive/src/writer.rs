@@ -20,6 +20,7 @@ use std::sync::Arc;
 use bytes::Buf;
 
 use super::core::AliyunDriveCore;
+use super::core::AliyunDriveFile;
 use super::core::CheckNameMode;
 use super::core::CreateResponse;
 use super::core::CreateType;
@@ -37,6 +38,82 @@ pub struct AliyunDriveWriter {
     file_id: Option<String>,
     upload_id: Option<String>,
     part_number: usize,
+}
+
+pub struct AliyunDriveLazyWriter {
+    core: Arc<AliyunDriveCore>,
+    ctx: OperationContext,
+    path: String,
+    args: OpWrite,
+    inner: Option<AliyunDriveWriter>,
+}
+
+impl AliyunDriveLazyWriter {
+    pub fn new(
+        core: Arc<AliyunDriveCore>,
+        ctx: OperationContext,
+        path: String,
+        args: OpWrite,
+    ) -> Self {
+        Self {
+            core,
+            ctx,
+            path,
+            args,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut AliyunDriveWriter> {
+        if self.inner.is_none() {
+            let parent_path = get_parent(&self.path);
+            let parent_file_id = self.core.ensure_dir_exists(&self.ctx, parent_path).await?;
+
+            // write can overwrite
+            match self.core.get_by_path(&self.ctx, &self.path).await {
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+                Ok(res) => {
+                    let file: AliyunDriveFile =
+                        serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                    self.core.delete_path(&self.ctx, &file.file_id).await?;
+                }
+            };
+
+            self.inner = Some(AliyunDriveWriter::new(
+                self.core.clone(),
+                self.ctx.clone(),
+                &parent_file_id,
+                get_basename(&self.path),
+                self.args.clone(),
+            ));
+        }
+
+        Ok(self
+            .inner
+            .as_mut()
+            .expect("aliyun drive writer must be initialized"))
+    }
+}
+
+impl oio::Write for AliyunDriveLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match &mut self.inner {
+            Some(w) => w.close().await,
+            None => Ok(Metadata::default()),
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Ok(()),
+        }
+    }
 }
 
 impl AliyunDriveWriter {

@@ -256,10 +256,10 @@ where
     S::Permit: Send + Sync + 'static + Unpin,
 {
     type Reader = ConcurrentLimitReader<oio::Reader, S>;
-    type Writer = ConcurrentLimitWrapper<oio::Writer, S::Permit>;
-    type Lister = ConcurrentLimitWrapper<oio::Lister, S::Permit>;
-    type Deleter = ConcurrentLimitWrapper<oio::Deleter, S::Permit>;
-    type Copier = ConcurrentLimitWrapper<oio::Copier, S::Permit>;
+    type Writer = ConcurrentLimitWrapper<oio::Writer, S>;
+    type Lister = ConcurrentLimitWrapper<oio::Lister, S>;
+    type Deleter = ConcurrentLimitWrapper<oio::Deleter, S>;
+    type Copier = ConcurrentLimitWrapper<oio::Copier, S>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -279,44 +279,29 @@ where
         self.inner.create_dir(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, self.semaphore.clone())))
+            .map(|r| ConcurrentLimitReader::new(r, self.semaphore.clone()))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let permit = self.semaphore.acquire().await;
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+            .map(|w| ConcurrentLimitWrapper::new(w, self.semaphore.clone()))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let permit = self.semaphore.acquire().await;
+    ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args, opts)
-            .await
-            .map(|(rp, c)| (rp, ConcurrentLimitWrapper::new(c, permit)))
+            .map(|c| ConcurrentLimitWrapper::new(c, self.semaphore.clone()))
     }
 
     async fn rename(
@@ -335,25 +320,16 @@ where
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let permit = self.semaphore.acquire().await;
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.inner
             .delete(ctx)
-            .await
-            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+            .map(|w| ConcurrentLimitWrapper::new(w, self.semaphore.clone()))
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let permit = self.semaphore.acquire().await;
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner
             .list(ctx, path, args)
-            .await
-            .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+            .map(|s| ConcurrentLimitWrapper::new(s, self.semaphore.clone()))
     }
 
     async fn presign(
@@ -388,7 +364,11 @@ where
         let (rp, stream) = self.inner.open(range).await?;
         Ok((
             rp,
-            Box::new(ConcurrentLimitWrapper::new(stream, permit)) as Box<dyn oio::ReadStreamDyn>,
+            Box::new(ConcurrentLimitWrapper::new_with_permit(
+                stream,
+                self.semaphore.clone(),
+                permit,
+            )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 
@@ -399,31 +379,52 @@ where
 }
 
 #[doc(hidden)]
-pub struct ConcurrentLimitWrapper<R, P> {
+pub struct ConcurrentLimitWrapper<R, S: ConcurrentLimitSemaphore> {
     inner: R,
-
+    semaphore: S,
     // Hold this permit until the wrapped operation body is dropped.
-    _permit: P,
+    permit: Option<S::Permit>,
 }
 
-impl<R, P> ConcurrentLimitWrapper<R, P> {
-    fn new(inner: R, permit: P) -> Self {
+impl<R, S: ConcurrentLimitSemaphore> ConcurrentLimitWrapper<R, S> {
+    fn new(inner: R, semaphore: S) -> Self {
         Self {
             inner,
-            _permit: permit,
+            semaphore,
+            permit: None,
+        }
+    }
+
+    fn new_with_permit(inner: R, semaphore: S, permit: S::Permit) -> Self {
+        Self {
+            inner,
+            semaphore,
+            permit: Some(permit),
+        }
+    }
+
+    async fn acquire(&mut self) {
+        if self.permit.is_none() {
+            self.permit = Some(self.semaphore.acquire().await);
         }
     }
 }
 
-impl<R: oio::ReadStream, P: Send + Sync + 'static + Unpin> oio::ReadStream
-    for ConcurrentLimitWrapper<R, P>
+impl<R: oio::ReadStream, S: ConcurrentLimitSemaphore> oio::ReadStream
+    for ConcurrentLimitWrapper<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
 {
     async fn read(&mut self) -> Result<Buffer> {
+        self.acquire().await;
         self.inner.read().await
     }
 }
 
-impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::Read, S: ConcurrentLimitSemaphore> oio::Read for ConcurrentLimitWrapper<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         self.inner.open(range).await
     }
@@ -433,48 +434,67 @@ impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLim
     }
 }
 
-impl<R: oio::Write, P: Send + Sync + 'static + Unpin> oio::Write for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::Write, S: ConcurrentLimitSemaphore> oio::Write for ConcurrentLimitWrapper<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.acquire().await;
         self.inner.write(bs).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        self.acquire().await;
         self.inner.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.acquire().await;
         self.inner.abort().await
     }
 }
 
-impl<R: oio::List, P: Send + Sync + 'static + Unpin> oio::List for ConcurrentLimitWrapper<R, P> {
+impl<R: oio::List, S: ConcurrentLimitSemaphore> oio::List for ConcurrentLimitWrapper<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.acquire().await;
         self.inner.next().await
     }
 }
 
-impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
-    for ConcurrentLimitWrapper<R, P>
+impl<R: oio::Delete, S: ConcurrentLimitSemaphore> oio::Delete for ConcurrentLimitWrapper<R, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
 {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.acquire().await;
         self.inner.delete(path, args).await
     }
 
     async fn close(&mut self) -> Result<()> {
+        self.acquire().await;
         self.inner.close().await
     }
 }
 
-impl<C: oio::Copy, P: Send + Sync + 'static + Unpin> oio::Copy for ConcurrentLimitWrapper<C, P> {
+impl<C: oio::Copy, S: ConcurrentLimitSemaphore> oio::Copy for ConcurrentLimitWrapper<C, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
     async fn next(&mut self) -> Result<Option<usize>> {
+        self.acquire().await;
         self.inner.next().await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        self.acquire().await;
         self.inner.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.acquire().await;
         self.inner.abort().await
     }
 }
@@ -484,6 +504,7 @@ mod tests {
     use super::*;
     use opendal_core::Operator;
     use opendal_core::services;
+    use std::future::pending;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::time::timeout;
@@ -559,58 +580,43 @@ mod tests {
                 ))
             }
 
-            async fn read(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpRead,
-            ) -> Result<(RpRead, Self::Reader)> {
+            fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn write(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpWrite,
-            ) -> Result<(RpWrite, Self::Writer)> {
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn list(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpList,
-            ) -> Result<(RpList, Self::Lister)> {
+            fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn copy(
+            fn copy(
                 &self,
                 _: &OperationContext,
                 _: &str,
                 _: &str,
                 _: OpCopy,
                 _: OpCopier,
-            ) -> Result<(RpCopy, Self::Copier)> {
-                Ok((RpCopy::default(), ()))
+            ) -> Result<Self::Copier> {
+                Ok(())
             }
 
             async fn rename(
@@ -674,6 +680,23 @@ mod tests {
 
     #[tokio::test]
     async fn operation_semaphore_held_until_copier_dropped() {
+        #[derive(Debug)]
+        struct PendingCopier;
+
+        impl oio::Copy for PendingCopier {
+            async fn next(&mut self) -> Result<Option<usize>> {
+                pending().await
+            }
+
+            async fn close(&mut self) -> Result<Metadata> {
+                pending().await
+            }
+
+            async fn abort(&mut self) -> Result<()> {
+                Ok(())
+            }
+        }
+
         #[derive(Clone, Debug)]
         struct CopierBackend {
             info: ServiceInfo,
@@ -685,7 +708,7 @@ mod tests {
             type Writer = ();
             type Lister = ();
             type Deleter = ();
-            type Copier = ();
+            type Copier = PendingCopier;
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -707,58 +730,43 @@ mod tests {
                 ))
             }
 
-            async fn read(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpRead,
-            ) -> Result<(RpRead, Self::Reader)> {
+            fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn write(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpWrite,
-            ) -> Result<(RpWrite, Self::Writer)> {
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn list(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpList,
-            ) -> Result<(RpList, Self::Lister)> {
+            fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn copy(
+            fn copy(
                 &self,
                 _: &OperationContext,
                 _: &str,
                 _: &str,
                 _: OpCopy,
                 _: OpCopier,
-            ) -> Result<(RpCopy, Self::Copier)> {
-                Ok((RpCopy::default(), ()))
+            ) -> Result<Self::Copier> {
+                Ok(PendingCopier)
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
@@ -804,12 +812,15 @@ mod tests {
         }))
         .layer(layer);
 
-        let copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
+        let mut copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
             .await
             .expect("copier setup should not block")
             .expect("copier should be created");
 
-        // The permit is held by the live copier, so concurrent operations
+        let copy = timeout(Duration::from_millis(50), copier.next()).await;
+        assert!(copy.is_err(), "copy body should remain pending");
+
+        // The permit is held by the active copy body, so concurrent operations
         // must time out until the copier is dropped.
         let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
         assert!(
@@ -910,16 +921,18 @@ mod tests {
                 ))
             }
 
-            async fn read(
+            fn read(
                 &self,
                 ctx: &OperationContext,
                 path: &str,
                 args: OpRead,
-            ) -> Result<(RpRead, Self::Reader)> {
-                Ok((
-                    RpRead::default(),
-                    oio::StreamReader::new(HttpReader::new(self.clone(), ctx.clone(), path, args)),
-                ))
+            ) -> Result<Self::Reader> {
+                Ok(oio::StreamReader::new(HttpReader::new(
+                    self.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
@@ -928,45 +941,35 @@ mod tests {
                 ))
             }
 
-            async fn write(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpWrite,
-            ) -> Result<(RpWrite, Self::Writer)> {
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+            fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn list(
-                &self,
-                _: &OperationContext,
-                _: &str,
-                _: OpList,
-            ) -> Result<(RpList, Self::Lister)> {
+            fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",
                 ))
             }
 
-            async fn copy(
+            fn copy(
                 &self,
                 _: &OperationContext,
                 _: &str,
                 _: &str,
                 _: OpCopy,
                 _: OpCopier,
-            ) -> Result<(RpCopy, Self::Copier)> {
+            ) -> Result<Self::Copier> {
                 Err(Error::new(
                     ErrorKind::Unsupported,
                     "operation is not supported",

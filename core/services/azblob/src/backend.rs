@@ -555,29 +555,21 @@ impl Service for AzblobBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<AzblobReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(AzblobReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<AzblobReader> = {
+            Ok(oio::StreamReader::new(AzblobReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, AzblobWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: AzblobWriters = {
             let w = AzblobWriter::new(
                 self.core.clone(),
                 ctx.clone(),
@@ -594,33 +586,25 @@ impl Service for AzblobBackend {
                 ))
             };
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<AzblobDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(
-                    AzblobDeleter::new(self.core.clone(), ctx.clone()),
-                    self.core.capability.delete_max_size,
-                ),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<AzblobDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                AzblobDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<AzblobLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<AzblobLister> = {
             let l = AzblobLister::new(
                 self.core.clone(),
                 ctx.clone(),
@@ -629,26 +613,26 @@ impl Service for AzblobBackend {
                 args.limit(),
             );
 
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, AzblobCopiers) = {
+    ) -> Result<Self::Copier> {
+        let output: AzblobCopiers = {
             let copier = new_azblob_copier(self.core.clone(), ctx, from, to, args, opts)?;
-            Ok((RpCopy::default(), copier))
+            Ok(copier)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn rename(

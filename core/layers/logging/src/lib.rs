@@ -292,17 +292,11 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         result
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.log_start(Operation::Read, &[("path", path)]);
         self.inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| {
+            .map(|r| {
                 self.logger.log(
                     &self.info,
                     Operation::Read,
@@ -310,10 +304,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                     "created reader",
                     None,
                 );
-                (
-                    rp,
-                    LoggingReader::new(self.info.clone(), self.logger.clone(), path, r),
-                )
+                LoggingReader::new(self.info.clone(), self.logger.clone(), path, r)
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -326,17 +317,11 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             })
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.log_start(Operation::Write, &[("path", path)]);
         self.inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, w)| {
+            .map(|w| {
                 self.logger.log(
                     &self.info,
                     Operation::Write,
@@ -344,10 +329,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                     "created writer",
                     None,
                 );
-                (
-                    rp,
-                    LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w),
-                )
+                LoggingWriter::new(self.info.clone(), self.logger.clone(), path, w)
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -367,18 +349,14 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         result
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.log_start(Operation::Delete, &[]);
         self.inner
             .delete(ctx)
-            .await
-            .map(|(rp, d)| {
+            .map(|d| {
                 self.logger
                     .log(&self.info, Operation::Delete, &[], "finished", None);
-                (
-                    rp,
-                    LoggingDeleter::new(self.info.clone(), self.logger.clone(), d),
-                )
+                LoggingDeleter::new(self.info.clone(), self.logger.clone(), d)
             })
             .inspect_err(|err| {
                 self.logger
@@ -386,19 +364,18 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             })
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         self.log_start(Operation::Copy, &[("from", from), ("to", to)]);
         self.inner
             .copy(ctx, from, to, args, opts)
-            .await
-            .map(|(rp, c)| {
+            .map(|c| {
                 self.logger.log(
                     &self.info,
                     Operation::Copy,
@@ -406,10 +383,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                     "created copier",
                     None,
                 );
-                (
-                    rp,
-                    LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c),
-                )
+                LoggingCopier::new(self.info.clone(), self.logger.clone(), from, to, c)
             })
             .inspect_err(|err| {
                 self.logger.log(
@@ -439,17 +413,11 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         result
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.log_start(Operation::List, &[("path", path)]);
         self.inner
             .list(ctx, path, args)
-            .await
-            .map(|(rp, v)| {
+            .map(|v| {
                 self.logger.log(
                     &self.info,
                     Operation::List,
@@ -457,10 +425,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
                     "created lister",
                     None,
                 );
-                (
-                    rp,
-                    LoggingLister::new(self.info.clone(), self.logger.clone(), path, v),
-                )
+                LoggingLister::new(self.info.clone(), self.logger.clone(), path, v)
             })
             .inspect_err(|err| {
                 self.logger.log(

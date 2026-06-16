@@ -76,6 +76,7 @@ impl WebhdfsCore {
 
         let req = req
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkdirs"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -109,6 +110,7 @@ impl WebhdfsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Create"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -136,6 +138,7 @@ impl WebhdfsCore {
         };
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Create"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -187,6 +190,7 @@ impl WebhdfsCore {
 
         let req = Request::post(url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("Append"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -227,6 +231,7 @@ impl WebhdfsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Append"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -265,6 +270,7 @@ impl WebhdfsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Concat"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -347,6 +353,7 @@ impl WebhdfsCore {
 
         let req = Request::get(&url)
             .extension(Operation::Read)
+            .extension(ServiceOperation("Open"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -383,6 +390,7 @@ impl WebhdfsCore {
 
         let req = Request::get(&url)
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileStatus"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -409,6 +417,7 @@ impl WebhdfsCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

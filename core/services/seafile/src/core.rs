@@ -172,6 +172,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadLink"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -197,7 +198,9 @@ impl SeafileCore {
     ) -> Result<Response<Buffer>> {
         let upload_url = self.get_upload_url(ctx).await?;
 
-        let req = Request::post(upload_url).extension(Operation::Write);
+        let req = Request::post(upload_url)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         let (filename, relative_path) = if path.ends_with('/') {
             ("", build_abs_path(&self.root, path))
@@ -246,6 +249,7 @@ impl SeafileCore {
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkdir"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -272,6 +276,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetDownloadLink"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -304,6 +309,7 @@ impl SeafileCore {
         let req = req
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -325,6 +331,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileDetail"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -357,6 +364,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetDirDetail"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -398,6 +406,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -428,6 +437,7 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::List)
+            .extension(ServiceOperation("ListDir"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

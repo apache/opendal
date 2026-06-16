@@ -82,6 +82,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetFileLink"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -126,6 +127,7 @@ impl PcloudCore {
         let req = req
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -184,6 +186,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolderIfNotExists"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -213,6 +216,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Rename)
+            .extension(ServiceOperation("RenameFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -241,6 +245,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Rename)
+            .extension(ServiceOperation("RenameFolder"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -267,6 +272,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFolder"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -293,6 +299,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -322,6 +329,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -351,6 +359,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFolder"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -375,6 +384,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("Stat"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -405,6 +415,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"))
             .body(bs)
             .map_err(new_request_build_error)?;
 
@@ -435,6 +446,7 @@ impl PcloudCore {
         // set body
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFolder"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

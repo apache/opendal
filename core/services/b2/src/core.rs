@@ -157,7 +157,9 @@ impl B2Core {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFileByName"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -179,7 +181,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadUrl"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -287,7 +291,9 @@ impl B2Core {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -332,7 +338,9 @@ impl B2Core {
             start_large_file_request.file_info = Some(file_info);
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("StartLargeFile"));
 
         let body =
             serde_json::to_vec(&start_large_file_request).map_err(new_json_serialize_error)?;
@@ -361,7 +369,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadPartUrl"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -400,7 +410,9 @@ impl B2Core {
 
         req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -422,7 +434,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("FinishLargeFile"));
 
         let body = serde_json::to_vec(&FinishLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -452,7 +466,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelLargeFile"));
 
         let body = serde_json::to_vec(&CancelLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -545,7 +561,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        req = req.extension(operation);
+        req = req
+            .extension(operation)
+            .extension(ServiceOperation("ListFileNames"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -569,7 +587,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"));
 
         let body = CopyFileRequest {
             source_file_id,
@@ -598,7 +618,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("HideFile"));
 
         let body = HideFileRequest {
             bucket_id: self.bucket_id.clone(),

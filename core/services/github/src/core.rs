@@ -121,7 +121,9 @@ impl GithubCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetRepositoryContent"));
 
         let req = self.sign(req)?;
 
@@ -150,7 +152,9 @@ impl GithubCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetRepositoryContent"));
 
         let req = self.sign(req)?;
 
@@ -182,7 +186,9 @@ impl GithubCore {
 
         let req = Request::put(url);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateOrUpdateFileContents"));
 
         let req = self.sign(req)?;
 
@@ -230,7 +236,9 @@ impl GithubCore {
 
         let req = Request::delete(url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"));
 
         let req = self.sign(req)?;
 
@@ -267,7 +275,9 @@ impl GithubCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("GetRepositoryContent"));
 
         let req = self.sign(req)?;
 
@@ -301,7 +311,9 @@ impl GithubCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("GetTree"));
 
         let req = self.sign(req)?;
 

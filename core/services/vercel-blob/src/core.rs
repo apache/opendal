@@ -115,6 +115,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -151,6 +152,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlob"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -178,6 +180,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -215,6 +218,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -245,6 +249,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListBlobs"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -286,6 +291,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteBlob"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(Buffer::from(Bytes::from(req_body.to_string())))
             .map_err(new_request_build_error)?;
@@ -327,6 +333,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -362,6 +369,7 @@ impl VercelBlobCore {
         // Set body
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -395,6 +403,7 @@ impl VercelBlobCore {
         let req = req
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(Bytes::from(parts_json.to_string())))
             .map_err(new_request_build_error)?;
 

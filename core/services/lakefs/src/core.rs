@@ -72,7 +72,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("StatObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -106,7 +108,9 @@ impl LakefsCore {
             req = req.header(header::RANGE, range.to_header());
         }
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().fetch(req).await
@@ -148,7 +152,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("ListObjects"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -178,7 +184,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadObject"));
         let req = req.body(body).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -207,7 +215,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_client().send(req).await
@@ -245,6 +255,7 @@ impl LakefsCore {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("CopyObject"))
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
         ctx.http_client().send(req).await

@@ -123,6 +123,7 @@ impl UpyunCore {
         let mut req = req
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -144,6 +145,7 @@ impl UpyunCore {
 
         let mut req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileInfo"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -185,7 +187,9 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
@@ -206,7 +210,9 @@ impl UpyunCore {
 
         let req = Request::delete(url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -238,7 +244,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -271,7 +279,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveFile"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -297,7 +307,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_FOLDER, "true");
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -338,7 +350,9 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -373,7 +387,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_PART_ID, part_number);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
@@ -403,7 +419,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_MULTI_UUID, upload_id);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -442,7 +460,9 @@ impl UpyunCore {
             req = req.header(X_UPYUN_LIST_LIMIT, limit);
         }
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;

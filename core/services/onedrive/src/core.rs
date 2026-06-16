@@ -99,6 +99,7 @@ impl OneDriveCore {
 
         let mut request = request
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetItem"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -190,6 +191,7 @@ impl OneDriveCore {
 
         let mut request = request
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetItem"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -255,6 +257,7 @@ impl OneDriveCore {
 
         let mut request = Request::get(url)
             .extension(Operation::List)
+            .extension(ServiceOperation("ListVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -274,6 +277,7 @@ impl OneDriveCore {
     ) -> Result<Response<Buffer>> {
         let mut request = Request::get(url)
             .extension(Operation::List)
+            .extension(ServiceOperation("ListChildren"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -308,6 +312,7 @@ impl OneDriveCore {
 
         let mut request = request
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadContent"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -360,6 +365,7 @@ impl OneDriveCore {
 
         let mut request = request
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadContent"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -393,6 +399,7 @@ impl OneDriveCore {
 
         let request = request
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFragment"))
             .body(body)
             .map_err(new_request_build_error)?;
         // OneDrive documentation requires not sending the `Authorization` header
@@ -428,6 +435,7 @@ impl OneDriveCore {
         let body = Buffer::from(Bytes::from(body_bytes));
         let mut request = request
             .extension(Operation::Write)
+            .extension(ServiceOperation("CreateUploadSession"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -464,6 +472,7 @@ impl OneDriveCore {
         let mut request = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -484,6 +493,7 @@ impl OneDriveCore {
 
         let mut request = Request::delete(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteItem"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -549,6 +559,7 @@ impl OneDriveCore {
         let mut request = Request::post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyItem"))
             .body(buffer)
             .map_err(new_request_build_error)?;
 
@@ -577,6 +588,7 @@ impl OneDriveCore {
             let mut request = Request::get(monitor_url.to_string())
                 .header(header::CONTENT_TYPE, "application/json")
                 .extension(Operation::Copy)
+                .extension(ServiceOperation("MonitorCopy"))
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
@@ -635,6 +647,7 @@ impl OneDriveCore {
         let mut request = Request::patch(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveItem"))
             .body(buffer)
             .map_err(new_request_build_error)?;
 

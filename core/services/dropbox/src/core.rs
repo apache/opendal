@@ -127,7 +127,9 @@ impl DropboxCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"));
 
         let mut request = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -157,7 +159,9 @@ impl DropboxCore {
             args.content_type().unwrap_or("application/octet-stream"),
         );
 
-        let request_builder = request_builder.extension(Operation::Write);
+        let request_builder = request_builder
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         let mut request = request_builder
             .header(
@@ -187,6 +191,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -210,6 +215,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -251,6 +257,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFolder"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -275,6 +282,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFolderContinue"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -301,6 +309,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -327,6 +336,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveFile"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 
@@ -351,6 +361,7 @@ impl DropboxCore {
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, bs.len())
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetMetadata"))
             .body(Buffer::from(bs))
             .map_err(new_request_build_error)?;
 

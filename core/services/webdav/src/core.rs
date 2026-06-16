@@ -135,6 +135,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("Propfind"))
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
@@ -188,6 +189,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("Get"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -225,6 +227,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Put"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -264,6 +267,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Proppatch"))
             .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
@@ -286,6 +290,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -320,6 +325,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("Copy"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -354,6 +360,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Rename)
+            .extension(ServiceOperation("Move"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -385,6 +392,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("Propfind"))
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
@@ -448,6 +456,7 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkcol"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

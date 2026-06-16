@@ -68,7 +68,9 @@ impl AlluxioCore {
 
         req = req.header("Content-Type", "application/json");
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateDirectory"));
 
         let req = req
             .body(Buffer::from(body))
@@ -100,7 +102,9 @@ impl AlluxioCore {
 
         req = req.header("Content-Type", "application/json");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateFile"));
 
         let req = req
             .body(Buffer::from(body))
@@ -129,7 +133,9 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("OpenFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = ctx.http_client().send(req).await?;
@@ -156,7 +162,9 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let resp = ctx.http_client().send(req).await?;
@@ -186,7 +194,9 @@ impl AlluxioCore {
             percent_encode_path(&dst)
         ));
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -209,7 +219,9 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetStatus"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -241,7 +253,9 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListStatus"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -279,7 +293,9 @@ impl AlluxioCore {
             self.endpoint, stream_id,
         ));
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("ReadStream"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -297,7 +313,9 @@ impl AlluxioCore {
             self.endpoint, stream_id
         ));
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("WriteStream"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -322,7 +340,9 @@ impl AlluxioCore {
             self.endpoint, stream_id
         ));
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CloseStream"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

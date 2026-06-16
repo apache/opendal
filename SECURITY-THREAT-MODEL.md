@@ -49,7 +49,6 @@ hardening requests, user misuse, or out-of-scope deployment issues?
 
 The most important premises are:
 
-```suggestion
 > OpenDAL trusts storage services for fulfilling storage capabilities defined per documentation.
 > OpenDAL also trusts users to provide secure configuration and use OpenDAL as users' storage layer.
 
@@ -79,10 +78,13 @@ OpenDAL doesn't use principal model. A `Operator` takes control of a backend ser
 `Operator` instance shares the same OpenDAL-level authority.
 A typical interaction will be:
 
+```
 Trusted service <-> Backend <-> Operator <-> Host Application <-> End user
                  |                        |
                  |------------------------|
                     OpenDAL code surface
+```
+
 ## 4. Security Boundary
 
 OpenDAL's security boundary is the public library boundary plus the internal

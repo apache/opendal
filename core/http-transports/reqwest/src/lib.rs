@@ -19,23 +19,16 @@
 
 #![deny(missing_docs)]
 
-use std::convert::Infallible;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::future;
 use std::mem;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::LazyLock;
-use std::task::Context;
-use std::task::Poll;
 
-use bytes::Bytes;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use http_body::Frame;
-use http_body::SizeHint;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
@@ -183,19 +176,21 @@ fn is_temporary_error(err: &reqwest::Error) -> bool {
     err.is_decode()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct HttpBufferBody(Buffer);
 
+#[cfg(not(target_arch = "wasm32"))]
 impl http_body::Body for HttpBufferBody {
-    type Data = Bytes;
-    type Error = Infallible;
+    type Data = bytes::Bytes;
+    type Error = std::convert::Infallible;
 
     fn poll_frame(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
         match self.0.next() {
-            Some(bs) => Poll::Ready(Some(Ok(Frame::data(bs)))),
-            None => Poll::Ready(None),
+            Some(bs) => std::task::Poll::Ready(Some(Ok(http_body::Frame::data(bs)))),
+            None => std::task::Poll::Ready(None),
         }
     }
 
@@ -203,7 +198,7 @@ impl http_body::Body for HttpBufferBody {
         self.0.is_empty()
     }
 
-    fn size_hint(&self) -> SizeHint {
-        SizeHint::with_exact(self.0.len() as u64)
+    fn size_hint(&self) -> http_body::SizeHint {
+        http_body::SizeHint::with_exact(self.0.len() as u64)
     }
 }

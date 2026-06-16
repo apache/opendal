@@ -105,7 +105,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Create a directory at path if not exist, return the metadata about the folder
@@ -197,7 +197,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        let response = ctx.http_client().send(request).await?;
+        let response = ctx.http_transport().send(request).await?;
         if !response.status().is_success() {
             return Err(parse_error(response));
         }
@@ -263,7 +263,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        let response = ctx.http_client().send(request).await?;
+        let response = ctx.http_transport().send(request).await?;
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -283,7 +283,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Download a file
@@ -318,7 +318,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().fetch(request).await
+        ctx.http_transport().fetch(request).await
     }
 
     /// Upload a file
@@ -371,7 +371,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -404,7 +404,7 @@ impl OneDriveCore {
             .map_err(new_request_build_error)?;
         // OneDrive documentation requires not sending the `Authorization` header
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Create a upload session for chunk uploads
@@ -441,7 +441,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Create a directory
@@ -478,7 +478,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Delete a `DriveItem`
@@ -499,7 +499,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        ctx.http_client().send(request).await
+        ctx.http_transport().send(request).await
     }
 
     /// Initialize a copy
@@ -565,7 +565,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        let response = ctx.http_client().send(request).await?;
+        let response = ctx.http_transport().send(request).await?;
         match response.status() {
             StatusCode::ACCEPTED => parse_location(response.headers())?
                 .ok_or_else(|| {
@@ -594,7 +594,7 @@ impl OneDriveCore {
 
             self.sign(ctx, &mut request).await?;
 
-            let response = ctx.http_client().send(request).await?;
+            let response = ctx.http_transport().send(request).await?;
             let status: OneDriveMonitorStatus =
                 serde_json::from_reader(response.into_body().reader())
                     .map_err(new_json_deserialize_error)?;
@@ -653,7 +653,7 @@ impl OneDriveCore {
 
         self.sign(ctx, &mut request).await?;
 
-        let response = ctx.http_client().send(request).await?;
+        let response = ctx.http_transport().send(request).await?;
         match response.status() {
             // can get etag, metadata, etc...
             StatusCode::OK => Ok(()),
@@ -705,7 +705,7 @@ impl OneDriveSigner {
             .body(Buffer::from(encoded_payload))
             .map_err(new_request_build_error)?;
 
-        let response = ctx.http_client().send(request).await?;
+        let response = ctx.http_transport().send(request).await?;
         match response.status() {
             StatusCode::OK => {
                 let resp_body = response.into_body();

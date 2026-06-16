@@ -420,7 +420,7 @@ impl HfCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<HttpBody>> {
-        let resp = ctx.http_client().fetch(req).await?;
+        let resp = ctx.http_transport().fetch(req).await?;
         let (parts, body) = resp.into_parts();
         if parts.status.is_success() {
             Ok(Response::from_parts(parts, body))
@@ -492,7 +492,7 @@ impl HfCore {
         }
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = ctx.http_client().fetch(req).await?;
+        let resp = ctx.http_transport().fetch(req).await?;
 
         if !resp.status().is_success() {
             let status = resp.status();
@@ -589,12 +589,12 @@ pub(crate) mod test_utils {
     use super::*;
 
     #[derive(Clone)]
-    pub(crate) struct MockHttpClient {
+    pub(crate) struct MockHttpTransport {
         url: Arc<Mutex<Option<String>>>,
         body: Arc<Mutex<Option<String>>>,
     }
 
-    impl MockHttpClient {
+    impl MockHttpTransport {
         pub(crate) fn new() -> Self {
             Self {
                 url: Arc::new(Mutex::new(None)),
@@ -611,7 +611,7 @@ pub(crate) mod test_utils {
         }
     }
 
-    impl HttpFetch for MockHttpClient {
+    impl HttpTransport for MockHttpTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
             *self.url.lock().unwrap() = Some(req.uri().to_string());
             *self.body.lock().unwrap() = Some(
@@ -662,10 +662,10 @@ pub(crate) mod test_utils {
         repo_id: &str,
         revision: &str,
         endpoint: &str,
-    ) -> (HfCore, OperationContext, MockHttpClient) {
-        let mock_client = MockHttpClient::new();
-        let http_client = HttpClient::with(mock_client.clone());
-        let ctx = OperationContext::new(http_client, Executor::default());
+    ) -> (HfCore, OperationContext, MockHttpTransport) {
+        let mock_client = MockHttpTransport::new();
+        let http_transport = HttpTransporter::new(mock_client.clone());
+        let ctx = OperationContext::from_parts(http_transport, Executor::default());
 
         let info = ServiceInfo::new("hf", "", "");
         let capability = Capability::default();

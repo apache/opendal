@@ -94,7 +94,7 @@ impl TosCore {
         self.signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone()))
+                .with_http_send(ctx.http_transport().clone())
                 .with_env(OsEnv),
         )
     }
@@ -120,7 +120,7 @@ impl TosCore {
         );
 
         let resp = ctx
-            .http_client()
+            .http_transport()
             .send(Request::from_parts(parts, body))
             .await?;
 
@@ -149,7 +149,7 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        ctx.http_client()
+        ctx.http_transport()
             .fetch(Request::from_parts(parts, body))
             .await
     }

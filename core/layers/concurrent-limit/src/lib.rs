@@ -165,10 +165,10 @@ where
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_fetch(&self, _srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
-        // Wrap the current HTTP fetcher so HTTP permits are held until the
+    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+        // Wrap the current HTTP transport so HTTP permits are held until the
         // response body is dropped.
-        Arc::new(ConcurrentLimitHttpFetcher::<S> {
+        HttpTransporter::new(ConcurrentLimitHttpTransport::<S> {
             inner,
             http_semaphore: self.http_semaphore.clone(),
         })
@@ -188,12 +188,12 @@ where
 }
 
 #[doc(hidden)]
-pub struct ConcurrentLimitHttpFetcher<S: ConcurrentLimitSemaphore> {
-    inner: HttpFetcher,
+pub struct ConcurrentLimitHttpTransport<S: ConcurrentLimitSemaphore> {
+    inner: HttpTransporter,
     http_semaphore: Option<S>,
 }
 
-impl<S: ConcurrentLimitSemaphore> HttpFetch for ConcurrentLimitHttpFetcher<S>
+impl<S: ConcurrentLimitSemaphore> HttpTransport for ConcurrentLimitHttpTransport<S>
 where
     S::Permit: Unpin,
 {
@@ -840,9 +840,9 @@ mod tests {
     async fn concurrent_chunked_read_with_http_limit() {
         use opendal_core::raw::*;
 
-        struct EchoFetcher;
+        struct EchoTransport;
 
-        impl HttpFetch for EchoFetcher {
+        impl HttpTransport for EchoTransport {
             async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
                 let data = req.into_body();
                 let len = data.len() as u64;
@@ -886,7 +886,7 @@ mod tests {
                     None => backend.content.slice(start..),
                 };
                 let req = http::Request::get("http://fake").body(data).unwrap();
-                let resp = self.ctx.http_client().fetch(req).await?;
+                let resp = self.ctx.http_transport().fetch(req).await?;
                 let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
                 let stream = resp.into_body();
 
@@ -1012,7 +1012,7 @@ mod tests {
             },
             content: content.clone(),
         }))
-        .http_client(HttpClient::with(EchoFetcher))
+        .http_transport(HttpTransporter::new(EchoTransport))
         .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2));
 
         // chunk=256 ⇒ 16 HTTP requests, concurrent=4, but only 2 HTTP permits.
@@ -1035,9 +1035,9 @@ mod tests {
 
     #[tokio::test]
     async fn http_semaphore_holds_until_body_dropped() {
-        struct DummyFetcher;
+        struct DummyTransport;
 
-        impl HttpFetch for DummyFetcher {
+        impl HttpTransport for DummyTransport {
             async fn fetch(&self, _req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
                 let body = HttpBody::new(stream::empty(), None);
                 Ok(Response::builder()
@@ -1049,8 +1049,8 @@ mod tests {
 
         let semaphore = Arc::new(Semaphore::new(1));
         let layer = ConcurrentLimitLayer::new(1).with_http_semaphore(semaphore.clone());
-        let fetcher = ConcurrentLimitHttpFetcher::<Arc<Semaphore>> {
-            inner: HttpClient::with(DummyFetcher).into_inner(),
+        let fetcher = ConcurrentLimitHttpTransport::<Arc<Semaphore>> {
+            inner: HttpTransporter::new(DummyTransport),
             http_semaphore: layer.http_semaphore.clone(),
         };
 

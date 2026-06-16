@@ -92,7 +92,7 @@ impl D1Core {
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Read, "Get")?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
@@ -119,7 +119,7 @@ impl D1Core {
         let params = vec![path.into(), value.to_vec().into()];
         let req = self.create_d1_query_request(&query, params, Operation::Write, "Set")?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
@@ -132,7 +132,7 @@ impl D1Core {
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Delete, "Delete")?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),

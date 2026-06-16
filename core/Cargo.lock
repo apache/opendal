@@ -6312,6 +6312,7 @@ dependencies = [
  "log",
  "logforth",
  "opendal-core",
+ "opendal-http-transport-reqwest",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
@@ -6445,7 +6446,6 @@ dependencies = [
  "bytes",
  "futures",
  "http 1.4.1",
- "http-body 1.0.1",
  "jiff",
  "log",
  "logforth",
@@ -6457,7 +6457,6 @@ dependencies = [
  "quick-xml",
  "rand 0.10.1",
  "reqsign-core",
- "reqwest",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -6501,6 +6500,18 @@ dependencies = [
  "logforth",
  "opendal",
  "uuid",
+]
+
+[[package]]
+name = "opendal-http-transport-reqwest"
+version = "0.57.0"
+dependencies = [
+ "bytes",
+ "futures",
+ "http 1.4.1",
+ "http-body 1.0.1",
+ "opendal-core",
+ "reqwest",
 ]
 
 [[package]]
@@ -7159,8 +7170,8 @@ dependencies = [
  "http 1.4.1",
  "log",
  "opendal-core",
+ "opendal-http-transport-reqwest",
  "percent-encoding",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",

@@ -85,7 +85,7 @@ impl UpyunCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
@@ -129,7 +129,7 @@ impl UpyunCore {
 
         self.sign(&mut req)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {

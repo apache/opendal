@@ -66,7 +66,7 @@ use crate::*;
 /// add layers or replace providers independently.
 ///
 /// ```
-/// use opendal_core::raw::HttpClient;
+/// use opendal_core::HttpTransporter;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
 /// use opendal_core::Result;
@@ -74,9 +74,9 @@ use crate::*;
 /// async fn test() -> Result<()> {
 ///     let op: Operator = Operator::new(Memory::default())?;
 ///
-///     // OpenDAL will replace the default HTTP client now.
-///     let client = HttpClient::new()?;
-///     let op = op.http_client(client);
+///     // OpenDAL will replace the default HTTP transport now.
+///     let transport = HttpTransporter::default();
+///     let op = op.http_transport(transport);
 ///
 ///     Ok(())
 /// }
@@ -145,7 +145,7 @@ use crate::*;
 pub struct Operator {
     // Base providers are the bottom slots that layer and resource changes replay from.
     base_srv: Servicer,
-    base_http_fetch: HttpFetcher,
+    base_http_transport: HttpTransporter,
     base_executor: Executor,
     // Layers are the replayable program shared by the service, HTTP, and executor planes.
     layers: Arc<[Arc<dyn Layer>]>,
@@ -176,24 +176,26 @@ impl Operator {
     /// resources from another layer program.
     pub(crate) fn with_parts(
         base_srv: Servicer,
-        base_http_fetch: HttpFetcher,
+        base_http_transport: HttpTransporter,
         base_executor: Executor,
         layers: Arc<[Arc<dyn Layer>]>,
     ) -> Self {
         let srv = layers
             .iter()
             .fold(base_srv.clone(), |srv, layer| layer.apply_service(srv));
-        let http_fetch = layers.iter().fold(base_http_fetch.clone(), |inner, layer| {
-            layer.apply_http_fetch(srv.clone(), inner)
-        });
+        let http_transport = layers
+            .iter()
+            .fold(base_http_transport.clone(), |inner, layer| {
+                layer.apply_http_transport(srv.clone(), inner)
+            });
         let executor = layers.iter().fold(base_executor.clone(), |inner, layer| {
             layer.apply_execute(srv.clone(), inner)
         });
-        let ctx = OperationContext::new(HttpClient::with(http_fetch), executor);
+        let ctx = OperationContext::from_parts(http_transport, executor);
 
         Self {
             base_srv,
-            base_http_fetch,
+            base_http_transport,
             base_executor,
             layers,
             srv,
@@ -225,7 +227,7 @@ impl Operator {
     pub fn from_service(srv: Servicer) -> Self {
         Self::with_parts(
             srv,
-            HttpClient::default().into_inner(),
+            HttpTransporter::default(),
             Executor::default(),
             Arc::from([]),
         )
@@ -269,19 +271,19 @@ impl Operator {
 
     /// Replace the base HTTP transport and rebuild composed state.
     #[must_use]
-    pub fn http_client(self, client: HttpClient) -> Self {
-        Self::with_parts(
-            self.base_srv,
-            client.into_inner(),
-            self.base_executor,
-            self.layers,
-        )
+    pub fn http_transport(self, transport: HttpTransporter) -> Self {
+        Self::with_parts(self.base_srv, transport, self.base_executor, self.layers)
     }
 
     /// Replace the base executor and rebuild composed state.
     #[must_use]
     pub fn executor(self, executor: Executor) -> Self {
-        Self::with_parts(self.base_srv, self.base_http_fetch, executor, self.layers)
+        Self::with_parts(
+            self.base_srv,
+            self.base_http_transport,
+            executor,
+            self.layers,
+        )
     }
 
     /// Apply a layer to this operator and rebuild composed state.
@@ -291,7 +293,7 @@ impl Operator {
         layers.push(Arc::new(layer) as Arc<dyn Layer>);
         Self::with_parts(
             self.base_srv,
-            self.base_http_fetch,
+            self.base_http_transport,
             self.base_executor,
             Arc::from(layers),
         )

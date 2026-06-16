@@ -494,7 +494,7 @@ mod tests {
     }
 
     fn service_context(_: &Servicer) -> OperationContext {
-        OperationContext::new(HttpClient::default(), Executor::default())
+        OperationContext::new()
     }
 
     #[tokio::test]

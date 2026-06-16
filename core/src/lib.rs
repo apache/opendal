@@ -27,6 +27,18 @@ pub use opendal_core::*;
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
+/// Install the global defaults provided by the facade crate.
+///
+/// This function is safe to call multiple times. It registers enabled services
+/// and installs the default HTTP transport when the corresponding feature is
+/// enabled.
+pub fn install_default() {
+    init_default_registry();
+
+    #[cfg(feature = "http-transport-reqwest")]
+    HttpTransporter::install_default(opendal_http_transport_reqwest::ReqwestTransport::default());
+}
+
 /// Initialize the global [`OperatorRegistry`] with enabled services.
 ///
 /// This function is safe to call multiple times and will only perform
@@ -242,7 +254,7 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 #[cfg(feature = "auto-register-services")]
 #[ctor::ctor(unsafe)]
 fn register_default_operator_registry() {
-    init_default_registry();
+    install_default();
 }
 
 /// Re-export of service implementations.

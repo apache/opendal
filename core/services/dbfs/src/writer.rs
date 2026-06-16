@@ -54,7 +54,7 @@ impl oio::OneShotWrite for DbfsWriter {
             .core
             .dbfs_create_file_request(&self.path, bs.to_bytes())?;
 
-        let resp = self.ctx.http_client().send(req).await?;
+        let resp = self.ctx.http_transport().send(req).await?;
 
         let status = resp.status();
         match status {

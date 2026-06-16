@@ -399,7 +399,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_replaces_existing_path() {
         let index = GdrivePathIndex::new(TestQuery::new());
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         index.upsert_file("root/file", "old-id").await;
         index.upsert_file("root/file", "new-id").await;
 
@@ -412,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn test_dir_upsert_replaces_file_mapping() {
         let index = GdrivePathIndex::new(TestQuery::new());
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         index.upsert_file("root/dir", "file-id").await;
         index.upsert_dir("root/dir", "dir-id").await;
 
@@ -434,7 +434,7 @@ mod tests {
         query.insert("remote-root", "root/", "svc-root").await;
         query.insert("svc-root", "dir/", "dir-old").await;
         query.insert("dir-old", "file", "file-old").await;
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
 
         assert_eq!(
             index.get(&ctx, "root/dir/file").await.unwrap().as_deref(),
@@ -459,7 +459,7 @@ mod tests {
 
         let index = GdrivePathIndex::new(query.clone());
 
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         let (first, second) = tokio::join!(
             index.ensure_dir(&ctx, "root/dir"),
             index.ensure_dir(&ctx, "root/dir")
@@ -476,7 +476,7 @@ mod tests {
 
         let index = GdrivePathIndex::new(query.clone());
         index.upsert_dir("root/", "root-old").await;
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
 
         query.mark_stale_parent("root-old").await;
         query.insert("remote-root", "root/", "root-new").await;

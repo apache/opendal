@@ -72,7 +72,7 @@ impl KoofrCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn get_mount_id(&self, ctx: &OperationContext) -> Result<&String> {
@@ -135,7 +135,7 @@ impl KoofrCore {
             .body(Buffer::from(Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(auth_req).await?;
+        let resp = ctx.http_transport().send(auth_req).await?;
 
         let status = resp.status();
 
@@ -212,7 +212,7 @@ impl KoofrCore {
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
 
-                let resp = ctx.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
 
                 let status = resp.status();
 
@@ -278,7 +278,7 @@ impl KoofrCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn put(

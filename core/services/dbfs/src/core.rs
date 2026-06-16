@@ -73,7 +73,7 @@ impl DbfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn dbfs_delete(
@@ -105,7 +105,7 @@ impl DbfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn dbfs_rename(
@@ -136,7 +136,7 @@ impl DbfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn dbfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -160,7 +160,7 @@ impl DbfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub fn dbfs_create_file_request(&self, path: &str, body: Bytes) -> Result<Request<Buffer>> {
@@ -212,7 +212,7 @@ impl DbfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn dbfs_ensure_parent_path(&self, ctx: &OperationContext, path: &str) -> Result<()> {

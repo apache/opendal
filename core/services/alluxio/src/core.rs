@@ -76,7 +76,7 @@ impl AlluxioCore {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -110,7 +110,7 @@ impl AlluxioCore {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -138,7 +138,7 @@ impl AlluxioCore {
             .extension(ServiceOperation("OpenFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -167,7 +167,7 @@ impl AlluxioCore {
             .extension(ServiceOperation("Delete"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -200,7 +200,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -225,7 +225,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -259,7 +259,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -299,7 +299,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub(super) async fn write(
@@ -319,7 +319,7 @@ impl AlluxioCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -346,7 +346,7 @@ impl AlluxioCore {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -370,7 +370,7 @@ mod tests {
             endpoint: "http://127.0.0.1:1".to_string(),
         };
 
-        let ctx = OperationContext::new(HttpClient::default(), Executor::default());
+        let ctx = OperationContext::new();
         let err = match core.read(&ctx, 1, BytesRange::from(0_u64..1)).await {
             Ok(_) => panic!("range read should be rejected"),
             Err(err) => err,

@@ -39,7 +39,7 @@ pub struct CloudflareKvCore {
 impl CloudflareKvCore {
     #[inline]
     async fn send(&self, ctx: &OperationContext, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     fn sign(&self, req: request::Builder) -> request::Builder {

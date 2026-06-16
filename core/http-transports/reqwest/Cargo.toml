@@ -16,24 +16,31 @@
 # under the License.
 
 [package]
-name = "edge_test_s3_read_on_wasm"
+description = "Apache OpenDAL reqwest HTTP transport implementation"
+name = "opendal-http-transport-reqwest"
 
-edition.workspace = true
-license.workspace = true
-publish = false
-rust-version.workspace = true
-version.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
-[lib]
-crate-type = ["cdylib"]
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+rustls = ["reqwest/rustls"]
+rustls-no-provider = ["reqwest/rustls-no-provider"]
 
 [dependencies]
-opendal = { path = "../..", default-features = false, features = [
-  "http-transport-reqwest",
-  "services-s3",
-] }
-wasm-bindgen = "0.2.89"
-wasm-bindgen-futures = "0.4.39"
-
-[dev-dependencies]
-wasm-bindgen-test = "0.3.41"
+bytes = { workspace = true }
+futures = { workspace = true, features = ["std"] }
+http = { workspace = true }
+http-body = "1"
+opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+reqwest = { version = "0.13.4", features = [
+  "stream",
+], default-features = false }

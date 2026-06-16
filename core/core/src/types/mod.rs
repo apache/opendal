@@ -21,6 +21,11 @@ pub use mode::EntryMode;
 mod buffer;
 pub use buffer::Buffer;
 
+mod http_transport;
+pub use http_transport::HttpBody;
+pub use http_transport::HttpTransport;
+pub use http_transport::HttpTransporter;
+
 mod entry;
 pub use entry::Entry;
 

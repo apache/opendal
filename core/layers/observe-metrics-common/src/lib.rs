@@ -459,9 +459,9 @@ impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
+    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
         // HTTP metrics share the same interceptor and service identity as operation metrics.
-        Arc::new(MetricsHttpFetcher {
+        HttpTransporter::new(MetricsHttpTransport {
             inner,
             info: srv.info(),
             interceptor: self.interceptor.clone(),
@@ -480,8 +480,8 @@ impl<I: MetricsIntercept> MetricsLayer<I> {
     }
 }
 
-struct MetricsHttpFetcher<I: MetricsIntercept> {
-    inner: HttpFetcher,
+struct MetricsHttpTransport<I: MetricsIntercept> {
+    inner: HttpTransporter,
     info: ServiceInfo,
     interceptor: I,
 }
@@ -578,7 +578,7 @@ impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
     }
 }
 
-impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
+impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
         let mut labels = MetricLabels::new(
             self.info.clone(),
@@ -1412,11 +1412,11 @@ mod tests {
         StreamBody(Vec<Result<Buffer>>),
     }
 
-    struct MockHttpFetch {
+    struct MockHttpTransport {
         behavior: Mutex<MockFetchBehavior>,
     }
 
-    impl HttpFetch for MockHttpFetch {
+    impl HttpTransport for MockHttpTransport {
         async fn fetch(&self, _req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
             let behavior = std::mem::replace(
                 &mut *self.behavior.lock().unwrap(),
@@ -1446,12 +1446,12 @@ mod tests {
     fn build_metrics_http_fetcher(
         mock: MockInterceptor,
         behavior: MockFetchBehavior,
-    ) -> MetricsHttpFetcher<MockInterceptor> {
-        let inner_fetch = MockHttpFetch {
+    ) -> MetricsHttpTransport<MockInterceptor> {
+        let inner_fetch = MockHttpTransport {
             behavior: Mutex::new(behavior),
         };
-        MetricsHttpFetcher {
-            inner: Arc::new(inner_fetch) as HttpFetcher,
+        MetricsHttpTransport {
+            inner: HttpTransporter::new(inner_fetch),
             info: test_info(),
             interceptor: mock,
         }
@@ -1529,7 +1529,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_http_client_error_records_status_error() {
+    async fn test_http_transport_error_records_status_error() {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),

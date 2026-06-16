@@ -150,8 +150,8 @@ impl Layer for FastmetricsLayer {
     }
 
     // Reuse the same interceptor because this layer registers both operation and HTTP metrics.
-    fn apply_http_fetch(&self, srv: Servicer, inner: HttpFetcher) -> HttpFetcher {
-        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_fetch(srv, inner)
+    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_transport(srv, inner)
     }
 }
 

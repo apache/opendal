@@ -80,7 +80,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// create object
@@ -114,7 +114,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -142,7 +142,7 @@ impl WebhdfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webhdfs_rename_object(
@@ -171,7 +171,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     async fn webhdfs_init_append(&self, ctx: &OperationContext, path: &str) -> Result<String> {
@@ -194,7 +194,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -235,7 +235,7 @@ impl WebhdfsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// CONCAT will concat sources to the path
@@ -274,7 +274,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webhdfs_list_status(
@@ -298,7 +298,7 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webhdfs_list_status_batch(
@@ -327,7 +327,7 @@ impl WebhdfsCore {
         let req = Request::get(&url)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
@@ -367,7 +367,7 @@ impl WebhdfsCore {
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
         let req = self.webhdfs_open_request(path, &range)?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub(super) async fn webhdfs_get_file_status(
@@ -394,7 +394,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webhdfs_delete(
@@ -421,7 +421,7 @@ impl WebhdfsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 

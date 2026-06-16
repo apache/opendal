@@ -251,7 +251,7 @@ impl GdriveCore {
         .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn gdrive_get(
@@ -293,7 +293,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn gdrive_list(
@@ -323,7 +323,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// List multiple directories in a single API call using OR query.
@@ -371,7 +371,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     // Update with content and metadata
@@ -418,7 +418,7 @@ impl GdriveCore {
 
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn gdrive_trash(
@@ -441,7 +441,7 @@ impl GdriveCore {
 
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Create a file with the content.
@@ -491,7 +491,7 @@ impl GdriveCore {
 
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Overwrite the file with the content.
@@ -520,7 +520,7 @@ impl GdriveCore {
 
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
@@ -570,7 +570,7 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
         self.sign(ctx, &mut req).await?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -752,7 +752,7 @@ impl GdriveSigner {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = ctx.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -830,7 +830,7 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         self.signer.lock().await.sign(ctx, &mut req).await?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -874,7 +874,7 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         self.signer.lock().await.sign(ctx, &mut req).await?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }

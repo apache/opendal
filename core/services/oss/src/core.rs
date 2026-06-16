@@ -96,7 +96,7 @@ impl OssCore {
         self.signer.clone().with_context(
             self.sign_ctx
                 .clone()
-                .with_http_send(HttpClientHttpSend::new(ctx.http_client().clone())),
+                .with_http_send(ctx.http_transport().clone()),
         )
     }
 
@@ -141,7 +141,7 @@ impl OssCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Set sse headers
@@ -501,7 +501,7 @@ impl OssCore {
     ) -> Result<Response<HttpBody>> {
         let req = self.oss_get_object_request(path, false, range, args)?;
         let req = self.sign(ctx, req).await?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn oss_head_object(

@@ -151,7 +151,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Bulk delete multiple objects in a single request.
@@ -190,7 +190,7 @@ impl SwiftCore {
             .body(Buffer::from(bytes::Bytes::from(body_str)))
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_list(
@@ -227,7 +227,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_create_object(
@@ -277,7 +277,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_read(
@@ -325,7 +325,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn swift_copy(
@@ -371,7 +371,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_get_metadata(
@@ -412,7 +412,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Build the segment path for an SLO part.
@@ -458,7 +458,7 @@ impl SwiftCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Finalize an SLO by uploading the manifest.
@@ -502,7 +502,7 @@ impl SwiftCore {
             .body(Buffer::from(bytes::Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        ctx.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Delete an SLO manifest and all its segments.
@@ -538,7 +538,7 @@ impl SwiftCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Ok(());
         }
@@ -566,7 +566,7 @@ impl SwiftCore {
                     .map_err(new_request_build_error)?;
 
                 // Best effort — ignore individual segment delete failures.
-                let _ = ctx.http_client().send(req).await;
+                let _ = ctx.http_transport().send(req).await;
             }
         }
 

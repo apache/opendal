@@ -106,7 +106,7 @@ impl AliyunDriveCore {
                     .expect("access token must be valid header value"),
             );
         }
-        let res = ctx.http_client().send(req).await?;
+        let res = ctx.http_transport().send(req).await?;
         if !res.status().is_success() {
             return Err(parse_error(res));
         }
@@ -335,7 +335,7 @@ impl AliyunDriveCore {
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        ctx.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn move_path(

@@ -214,7 +214,7 @@ mod tests {
     use opendal::raw::oio::{Delete, List, Read, ReadStream, Write};
 
     fn test_ctx() -> OperationContext {
-        OperationContext::new(HttpClient::default(), Executor::default())
+        OperationContext::new()
     }
 
     #[tokio::test]

@@ -1047,7 +1047,7 @@ mod tests {
 
             async fn create_dir(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpCreateDir,
             ) -> opendal::Result<opendal::raw::RpCreateDir> {
@@ -1056,7 +1056,7 @@ mod tests {
 
             async fn stat(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpStat,
             ) -> opendal::Result<opendal::raw::RpStat> {
@@ -1066,7 +1066,7 @@ mod tests {
 
             fn read(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpRead,
             ) -> opendal::Result<Self::Reader> {
@@ -1075,23 +1075,20 @@ mod tests {
 
             fn write(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpWrite,
             ) -> opendal::Result<Self::Writer> {
                 self.srv.write(ctx, path, args)
             }
 
-            fn delete(
-                &self,
-                ctx: &opendal::raw::OperationContext,
-            ) -> opendal::Result<Self::Deleter> {
+            fn delete(&self, ctx: &opendal::OperationContext) -> opendal::Result<Self::Deleter> {
                 self.srv.delete(ctx)
             }
 
             fn list(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpList,
             ) -> opendal::Result<Self::Lister> {
@@ -1100,7 +1097,7 @@ mod tests {
 
             fn copy(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpCopy,
@@ -1111,7 +1108,7 @@ mod tests {
 
             async fn rename(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpRename,
@@ -1121,7 +1118,7 @@ mod tests {
 
             async fn presign(
                 &self,
-                ctx: &opendal::raw::OperationContext,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpPresign,
             ) -> opendal::Result<opendal::raw::RpPresign> {

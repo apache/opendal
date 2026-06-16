@@ -24,6 +24,7 @@ use super::core::ListResponse;
 use super::error::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::Metadata;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;

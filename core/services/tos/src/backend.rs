@@ -32,6 +32,7 @@ use crate::writer::TosWriter;
 use http::Response;
 use http::StatusCode;
 use opendal_core::BytesRange;
+use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
 use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};

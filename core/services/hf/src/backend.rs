@@ -416,13 +416,14 @@ pub(super) mod test_utils {
     use super::HfBuilder;
     use opendal_core::Capability;
     use opendal_core::HttpTransporter;
+    use opendal_core::OperationContext;
     use opendal_core::Operator;
     use opendal_core::raw::ServiceInfo;
 
     fn finish_operator(op: Operator) -> Operator {
         let transport =
             HttpTransporter::new(opendal_http_transport_reqwest::ReqwestTransport::default());
-        op.http_transport(transport)
+        op.with_context(OperationContext::new().with_http_transport(transport))
     }
 
     pub fn gpt2_operator() -> Operator {

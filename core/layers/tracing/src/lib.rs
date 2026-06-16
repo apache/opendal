@@ -144,9 +144,12 @@ impl Layer for TracingLayer {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+    fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
         // Give outbound HTTP requests and their response bodies dedicated spans.
-        HttpTransporter::new(TracingHttpTransport { inner })
+        let transport = HttpTransporter::new(TracingHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        inner.with_http_transport(transport)
     }
 }
 

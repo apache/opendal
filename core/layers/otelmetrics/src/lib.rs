@@ -20,7 +20,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
-use opendal_core::HttpTransporter;
+use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
 use opentelemetry::KeyValue;
@@ -343,8 +343,8 @@ impl Layer for OtelMetricsLayer {
         observe::MetricsLayer::new(self.interceptor.clone()).apply_service(inner)
     }
 
-    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
-        observe::MetricsLayer::new(self.interceptor.clone()).apply_http_transport(srv, inner)
+    fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_context(srv, inner)
     }
 }
 

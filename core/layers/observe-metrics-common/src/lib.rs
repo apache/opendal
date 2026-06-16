@@ -459,13 +459,14 @@ impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_transport(&self, srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
+    fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext {
         // HTTP metrics share the same interceptor and service identity as operation metrics.
-        HttpTransporter::new(MetricsHttpTransport {
-            inner,
+        let transport = HttpTransporter::new(MetricsHttpTransport {
+            inner: inner.http_transport().clone(),
             info: srv.info(),
             interceptor: self.interceptor.clone(),
-        })
+        });
+        inner.with_http_transport(transport)
     }
 }
 

@@ -323,7 +323,8 @@ mod tests {
     fn new_test_operator(capability: Capability) -> Operator {
         let srv = MockService { capability };
 
-        Operator::from_inner(Arc::new(srv)).layer(CapabilityCheckLayer::new())
+        Operator::from_parts(OperationContext::default(), Arc::new(srv))
+            .layer(CapabilityCheckLayer::new())
     }
 
     #[tokio::test]

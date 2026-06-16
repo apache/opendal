@@ -90,8 +90,11 @@ impl Layer for HotpathLayer {
         Arc::new(self.layer(inner))
     }
 
-    fn apply_http_transport(&self, _srv: Servicer, inner: HttpTransporter) -> HttpTransporter {
-        HttpTransporter::new(HotpathHttpTransport { inner })
+    fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(HotpathHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        inner.with_http_transport(transport)
     }
 }
 

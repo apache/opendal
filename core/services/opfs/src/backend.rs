@@ -20,7 +20,6 @@ use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::File;
-use web_sys::FileSystemWritableFileStream;
 
 use super::config::OpfsConfig;
 use super::core::OpfsCore;
@@ -147,12 +146,7 @@ impl Service for OpfsBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
-        let output: OpfsLister = {
-            let p = build_abs_path(&self.core.root, path);
-            let dir = get_directory_handle(&p, false).await?;
-
-            Ok(OpfsLister::new(dir, path.to_string()))
-        }?;
+        let output: OpfsLister = { Ok(OpfsLister::new(self.core.clone(), path.to_string())) }?;
 
         Ok(output)
     }
@@ -171,21 +165,12 @@ impl Service for OpfsBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
-        let output: OpfsWriter = {
-            let p = build_abs_path(&self.core.root, path);
-            let handle = get_file_handle(&p, true).await?;
-            let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
-                .await
-                .and_then(JsCast::dyn_into)
-                .map_err(parse_js_error)?;
-
-            Ok(OpfsWriter::new(stream))
-        }?;
+        let output: OpfsWriter = { Ok(OpfsWriter::new(self.core.clone(), path.to_string())) }?;
 
         Ok(output)
     }
 
-    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
         let output: oio::OneShotDeleter<OpfsDeleter> = {
             Ok(oio::OneShotDeleter::new(OpfsDeleter::new(
                 self.core.clone(),

@@ -504,6 +504,7 @@ mod tests {
     use super::*;
     use opendal_core::Operator;
     use opendal_core::services;
+    use std::future::pending;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::time::timeout;
@@ -679,6 +680,23 @@ mod tests {
 
     #[tokio::test]
     async fn operation_semaphore_held_until_copier_dropped() {
+        #[derive(Debug)]
+        struct PendingCopier;
+
+        impl oio::Copy for PendingCopier {
+            async fn next(&mut self) -> Result<Option<usize>> {
+                pending().await
+            }
+
+            async fn close(&mut self) -> Result<Metadata> {
+                pending().await
+            }
+
+            async fn abort(&mut self) -> Result<()> {
+                Ok(())
+            }
+        }
+
         #[derive(Clone, Debug)]
         struct CopierBackend {
             info: ServiceInfo,
@@ -690,7 +708,7 @@ mod tests {
             type Writer = ();
             type Lister = ();
             type Deleter = ();
-            type Copier = ();
+            type Copier = PendingCopier;
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -748,7 +766,7 @@ mod tests {
                 _: OpCopy,
                 _: OpCopier,
             ) -> Result<Self::Copier> {
-                Ok(())
+                Ok(PendingCopier)
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
@@ -794,12 +812,15 @@ mod tests {
         }))
         .layer(layer);
 
-        let copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
+        let mut copier = timeout(Duration::from_millis(50), op.copier("from", "to"))
             .await
             .expect("copier setup should not block")
             .expect("copier should be created");
 
-        // The permit is held by the live copier, so concurrent operations
+        let copy = timeout(Duration::from_millis(50), copier.next()).await;
+        assert!(copy.is_err(), "copy body should remain pending");
+
+        // The permit is held by the active copy body, so concurrent operations
         // must time out until the copier is dropped.
         let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
         assert!(

@@ -382,13 +382,20 @@ impl Service for WebdavBackend {
         let from = from.to_string();
         let to = to.to_string();
 
-        Ok(oio::OneShotCopier::new(async move {
-            let resp = core.webdav_copy(&ctx, &from, &to).await?;
-            let status = resp.status();
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let ctx = ctx.clone();
+            let from = from.clone();
+            let to = to.clone();
 
-            match status {
-                StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+            async move {
+                let resp = core.webdav_copy(&ctx, &from, &to).await?;
+                let status = resp.status();
+
+                match status {
+                    StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
+                    _ => Err(parse_error(resp)),
+                }
             }
         }))
     }

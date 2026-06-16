@@ -38,7 +38,7 @@ use opendal_core::*;
 /// `TimeoutLayer` applies two timeout budgets:
 ///
 /// - `timeout` bounds control operations such as `stat`, `create_dir`, `rename`,
-///   `copy`, `delete`, and `presign`.
+///   and `presign`.
 /// - `io_timeout` bounds operations that open IO bodies, such as `read`, `write`,
 ///   and `list`, and every method call on returned readers, writers, listers,
 ///   deleters, and copiers.
@@ -576,10 +576,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_operation_timeout() {
+    async fn test_delete_timeout() {
         let srv = MockService;
         let op = Operator::from_inner(Arc::new(srv))
-            .layer(TimeoutLayer::default().with_timeout(Duration::from_secs(1)));
+            .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(1)));
 
         let fut = async {
             let res = op.delete("test").await;

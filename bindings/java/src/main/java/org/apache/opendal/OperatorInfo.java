@@ -30,10 +30,7 @@ public class OperatorInfo {
     public final Capability capability;
 
     public OperatorInfo(
-            @NonNull String scheme,
-            @NonNull String root,
-            @NonNull String name,
-            @NonNull Capability capability) {
+            @NonNull String scheme, @NonNull String root, @NonNull String name, @NonNull Capability capability) {
         this.scheme = scheme;
         this.root = root;
         this.name = name;

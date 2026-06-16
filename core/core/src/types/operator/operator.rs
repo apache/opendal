@@ -1939,12 +1939,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        let path = normalize_path(path);
-
-        let op = OpPresign::new(OpStat::new(), expire);
-
-        let rp = self.srv.presign(&self.ctx, &path, op).await?;
-        Ok(rp.into_presigned_request())
+        self.presign_stat_with(path, expire).await
     }
 
     /// Presign an operation for stat(head).
@@ -2071,12 +2066,7 @@ impl Operator {
     /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
     /// ```
     pub async fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        let path = normalize_path(path);
-
-        let op = OpPresign::new(OpRead::new(), expire);
-
-        let rp = self.srv.presign(&self.ctx, &path, op).await?;
-        Ok(rp.into_presigned_request())
+        self.presign_read_with(path, expire).await
     }
 
     /// Presign an operation for read with extra options.

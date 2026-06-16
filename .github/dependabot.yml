@@ -87,22 +87,13 @@ updates:
           - "rand"
           - "getrandom"
 
-  # Cargo dependencies - bindings, example, tests
-  - package-ecosystem: "cargo"
-    directories: "**/*"
-    open-pull-requests-limit: 5
-    cooldown:
-      semver-patch-days: 120
-      include:
-        - "*"
-
   - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
     open-pull-requests-limit: 1
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -112,7 +103,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -123,7 +114,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -142,7 +133,7 @@ updates:
         patterns:
           - "*"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -153,7 +144,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -179,7 +170,7 @@ updates:
         patterns:
           - "*"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -190,7 +181,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -201,7 +192,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -212,7 +203,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 
@@ -223,7 +214,7 @@ updates:
     schedule:
       interval: "quarterly"
     cooldown:
-      semver-patch-days: 120
+      semver-patch-days: 90
       include:
         - "*"
 

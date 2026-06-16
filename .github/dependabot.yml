@@ -17,7 +17,7 @@
 
 version: 2
 updates:
-  # GitHub Actions - yearly updates with groups
+  # GitHub Actions - semiannually updates with groups
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 2
@@ -87,22 +87,12 @@ updates:
           - "rand"
           - "getrandom"
 
-  # Cargo dependencies - bindings, example, tests
+  # Other cargo dependencies - integrations, examples
   - package-ecosystem: "cargo"
     directories:
-      - "/bindings/c"
-      - "/bindings/cpp"
-      - "/bindings/dart/rust"
-      - "/bindings/dotnet"
-      - "/bindings/haskell"
-      - "/bindings/lua"
-      - "/bindings/ocaml"
-      - "/bindings/php"
-      - "/bindings/python"
-      - "/bindings/ruby"
-      - "/dev"
-      - "/integrations/parquet"
-      - "/integrations/unftp-sbe"
+      - "/integrations/**"
+      - "/dev/**"
+      - "/examples/**"
     open-pull-requests-limit: 5
     schedule:
       interval: "quarterly"
@@ -111,18 +101,9 @@ updates:
       include:
         - "*"
 
+  # Dart binding
   - package-ecosystem: "cargo"
-    directory: "/integrations/dav-server"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "quarterly"
-    cooldown:
-      semver-patch-days: 90
-      include:
-        - "*"
-
-  - package-ecosystem: "cargo"
-    directory: "/integrations/object_store"
+    directory: "/bindings/dart/rust"
     open-pull-requests-limit: 1
     schedule:
       interval: "quarterly"
@@ -198,8 +179,28 @@ updates:
       include:
         - "*"
 
+  - package-ecosystem: "cargo"
+    directory: "/bindings/python"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "quarterly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
+
   # Ruby binding
   - package-ecosystem: "bundler"
+    directory: "/bindings/ruby"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "quarterly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
+
+  - package-ecosystem: "cargo"
     directory: "/bindings/ruby"
     open-pull-requests-limit: 1
     schedule:

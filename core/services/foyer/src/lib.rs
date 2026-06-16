@@ -48,11 +48,39 @@ pub const FOYER_SCHEME: &str = "foyer";
 
 /// [`FoyerKey`] is a key for the foyer cache.
 ///
-/// It uses bincode (via serde) for efficient serialization.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// It implements foyer's [`Code`] trait directly, so the service does not depend on
+/// foyer's `serde` feature (and its bincode dependency).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
     /// The path of the key.
     pub path: String,
+}
+
+impl Code for FoyerKey {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
+        let path = self.path.as_bytes();
+        writer.write_all(&(path.len() as u64).to_le_bytes())?;
+        writer.write_all(path)?;
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
+    where
+        Self: Sized,
+    {
+        let mut len_bytes = [0u8; 8];
+        reader.read_exact(&mut len_bytes)?;
+        let len = u64::from_le_bytes(len_bytes) as usize;
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf)?;
+        let path = String::from_utf8(buf)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        Ok(FoyerKey { path })
+    }
+
+    fn estimated_size(&self) -> usize {
+        8 + self.path.len()
+    }
 }
 
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.

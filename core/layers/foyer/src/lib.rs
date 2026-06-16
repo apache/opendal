@@ -34,18 +34,71 @@ use opendal_core::*;
 pub use deleter::Deleter;
 pub use writer::Writer;
 
-/// [`FoyerKey`] is a key for the foyer cache. It's encoded via bincode, which is
-/// backed by foyer's "serde" feature.
+/// [`FoyerKey`] is a key for the foyer cache. It implements foyer's [`Code`] trait
+/// directly, so the layer does not depend on foyer's `serde` feature (and its bincode
+/// dependency).
 ///
 /// It's possible to specify a version in the [`OpRead`] args:
 ///
 /// - If a version is given, the object is cached under that versioned key.
 /// - If version is not supplied, the object is cached exactly as returned by the backend,
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
     pub path: String,
     pub version: Option<String>,
+}
+
+impl Code for FoyerKey {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
+        write_bytes(writer, self.path.as_bytes())?;
+        match &self.version {
+            None => writer.write_all(&[0u8])?,
+            Some(version) => {
+                writer.write_all(&[1u8])?;
+                write_bytes(writer, version.as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self> {
+        let path = read_string(reader)?;
+        let mut tag = [0u8; 1];
+        reader.read_exact(&mut tag)?;
+        let version = match tag[0] {
+            0 => None,
+            1 => Some(read_string(reader)?),
+            other => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("invalid FoyerKey version tag: {other}"),
+                )
+                .into());
+            }
+        };
+        Ok(FoyerKey { path, version })
+    }
+
+    fn estimated_size(&self) -> usize {
+        8 + self.path.len() + 1 + self.version.as_ref().map_or(0, |v| 8 + v.len())
+    }
+}
+
+fn write_bytes(writer: &mut impl std::io::Write, bytes: &[u8]) -> FoyerResult<()> {
+    writer.write_all(&(bytes.len() as u64).to_le_bytes())?;
+    writer.write_all(bytes)?;
+    Ok(())
+}
+
+fn read_string(reader: &mut impl std::io::Read) -> FoyerResult<String> {
+    let mut len = [0u8; 8];
+    reader.read_exact(&mut len)?;
+    let len = u64::from_le_bytes(len) as usize;
+    let mut buf = vec![0u8; len];
+    reader.read_exact(&mut buf)?;
+    String::from_utf8(buf)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
 }
 
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.

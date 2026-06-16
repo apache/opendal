@@ -521,7 +521,7 @@ dependencies = [
  "bytes",
  "fastrand",
  "hex",
- "http 1.4.1",
+ "http 1.4.2",
  "ring",
  "time",
  "tokio",
@@ -614,7 +614,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 0.4.6",
  "lru",
  "percent-encoding",
@@ -708,7 +708,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "p256 0.11.1",
  "percent-encoding",
  "ring",
@@ -775,7 +775,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 0.4.6",
  "percent-encoding",
  "pin-project-lite",
@@ -795,7 +795,7 @@ dependencies = [
  "h2 0.3.27",
  "h2 0.4.14",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 0.4.6",
  "hyper 0.14.32",
  "hyper 1.9.0",
@@ -856,7 +856,7 @@ dependencies = [
  "bytes",
  "fastrand",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 0.4.6",
  "http-body 1.0.1",
  "pin-project-lite",
@@ -875,7 +875,7 @@ dependencies = [
  "aws-smithy-types",
  "bytes",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "pin-project-lite",
  "tokio",
  "tracing",
@@ -893,7 +893,7 @@ dependencies = [
  "bytes-utils",
  "futures-core",
  "http 0.2.12",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 0.4.6",
  "http-body 1.0.1",
  "http-body-util",
@@ -969,7 +969,7 @@ dependencies = [
  "axum-core 0.4.5",
  "bytes",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "itoa",
@@ -995,7 +995,7 @@ dependencies = [
  "axum-core 0.5.6",
  "bytes",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "itoa",
@@ -1037,7 +1037,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "mime",
@@ -1056,7 +1056,7 @@ checksum = "08c78f31d7b1291f7ee735c1c6780ccde7785daae9a9206026862dab7d8792d1"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "mime",
@@ -1148,7 +1148,7 @@ dependencies = [
  "bitflags 2.11.1",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -3065,7 +3065,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ed900ba953ca6bf1fadb75e0c6b73d8463b9e2bb6bdb7b4573e8e7295852fbe"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
  "prost 0.14.3",
  "tokio",
  "tokio-stream",
@@ -4083,7 +4083,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.4.1",
+ "http 1.4.2",
  "indexmap 2.14.0",
  "slab",
  "tokio",
@@ -4259,7 +4259,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "headers-core",
- "http 1.4.1",
+ "http 1.4.2",
  "httpdate",
  "mime",
  "sha1 0.10.6",
@@ -4271,7 +4271,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
 ]
 
 [[package]]
@@ -4347,7 +4347,7 @@ checksum = "430b33fa84f92796d4d263070b6c0d3ca219df7b9a0e1853ee431029b1612bcd"
 dependencies = [
  "async-trait",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "more-asserts",
  "serde",
  "thiserror 2.0.18",
@@ -4493,9 +4493,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be7462df143984c4598a256ef469b251d7d7f9e271135073e78fc535414f3d0"
+checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
 dependencies = [
  "bytes",
  "itoa",
@@ -4519,7 +4519,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
 ]
 
 [[package]]
@@ -4530,7 +4530,7 @@ checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "pin-project-lite",
 ]
@@ -4597,7 +4597,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "h2 0.4.14",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "httparse",
  "httpdate",
@@ -4630,7 +4630,7 @@ version = "0.27.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ca68d021ef39cf6463ab54c1d0f5daf03377b70561305bb89a8f83aab66e0f"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
  "hyper 1.9.0",
  "hyper-util",
  "rustls 0.23.40",
@@ -4675,7 +4675,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "hyper 1.9.0",
  "ipnet",
@@ -6256,7 +6256,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "humantime",
  "itertools 0.14.0",
  "parking_lot 0.12.5",
@@ -6307,7 +6307,7 @@ dependencies = [
  "ctor 1.0.7",
  "divan",
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "libtest-mimic",
  "log",
  "logforth",
@@ -6445,7 +6445,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "jiff",
  "log",
  "logforth",
@@ -6508,7 +6508,7 @@ version = "0.57.0"
 dependencies = [
  "bytes",
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "opendal-core",
  "reqwest",
@@ -6552,7 +6552,7 @@ name = "opendal-layer-concurrent-limit"
 version = "0.57.0"
 dependencies = [
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "mea",
  "opendal-core",
  "tokio",
@@ -6610,7 +6610,7 @@ version = "0.57.0"
 dependencies = [
  "futures",
  "hotpath",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "tokio",
 ]
@@ -6658,7 +6658,7 @@ name = "opendal-layer-observe-metrics-common"
 version = "0.57.0"
 dependencies = [
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "tokio",
 ]
@@ -6761,7 +6761,7 @@ dependencies = [
  "anyhow",
  "dotenvy",
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -6777,7 +6777,7 @@ name = "opendal-service-aliyun-drive"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -6791,7 +6791,7 @@ name = "opendal-service-alluxio"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -6805,7 +6805,7 @@ version = "0.57.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "opendal-service-azure-common",
@@ -6827,7 +6827,7 @@ version = "0.57.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -6846,7 +6846,7 @@ name = "opendal-service-azfile"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "opendal-service-azure-common",
@@ -6862,7 +6862,7 @@ dependencies = [
 name = "opendal-service-azure-common"
 version = "0.57.0"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
 ]
 
@@ -6871,7 +6871,7 @@ name = "opendal-service-b2"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -6896,7 +6896,7 @@ name = "opendal-service-cloudflare-kv"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6918,7 +6918,7 @@ name = "opendal-service-cos"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "quick-xml",
@@ -6934,7 +6934,7 @@ name = "opendal-service-d1"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6958,7 +6958,7 @@ version = "0.57.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -6971,7 +6971,7 @@ name = "opendal-service-dropbox"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "mea",
  "opendal-core",
  "serde",
@@ -7034,7 +7034,7 @@ dependencies = [
  "fastpool",
  "futures",
  "futures-rustls",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "rustls-native-certs 0.8.4",
@@ -7049,7 +7049,7 @@ version = "0.57.0"
 dependencies = [
  "async-trait",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "percent-encoding",
@@ -7067,7 +7067,7 @@ name = "opendal-service-gdrive"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7082,7 +7082,7 @@ version = "0.57.0"
 dependencies = [
  "bytes",
  "ghac",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "opendal-service-azblob",
@@ -7101,7 +7101,7 @@ version = "0.57.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7167,7 +7167,7 @@ dependencies = [
  "bytes",
  "futures",
  "hf-xet",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "opendal-http-transport-reqwest",
@@ -7181,7 +7181,7 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.57.0"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7193,7 +7193,7 @@ name = "opendal-service-ipfs"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "prost 0.14.3",
@@ -7206,7 +7206,7 @@ name = "opendal-service-ipmfs"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7219,7 +7219,7 @@ name = "opendal-service-koofr"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7233,7 +7233,7 @@ name = "opendal-service-lakefs"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7314,7 +7314,7 @@ name = "opendal-service-obs"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "quick-xml",
@@ -7330,7 +7330,7 @@ name = "opendal-service-onedrive"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7357,7 +7357,7 @@ name = "opendal-service-oss"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "pretty_assertions",
@@ -7374,7 +7374,7 @@ name = "opendal-service-pcloud"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7419,7 +7419,7 @@ version = "0.57.0"
 dependencies = [
  "bytes",
  "fastpool",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "redis",
  "serde",
@@ -7443,7 +7443,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "crc-fast",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "md-5 0.11.0",
  "opendal-core",
@@ -7463,7 +7463,7 @@ name = "opendal-service-seafile"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7527,7 +7527,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "hmac 0.13.0",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "percent-encoding",
@@ -7556,7 +7556,7 @@ name = "opendal-service-tos"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "opendal-core",
  "quick-xml",
  "reqsign-core",
@@ -7573,7 +7573,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "hmac 0.13.0",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "md-5 0.11.0",
  "opendal-core",
@@ -7590,7 +7590,7 @@ version = "0.57.0"
 dependencies = [
  "anyhow",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "serde",
@@ -7603,7 +7603,7 @@ name = "opendal-service-vercel-blob"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "quick-xml",
@@ -7618,7 +7618,7 @@ version = "0.57.0"
 dependencies = [
  "anyhow",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7633,7 +7633,7 @@ version = "0.57.0"
 dependencies = [
  "anyhow",
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "mea",
  "opendal-core",
@@ -7648,7 +7648,7 @@ name = "opendal-service-yandex-disk"
 version = "0.57.0"
 dependencies = [
  "bytes",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "opendal-core",
  "quick-xml",
@@ -7834,7 +7834,7 @@ version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9966929966d17620d7c316c643ba62631826e10021409357772d5eea84f62c35"
 dependencies = [
- "http 1.4.1",
+ "http 1.4.2",
  "opentelemetry",
  "opentelemetry-proto",
  "opentelemetry_sdk",
@@ -8542,9 +8542,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.24.1"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cca3d75b4566b9a29fe1ed623587fb058e826eb329a0be4b7c4da1ebb2d7a6ca"
+checksum = "ba70bf887030e45213b4a95c9b08d5a450b157f87c1d63661ed0847a12fa2aad"
 dependencies = [
  "dtoa",
  "itoa",
@@ -8600,7 +8600,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "once_cell",
@@ -8620,7 +8620,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "petgraph 0.8.3",
@@ -8654,7 +8654,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -8667,7 +8667,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -9223,7 +9223,7 @@ checksum = "372266b4733756738eeb199a98188037d27a0989980e2600ae7ce1faf00a867d"
 dependencies = [
  "anyhow",
  "form_urlencoded",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -9242,7 +9242,7 @@ dependencies = [
  "bytes",
  "form_urlencoded",
  "hex",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "quick-xml",
@@ -9264,7 +9264,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "form_urlencoded",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "pem",
  "percent-encoding",
@@ -9288,7 +9288,7 @@ dependencies = [
  "futures",
  "hex",
  "hmac 0.13.0",
- "http 1.4.1",
+ "http 1.4.2",
  "jiff",
  "log",
  "percent-encoding",
@@ -9318,7 +9318,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb215d0876a18b6bd9cdd380b589e5292aaa638ca15266de794b1122d898b6b2"
 dependencies = [
  "form_urlencoded",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "reqsign-aws-v4",
@@ -9336,7 +9336,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1136b31eb7202016d8bbb9445bc3e9ee81e7040736f0dae749a8b2b31d738c9"
 dependencies = [
  "anyhow",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -9349,7 +9349,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84110aabba799fbcd48b3abb51fbbff4749f879252e5806b6f5d0cbe0fef6abb"
 dependencies = [
  "anyhow",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -9364,7 +9364,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91d083a363b3577f519ce8425bb50f902622a28a83f7c4a26a5c990b66ec75b3"
 dependencies = [
  "anyhow",
- "http 1.4.1",
+ "http 1.4.2",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -9382,7 +9382,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2 0.4.14",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.9.0",
@@ -9422,7 +9422,7 @@ checksum = "199dda04a536b532d0cc04d7979e39b1c763ea749bf91507017069c00b96056f"
 dependencies = [
  "anyhow",
  "async-trait",
- "http 1.4.1",
+ "http 1.4.2",
  "reqwest",
  "thiserror 2.0.18",
  "tower-service",
@@ -10927,7 +10927,7 @@ dependencies = [
  "half",
  "headers",
  "hex",
- "http 1.4.1",
+ "http 1.4.2",
  "humantime",
  "ipnet",
  "jsonwebtoken",
@@ -11034,7 +11034,7 @@ dependencies = [
  "flatbuffers",
  "geo",
  "hex",
- "http 1.4.1",
+ "http 1.4.2",
  "papaya",
  "rand 0.9.4",
  "regex",
@@ -11629,7 +11629,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "httparse",
  "js-sys",
  "thiserror 2.0.18",
@@ -11726,7 +11726,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "h2 0.4.14",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.9.0",
@@ -11757,7 +11757,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "h2 0.4.14",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.9.0",
@@ -11888,7 +11888,7 @@ dependencies = [
  "bitflags 2.11.1",
  "bytes",
  "futures-util",
- "http 1.4.1",
+ "http 1.4.2",
  "http-body 1.0.1",
  "pin-project-lite",
  "tower 0.5.3",
@@ -12074,7 +12074,7 @@ checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
 dependencies = [
  "bytes",
  "data-encoding",
- "http 1.4.1",
+ "http 1.4.2",
  "httparse",
  "log",
  "rand 0.9.4",
@@ -12251,9 +12251,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.23.2"
+version = "1.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7"
+checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -13292,7 +13292,7 @@ dependencies = [
  "clap",
  "crc32fast",
  "futures",
- "http 1.4.1",
+ "http 1.4.2",
  "hyper 1.9.0",
  "lazy_static",
  "more-asserts",
@@ -13366,7 +13366,7 @@ dependencies = [
  "chrono",
  "clap",
  "gearhash",
- "http 1.4.1",
+ "http 1.4.2",
  "itertools 0.14.0",
  "lazy_static",
  "more-asserts",

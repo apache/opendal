@@ -260,61 +260,48 @@ impl Service for HttpBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<HttpReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(HttpReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<HttpReader> = {
+            Ok(oio::StreamReader::new(HttpReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, _ctx: &OperationContext, _path: &str, _args: OpWrite) -> Result<Self::Writer> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

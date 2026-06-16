@@ -43,6 +43,12 @@ impl AzfileWriter {
         }
     }
 
+    async fn ensure_parent_dir_exists(&self) -> Result<()> {
+        self.core
+            .ensure_parent_dir_exists(&self.ctx, &self.path)
+            .await
+    }
+
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
         let mut metadata = Metadata::default();
 
@@ -60,6 +66,8 @@ impl AzfileWriter {
 
 impl oio::OneShotWrite for AzfileWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        self.ensure_parent_dir_exists().await?;
+
         let size = bs.len();
         let resp = self
             .core
@@ -90,6 +98,8 @@ impl oio::OneShotWrite for AzfileWriter {
 
 impl oio::AppendWrite for AzfileWriter {
     async fn offset(&self) -> Result<u64> {
+        self.ensure_parent_dir_exists().await?;
+
         let resp = self
             .core
             .azfile_get_file_properties(&self.ctx, &self.path)

@@ -20,7 +20,7 @@
 //!
 //! ```txt
 //! impl Service for S3Backend {
-//!     fn write(...) -> Result<(RpWrite, oio::Writer)>;
+//!     fn write(...) -> Result<oio::Writer>;
 //! }
 //! ```
 //!

@@ -229,7 +229,7 @@ impl Service for UpyunBackend {
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -265,85 +265,74 @@ impl Service for UpyunBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<UpyunReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(UpyunReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<UpyunReader> = {
+            Ok(oio::StreamReader::new(UpyunReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, UpyunWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: UpyunWriters = {
             let concurrent = args.concurrent();
             let writer = UpyunWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
 
             let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<UpyunDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(UpyunDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<UpyunDeleter> = {
+            Ok(oio::OneShotDeleter::new(UpyunDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<UpyunLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<UpyunLister> = {
             let l = UpyunLister::new(self.core.clone(), ctx.clone(), path, args.limit());
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let resp = self.core.copy(ctx, from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.copy(&ctx, &from, &to).await?;
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok((RpCopy::default(), ())),
+                StatusCode::OK => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

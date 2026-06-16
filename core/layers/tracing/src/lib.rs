@@ -224,52 +224,31 @@ impl Service for TracingService {
             .await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let span = span!(Level::DEBUG, "read", path, ?args);
-
-        let (rp, r) = self
-            .inner
+        self.inner
             .read(ctx, path, args)
-            .instrument(span.clone())
-            .await?;
-        Ok((rp, TracingWrapper::new(span, r)))
+            .map(|r| TracingWrapper::new(span, r))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let span = span!(Level::DEBUG, "write", path, ?args);
-
-        let (rp, r) = self
-            .inner
+        self.inner
             .write(ctx, path, args)
-            .instrument(span.clone())
-            .await?;
-
-        Ok((rp, TracingWrapper::new(span, r)))
+            .map(|r| TracingWrapper::new(span, r))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let span = span!(Level::DEBUG, "copy", from, to, ?args, ?opts);
-        self.inner
-            .copy(ctx, from, to, args, opts)
-            .instrument(span)
-            .await
+        let _guard = span.enter();
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
     async fn rename(
@@ -291,29 +270,16 @@ impl Service for TracingService {
         self.inner.stat(ctx, path, args).instrument(span).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let span = span!(Level::DEBUG, "delete");
-
-        let (rp, r) = self.inner.delete(ctx).instrument(span.clone()).await?;
-
-        Ok((rp, TracingWrapper::new(span, r)))
+        self.inner.delete(ctx).map(|r| TracingWrapper::new(span, r))
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let span = span!(Level::DEBUG, "list", path, ?args);
-
-        let (rp, r) = self
-            .inner
+        self.inner
             .list(ctx, path, args)
-            .instrument(span.clone())
-            .await?;
-
-        Ok((rp, TracingWrapper::new(span, r)))
+            .map(|r| TracingWrapper::new(span, r))
     }
 
     async fn presign(

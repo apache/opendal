@@ -1064,49 +1064,49 @@ mod tests {
                 self.srv.stat(ctx, path, args).await
             }
 
-            async fn read(
+            fn read(
                 &self,
                 ctx: &opendal::raw::OperationContext,
                 path: &str,
                 args: opendal::raw::OpRead,
-            ) -> opendal::Result<(opendal::raw::RpRead, Self::Reader)> {
-                self.srv.read(ctx, path, args).await
+            ) -> opendal::Result<Self::Reader> {
+                self.srv.read(ctx, path, args)
             }
 
-            async fn write(
+            fn write(
                 &self,
                 ctx: &opendal::raw::OperationContext,
                 path: &str,
                 args: opendal::raw::OpWrite,
-            ) -> opendal::Result<(opendal::raw::RpWrite, Self::Writer)> {
-                self.srv.write(ctx, path, args).await
+            ) -> opendal::Result<Self::Writer> {
+                self.srv.write(ctx, path, args)
             }
 
-            async fn delete(
+            fn delete(
                 &self,
                 ctx: &opendal::raw::OperationContext,
-            ) -> opendal::Result<(opendal::raw::RpDelete, Self::Deleter)> {
-                self.srv.delete(ctx).await
+            ) -> opendal::Result<Self::Deleter> {
+                self.srv.delete(ctx)
             }
 
-            async fn list(
+            fn list(
                 &self,
                 ctx: &opendal::raw::OperationContext,
                 path: &str,
                 args: opendal::raw::OpList,
-            ) -> opendal::Result<(opendal::raw::RpList, Self::Lister)> {
-                self.srv.list(ctx, path, args).await
+            ) -> opendal::Result<Self::Lister> {
+                self.srv.list(ctx, path, args)
             }
 
-            async fn copy(
+            fn copy(
                 &self,
                 ctx: &opendal::raw::OperationContext,
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpCopy,
                 opts: opendal::raw::OpCopier,
-            ) -> opendal::Result<(opendal::raw::RpCopy, Self::Copier)> {
-                self.srv.copy(ctx, from, to, args, opts).await
+            ) -> opendal::Result<Self::Copier> {
+                self.srv.copy(ctx, from, to, args, opts)
             }
 
             async fn rename(

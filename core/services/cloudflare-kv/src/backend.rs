@@ -479,66 +479,45 @@ impl Service for CloudflareKvBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<CloudflareKvReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(CloudflareKvReader::new(
-                    self.clone(),
-                    ctx.clone(),
-                    path,
-                    args,
-                )),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<CloudflareKvReader> = {
+            Ok(oio::StreamReader::new(CloudflareKvReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::OneShotWriter<CloudflareWriter>) = {
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<CloudflareWriter> = {
             let path = build_abs_path(&self.core.info.root(), path);
             let writer = CloudflareWriter::new(self.core.clone(), ctx.clone(), path);
 
             let w = oio::OneShotWriter::new(writer);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<CloudflareKvDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(
-                    CloudflareKvDeleter::new(self.core.clone(), ctx.clone()),
-                    self.core.capability.delete_max_size,
-                ),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<CloudflareKvDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                CloudflareKvDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<CloudflareKvLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<CloudflareKvLister> = {
             let path = build_abs_path(&self.core.info.root(), path);
 
             let limit = match args.limit() {
@@ -561,20 +540,20 @@ impl Service for CloudflareKvBackend {
                 Some(limit),
             );
 
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

@@ -689,7 +689,7 @@ impl Service for OssBackend {
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -730,29 +730,21 @@ impl Service for OssBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<OssReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(OssReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<OssReader> = {
+            Ok(oio::StreamReader::new(OssReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, OssWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: OssWriters = {
             let writer = OssWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
 
             let w = if args.append() {
@@ -765,33 +757,25 @@ impl Service for OssBackend {
                 ))
             };
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<OssDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(
-                    OssDeleter::new(self.core.clone(), ctx.clone()),
-                    self.core.capability.delete_max_size,
-                ),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<OssDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                OssDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, OssListers) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: OssListers = {
             let l = if args.versions() || args.deleted() {
                 TwoWays::Two(oio::PageLister::new(OssObjectVersionsLister::new(
                     self.core.clone(),
@@ -810,31 +794,33 @@ impl Service for OssBackend {
                 )))
             };
 
-            Ok((RpList::default(), l))
+            Ok(l)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let resp = self.core.oss_copy_object(ctx, from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.oss_copy_object(&ctx, &from, &to).await?;
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok((RpCopy::default(), ())),
+                StatusCode::OK => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

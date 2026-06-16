@@ -216,12 +216,131 @@ impl oio::PositionRead for FsReader {
     }
 }
 
+pub struct FsLazyReader {
+    core: Arc<FsCore>,
+    path: String,
+}
+
+impl FsLazyReader {
+    fn new(core: Arc<FsCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+        }
+    }
+
+    async fn reader(&self) -> Result<oio::PositionReader<FsReader>> {
+        let file = self.core.fs_open(&self.path).await?;
+        Ok(oio::PositionReader::new(FsReader::new(
+            self.core.clone(),
+            file,
+        )))
+    }
+}
+
+impl oio::Read for FsLazyReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        self.reader().await?.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.reader().await?.read(range).await
+    }
+}
+
+pub struct FsLazyWriter {
+    core: Arc<FsCore>,
+    executor: Executor,
+    path: String,
+    op: OpWrite,
+    inner: Option<FsWriters>,
+}
+
+impl FsLazyWriter {
+    fn new(core: Arc<FsCore>, executor: Executor, path: &str, op: OpWrite) -> Self {
+        Self {
+            core,
+            executor,
+            path: path.to_string(),
+            op,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut FsWriters> {
+        if self.inner.is_none() {
+            let is_append = self.op.append();
+            let concurrent = self.op.concurrent();
+            let writer = FsWriter::create(self.core.clone(), &self.path, self.op.clone()).await?;
+            let writer = if is_append {
+                FsWriters::One(writer)
+            } else {
+                FsWriters::Two(oio::PositionWriter::new(
+                    self.executor.clone(),
+                    writer,
+                    concurrent,
+                ))
+            };
+
+            self.inner = Some(writer);
+        }
+
+        Ok(self.inner.as_mut().expect("writer must be initialized"))
+    }
+}
+
+impl oio::Write for FsLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner().await?.abort().await
+    }
+}
+
+pub struct FsLazyLister {
+    core: Arc<FsCore>,
+    path: String,
+    inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
+}
+
+impl FsLazyLister {
+    fn new(core: Arc<FsCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            inner: None,
+        }
+    }
+}
+
+impl oio::List for FsLazyLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if self.inner.is_none() {
+            self.inner = Some(match self.core.fs_list(&self.path).await? {
+                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
+                None => None,
+            });
+        }
+
+        match self.inner.as_mut().expect("lister must be initialized") {
+            Some(lister) => lister.next().await,
+            None => Ok(None),
+        }
+    }
+}
+
 impl Service for FsBackend {
-    type Reader = oio::PositionReader<FsReader>;
-    type Writer = FsWriters;
-    type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type Reader = FsLazyReader;
+    type Writer = FsLazyWriter;
+    type Lister = FsLazyLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -246,95 +365,42 @@ impl Service for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::PositionReader<FsReader>) = {
-            let file = self.core.fs_open(path).await?;
-            Ok((
-                RpRead::default(),
-                oio::PositionReader::new(FsReader::new(self.core.clone(), file)),
-            ))
-        }?;
-
-        Ok((rp, output))
+    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+        Ok(FsLazyReader::new(self.core.clone(), path))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        op: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, FsWriters) = {
-            let is_append = op.append();
-            let concurrent = op.concurrent();
-
-            let writer = FsWriter::create(self.core.clone(), path, op).await?;
-
-            let writer = if is_append {
-                FsWriters::One(writer)
-            } else {
-                FsWriters::Two(oio::PositionWriter::new(
-                    ctx.executor().clone(),
-                    writer,
-                    concurrent,
-                ))
-            };
-
-            Ok((RpWrite::default(), writer))
-        }?;
-
-        Ok((rp, output))
+    fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(FsLazyWriter::new(
+            self.core.clone(),
+            ctx.executor().clone(),
+            path,
+            op,
+        ))
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<FsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
-            ))
-        }?;
-
-        Ok((rp, output))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        Ok(oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())))
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, Option<FsLister<tokio::fs::ReadDir>>) = {
-            match self.core.fs_list(path).await? {
-                Some(f) => {
-                    let rd = FsLister::new(&self.core.root, path, f);
-                    Ok((RpList::default(), Some(rd)))
-                }
-                None => Ok((RpList::default(), None)),
-            }
-        }?;
-
-        Ok((rp, output))
+    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        Ok(FsLazyLister::new(self.core.clone(), path))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            self.core.fs_copy(from, to).await?;
-            Ok((RpCopy::default(), ()))
-        }?;
-
-        Ok((rp, output))
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            core.fs_copy(&from, &to).await?;
+            Ok(Metadata::default())
+        }))
     }
 
     async fn rename(

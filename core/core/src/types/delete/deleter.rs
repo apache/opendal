@@ -86,8 +86,8 @@ pub struct Deleter {
 }
 
 impl Deleter {
-    pub(crate) async fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
-        let (_, deleter) = srv.delete(&ctx).await?;
+    pub(crate) fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
+        let deleter = srv.delete(&ctx)?;
 
         Ok(Self { deleter })
     }

@@ -59,6 +59,13 @@ impl WebdavWriter {
 
 impl oio::OneShotWrite for WebdavWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        // Ensure parent path exists unless disabled for servers that don't support PROPFIND.
+        if !self.core.disable_create_dir {
+            self.core
+                .webdav_mkcol(&self.ctx, get_parent(&self.path))
+                .await?;
+        }
+
         let resp = self
             .core
             .webdav_put(&self.ctx, &self.path, Some(bs.len() as u64), &self.op, bs)

@@ -269,7 +269,7 @@ impl Service for B2Backend {
     type Writer = B2Writers;
     type Lister = oio::PageLister<B2Lister>;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -305,102 +305,88 @@ impl Service for B2Backend {
         let meta = parse_file_info(&file_info);
         Ok(RpStat::new(meta))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<B2Reader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(B2Reader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<B2Reader> = {
+            Ok(oio::StreamReader::new(B2Reader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, B2Writers) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: B2Writers = {
             let concurrent = args.concurrent();
             let writer = B2Writer::new(self.core.clone(), ctx.clone(), path, args);
 
             let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<B2Deleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(B2Deleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<B2Deleter> = {
+            Ok(oio::OneShotDeleter::new(B2Deleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<B2Lister>) = {
-            Ok((
-                RpList::default(),
-                oio::PageLister::new(B2Lister::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    path,
-                    args.recursive(),
-                    args.limit(),
-                    args.start_after(),
-                )),
-            ))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<B2Lister> = {
+            Ok(oio::PageLister::new(B2Lister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let file_info = self.core.get_file_info(ctx, from, None).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
+        Ok(oio::OneShotCopier::new(async move {
+            let file_info = core.get_file_info(&ctx, &from, None).await?;
             let source_file_id = file_info.file_id;
 
             let Some(source_file_id) = source_file_id else {
                 return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
             };
 
-            let resp = self.core.copy_file(ctx, source_file_id, to).await?;
+            let resp = core.copy_file(&ctx, source_file_id, &to).await?;
 
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok((RpCopy::default(), ())),
+                StatusCode::OK => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

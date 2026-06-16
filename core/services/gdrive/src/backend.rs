@@ -111,7 +111,7 @@ impl Service for GdriveBackend {
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -207,98 +207,80 @@ impl Service for GdriveBackend {
         }
         Ok(RpStat::new(meta))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<GdriveReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(GdriveReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GdriveReader> = {
+            Ok(oio::StreamReader::new(GdriveReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::OneShotWriter<GdriveWriter>) = {
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<GdriveWriter> = {
             let path = build_abs_path(&self.core.root, path);
 
-            // As Google Drive allows files have the same name, we need to check if the file exists.
-            // If the file exists, we will keep its ID and update it.
-            let file_id = match self.core.resolve_path(ctx, &path).await? {
-                Some(id) => Some(id),
-                None => self.core.resolve_path_after_refresh(ctx, &path).await?,
-            };
-
-            Ok((
-                RpWrite::default(),
-                oio::OneShotWriter::new(GdriveWriter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    path,
-                    file_id,
-                )),
-            ))
+            Ok(oio::OneShotWriter::new(GdriveWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                None,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<GdriveDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<GdriveDeleter> = {
+            Ok(oio::OneShotDeleter::new(GdriveDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, GdriveListers) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: GdriveListers = {
             let path = build_abs_path(&self.core.root, path);
 
             if args.recursive() {
                 // Use optimized batch-query recursive lister
                 let l = GdriveFlatLister::new(path, self.core.clone(), ctx.clone());
-                Ok((RpList::default(), TwoWays::Two(l)))
+                Ok(TwoWays::Two(l))
             } else {
                 // Use standard page-based lister for non-recursive
                 let l = GdriveLister::new(path, self.core.clone(), ctx.clone());
-                Ok((RpList::default(), TwoWays::One(oio::PageLister::new(l))))
+                Ok(TwoWays::One(oio::PageLister::new(l)))
             }
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let source = build_abs_path(&self.core.root, from);
-            let target = build_abs_path(&self.core.root, to);
-            let resp = self.core.gdrive_copy(ctx, from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+
+        Ok(oio::OneShotCopier::new(async move {
+            let source = build_abs_path(&core.root, &from);
+            let target = build_abs_path(&core.root, &to);
+            let resp = core.gdrive_copy(&ctx, &from, &to).await?;
 
             match resp.status() {
                 StatusCode::OK => {
@@ -306,7 +288,7 @@ impl Service for GdriveBackend {
                     let meta: GdriveFile = serde_json::from_reader(body.reader())
                         .map_err(new_json_deserialize_error)?;
 
-                    let to_path = build_abs_path(&self.core.root, to);
+                    let to_path = build_abs_path(&core.root, &to);
                     let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
                         Metadata::new(EntryMode::DIR)
                     } else {
@@ -321,25 +303,25 @@ impl Service for GdriveBackend {
                     }
 
                     if metadata.mode().is_dir() {
-                        self.core.cache_dir_id(&to_path, &meta.id).await;
+                        core.cache_dir_id(&to_path, &meta.id).await;
                     } else {
-                        self.core.cache_file_id(&to_path, &meta.id).await;
+                        core.cache_file_id(&to_path, &meta.id).await;
                     }
-                    self.core.record_recent_upsert(&to_path, metadata).await;
+                    core.record_recent_upsert(&to_path, metadata).await;
 
-                    Ok((RpCopy::default(), ()))
+                    Ok(Metadata::default())
                 }
                 StatusCode::NOT_FOUND => {
-                    self.core.refresh_path(&source).await;
-                    self.core.refresh_path(&target).await;
-                    let resp = self.core.gdrive_copy(ctx, from, to).await?;
+                    core.refresh_path(&source).await;
+                    core.refresh_path(&target).await;
+                    let resp = core.gdrive_copy(&ctx, &from, &to).await?;
                     match resp.status() {
                         StatusCode::OK => {
                             let body = resp.into_body();
                             let meta: GdriveFile = serde_json::from_reader(body.reader())
                                 .map_err(new_json_deserialize_error)?;
 
-                            let to_path = build_abs_path(&self.core.root, to);
+                            let to_path = build_abs_path(&core.root, &to);
                             let mut metadata =
                                 if meta.mime_type == "application/vnd.google-apps.folder" {
                                     Metadata::new(EntryMode::DIR)
@@ -356,22 +338,20 @@ impl Service for GdriveBackend {
                             }
 
                             if metadata.mode().is_dir() {
-                                self.core.cache_dir_id(&to_path, &meta.id).await;
+                                core.cache_dir_id(&to_path, &meta.id).await;
                             } else {
-                                self.core.cache_file_id(&to_path, &meta.id).await;
+                                core.cache_file_id(&to_path, &meta.id).await;
                             }
-                            self.core.record_recent_upsert(&to_path, metadata).await;
+                            core.record_recent_upsert(&to_path, metadata).await;
 
-                            Ok((RpCopy::default(), ()))
+                            Ok(Metadata::default())
                         }
                         _ => Err(parse_error(resp)),
                     }
                 }
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

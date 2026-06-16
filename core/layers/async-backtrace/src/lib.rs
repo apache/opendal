@@ -100,42 +100,27 @@ impl Service for AsyncBacktraceAccessor {
         self.inner.create_dir(ctx, path, args).await
     }
 
-    #[async_backtrace::framed]
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+            .map(AsyncBacktraceWrapper::new)
     }
 
-    #[async_backtrace::framed]
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+            .map(AsyncBacktraceWrapper::new)
     }
 
-    #[async_backtrace::framed]
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
     #[async_backtrace::framed]
@@ -154,25 +139,14 @@ impl Service for AsyncBacktraceAccessor {
         self.inner.stat(ctx, path, args).await
     }
 
-    #[async_backtrace::framed]
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner
-            .delete(ctx)
-            .await
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx).map(AsyncBacktraceWrapper::new)
     }
 
-    #[async_backtrace::framed]
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner
             .list(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, AsyncBacktraceWrapper::new(r)))
+            .map(AsyncBacktraceWrapper::new)
     }
 
     #[async_backtrace::framed]

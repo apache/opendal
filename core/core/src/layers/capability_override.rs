@@ -141,46 +141,31 @@ impl Service for CapabilityOverrideService {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(ctx, path, args).await
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(ctx, path, args).await
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
     async fn rename(

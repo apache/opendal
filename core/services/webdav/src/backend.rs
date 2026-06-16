@@ -295,7 +295,7 @@ impl Service for WebdavBackend {
     type Writer = oio::OneShotWriter<WebdavWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -319,100 +319,78 @@ impl Service for WebdavBackend {
         let metadata = self.core.webdav_stat(ctx, path).await?;
         Ok(RpStat::new(metadata))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<WebdavReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(WebdavReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<WebdavReader> = {
+            Ok(oio::StreamReader::new(WebdavReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::OneShotWriter<WebdavWriter>) = {
-            // Ensure parent path exists (unless disabled for servers that don't support PROPFIND)
-            if !self.core.disable_create_dir {
-                self.core.webdav_mkcol(ctx, get_parent(path)).await?;
-            }
-
-            Ok((
-                RpWrite::default(),
-                oio::OneShotWriter::new(WebdavWriter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    args,
-                    path.to_string(),
-                )),
-            ))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<WebdavWriter> = {
+            Ok(oio::OneShotWriter::new(WebdavWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args,
+                path.to_string(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<WebdavDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(WebdavDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<WebdavDeleter> = {
+            Ok(oio::OneShotDeleter::new(WebdavDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<WebdavLister>) = {
-            Ok((
-                RpList::default(),
-                oio::PageLister::new(WebdavLister::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    path,
-                    args,
-                )),
-            ))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<WebdavLister> = {
+            Ok(oio::PageLister::new(WebdavLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            let resp = self.core.webdav_copy(ctx, from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.webdav_copy(&ctx, &from, &to).await?;
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::NO_CONTENT => Ok((RpCopy::default(), ())),
+                StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

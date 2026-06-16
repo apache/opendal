@@ -217,12 +217,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - `path` is a normalized file path.
     /// - Range I/O is handled by the returned reader.
-    fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend;
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader>;
 
     /// Invoke the `write` operation on the specified path.
     ///
@@ -231,12 +226,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - `path` is a normalized file path.
-    fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend;
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer>;
 
     /// Invoke the `delete` operation.
     ///
@@ -246,10 +236,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - The returned deleter handles one or more delete requests.
     /// - Deleting a missing path should succeed.
-    fn delete(
-        &self,
-        ctx: &OperationContext,
-    ) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend;
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter>;
 
     /// Invoke the `list` operation on the specified path.
     ///
@@ -259,12 +246,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - `path` is a normalized directory path or prefix.
     /// - Listing a non-existing directory should return an empty stream.
-    fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend;
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister>;
 
     /// Invoke the `copy` operation on the specified `from` path and `to` path.
     ///
@@ -281,7 +263,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend;
+    ) -> Result<Self::Copier>;
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
     ///
@@ -340,7 +322,7 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpRead,
-    ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>>;
+    ) -> Result<oio::Reader>;
 
     /// Dyn version of [`Service::write`].
     fn write_dyn<'a>(
@@ -348,13 +330,10 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpWrite,
-    ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>>;
+    ) -> Result<oio::Writer>;
 
     /// Dyn version of [`Service::delete`].
-    fn delete_dyn<'a>(
-        &'a self,
-        ctx: &'a OperationContext,
-    ) -> BoxedFuture<'a, Result<(RpDelete, oio::Deleter)>>;
+    fn delete_dyn<'a>(&'a self, ctx: &'a OperationContext) -> Result<oio::Deleter>;
 
     /// Dyn version of [`Service::list`].
     fn list_dyn<'a>(
@@ -362,7 +341,7 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpList,
-    ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>>;
+    ) -> Result<oio::Lister>;
 
     /// Dyn version of [`Service::copy`].
     fn copy_dyn<'a>(
@@ -372,7 +351,7 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         to: &'a str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>>;
+    ) -> Result<oio::Copier>;
 
     /// Dyn version of [`Service::rename`].
     fn rename_dyn<'a>(
@@ -427,11 +406,8 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpRead,
-    ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>> {
-        Box::pin(async move {
-            let (rp, reader) = self.read(ctx, path, args).await?;
-            Ok((rp, Box::new(reader) as oio::Reader))
-        })
+    ) -> Result<oio::Reader> {
+        Ok(Box::new(self.read(ctx, path, args)?) as oio::Reader)
     }
 
     fn write_dyn<'a>(
@@ -439,21 +415,12 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpWrite,
-    ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>> {
-        Box::pin(async move {
-            let (rp, writer) = self.write(ctx, path, args).await?;
-            Ok((rp, Box::new(writer) as oio::Writer))
-        })
+    ) -> Result<oio::Writer> {
+        Ok(Box::new(self.write(ctx, path, args)?) as oio::Writer)
     }
 
-    fn delete_dyn<'a>(
-        &'a self,
-        ctx: &'a OperationContext,
-    ) -> BoxedFuture<'a, Result<(RpDelete, oio::Deleter)>> {
-        Box::pin(async move {
-            let (rp, deleter) = self.delete(ctx).await?;
-            Ok((rp, Box::new(deleter) as oio::Deleter))
-        })
+    fn delete_dyn<'a>(&'a self, ctx: &'a OperationContext) -> Result<oio::Deleter> {
+        Ok(Box::new(self.delete(ctx)?) as oio::Deleter)
     }
 
     fn list_dyn<'a>(
@@ -461,11 +428,8 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         ctx: &'a OperationContext,
         path: &'a str,
         args: OpList,
-    ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>> {
-        Box::pin(async move {
-            let (rp, lister) = self.list(ctx, path, args).await?;
-            Ok((rp, Box::new(lister) as oio::Lister))
-        })
+    ) -> Result<oio::Lister> {
+        Ok(Box::new(self.list(ctx, path, args)?) as oio::Lister)
     }
 
     fn copy_dyn<'a>(
@@ -475,11 +439,8 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         to: &'a str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>> {
-        Box::pin(async move {
-            let (rp, copier) = self.copy(ctx, from, to, args, opts).await?;
-            Ok((rp, Box::new(copier) as oio::Copier))
-        })
+    ) -> Result<oio::Copier> {
+        Ok(Box::new(self.copy(ctx, from, to, args, opts)?) as oio::Copier)
     }
 
     fn rename_dyn<'a>(
@@ -531,46 +492,31 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         self.as_ref().stat_dyn(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, oio::Reader)> {
-        self.as_ref().read_dyn(ctx, path, args).await
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<oio::Reader> {
+        self.as_ref().read_dyn(ctx, path, args)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::Writer)> {
-        self.as_ref().write_dyn(ctx, path, args).await
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<oio::Writer> {
+        self.as_ref().write_dyn(ctx, path, args)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, oio::Deleter)> {
-        self.as_ref().delete_dyn(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<oio::Deleter> {
+        self.as_ref().delete_dyn(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, oio::Lister)> {
-        self.as_ref().list_dyn(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<oio::Lister> {
+        self.as_ref().list_dyn(ctx, path, args)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, oio::Copier)> {
-        self.as_ref().copy_dyn(ctx, from, to, args, opts).await
+    ) -> Result<oio::Copier> {
+        self.as_ref().copy_dyn(ctx, from, to, args, opts)
     }
 
     async fn rename(
@@ -628,57 +574,42 @@ impl Service for () {
         ))
     }
 
-    async fn read(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn write(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn list(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _: &OperationContext,
         _: &str,
         _: &str,
         _: OpCopy,
         _: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

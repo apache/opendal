@@ -56,7 +56,17 @@ impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let size = bs.len();
 
-        let mut current_file_id = self.file_id.clone();
+        let mut current_file_id = match &self.file_id {
+            Some(file_id) => Some(file_id.clone()),
+            None => match self.core.resolve_path(&self.ctx, &self.path).await? {
+                Some(id) => Some(id),
+                None => {
+                    self.core
+                        .resolve_path_after_refresh(&self.ctx, &self.path)
+                        .await?
+                }
+            },
+        };
         let mut retried = false;
 
         loop {

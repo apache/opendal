@@ -23,6 +23,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use opendal_core::raw::*;
@@ -330,14 +331,9 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .map_err(|err| err.set_persistent())
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let mut attempt: u32 = 0;
-        let (rp, reader) = { || self.inner.read(ctx, path, args.clone()) }
+        let reader = { || self.inner.read(ctx, path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -349,23 +345,15 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
                     attempt,
                 })
             })
-            .await
+            .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok((
-            rp,
-            RetryReader::new(reader, self.notify.clone(), self.builder),
-        ))
+        Ok(RetryReader::new(reader, self.notify.clone(), self.builder))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let mut attempt: u32 = 0;
-        let (rp, writer) = { || self.inner.write(ctx, path, args.clone()) }
+        let writer = { || self.inner.write(ctx, path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -377,13 +365,10 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
                     attempt,
                 })
             })
-            .await
+            .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok((
-            rp,
-            RetryWrapper::new(writer, self.notify.clone(), self.builder),
-        ))
+        Ok(RetryWrapper::new(writer, self.notify.clone(), self.builder))
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -404,9 +389,9 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .map_err(|err| err.set_persistent())
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let mut attempt: u32 = 0;
-        let (rp, deleter) = { || self.inner.delete(ctx) }
+        let deleter = { || self.inner.delete(ctx) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -418,25 +403,26 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
                     attempt,
                 })
             })
-            .await
+            .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok((
-            rp,
-            RetryWrapper::new(deleter, self.notify.clone(), self.builder),
+        Ok(RetryWrapper::new(
+            deleter,
+            self.notify.clone(),
+            self.builder,
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let mut attempt: u32 = 0;
-        let (rp, copier) = { || self.inner.copy(ctx, from, to, args.clone(), opts.clone()) }
+        let copier = { || self.inner.copy(ctx, from, to, args.clone(), opts.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -448,13 +434,10 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
                     attempt,
                 })
             })
-            .await
+            .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok((
-            rp,
-            RetryWrapper::new(copier, self.notify.clone(), self.builder),
-        ))
+        Ok(RetryWrapper::new(copier, self.notify.clone(), self.builder))
     }
 
     async fn rename(
@@ -481,14 +464,9 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .map_err(|err| err.set_persistent())
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let mut attempt: u32 = 0;
-        let (rp, lister) = { || self.inner.list(ctx, path, args.clone()) }
+        let lister = { || self.inner.list(ctx, path, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -500,13 +478,10 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
                     attempt,
                 })
             })
-            .await
+            .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok((
-            rp,
-            RetryWrapper::new(lister, self.notify.clone(), self.builder),
-        ))
+        Ok(RetryWrapper::new(lister, self.notify.clone(), self.builder))
     }
 
     async fn presign(
@@ -1154,61 +1129,41 @@ mod tests {
             ))
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            path: &str,
-            args: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(MockReader::new(self.clone(), path, args)),
-            ))
+        fn read(&self, _: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            Ok(oio::StreamReader::new(MockReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-            Ok((
-                RpDelete::default(),
-                MockDeleter {
-                    size: 0,
-                    attempt: self.attempt.clone(),
-                },
-            ))
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(MockDeleter {
+                size: 0,
+                attempt: self.attempt.clone(),
+            })
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), MockWriter {}))
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(MockWriter {})
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
             let lister = MockLister::default();
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
-            Ok((
-                RpCopy::default(),
-                MockCopier {
-                    attempt: self.attempt.clone(),
-                },
-            ))
+        ) -> Result<Self::Copier> {
+            Ok(MockCopier {
+                attempt: self.attempt.clone(),
+            })
         }
 
         async fn rename(

@@ -96,7 +96,7 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+        let write_gen = WriteGenerator::create(ctx).unwrap();
 
         let v = FuturesBytesSink::new(write_gen);
 

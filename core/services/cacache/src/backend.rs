@@ -161,69 +161,50 @@ impl Service for CacacheBackend {
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<CacacheReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(CacacheReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<CacacheReader> = {
+            Ok(oio::StreamReader::new(CacacheReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, CacacheWriter) = {
-            Ok((
-                RpWrite::new(),
-                CacacheWriter::new(self.core.clone(), path.to_string()),
-            ))
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: CacacheWriter =
+            { Ok(CacacheWriter::new(self.core.clone(), path.to_string())) }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<CacacheDeleter> = {
+            Ok(oio::OneShotDeleter::new(CacacheDeleter::new(
+                self.core.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<CacacheDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(CacacheDeleter::new(self.core.clone())),
-            ))
-        }?;
-
-        Ok((rp, output))
-    }
-
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

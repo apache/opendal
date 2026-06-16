@@ -27,7 +27,7 @@ use super::config::EtcdConfig;
 use super::core::EtcdCore;
 use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
-use super::lister::EtcdLister;
+use super::lister::EtcdLazyLister;
 use super::writer::EtcdWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -242,7 +242,7 @@ impl oio::StreamRead for EtcdReader {
 impl Service for EtcdBackend {
     type Reader = oio::StreamReader<EtcdReader>;
     type Writer = EtcdWriter;
-    type Lister = oio::HierarchyLister<EtcdLister>;
+    type Lister = oio::HierarchyLister<EtcdLazyLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
     type Copier = ();
 
@@ -306,77 +306,62 @@ impl Service for EtcdBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<EtcdReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(EtcdReader::new(self.clone(), path, op)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, op: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<EtcdReader> = {
+            Ok(oio::StreamReader::new(EtcdReader::new(
+                self.clone(),
+                path,
+                op,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _op: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, EtcdWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, _op: OpWrite) -> Result<Self::Writer> {
+        let output: EtcdWriter = {
             let abs_path = build_abs_path(&self.info.root(), path);
             let writer = EtcdWriter::new(self.core.clone(), abs_path);
-            Ok((RpWrite::new(), writer))
+            Ok(writer)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<EtcdDeleter>) = {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<EtcdDeleter> = {
             let deleter = oio::OneShotDeleter::new(EtcdDeleter::new(
                 self.core.clone(),
                 self.info.root().to_string(),
             ));
-            Ok((RpDelete::default(), deleter))
+            Ok(deleter)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<EtcdLister>) = {
-            let lister = EtcdLister::new(
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<EtcdLazyLister> = {
+            let lister = EtcdLazyLister::new(
                 self.core.clone(),
                 self.info.root().to_string(),
                 path.to_string(),
-            )
-            .await?;
+            );
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

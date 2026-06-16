@@ -195,21 +195,6 @@ impl TimeoutService {
                 .set_temporary()
         })?
     }
-
-    async fn io_timeout<F: Future<Output = Result<T>>, T>(
-        &self,
-        op: Operation,
-        fut: F,
-    ) -> Result<T> {
-        tokio::time::timeout(self.io_timeout, fut)
-            .await
-            .map_err(|_| {
-                Error::new(ErrorKind::Unexpected, "io timeout reached")
-                    .with_operation(op)
-                    .with_context("timeout", self.io_timeout.as_secs_f64().to_string())
-                    .set_temporary()
-            })?
-    }
 }
 
 impl Service for TimeoutService {
@@ -237,39 +222,29 @@ impl Service for TimeoutService {
             .await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.io_timeout(Operation::Read, self.inner.read(ctx, path, args))
-            .await
-            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner
+            .read(ctx, path, args)
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.io_timeout(Operation::Write, self.inner.write(ctx, path, args))
-            .await
-            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner
+            .write(ctx, path, args)
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.timeout(Operation::Copy, self.inner.copy(ctx, from, to, args, opts))
-            .await
-            .map(|(rp, c)| (rp, TimeoutWrapper::new(c, self.io_timeout)))
+    ) -> Result<Self::Copier> {
+        self.inner
+            .copy(ctx, from, to, args, opts)
+            .map(|c| TimeoutWrapper::new(c, self.io_timeout))
     }
 
     async fn rename(
@@ -288,21 +263,16 @@ impl Service for TimeoutService {
             .await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.timeout(Operation::Delete, self.inner.delete(ctx))
-            .await
-            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner
+            .delete(ctx)
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.io_timeout(Operation::List, self.inner.list(ctx, path, args))
-            .await
-            .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner
+            .list(ctx, path, args)
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
     }
 
     async fn presign(
@@ -453,7 +423,6 @@ mod tests {
     use std::future::pending;
 
     use futures::StreamExt;
-    use tokio::time::sleep;
     use tokio::time::timeout;
 
     use super::*;
@@ -465,7 +434,7 @@ mod tests {
         type Reader = MockReader;
         type Writer = ();
         type Lister = MockLister;
-        type Deleter = ();
+        type Deleter = MockDeleter;
         type Copier = MockCopier;
 
         fn info(&self) -> ServiceInfo {
@@ -502,55 +471,35 @@ mod tests {
         }
 
         /// Return a reader whose operations never complete.
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                MockReader,
-            ))
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(MockReader)
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        /// Never return, so the service-level timeout can fire.
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-            sleep(Duration::from_secs(u64::MAX)).await;
-
-            Ok((RpDelete::default(), ()))
+        /// Return a deleter whose operations never complete.
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(MockDeleter)
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), MockLister))
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Ok(MockLister)
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
-            Ok((RpCopy::default(), MockCopier))
+        ) -> Result<Self::Copier> {
+            Ok(MockCopier)
         }
 
         async fn rename(
@@ -699,9 +648,8 @@ mod tests {
             .with_io_timeout(Duration::from_millis(100))
             .apply_service(Arc::new(MockService));
         let ctx = OperationContext::new(HttpClient::default(), Executor::default());
-        let (_, mut copier) = service
+        let mut copier = service
             .copy(&ctx, "f", "t", OpCopy::default(), OpCopier::default())
-            .await
             .unwrap();
 
         let err = copier.next().await.unwrap_err();
@@ -718,7 +666,7 @@ mod tests {
         let service = timeout_layer.apply_service(Arc::new(MockService));
         let ctx = OperationContext::new(HttpClient::default(), Executor::default());
 
-        let (_, mut lister) = service.list(&ctx, "test", OpList::default()).await.unwrap();
+        let mut lister = service.list(&ctx, "test", OpList::default()).unwrap();
 
         let res = lister.next().await;
         assert!(res.is_err());

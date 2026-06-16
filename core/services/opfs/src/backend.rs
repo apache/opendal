@@ -134,36 +134,27 @@ impl Service for OpfsBackend {
 
         Ok(RpStat::new(meta))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<OpfsReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(OpfsReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<OpfsReader> = {
+            Ok(oio::StreamReader::new(OpfsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, OpfsLister) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: OpfsLister = {
             let p = build_abs_path(&self.core.root, path);
             let dir = get_directory_handle(&p, false).await?;
 
-            Ok((RpList::default(), OpfsLister::new(dir, path.to_string())))
+            Ok(OpfsLister::new(dir, path.to_string()))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn create_dir(
@@ -179,13 +170,8 @@ impl Service for OpfsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, OpfsWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        let output: OpfsWriter = {
             let p = build_abs_path(&self.core.root, path);
             let handle = get_file_handle(&p, true).await?;
             let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
@@ -193,31 +179,30 @@ impl Service for OpfsBackend {
                 .and_then(JsCast::dyn_into)
                 .map_err(parse_js_error)?;
 
-            Ok((RpWrite::default(), OpfsWriter::new(stream)))
+            Ok(OpfsWriter::new(stream))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<OpfsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(OpfsDeleter::new(self.core.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<OpfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(OpfsDeleter::new(
+                self.core.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _: &OperationContext,
         _: &str,
         _: &str,
         _: OpCopy,
         _: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

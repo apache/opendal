@@ -369,69 +369,54 @@ impl Service for GoosefsBackend {
         let file_info = self.core.get_status(path).await?;
         Ok(RpStat::new(self.core.file_info_to_metadata(&file_info)))
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<GoosefsReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(GoosefsReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GoosefsReader> = {
+            Ok(oio::StreamReader::new(GoosefsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, GoosefsWriters) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: GoosefsWriters = {
             let w = GoosefsWriter::new(self.core.clone(), args.clone(), path.to_string());
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<GoosefsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(GoosefsDeleter::new(self.core.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<GoosefsDeleter> = {
+            Ok(oio::OneShotDeleter::new(GoosefsDeleter::new(
+                self.core.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<GoosefsLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<GoosefsLister> = {
             let l = GoosefsLister::new(self.core.clone(), path);
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

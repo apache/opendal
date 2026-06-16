@@ -325,45 +325,36 @@ impl Service for SqliteBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<SqliteReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(SqliteReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SqliteReader> = {
+            Ok(oio::StreamReader::new(SqliteReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, SqliteWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: SqliteWriter = {
             let p = build_abs_path(&self.root, path);
-            Ok((RpWrite::new(), SqliteWriter::new(self.core.clone(), &p)))
+            Ok(SqliteWriter::new(self.core.clone(), &p))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<SqliteDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(SqliteDeleter::new(self.core.clone(), self.root.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<SqliteDeleter> = {
+            Ok(oio::OneShotDeleter::new(SqliteDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn create_dir(
@@ -387,26 +378,21 @@ impl Service for SqliteBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -507,17 +493,11 @@ mod test {
 
         let accessor = SqliteBackend::new(core);
         let ctx = OperationContext::new(HttpClient::default(), Executor::default());
-        let (_, mut writer) = accessor
-            .write(&ctx, "hello", OpWrite::default())
-            .await
-            .unwrap();
+        let mut writer = accessor.write(&ctx, "hello", OpWrite::default()).unwrap();
         writer.write(Buffer::from("hello world")).await.unwrap();
         writer.close().await.unwrap();
 
-        let (_, reader) = accessor
-            .read(&ctx, "hello", OpRead::default())
-            .await
-            .unwrap();
+        let reader = accessor.read(&ctx, "hello", OpRead::default()).unwrap();
         let (_, mut stream) = reader.open(BytesRange::from(6_u64..)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 

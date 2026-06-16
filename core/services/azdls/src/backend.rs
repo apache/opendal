@@ -38,6 +38,7 @@ use super::core::DIRECTORY;
 use super::deleter::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
+use super::writer::AzdlsLazyPositionWriter;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use opendal_core::raw::*;
@@ -457,29 +458,21 @@ impl Service for AzdlsBackend {
         let metadata = self.core.azdls_stat_metadata(ctx, path).await?;
         Ok(RpStat::new(metadata))
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<AzdlsReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(AzdlsReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<AzdlsReader> = {
+            Ok(oio::StreamReader::new(AzdlsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, AzdlsWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: AzdlsWriters = {
             if args.append() {
                 let w = AzdlsWriter::new(
                     self.core.clone(),
@@ -487,44 +480,39 @@ impl Service for AzdlsBackend {
                     args.clone(),
                     path.to_string(),
                 );
-                Ok((
-                    RpWrite::default(),
-                    AzdlsWriters::Two(oio::AppendWriter::new(w)),
-                ))
+                Ok(AzdlsWriters::Two(oio::AppendWriter::new(w)))
             } else {
-                let w = AzdlsWriter::create(
+                let w = AzdlsWriter::new(
                     self.core.clone(),
                     ctx.clone(),
                     args.clone(),
                     path.to_string(),
-                )
-                .await?;
-                let w = oio::PositionWriter::new(ctx.executor().clone(), w, args.concurrent());
-                Ok((RpWrite::default(), AzdlsWriters::One(w)))
+                );
+                let w = oio::PositionWriter::new(
+                    ctx.executor().clone(),
+                    AzdlsLazyPositionWriter::new(w),
+                    args.concurrent(),
+                );
+                Ok(AzdlsWriters::One(w))
             }
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<AzdlsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(AzdlsDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<AzdlsDeleter> = {
+            Ok(oio::OneShotDeleter::new(AzdlsDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<AzdlsLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<AzdlsLister> = {
             let l = AzdlsLister::new(
                 self.core.clone(),
                 ctx.clone(),
@@ -532,20 +520,20 @@ impl Service for AzdlsBackend {
                 args.limit(),
             );
 
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

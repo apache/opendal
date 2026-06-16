@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use http::StatusCode;
+use mea::once::OnceCell;
 
 use super::core::AzdlsCore;
 use super::core::FILE;
@@ -27,7 +28,29 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 /// Writer type for azdls: non-append uses PositionWriter, append uses AppendWriter.
-pub type AzdlsWriters = TwoWays<oio::PositionWriter<AzdlsWriter>, oio::AppendWriter<AzdlsWriter>>;
+pub type AzdlsWriters =
+    TwoWays<oio::PositionWriter<AzdlsLazyPositionWriter>, oio::AppendWriter<AzdlsWriter>>;
+
+pub struct AzdlsLazyPositionWriter {
+    inner: AzdlsWriter,
+    created: OnceCell<()>,
+}
+
+impl AzdlsLazyPositionWriter {
+    pub fn new(inner: AzdlsWriter) -> Self {
+        Self {
+            inner,
+            created: OnceCell::new(),
+        }
+    }
+
+    async fn ensure_created(&self) -> Result<()> {
+        self.created
+            .get_or_try_init(async || self.inner.create_if_needed().await)
+            .await?;
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 pub struct AzdlsWriter {
@@ -45,17 +68,6 @@ impl AzdlsWriter {
             op,
             path,
         }
-    }
-
-    pub async fn create(
-        core: Arc<AzdlsCore>,
-        ctx: OperationContext,
-        op: OpWrite,
-        path: String,
-    ) -> Result<Self> {
-        let writer = Self::new(core, ctx, op, path);
-        writer.create_if_needed().await?;
-        Ok(writer)
     }
 
     async fn create_if_needed(&self) -> Result<()> {
@@ -127,6 +139,22 @@ impl oio::PositionWrite for AzdlsWriter {
             ErrorKind::Unsupported,
             "Abort is not supported for azdls writer",
         ))
+    }
+}
+
+impl oio::PositionWrite for AzdlsLazyPositionWriter {
+    async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+        self.ensure_created().await?;
+        self.inner.write_all_at(offset, buf).await
+    }
+
+    async fn close(&self, size: u64) -> Result<Metadata> {
+        self.ensure_created().await?;
+        self.inner.close(size).await
+    }
+
+    async fn abort(&self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 

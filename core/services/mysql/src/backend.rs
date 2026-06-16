@@ -25,7 +25,7 @@ use super::MYSQL_SCHEME;
 use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
-use super::lister::MysqlLister;
+use super::lister::MysqlLazyLister;
 use super::writer::MysqlWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -224,7 +224,7 @@ impl oio::StreamRead for MysqlReader {
 impl Service for MysqlBackend {
     type Reader = oio::StreamReader<MysqlReader>;
     type Writer = MysqlWriter;
-    type Lister = oio::HierarchyLister<MysqlLister>;
+    type Lister = oio::HierarchyLister<MysqlLazyLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
     type Copier = ();
 
@@ -263,71 +263,57 @@ impl Service for MysqlBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<MysqlReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(MysqlReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<MysqlReader> = {
+            Ok(oio::StreamReader::new(MysqlReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, MysqlWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: MysqlWriter = {
             let p = build_abs_path(&self.root, path);
-            Ok((RpWrite::new(), MysqlWriter::new(self.core.clone(), p)))
+            Ok(MysqlWriter::new(self.core.clone(), p))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<MysqlDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(MysqlDeleter::new(self.core.clone(), self.root.clone())),
-            ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<MysqlDeleter> = {
+            Ok(oio::OneShotDeleter::new(MysqlDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<MysqlLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<MysqlLazyLister> = {
             let lister =
-                MysqlLister::new(self.core.clone(), self.root.clone(), path.to_string()).await?;
+                MysqlLazyLister::new(self.core.clone(), self.root.clone(), path.to_string());
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

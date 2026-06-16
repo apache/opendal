@@ -141,60 +141,43 @@ impl Service for MemoryBackend {
         }
     }
 
-    async fn read(
-        &self,
-        _: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(MemoryReader::new(self.clone(), path, args)),
-        ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        Ok(oio::StreamReader::new(MemoryReader::new(
+            self.clone(),
+            path,
+            args,
+        )))
     }
 
-    async fn write(
-        &self,
-        _: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let p = build_abs_path(&self.root, path);
-        Ok((
-            RpWrite::new(),
-            MemoryWriter::new(self.core.clone(), p, args),
-        ))
+        Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
-    async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(MemoryDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        Ok(oio::OneShotDeleter::new(MemoryDeleter::new(
+            self.core.clone(),
+            self.root.clone(),
+        )))
     }
 
-    async fn list(
-        &self,
-        _: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let p = build_abs_path(&self.root, path);
         let keys = self.core.scan(&p)?;
         let lister = MemoryLister::new(&self.root, keys);
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
-        Ok((RpList::default(), lister))
+        Ok(lister)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _: &OperationContext,
         _: &str,
         _: &str,
         _: OpCopy,
         _: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

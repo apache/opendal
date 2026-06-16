@@ -638,7 +638,7 @@ impl Operator {
         }
 
         let (range, args, opts) = opts.into();
-        let (_, reader) = srv.read(&ctx, &path, args.clone()).await?;
+        let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         let r = Reader::new(read_context);
         let buf = r.read(range).await?;
@@ -749,7 +749,7 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
-        let (_, reader) = srv.read(&ctx, &path, args.clone()).await?;
+        let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         Ok(Reader::new(read_context))
     }
@@ -1335,7 +1335,7 @@ impl Operator {
         }
 
         let (args, opts) = opts.into();
-        Copier::create(ctx, srv, &from, &to, args, opts).await
+        std::future::ready(Copier::create(ctx, srv, &from, &to, args, opts)).await
     }
 
     /// Rename a file from `from` to `to`.
@@ -1488,7 +1488,7 @@ impl Operator {
         path: String,
         opts: options::DeleteOptions,
     ) -> Result<()> {
-        let (_, mut deleter) = srv.delete(&ctx).await?;
+        let mut deleter = srv.delete(&ctx)?;
         let args = opts.into();
         deleter.delete_dyn(&path, args).await?;
         deleter.close_dyn().await?;
@@ -1573,7 +1573,11 @@ impl Operator {
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
     pub async fn deleter(&self) -> Result<Deleter> {
-        Deleter::create(self.context().clone(), self.service().clone()).await
+        std::future::ready(Deleter::create(
+            self.context().clone(),
+            self.service().clone(),
+        ))
+        .await
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -1772,7 +1776,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Vec<Entry>> {
         let args = opts.into();
-        let lister = Lister::create(ctx, srv, &path, args).await?;
+        let lister = Lister::create(ctx, srv, &path, args)?;
         lister.try_collect().await
     }
 
@@ -1911,8 +1915,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        let lister = Lister::create(ctx, srv, &path, args).await?;
-        Ok(lister)
+        std::future::ready(Lister::create(ctx, srv, &path, args)).await
     }
 }
 

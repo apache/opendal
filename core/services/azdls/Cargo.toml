@@ -35,6 +35,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+mea = { workspace = true }
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 opendal-service-azure-common = { path = "../azure-common", version = "0.57.0" }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }

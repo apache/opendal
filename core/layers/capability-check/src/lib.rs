@@ -123,21 +123,11 @@ impl Service for CapabilityCheckService {
         self.inner.stat(ctx, path, args).await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(ctx, path, args).await
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let capability = self.capability();
         let info = self.info();
         if !capability.write_with_content_type && args.content_type().is_some() {
@@ -162,17 +152,17 @@ impl Service for CapabilityCheckService {
             ));
         }
 
-        self.inner.write(ctx, path, args).await
+        self.inner.write(ctx, path, args)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let capability = self.capability();
         let info = self.info();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
@@ -193,26 +183,21 @@ impl Service for CapabilityCheckService {
             ));
         }
 
-        self.inner.copy(ctx, from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let capability = self.capability();
         if !capability.list_with_versions && args.versions() {
             let info = self.info();
             return Err(new_unsupported_error(&info, Operation::List, "version"));
         }
 
-        self.inner.list(ctx, path, args).await
+        self.inner.list(ctx, path, args)
     }
 
     async fn rename(
@@ -278,51 +263,36 @@ mod tests {
             ))
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), ()))
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(())
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList {}, ()))
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Ok(())
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
+        ) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",

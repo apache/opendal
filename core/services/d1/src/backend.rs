@@ -294,74 +294,55 @@ impl Service for D1Backend {
             }
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<D1Reader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(D1Reader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<D1Reader> = {
+            Ok(oio::StreamReader::new(D1Reader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, D1Writer) = {
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: D1Writer = {
             let p = build_abs_path(&self.root, path);
-            Ok((
-                RpWrite::new(),
-                D1Writer::new(self.core.clone(), ctx.clone(), p),
-            ))
+            Ok(D1Writer::new(self.core.clone(), ctx.clone(), p))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<D1Deleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(D1Deleter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    self.root.clone(),
-                )),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<D1Deleter> = {
+            Ok(oio::OneShotDeleter::new(D1Deleter::new(
+                self.core.clone(),
+                ctx.clone(),
+                self.root.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

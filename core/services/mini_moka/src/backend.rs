@@ -245,75 +245,61 @@ impl Service for MiniMokaBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<MiniMokaReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(MiniMokaReader::new(self.clone(), path, op)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, op: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<MiniMokaReader> = {
+            Ok(oio::StreamReader::new(MiniMokaReader::new(
+                self.clone(),
+                path,
+                op,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, MiniMokaWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        let output: MiniMokaWriter = {
             let p = build_abs_path(&self.root, path);
             let writer = MiniMokaWriter::new(self.core.clone(), p, op);
-            Ok((RpWrite::new(), writer))
+            Ok(writer)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<MiniMokaDeleter>) = {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<MiniMokaDeleter> = {
             let deleter = oio::OneShotDeleter::new(MiniMokaDeleter::new(
                 self.core.clone(),
                 self.root.clone(),
             ));
-            Ok((RpDelete::default(), deleter))
+            Ok(deleter)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        op: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<MiniMokaLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, op: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<MiniMokaLister> = {
             let p = build_abs_path(&self.root, path);
 
             let mini_moka_lister = MiniMokaLister::new(self.core.clone(), self.root.clone(), p);
             let lister = oio::HierarchyLister::new(mini_moka_lister, path, op.recursive());
 
-            Ok((RpList::default(), lister))
+            Ok(lister)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

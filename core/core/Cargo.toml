@@ -42,9 +42,6 @@ default = ["executors-tokio"]
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
-# Enable path cache.
-# This is an internal feature, and should not be used by users.
-internal-path-cache = ["dep:moka"]
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
 
@@ -77,9 +74,6 @@ serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }
 url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-# Optional dependencies
-moka = { version = "0.12", optional = true, features = ["sync"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 jiff = { version = "0.2.28", features = ["serde", "js"] }

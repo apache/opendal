@@ -35,6 +35,52 @@ pub struct HfWriter {
     finished_info: Option<XetFileInfo>,
 }
 
+/// Lazily creates [`HfWriter`] so `Service::write` can stay synchronous.
+pub struct HfLazyWriter {
+    core: Arc<HfCore>,
+    ctx: OperationContext,
+    path: String,
+    inner: Option<HfWriter>,
+}
+
+impl HfLazyWriter {
+    pub fn new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Self {
+        Self {
+            core,
+            ctx,
+            path,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut HfWriter> {
+        if self.inner.is_none() {
+            let writer =
+                HfWriter::try_new(self.core.clone(), self.ctx.clone(), self.path.clone()).await?;
+            self.inner = Some(writer);
+        }
+
+        Ok(self.inner.as_mut().expect("hf writer must be initialized"))
+    }
+}
+
+impl oio::Write for HfLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Ok(()),
+        }
+    }
+}
+
 impl HfWriter {
     /// Create a new writer for the given path.
     ///

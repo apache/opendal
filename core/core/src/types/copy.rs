@@ -55,7 +55,7 @@ unsafe impl Sync for Copier {}
 
 impl Copier {
     /// Create a new copier.
-    pub(crate) async fn create(
+    pub(crate) fn create(
         ctx: OperationContext,
         srv: Servicer,
         from: &str,
@@ -63,7 +63,7 @@ impl Copier {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<Self> {
-        let (_, copier) = srv.copy(&ctx, from, to, args, opts).await?;
+        let copier = srv.copy(&ctx, from, to, args, opts)?;
 
         Ok(Self {
             copier: Some(copier),

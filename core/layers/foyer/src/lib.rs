@@ -212,60 +212,42 @@ impl Service for FoyerService {
         self.inner.capability()
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            full::FullReader::new(
-                self.operation_inner(ctx),
-                self.size_limit.clone(),
-                path.to_string(),
-                args,
-            ),
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        Ok(full::FullReader::new(
+            self.operation_inner(ctx),
+            self.size_limit.clone(),
+            path.to_string(),
+            args,
         ))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let inner = self.operation_inner(ctx);
         let size_limit = self.size_limit.clone();
         let path = path.to_string();
-        let (rp, w) = inner.srv.write(&inner.ctx, &path, args).await?;
-        Ok((rp, Writer::new(w, path, inner, size_limit)))
+        let w = inner.srv.write(&inner.ctx, &path, args)?;
+        Ok(Writer::new(w, path, inner, size_limit))
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let inner = self.operation_inner(ctx);
-        let (rp, d) = inner.srv.delete(&inner.ctx).await?;
-        Ok((rp, Deleter::new(d, inner)))
+        let d = inner.srv.delete(&inner.ctx)?;
+        Ok(Deleter::new(d, inner))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(ctx, from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(ctx, path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
     }
 
     async fn create_dir(
@@ -449,59 +431,41 @@ mod tests {
             Ok(RpStat::new(self.state.metadata()))
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                self.state.rp_read(),
-                MockReadReader {
-                    state: self.state.clone(),
-                },
-            ))
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(MockReadReader {
+                state: self.state.clone(),
+            })
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             _: &str,
             _: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
+        ) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -543,7 +507,7 @@ mod tests {
             .apply_service(source);
         let ctx = service_context(&service);
 
-        let (_, reader) = service.read(&ctx, "test", OpRead::default()).await.unwrap();
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
         let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
@@ -563,7 +527,7 @@ mod tests {
             .apply_service(source);
         let ctx = service_context(&service);
 
-        let (_, reader) = service.read(&ctx, "test", OpRead::default()).await.unwrap();
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
         let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
@@ -572,7 +536,7 @@ mod tests {
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
 
-        let (_, reader) = service.read(&ctx, "test", OpRead::default()).await.unwrap();
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
         let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 

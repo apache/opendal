@@ -98,16 +98,10 @@ impl Service for ErrorContextService {
         })
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.inner
             .read(ctx, path, args)
-            .await
-            .map(|(rp, r)| (rp, ErrorContextWrapper::new(self.info().scheme(), path, r)))
+            .map(|r| ErrorContextWrapper::new(self.info().scheme(), path, r))
             .map_err(|err| {
                 err.with_operation(Operation::Read)
                     .with_context("service", self.info().scheme())
@@ -115,16 +109,10 @@ impl Service for ErrorContextService {
             })
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.inner
             .write(ctx, path, args)
-            .await
-            .map(|(rp, w)| (rp, ErrorContextWrapper::new(self.info().scheme(), path, w)))
+            .map(|w| ErrorContextWrapper::new(self.info().scheme(), path, w))
             .map_err(|err| {
                 err.with_operation(Operation::Write)
                     .with_context("service", self.info().scheme())
@@ -132,18 +120,17 @@ impl Service for ErrorContextService {
             })
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args, opts)
-            .await
-            .map(|(rp, p)| (rp, ErrorContextWrapper::new(self.info().scheme(), to, p)))
+            .map(|p| ErrorContextWrapper::new(self.info().scheme(), to, p))
             .map_err(|err| {
                 err.with_operation(Operation::Copy)
                     .with_context("service", self.info().scheme())
@@ -175,27 +162,20 @@ impl Service for ErrorContextService {
         })
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.inner
             .delete(ctx)
-            .await
-            .map(|(rp, w)| (rp, ErrorContextWrapper::new(self.info().scheme(), "", w)))
+            .map(|w| ErrorContextWrapper::new(self.info().scheme(), "", w))
             .map_err(|err| {
                 err.with_operation(Operation::Delete)
                     .with_context("service", self.info().scheme())
             })
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner
             .list(ctx, path, args)
-            .await
-            .map(|(rp, p)| (rp, ErrorContextWrapper::new(self.info().scheme(), path, p)))
+            .map(|p| ErrorContextWrapper::new(self.info().scheme(), path, p))
             .map_err(|err| {
                 err.with_operation(Operation::List)
                     .with_context("service", self.info().scheme())

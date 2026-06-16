@@ -552,14 +552,14 @@ mod tests {
     use crate::services;
     use crate::*;
 
-    async fn new_read_context(
+    fn new_read_context(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
             ctx,
             srv,
@@ -612,7 +612,9 @@ mod tests {
             }
 
             Ok((
-                RpRead::default(),
+                RpRead::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
+                ),
                 Buffer::from(self.content.slice(start..end)),
             ))
         }
@@ -645,7 +647,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = new_read_context(ctx, srv, "test", OpReader::new()).await?;
+        let ctx = new_read_context(ctx, srv, "test", OpReader::new())?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
 

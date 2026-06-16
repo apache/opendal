@@ -284,7 +284,7 @@ impl Service for SwiftBackend {
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -323,29 +323,21 @@ impl Service for SwiftBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<SwiftReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(SwiftReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SwiftReader> = {
+            Ok(oio::StreamReader::new(SwiftReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::MultipartWriter<SwiftWriter>) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::MultipartWriter<SwiftWriter> = {
             let concurrent = args.concurrent();
             let writer = SwiftWriter::new(
                 self.core.clone(),
@@ -355,33 +347,25 @@ impl Service for SwiftBackend {
             );
             let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<SwiftDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(
-                    SwiftDeleter::new(self.core.clone(), ctx.clone()),
-                    self.core.capability.delete_max_size,
-                ),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<SwiftDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                SwiftDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<SwiftLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<SwiftLister> = {
             let l = SwiftLister::new(
                 self.core.clone(),
                 ctx.clone(),
@@ -390,10 +374,10 @@ impl Service for SwiftBackend {
                 args.limit(),
             );
 
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn presign(
@@ -428,28 +412,31 @@ impl Service for SwiftBackend {
         )))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+
+        Ok(oio::OneShotCopier::new(async move {
             // cannot copy objects larger than 5 GB.
             // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
-            let resp = self.core.swift_copy(ctx, from, to).await?;
+            let resp = core.swift_copy(&ctx, &from, &to).await?;
 
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::OK => Ok((RpCopy::default(), ())),
+                StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

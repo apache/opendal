@@ -89,11 +89,10 @@ impl<S: Service> oio::List for FlatLister<S> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = match self
+                let mut l = match self
                     .service
                     .as_ref()
                     .list(&self.ctx, de.path(), OpList::new())
-                    .await
                 {
                     Ok(v) => v,
                     Err(e) if e.kind() == ErrorKind::PermissionDenied => {

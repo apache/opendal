@@ -44,13 +44,13 @@ unsafe impl Sync for Lister {}
 
 impl Lister {
     /// Create a new lister.
-    pub(crate) async fn create(
+    pub(crate) fn create(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         args: OpList,
     ) -> Result<Self> {
-        let (_, lister) = srv.list(&ctx, path, args).await?;
+        let lister = srv.list(&ctx, path, args)?;
 
         Ok(Self {
             lister: Some(lister),

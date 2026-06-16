@@ -137,75 +137,59 @@ impl Service for IpmfsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<IpmfsReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(IpmfsReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<IpmfsReader> = {
+            Ok(oio::StreamReader::new(IpmfsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, oio::OneShotWriter<IpmfsWriter>) = {
-            Ok((
-                RpWrite::default(),
-                oio::OneShotWriter::new(IpmfsWriter::new(
-                    self.core.clone(),
-                    ctx.clone(),
-                    path.to_string(),
-                )),
-            ))
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<IpmfsWriter> = {
+            Ok(oio::OneShotWriter::new(IpmfsWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<IpmfsDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(IpmfsDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<IpmfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(IpmfsDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<IpmfsLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<IpmfsLister> = {
             let l = IpmfsLister::new(self.core.clone(), ctx.clone(), &self.core.root, path);
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

@@ -1140,29 +1140,21 @@ impl Service for S3Backend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<S3Reader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(S3Reader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<S3Reader> = {
+            Ok(oio::StreamReader::new(S3Reader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, S3Writers) = {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: S3Writers = {
             let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args.clone());
 
             let w = if args.append() {
@@ -1177,33 +1169,25 @@ impl Service for S3Backend {
                 ))
             };
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::BatchDeleter<S3Deleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::BatchDeleter::new(
-                    S3Deleter::new(self.core.clone(), ctx.clone()),
-                    self.core.capability.delete_max_size,
-                ),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<S3Deleter> = {
+            Ok(oio::BatchDeleter::new(
+                S3Deleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
             ))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, S3Listers) = {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: S3Listers = {
             let l = if args.versions() || args.deleted() {
                 ThreeWays::Three(oio::PageLister::new(S3ObjectVersionsLister::new(
                     self.core.clone(),
@@ -1227,26 +1211,26 @@ impl Service for S3Backend {
                 )))
             };
 
-            Ok((RpList::default(), l))
+            Ok(l)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, S3Copiers) = {
+    ) -> Result<Self::Copier> {
+        let output: S3Copiers = {
             let copier = new_s3_copier(self.core.clone(), ctx, from, to, args, opts)?;
-            Ok((RpCopy::default(), copier))
+            Ok(copier)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
     async fn rename(

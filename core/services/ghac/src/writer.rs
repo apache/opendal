@@ -144,6 +144,60 @@ impl GhacWriter {
     }
 }
 
+pub struct GhacLazyWriter {
+    core: Arc<GhacCore>,
+    ctx: OperationContext,
+    executor: Executor,
+    path: String,
+    inner: Option<GhacWriter>,
+}
+
+impl GhacLazyWriter {
+    pub fn new(
+        core: Arc<GhacCore>,
+        ctx: OperationContext,
+        executor: Executor,
+        path: String,
+    ) -> Self {
+        Self {
+            core,
+            ctx,
+            executor,
+            path,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut GhacWriter> {
+        if self.inner.is_none() {
+            let url = self.core.ghac_get_upload_url(&self.ctx, &self.path).await?;
+            self.inner = Some(GhacWriter::new(
+                self.core.clone(),
+                self.ctx.clone(),
+                self.executor.clone(),
+                self.path.clone(),
+                url,
+            )?);
+        }
+
+        Ok(self.inner.as_mut().expect("writer must be initialized"))
+    }
+}
+
+impl oio::Write for GhacLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner().await?.abort().await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+}
+
 impl oio::Write for GhacWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.0.write(bs).await

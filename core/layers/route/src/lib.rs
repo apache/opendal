@@ -187,43 +187,31 @@ impl Service for RouteAccessor {
         }
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, oio::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<oio::Reader> {
         match self.select(path) {
-            RouteSelected::Default(srv) => srv.read(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.read(&target.ctx, path, args).await,
+            RouteSelected::Default(srv) => srv.read(ctx, path, args),
+            RouteSelected::Target(target) => target.srv.read(&target.ctx, path, args),
         }
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, oio::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<oio::Writer> {
         match self.select(path) {
-            RouteSelected::Default(srv) => srv.write(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.write(&target.ctx, path, args).await,
+            RouteSelected::Default(srv) => srv.write(ctx, path, args),
+            RouteSelected::Target(target) => target.srv.write(&target.ctx, path, args),
         }
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, oio::Copier)> {
+    ) -> Result<oio::Copier> {
         match self.select(from) {
-            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args, opts).await,
-            RouteSelected::Target(target) => {
-                target.srv.copy(&target.ctx, from, to, args, opts).await
-            }
+            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args, opts),
+            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args, opts),
         }
     }
 
@@ -247,26 +235,18 @@ impl Service for RouteAccessor {
         }
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, oio::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            Box::new(RouteDeleter::new(
-                self.inner.clone(),
-                self.router.clone(),
-                ctx.clone(),
-            )) as oio::Deleter,
-        ))
+    fn delete(&self, ctx: &OperationContext) -> Result<oio::Deleter> {
+        Ok(Box::new(RouteDeleter::new(
+            self.inner.clone(),
+            self.router.clone(),
+            ctx.clone(),
+        )) as oio::Deleter)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, oio::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<oio::Lister> {
         match self.select(path) {
-            RouteSelected::Default(srv) => srv.list(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.list(&target.ctx, path, args).await,
+            RouteSelected::Default(srv) => srv.list(ctx, path, args),
+            RouteSelected::Target(target) => target.srv.list(&target.ctx, path, args),
         }
     }
 
@@ -309,7 +289,7 @@ impl RouteDeleter {
         match key {
             RouteKey::Default => {
                 if self.default_deleter.is_none() {
-                    let (_, deleter) = self.default.delete(&self.ctx).await?;
+                    let deleter = self.default.delete(&self.ctx)?;
                     self.default_deleter = Some(deleter);
                 }
                 Ok(self
@@ -320,7 +300,7 @@ impl RouteDeleter {
             RouteKey::Target(idx) => {
                 if idx >= self.target_deleters.len() {
                     if self.default_deleter.is_none() {
-                        let (_, deleter) = self.default.delete(&self.ctx).await?;
+                        let deleter = self.default.delete(&self.ctx)?;
                         self.default_deleter = Some(deleter);
                     }
                     return Ok(self
@@ -330,14 +310,14 @@ impl RouteDeleter {
                 }
                 if self.target_deleters[idx].is_none() {
                     let Some(target) = self.router.target(idx) else {
-                        let (_, deleter) = self.default.delete(&self.ctx).await?;
+                        let deleter = self.default.delete(&self.ctx)?;
                         self.default_deleter = Some(deleter);
                         return Ok(self
                             .default_deleter
                             .as_mut()
                             .expect("default deleter must exist"));
                     };
-                    let (_, deleter) = target.srv.delete(&target.ctx).await?;
+                    let deleter = target.srv.delete(&target.ctx)?;
                     self.target_deleters[idx] = Some(deleter);
                 }
                 Ok(self.target_deleters[idx]
@@ -489,65 +469,47 @@ mod tests {
             }
         }
 
-        async fn read(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpRead,
-        ) -> Result<(RpRead, Self::Reader)> {
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn write(
-            &self,
-            _: &OperationContext,
-            path: &str,
-            _: OpWrite,
-        ) -> Result<(RpWrite, Self::Writer)> {
-            Ok((
-                RpWrite::default(),
-                MockWriter {
-                    paths: self.paths.clone(),
-                    path: path.to_string(),
-                },
-            ))
+        fn write(&self, _: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(MockWriter {
+                paths: self.paths.clone(),
+                path: path.to_string(),
+            })
         }
 
-        async fn delete(&self, _: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn list(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: OpList,
-        ) -> Result<(RpList, Self::Lister)> {
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             ))
         }
 
-        async fn copy(
+        fn copy(
             &self,
             _: &OperationContext,
             from: &str,
             to: &str,
             _: OpCopy,
             _: OpCopier,
-        ) -> Result<(RpCopy, Self::Copier)> {
+        ) -> Result<Self::Copier> {
             if !self.paths.lock().unwrap().contains(from) {
                 return Err(Error::new(ErrorKind::NotFound, "source not found"));
             }
             self.paths.lock().unwrap().insert(to.to_string());
-            Ok((RpCopy::default(), ()))
+            Ok(())
         }
 
         async fn rename(

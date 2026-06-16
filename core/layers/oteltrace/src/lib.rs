@@ -112,12 +112,7 @@ impl Service for OtelTraceService {
             .await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("read");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -125,17 +120,10 @@ impl Service for OtelTraceService {
         let cx = TraceContext::current_with_span(span);
         self.inner
             .read(ctx, path, args)
-            .with_context(cx.clone())
-            .await
-            .map(|(rp, r)| (rp, OtelTraceWrapper::new(cx, r)))
+            .map(|r| OtelTraceWrapper::new(cx, r))
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("write");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -143,29 +131,25 @@ impl Service for OtelTraceService {
         let cx = TraceContext::current_with_span(span);
         self.inner
             .write(ctx, path, args)
-            .with_context(cx.clone())
-            .await
-            .map(|(rp, r)| (rp, OtelTraceWrapper::new(cx, r)))
+            .map(|r| OtelTraceWrapper::new(cx, r))
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
-        self.inner
-            .copy(ctx, from, to, args, opts)
-            .with_context(cx)
-            .await
+        let _guard = cx.attach();
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
     async fn rename(
@@ -196,16 +180,11 @@ impl Service for OtelTraceService {
         self.inner.stat(ctx, path, args).with_context(cx).await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete(ctx).await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -213,9 +192,7 @@ impl Service for OtelTraceService {
         let cx = TraceContext::current_with_span(span);
         self.inner
             .list(ctx, path, args)
-            .with_context(cx.clone())
-            .await
-            .map(|(rp, s)| (rp, OtelTraceWrapper::new(cx, s)))
+            .map(|s| OtelTraceWrapper::new(cx, s))
     }
 
     async fn presign(

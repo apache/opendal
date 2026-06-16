@@ -111,12 +111,9 @@ pub struct WriteGenerator<W> {
 
 impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
-    pub async fn create(ctx: Arc<WriteContext>) -> Result<Self> {
+    pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
-        let (_, w) = ctx
-            .srv
-            .write(&ctx.ctx, ctx.path(), ctx.args().clone())
-            .await?;
+        let w = ctx.srv.write(&ctx.ctx, ctx.path(), ctx.args().clone())?;
 
         Ok(Self {
             w,

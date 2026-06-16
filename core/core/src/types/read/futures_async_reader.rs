@@ -190,14 +190,14 @@ mod tests {
 
     use super::*;
 
-    async fn new_read_context(
+    fn new_read_context(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
             ctx,
             srv,
@@ -213,7 +213,7 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
         let v = FuturesAsyncReader::new(ctx, 4..8);
 
@@ -232,7 +232,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let mut bs = vec![];
@@ -259,15 +259,12 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(
-            new_read_context(
-                ctx,
-                srv,
-                "test",
-                OpReader::new().with_concurrent(3).with_chunk(1),
-            )
-            .await?,
-        );
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_concurrent(3).with_chunk(1),
+        )?);
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let mut bs = vec![];
@@ -294,15 +291,12 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(
-            new_read_context(
-                ctx,
-                srv,
-                "test",
-                OpReader::new().with_concurrent(3).with_chunk(1),
-            )
-            .await?,
-        );
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_concurrent(3).with_chunk(1),
+        )?);
 
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);
         let chunk = fr.fill_buf().await.unwrap();
@@ -326,7 +320,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
         // Range 4..8, in total 4 bytes of logical data.
         let mut fr = FuturesAsyncReader::new(ctx, 4..8);

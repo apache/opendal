@@ -104,45 +104,25 @@ impl Service for AwaitTreeAccessor {
             .await
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(ctx, path, args)
-            .instrument_await(format!("opendal::{}", Operation::Read))
-            .await
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args).map(AwaitTreeWrapper::new)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        self.inner
-            .write(ctx, path, args)
-            .instrument_await(format!("opendal::{}", Operation::Write))
-            .await
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args).map(AwaitTreeWrapper::new)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args, opts)
-            .instrument_await(format!("opendal::{}", Operation::Copy))
-            .await
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+            .map(AwaitTreeWrapper::new)
     }
 
     async fn rename(
@@ -165,25 +145,12 @@ impl Service for AwaitTreeAccessor {
             .await
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner
-            .delete(ctx)
-            .instrument_await(format!("opendal::{}", Operation::Delete))
-            .await
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx).map(AwaitTreeWrapper::new)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        self.inner
-            .list(ctx, path, args)
-            .instrument_await(format!("opendal::{}", Operation::List))
-            .await
-            .map(|(rp, r)| (rp, AwaitTreeWrapper::new(r)))
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args).map(AwaitTreeWrapper::new)
     }
 
     async fn presign(

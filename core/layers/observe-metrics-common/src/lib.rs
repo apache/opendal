@@ -772,12 +772,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         res
     }
 
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
         let start = Instant::now();
@@ -787,13 +782,10 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.read(ctx, path, args).await {
-            Ok((rp, reader)) => {
+        match self.inner.read(ctx, path, args) {
+            Ok(reader) => {
                 guard.complete();
-                Ok((
-                    rp,
-                    MetricsReader::new(reader, self.interceptor.clone(), labels),
-                ))
+                Ok(MetricsReader::new(reader, self.interceptor.clone(), labels))
             }
             Err(err) => {
                 self.interceptor.observe(
@@ -806,12 +798,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         }
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
         let start = Instant::now();
@@ -821,12 +808,14 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.write(ctx, path, args).await {
-            Ok((rp, writer)) => {
+        match self.inner.write(ctx, path, args) {
+            Ok(writer) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(writer, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    writer,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -840,14 +829,14 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         }
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
         let start = Instant::now();
@@ -857,12 +846,14 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.copy(ctx, from, to, args, opts.clone()).await {
-            Ok((rp, copier)) => {
+        match self.inner.copy(ctx, from, to, args, opts.clone()) {
+            Ok(copier) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(copier, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    copier,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -944,7 +935,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         res
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
         let start = Instant::now();
@@ -954,12 +945,14 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.delete(ctx).await {
-            Ok((rp, deleter)) => {
+        match self.inner.delete(ctx) {
+            Ok(deleter) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(deleter, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    deleter,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -973,12 +966,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         }
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
         let start = Instant::now();
@@ -988,12 +976,14 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.list(ctx, path, args).await {
-            Ok((rp, lister)) => {
+        match self.inner.list(ctx, path, args) {
+            Ok(lister) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(lister, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    lister,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {

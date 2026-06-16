@@ -221,7 +221,7 @@ impl Service for PcloudBackend {
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -269,79 +269,71 @@ impl Service for PcloudBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<PcloudReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(PcloudReader::new(self.clone(), ctx.clone(), path, args)),
-            ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<PcloudReader> = {
+            Ok(oio::StreamReader::new(PcloudReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _args: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, PcloudWriters) = {
+    fn write(&self, ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        let output: PcloudWriters = {
             let writer = PcloudWriter::new(self.core.clone(), ctx.clone(), path.to_string());
 
             let w = oio::OneShotWriter::new(writer);
 
-            Ok((RpWrite::default(), w))
+            Ok(w)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<PcloudDeleter>) = {
-            Ok((
-                RpDelete::default(),
-                oio::OneShotDeleter::new(PcloudDeleter::new(self.core.clone(), ctx.clone())),
-            ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<PcloudDeleter> = {
+            Ok(oio::OneShotDeleter::new(PcloudDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        _args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::PageLister<PcloudLister>) = {
+    fn list(&self, ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<PcloudLister> = {
             let l = PcloudLister::new(self.core.clone(), ctx.clone(), path);
-            Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let (rp, output): (_, ()) = {
-            self.core.ensure_dir_exists(ctx, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+
+        Ok(oio::OneShotCopier::new(async move {
+            core.ensure_dir_exists(&ctx, &to).await?;
 
             let resp = if from.ends_with('/') {
-                self.core.copy_folder(ctx, from, to).await?
+                core.copy_folder(&ctx, &from, &to).await?
             } else {
-                self.core.copy_file(ctx, from, to).await?
+                core.copy_file(&ctx, &from, &to).await?
             };
 
             let status = resp.status();
@@ -357,14 +349,12 @@ impl Service for PcloudBackend {
                     } else if result != 0 {
                         Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
                     } else {
-                        Ok((RpCopy::default(), ()))
+                        Ok(Metadata::default())
                     }
                 }
                 _ => Err(parse_error(resp)),
             }
-        }?;
-
-        Ok((rp, output))
+        }))
     }
 
     async fn rename(

@@ -85,25 +85,19 @@ impl FullReader {
         &self,
         range: BytesRange,
     ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let (rp, reader) = self
+        let reader = self
             .inner
             .srv
-            .read(&self.inner.ctx, &self.path, self.args.clone())
-            .await?;
-        let (rp_open, stream) = reader.open(range).await?;
-        let rp = rp_open.into_metadata().map(RpRead::new).unwrap_or(rp);
-        Ok((rp, stream))
+            .read(&self.inner.ctx, &self.path, self.args.clone())?;
+        reader.open(range).await
     }
 
     async fn fallback_read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let (rp, reader) = self
+        let reader = self
             .inner
             .srv
-            .read(&self.inner.ctx, &self.path, self.args.clone())
-            .await?;
-        let (rp_read, buffer) = reader.read(range).await?;
-        let rp = rp_read.into_metadata().map(RpRead::new).unwrap_or(rp);
-        Ok((rp, buffer))
+            .read(&self.inner.ctx, &self.path, self.args.clone())?;
+        reader.read(range).await
     }
 
     async fn read_full_object(&self) -> Result<Option<Buffer>> {
@@ -144,10 +138,9 @@ impl FullReader {
                     }
 
                     // fetch the ENTIRE object from remote.
-                    let (_, reader) = inner
+                    let reader = inner
                         .srv
                         .read(&inner.ctx, &path_clone, OpRead::default())
-                        .await
                         .map_err(FetchError::from_error)?;
                     let (_, mut stream) = reader
                         .open(BytesRange::new(0, None))

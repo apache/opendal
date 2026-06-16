@@ -378,14 +378,14 @@ mod tests {
 
     use super::*;
 
-    async fn new_read_context(
+    fn new_read_context(
         ctx: OperationContext,
         srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = srv.read(&ctx, path, args.clone()).await?;
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
             ctx,
             srv,
@@ -401,7 +401,7 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
         let v = BufferStream::create(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
@@ -420,7 +420,7 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new()).await?);
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
         let s = BufferStream::create(ctx, 4..8).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();

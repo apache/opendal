@@ -77,3 +77,37 @@ impl oio::List for EtcdLister {
         Ok(None)
     }
 }
+
+pub struct EtcdLazyLister {
+    core: Arc<EtcdCore>,
+    root: String,
+    path: String,
+    inner: Option<EtcdLister>,
+}
+
+impl EtcdLazyLister {
+    pub fn new(core: Arc<EtcdCore>, root: String, path: String) -> Self {
+        Self {
+            core,
+            root,
+            path,
+            inner: None,
+        }
+    }
+}
+
+impl oio::List for EtcdLazyLister {
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        if self.inner.is_none() {
+            self.inner = Some(
+                EtcdLister::new(self.core.clone(), self.root.clone(), self.path.clone()).await?,
+            );
+        }
+
+        self.inner
+            .as_mut()
+            .expect("lister must be initialized")
+            .next()
+            .await
+    }
+}

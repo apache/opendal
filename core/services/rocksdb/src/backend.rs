@@ -193,72 +193,55 @@ impl Service for RocksdbBackend {
             }
         }
     }
-    async fn read(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, Self::Reader)> {
-        let (rp, output): (_, oio::StreamReader<RocksdbReader>) = {
-            Ok((
-                RpRead::default(),
-                oio::StreamReader::new(RocksdbReader::new(self.clone(), path, args)),
-            ))
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<RocksdbReader> = {
+            Ok(oio::StreamReader::new(RocksdbReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn write(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        _: OpWrite,
-    ) -> Result<(RpWrite, Self::Writer)> {
-        let (rp, output): (_, RocksdbWriter) = {
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: RocksdbWriter = {
             let p = build_abs_path(&self.root, path);
             let writer = RocksdbWriter::new(self.core.clone(), p);
-            Ok((RpWrite::new(), writer))
+            Ok(writer)
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn delete(&self, _ctx: &OperationContext) -> Result<(RpDelete, Self::Deleter)> {
-        let (rp, output): (_, oio::OneShotDeleter<RocksdbDeleter>) = {
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<RocksdbDeleter> = {
             let deleter = RocksdbDeleter::new(self.core.clone(), self.root.clone());
-            Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
+            Ok(oio::OneShotDeleter::new(deleter))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn list(
-        &self,
-        _ctx: &OperationContext,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, Self::Lister)> {
-        let (rp, output): (_, oio::HierarchyLister<RocksdbLister>) = {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<RocksdbLister> = {
             let p = build_abs_path(&self.root, path);
             let lister = RocksdbLister::new(self.core.clone(), self.root.clone(), p)?;
-            Ok((
-                RpList::default(),
-                oio::HierarchyLister::new(lister, path, args.recursive()),
-            ))
+            Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
         }?;
 
-        Ok((rp, output))
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
         _ctx: &OperationContext,
         _from: &str,
         _to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

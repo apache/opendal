@@ -6818,6 +6818,7 @@ dependencies = [
  "bytes",
  "http 1.4.1",
  "log",
+ "mea",
  "opendal-core",
  "opendal-service-azure-common",
  "quick-xml",

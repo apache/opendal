@@ -96,7 +96,6 @@ default = [
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
 http-transport-reqwest = ["dep:opendal-http-transport-reqwest"]
-internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]

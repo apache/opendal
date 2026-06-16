@@ -31,9 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false, features = [
-  "internal-path-cache",
-] }
+opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 
 bytes = { workspace = true }
 http = { workspace = true }

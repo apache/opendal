@@ -78,8 +78,12 @@ jobs:
           cabal test
       - name: Run getting-started example
         working-directory: "bindings/haskell"
+        # `cabal run` performs an install/register step that fails to locate the
+        # libopendal_hs foreign library; build in place (like `cabal test`) and
+        # execute the produced binary directly.
         run: |
-          cabal run getting-started
+          cabal build exe:getting-started
+          "$(cabal list-bin exe:getting-started)"
       - name: Save haskell cache
         uses: actions/cache/save@v5
         with:

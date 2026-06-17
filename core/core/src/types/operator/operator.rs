@@ -29,11 +29,26 @@ use crate::*;
 
 /// The `Operator` serves as the entry point for all public asynchronous APIs.
 ///
-/// For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
+/// For more details about the `Operator`, refer to the concepts section in the
+/// crate documentation.
 ///
 /// `Operator` is immutable: methods that change layers, HTTP transport, or
 /// executor return a new operator. Existing clones and in-flight operations keep
 /// using the service stack and operation context they already hold.
+///
+/// Internally, an operator keeps base providers and composed dispatch state:
+///
+/// | Method | Meaning |
+/// | --- | --- |
+/// | [`Operator::base_service`] | The storage service before user layers are applied. |
+/// | [`Operator::base_context`] | The runtime resources before user layers are applied. |
+/// | [`Operator::service`] | The storage service stack that receives `read`, `write`, `list`, and other operations. |
+/// | [`Operator::context`] | The runtime resources passed with those operations. |
+///
+/// [`Operator::layer`] appends a layer and replays all layers from the base
+/// service and base context. [`Operator::with_context`] replaces the base
+/// context and then performs the same replay. This keeps the composed service
+/// and context from drifting apart.
 ///
 /// ## Build
 ///
@@ -55,15 +70,21 @@ use crate::*;
 /// }
 /// ```
 ///
-/// ## Layer
+/// ## Runtime Resources And Layers
 ///
-/// After the operator is built, users can add the layers they need on top of it.
+/// After the operator is built, users can replace runtime resources or add
+/// layers on top of it.
 ///
 /// OpenDAL offers various layers for users to choose from. Visit [`layers`] for further details.
 ///
-/// Layers are replayed from the operator's base service, HTTP transport, and
-/// executor whenever the operator is changed. Cloned operators can therefore
-/// add layers or replace providers independently.
+/// Runtime resources are stored in [`OperationContext`]. HTTP based services
+/// receive the composed context for each operation and use its HTTP transport
+/// and executor instead of caching those resources in the service built by the
+/// builder.
+///
+/// Layers are replayed from the operator's base service and base context
+/// whenever the operator is changed. Cloned operators can therefore add layers
+/// or replace providers independently.
 ///
 /// ```
 /// use opendal_core::HttpTransporter;
@@ -175,10 +196,14 @@ impl Operator {
         Self::from_parts(OperationContext::default(), srv)
     }
 
-    /// Build an operator from its composed `ctx` and `service`.
+    /// Build an operator from a pre-composed `ctx` and `service`.
     ///
-    /// Pairs with [`Operator::into_parts`]. The operator starts with no layers;
-    /// `ctx` and `service` are used directly for dispatch.
+    /// This is the low-level constructor for callers that already have a
+    /// [`Servicer`] and [`OperationContext`]. Most users should use
+    /// [`Operator::new`] instead so OpenDAL can install its default layers.
+    ///
+    /// Pairs with [`Operator::into_parts`]. The operator starts with no layers,
+    /// so `ctx` and `service` are also the composed dispatch state.
     pub fn from_parts(ctx: OperationContext, srv: Servicer) -> Self {
         Self {
             base_srv: srv.clone(),
@@ -190,6 +215,10 @@ impl Operator {
     }
 
     /// Split the operator into its composed `ctx` and `service` for direct dispatch.
+    ///
+    /// Base providers and layer replay history are discarded. Reconstructing an
+    /// operator with [`Operator::from_parts`] uses the returned values directly
+    /// and starts with an empty layer list.
     pub fn into_parts(self) -> (OperationContext, Servicer) {
         (self.ctx, self.srv)
     }
@@ -213,22 +242,36 @@ impl Operator {
         (srv, ctx)
     }
 
-    /// Get the base `srv` that layers are applied to.
+    /// Get the storage service before user layers are applied.
+    ///
+    /// This is useful for code that needs to inspect the original backend. Most
+    /// operation code should use [`Operator::service`] instead, because that is
+    /// the stack that includes layers.
     pub fn base_service(&self) -> &Servicer {
         &self.base_srv
     }
 
-    /// Get the base `ctx` that layers are applied to.
+    /// Get the operation context before user layers are applied.
+    ///
+    /// This is useful for code that needs to inspect the original runtime
+    /// resources. Most operation code should use [`Operator::context`] instead,
+    /// because that includes context changes made by layers.
     pub fn base_context(&self) -> &OperationContext {
         &self.base_ctx
     }
 
-    /// Get the composed `srv` used by the current operator.
+    /// Get the storage service stack that receives operations.
+    ///
+    /// This stack includes the base service plus all user layers applied to the
+    /// operator.
     pub fn service(&self) -> &Servicer {
         &self.srv
     }
 
-    /// Get the composed `ctx` passed to `srv` for operations.
+    /// Get the runtime resources passed with operations.
+    ///
+    /// This context includes the base context plus all context changes made by
+    /// user layers.
     pub fn context(&self) -> &OperationContext {
         &self.ctx
     }
@@ -254,6 +297,10 @@ impl Operator {
     }
 
     /// Replace the base operation context and rebuild composed state.
+    ///
+    /// Existing layers are preserved and replayed from the same base service
+    /// with the new base context. This is the public API for replacing runtime
+    /// resources such as HTTP transport or executor on an operator.
     #[must_use]
     pub fn with_context(self, ctx: OperationContext) -> Self {
         let (srv, composed) = Self::apply_layers(&self.base_srv, &ctx, &self.layers);
@@ -267,6 +314,10 @@ impl Operator {
     }
 
     /// Apply a layer to this operator and rebuild composed state.
+    ///
+    /// The new layer is appended after existing layers. OpenDAL then replays all
+    /// layers from the base service and base context, so the composed service and
+    /// composed context are produced by the same ordered layer list.
     #[must_use]
     pub fn layer<L: Layer>(self, layer: L) -> Self {
         let mut layers = Arc::unwrap_or_clone(self.layers);

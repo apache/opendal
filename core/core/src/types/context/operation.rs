@@ -19,6 +19,18 @@ use crate::*;
 
 /// Composed resources passed from operator to services and layers.
 ///
+/// [`Operator`][crate::Operator] keeps a base `OperationContext` and replays its
+/// layers to produce the composed context passed to every service operation.
+/// The context carries runtime resources supplied by the operator stack, not
+/// caller intent for a specific operation. Operation-specific inputs live in
+/// `Op*` argument structs such as `OpRead` and `OpWrite`.
+///
+/// Service implementations should read HTTP transport, executor, and similar
+/// resources from the `OperationContext` they receive at the operation boundary.
+/// They should not cache those resources in the service created by
+/// [`Builder::build`], because later layers or [`Operator::with_context`] can
+/// replace them for a derived operator.
+///
 /// Layers that replace the HTTP transport or executor must keep forwarding
 /// requests or tasks to the previous value. Otherwise, composed features such as
 /// retry, timeout, tracing, and metrics can be bypassed.
@@ -29,12 +41,12 @@ pub struct OperationContext {
 }
 
 impl OperationContext {
-    /// Create a new operation context with default resources.
+    /// Create a new operation context with default runtime resources.
     pub fn new() -> Self {
         Self::from_parts(HttpTransporter::default(), Executor::default())
     }
 
-    /// Create a new operation context from composed resources.
+    /// Create a new operation context from composed runtime resources.
     pub fn from_parts(http_transport: HttpTransporter, executor: Executor) -> Self {
         Self {
             http_transport,

@@ -26,7 +26,8 @@ let client = reqwest::ClientBuilder::new()
   .expect("http client must be created");
 
 // Replace the operator's base HTTP transport.
-let op = op.http_transport(HttpTransporter::new(ReqwestTransport::new(client)));
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 ## DNS Caching
@@ -45,7 +46,8 @@ let client = reqwest::ClientBuilder::new()
   .expect("http client must be created");
 
 // Replace the operator's base HTTP transport.
-let op = op.http_transport(HttpTransporter::new(ReqwestTransport::new(client)));
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 The default DNS cache settings from `hickory_dns` are generally sufficient for most workloads. However, if you have specific requirements—such as sharing the same DNS cache across multiple HTTP clients or configuring the DNS cache size—you can use the `Xuanwo/reqwest-hickory-resolver` crate to set up a custom DNS resolver.
@@ -78,7 +80,8 @@ let client = reqwest::ClientBuilder::new()
   .expect("http client must be created");
 
 // Replace the operator's base HTTP transport.
-let op = op.http_transport(HttpTransporter::new(ReqwestTransport::new(client)));
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 The `ResolverOpts` has many options that can be configured. For a complete list of options, please refer to the [hickory_resolver documentation](https://docs.rs/hickory-resolver/latest/hickory_resolver/config/struct.ResolverOpts.html).
@@ -105,7 +108,8 @@ let client = reqwest::ClientBuilder::new()
   .expect("http client must be created");
 
 // Replace the operator's base HTTP transport.
-let op = op.http_transport(HttpTransporter::new(ReqwestTransport::new(client)));
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 It's also recommended to use opendal's [`TimeoutLayer`][crate::layers::TimeoutLayer] to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.

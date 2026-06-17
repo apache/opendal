@@ -136,3 +136,12 @@ When adding or changing a public optional layer:
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.
 - Prefer existing helpers in `opendal-core` before adding service-local utilities.
+
+## Security
+
+Security model: [SECURITY.md](./SECURITY.md)
+
+Agents that scan this repository should consult `SECURITY.md` and the threat
+model it links (`SECURITY-THREAT-MODEL.md`) for the project's in-scope /
+out-of-scope declarations, adversary model, and known non-findings before
+reporting issues.

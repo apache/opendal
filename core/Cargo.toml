@@ -86,8 +86,7 @@ auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
-  "http-transport-reqwest",
-  "reqwest-rustls-tls",
+  "http-transport-reqwest-native-tls",
   "executors-tokio",
   "layers-concurrent-limit",
   "layers-logging",
@@ -95,7 +94,28 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
+# Enable the reqwest HTTP transport without selecting a TLS backend.
 http-transport-reqwest = ["dep:opendal-http-transport-reqwest"]
+# Use reqwest with platform TLS via native-tls.
+http-transport-reqwest-native-tls = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/native-tls",
+]
+# Use reqwest with Rustls, the aws-lc-rs crypto provider, and platform certificate verification.
+http-transport-reqwest-rustls = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls",
+]
+# Use reqwest with Rustls and no built-in crypto provider.
+http-transport-reqwest-rustls-no-provider = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls-no-provider",
+]
+# Use reqwest with Rustls, the aws-lc-rs crypto provider, and bundled Mozilla root certificates.
+http-transport-reqwest-webpki-roots = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/webpki-roots",
+]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
@@ -121,14 +141,6 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
-reqwest-rustls-no-provider-tls = [
-  "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls-no-provider",
-]
-reqwest-rustls-tls = [
-  "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls",
-]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]

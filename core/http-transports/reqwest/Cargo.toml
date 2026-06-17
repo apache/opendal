@@ -31,9 +31,25 @@ version = { workspace = true }
 all-features = true
 
 [features]
-default = []
-rustls = ["reqwest/rustls"]
+default = ["native-tls"]
+# Use platform TLS via reqwest's native-tls feature.
+native-tls = ["reqwest/native-tls"]
+# Use Rustls with the aws-lc-rs crypto provider and platform certificate verification.
+rustls = [
+  "reqwest/rustls-no-provider",
+  "dep:rustls",
+  "rustls/aws-lc-rs",
+  "dep:rustls-platform-verifier",
+]
+# Use Rustls without a built-in crypto provider.
 rustls-no-provider = ["reqwest/rustls-no-provider"]
+# Use Rustls with the aws-lc-rs crypto provider and bundled Mozilla root certificates.
+webpki-roots = [
+  "reqwest/rustls-no-provider",
+  "dep:rustls",
+  "rustls/aws-lc-rs",
+  "dep:webpki-roots",
+]
 
 [dependencies]
 bytes = { workspace = true }
@@ -44,3 +60,6 @@ opendal-core = { path = "../../core", version = "0.57.0", default-features = fal
 reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }
+rustls = { version = "0.23", optional = true, default-features = false }
+rustls-platform-verifier = { version = "0.7", optional = true, default-features = false }
+webpki-roots = { version = "1", optional = true }

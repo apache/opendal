@@ -213,6 +213,16 @@ impl Operator {
         (srv, ctx)
     }
 
+    /// Get the base `srv` that layers are applied to.
+    pub fn base_service(&self) -> &Servicer {
+        &self.base_srv
+    }
+
+    /// Get the base `ctx` that layers are applied to.
+    pub fn base_context(&self) -> &OperationContext {
+        &self.base_ctx
+    }
+
     /// Get the composed `srv` used by the current operator.
     pub fn service(&self) -> &Servicer {
         &self.srv

@@ -131,10 +131,10 @@ impl CreateDirPayload {
 struct EmptyStruct {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct FileUploadItem {
+pub struct FileUploadItem {
     #[serde(rename = "@microsoft.graph.conflictBehavior")]
-    conflict_behavior: String,
-    name: String,
+    pub conflict_behavior: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,7 +146,7 @@ pub struct OneDriveUploadSessionCreationResponseBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OneDriveUploadSessionCreationRequestBody {
-    item: FileUploadItem,
+    pub item: FileUploadItem,
 }
 
 impl OneDriveUploadSessionCreationRequestBody {

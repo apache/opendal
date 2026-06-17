@@ -27,6 +27,11 @@ use crate::*;
 /// the operation service, the operation context (HTTP transport and executor),
 /// or both.
 ///
+/// [`Operator`][crate::Operator] applies layers by first composing the service
+/// stack with [`Layer::apply_service`], then composing [`OperationContext`] with
+/// [`Layer::apply_context`]. The context hook receives the final service stack
+/// so resource wrappers can observe service identity or capability when needed.
+///
 /// Hooks take `&self`, so layers that keep mutable state must use interior
 /// mutability. That state must remain `Send` and `Sync` because layers are
 /// shared across cloned operators and concurrent operations.

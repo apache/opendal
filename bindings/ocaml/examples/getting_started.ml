@@ -20,32 +20,26 @@
 (* ANCHOR: quickstart *)
 open Opendal
 
-(* Create an operator for the in-memory service — no credentials needed. *)
+(* Return the value, or print the error and exit. Every OpenDAL call returns a
+   [(_, string) result], so this keeps the example flat. *)
+let or_fail = function
+  | Ok v -> v
+  | Error err ->
+      prerr_endline err;
+      exit 1
+
 let () =
-  match Operator.new_operator "memory" [] with
-  | Error err -> Printf.eprintf "Failed to create operator: %s\n" err; exit 1
-  | Ok op ->
+  (* Create an operator for the in-memory service — no credentials needed. *)
+  let op = or_fail (Operator.new_operator "memory" []) in
 
-  (* Write a file. *)
-  (match Operator.write op "hello.txt" (Bytes.of_string "Hello, World!") with
-  | Error err -> Printf.eprintf "Write failed: %s\n" err; exit 1
-  | Ok () ->
+  (* Write a file, then read it back (read returns a char array). *)
+  or_fail (Operator.write op "hello.txt" (Bytes.of_string "Hello, World!"));
+  let content = or_fail (Operator.read op "hello.txt") in
+  let text = content |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string in
+  Printf.printf "read: %s\n" text;
 
-  (* Read it back — result is a char array. *)
-  (match Operator.read op "hello.txt" with
-  | Error err -> Printf.eprintf "Read failed: %s\n" err; exit 1
-  | Ok content ->
-      let text = content |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string in
-      Printf.printf "read: %s\n" text;
-
-  (* Inspect metadata. *)
-  (match Operator.stat op "hello.txt" with
-  | Error err -> Printf.eprintf "Stat failed: %s\n" err; exit 1
-  | Ok meta ->
-      Printf.printf "size = %Ld bytes\n" (Operator.Metadata.content_length meta);
-
-  (* Delete the file. *)
-  (match Operator.delete op "hello.txt" with
-  | Error err -> Printf.eprintf "Delete failed: %s\n" err; exit 1
-  | Ok () -> ()))))
+  (* Inspect metadata, then delete. *)
+  let meta = or_fail (Operator.stat op "hello.txt") in
+  Printf.printf "size = %Ld bytes\n" (Operator.Metadata.content_length meta);
+  or_fail (Operator.delete op "hello.txt")
 (* ANCHOR_END: quickstart *)

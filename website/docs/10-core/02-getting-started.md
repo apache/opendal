@@ -19,28 +19,7 @@ opendal = "0.57"
 tokio = { version = "1", features = ["full"] }
 ```
 
-```rust
-use opendal::services;
-use opendal::Operator;
-use opendal::Result;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Configure a service, then build an operator from it.
-    let op = Operator::new(services::Memory::default())?;
-
-    // The same verbs work on every service.
-    op.write("hello.txt", "Hello, World!").await?;
-
-    let bytes = op.read("hello.txt").await?;
-    println!("read {} bytes", bytes.len());
-
-    let meta = op.stat("hello.txt").await?;
-    println!("size = {} bytes", meta.content_length());
-
-    op.delete("hello.txt").await?;
-    Ok(())
-}
+```rust file=core/examples/getting-started/src/main.rs region=quickstart
 ```
 
 ## Point it at a real backend

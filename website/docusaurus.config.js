@@ -101,6 +101,7 @@ const config = {
           editUrl: "https://github.com/apache/opendal/tree/main/website/",
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
+          remarkPlugins: [require("./plugins/remark-include-code")],
         },
         blog: {
           showReadingTime: true,

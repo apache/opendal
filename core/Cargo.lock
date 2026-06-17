@@ -6470,6 +6470,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-examples-getting-started"
+version = "0.57.0"
+dependencies = [
+ "opendal",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-examples-multipart-upload"
 version = "0.57.0"
 dependencies = [

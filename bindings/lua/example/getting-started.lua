@@ -17,12 +17,12 @@
     specific language governing permissions and limitations
     under the License.
 
-    The Getting Started example for the Lua binding, embedded into the website
-    guide. It runs against the in-memory service with no credentials, so CI can
-    execute it directly. The region between the ANCHOR markers is what the docs
-    show — keep it copy-pasteable.
-
 ]]
+
+-- The Getting Started example for the Lua binding, embedded into the website
+-- guide. It runs against the in-memory service with no credentials, so CI can
+-- execute it directly. The region between the ANCHOR markers is what the docs
+-- show — keep it copy-pasteable.
 
 -- ANCHOR: quickstart
 local opendal = require("opendal")

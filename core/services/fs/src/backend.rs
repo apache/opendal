@@ -219,6 +219,8 @@ impl oio::PositionRead for FsReader {
 pub struct FsLazyReader {
     core: Arc<FsCore>,
     path: String,
+    // Open the file once and reuse the same handle across every read operation
+    reader: tokio::sync::OnceCell<oio::PositionReader<FsReader>>,
 }
 
 impl FsLazyReader {
@@ -226,15 +228,20 @@ impl FsLazyReader {
         Self {
             core,
             path: path.to_string(),
+            reader: tokio::sync::OnceCell::new(),
         }
     }
 
-    async fn reader(&self) -> Result<oio::PositionReader<FsReader>> {
-        let file = self.core.fs_open(&self.path).await?;
-        Ok(oio::PositionReader::new(FsReader::new(
-            self.core.clone(),
-            file,
-        )))
+    async fn reader(&self) -> Result<&oio::PositionReader<FsReader>> {
+        self.reader
+            .get_or_try_init(|| async {
+                let file = self.core.fs_open(&self.path).await?;
+                Ok(oio::PositionReader::new(FsReader::new(
+                    self.core.clone(),
+                    file,
+                )))
+            })
+            .await
     }
 }
 

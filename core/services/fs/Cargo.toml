@@ -37,7 +37,7 @@ opendal-core = { path = "../../core", version = "0.57.0", default-features = fal
   "internal-tokio-rt",
 ] }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync"] }
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1"

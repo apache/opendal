@@ -22,6 +22,7 @@
 
 -- ANCHOR: quickstart
 import OpenDAL
+import qualified Data.ByteString as BS
 
 main :: IO ()
 main = do
@@ -32,7 +33,7 @@ main = do
   Right () <- writeOpRaw op "hello.txt" "Hello, World!"
 
   Right bytes <- readOpRaw op "hello.txt"
-  putStrLn $ "read " ++ show (length bytes) ++ " bytes"
+  putStrLn $ "read " ++ show (BS.length bytes) ++ " bytes"
 
   Right meta <- statOpRaw op "hello.txt"
   putStrLn $ "size = " ++ show (mContentLength meta) ++ " bytes"

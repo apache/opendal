@@ -12,23 +12,7 @@ This program builds an operator, writes a file, reads it back, inspects its
 metadata, and deletes it. It runs against the in-memory service with no
 credentials, so you can run it as soon as the binding is built.
 
-```csharp
-using OpenDAL;
-using System.Text;
-
-// Configure a service, then build an operator from it.
-using var op = new Operator("memory");
-
-// The same verbs work on every service.
-op.Write("hello.txt", Encoding.UTF8.GetBytes("Hello, World!"));
-
-var bytes = op.Read("hello.txt");
-Console.WriteLine(Encoding.UTF8.GetString(bytes));
-
-var meta = op.Stat("hello.txt");
-Console.WriteLine($"size = {meta.ContentLength} bytes");
-
-op.Delete("hello.txt");
+```csharp file=bindings/dotnet/examples/GettingStarted/Program.cs region=quickstart
 ```
 
 `Write` takes a `byte[]`, and `Read` returns a `byte[]`. The `using` declaration

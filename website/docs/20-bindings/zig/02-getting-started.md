@@ -19,35 +19,7 @@ The example below initializes an operator backed by the in-memory service, write
 file, reads it back, checks its metadata, and deletes it. It needs no credentials and
 no external service.
 
-```zig
-const std = @import("std");
-const opendal = @import("opendal");
-
-pub fn main() !void {
-    // Initialize an operator for the "memory" backend with no options.
-    var op = try opendal.Operator.init("memory", null);
-    defer op.deinit();
-
-    // Write bytes to a path.
-    try op.write("/hello.txt", "Hello, World!");
-
-    // Read them back.
-    const data = try op.read("/hello.txt");
-    std.debug.print("read: {s}\n", .{data});
-
-    // Inspect metadata.
-    var meta = try op.stat("/hello.txt");
-    defer meta.deinit();
-    std.debug.print("size: {d} bytes\n", .{meta.contentLength()});
-    std.debug.print("is file: {}\n", .{meta.isFile()});
-
-    // Check existence.
-    std.debug.print("exists: {}\n", .{try op.exists("/hello.txt")});
-
-    // Delete.
-    try op.delete("/hello.txt");
-    std.debug.print("deleted, exists: {}\n", .{try op.exists("/hello.txt")});
-}
+```zig file=bindings/zig/examples/getting_started.zig region=quickstart
 ```
 
 `Operator.init` takes the service scheme as a string and an optional pointer to an

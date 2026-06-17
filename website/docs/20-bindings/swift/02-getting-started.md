@@ -16,19 +16,7 @@ following this guide — see [Overview](./01-overview.md) for build steps.
 This program creates an in-memory operator, writes bytes to a path, and reads
 them back. No credentials or network access needed.
 
-```swift
-import OpenDAL
-
-// Create an operator backed by the in-memory service.
-let op = try Operator(scheme: "memory")
-
-// Write bytes to a path.
-var data = Data([1, 2, 3, 4])
-try op.blockingWrite(&data, to: "/hello")
-
-// Read them back.
-let result = try op.blockingRead("/hello")
-print(result) // 4 bytes
+```swift file=bindings/swift/OpenDAL/Sources/GettingStarted/main.swift region=quickstart
 ```
 
 `Operator.init(scheme:options:)` throws `OperatorError` on failure. Both

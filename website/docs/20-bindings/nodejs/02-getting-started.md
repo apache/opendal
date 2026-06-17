@@ -16,26 +16,7 @@ credentials, so you can run it right after installing.
 npm install opendal
 ```
 
-```javascript
-import { Operator } from "opendal";
-
-async function main() {
-  // Configure a service, then build an operator from it.
-  const op = new Operator("memory");
-
-  // The same verbs work on every service.
-  await op.write("hello.txt", "Hello, World!");
-
-  const bs = await op.read("hello.txt");        // returns a Buffer
-  console.log(new TextDecoder().decode(bs));
-
-  const meta = await op.stat("hello.txt");
-  console.log(`size = ${meta.contentLength} bytes`);
-
-  await op.delete("hello.txt");
-}
-
-main();
+```javascript file=bindings/nodejs/examples/getting-started.mjs region=quickstart
 ```
 
 `write` accepts a `string` or a `Buffer`; `read` returns a `Buffer`. Decode it

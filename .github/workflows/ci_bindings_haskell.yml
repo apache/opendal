@@ -76,6 +76,10 @@ jobs:
         working-directory: "bindings/haskell"
         run: |
           cabal test
+      - name: Run getting-started example
+        working-directory: "bindings/haskell"
+        run: |
+          cabal run getting-started
       - name: Save haskell cache
         uses: actions/cache/save@v5
         with:

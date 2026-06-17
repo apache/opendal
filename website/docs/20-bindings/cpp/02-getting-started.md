@@ -31,34 +31,7 @@ make
 This program constructs an operator against the in-memory service (no
 credentials needed), writes data, reads it back, and inspects its metadata.
 
-```cpp
-#include "opendal.hpp"
-#include <iostream>
-#include <string>
-
-int main() {
-    // Construct an operator for the "memory" service.
-    opendal::Operator op("memory");
-
-    // Write a string.
-    op.Write("hello.txt", "Hello, OpenDAL!");
-
-    // Read it back as a std::string.
-    std::string data = op.Read("hello.txt");
-    std::cout << data << "\n";  // Hello, OpenDAL!
-
-    // Inspect metadata.
-    opendal::Metadata meta = op.Stat("hello.txt");
-    std::cout << "size=" << meta.ContentLength() << "\n";
-    std::cout << "is_file=" << meta.IsFile() << "\n";
-
-    // Check existence.
-    std::cout << "exists=" << op.Exists("hello.txt") << "\n";
-
-    // Remove.
-    op.Remove("hello.txt");
-    std::cout << "after remove, exists=" << op.Exists("hello.txt") << "\n";
-}
+```cpp file=examples/cpp/getting_started.cpp region=quickstart
 ```
 
 Compile and run (assuming the binding has been installed into your build tree):

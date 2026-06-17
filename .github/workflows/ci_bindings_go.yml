@@ -56,3 +56,19 @@ jobs:
         with:
           version: "v2.12.2"
           working-directory: bindings/go
+
+  run_examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: bindings/go/go.mod
+          cache-dependency-path: bindings/go/examples/guide/go.sum
+      # The example backs the snippet shown in the website guide. Running it
+      # keeps the docs honest: a broken example fails CI instead of shipping
+      # bad docs. It links the prebuilt memory scheme module via libffi, which
+      # ubuntu-latest already provides.
+      - name: Run guide example
+        working-directory: bindings/go/examples/guide
+        run: go run .

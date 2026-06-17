@@ -13,42 +13,11 @@ this guide. See [Overview](./01-overview.md) for the build steps.
 
 ## Your first program
 
-The example below uses the `fs` (local filesystem) service, which requires no
-credentials. Open the project in utop or add it to a dune executable that
-depends on the `opendal` library.
+The example below uses the `memory` service, which requires no credentials and
+runs entirely in-process. Open the project in utop or add it to a dune
+executable that depends on the `opendal` library.
 
-```ocaml
-open Opendal
-
-(* Create an operator for the local filesystem, rooted at /tmp *)
-let () =
-  match Operator.new_operator "fs" [ ("root", "/tmp") ] with
-  | Error err -> Printf.eprintf "Failed to create operator: %s\n" err
-  | Ok op ->
-
-  (* Write a file *)
-  (match Operator.write op "hello.txt" (Bytes.of_string "Hello, World!") with
-  | Error err -> Printf.eprintf "Write failed: %s\n" err
-  | Ok () ->
-
-  (* Read it back — result is a char array *)
-  (match Operator.read op "hello.txt" with
-  | Error err -> Printf.eprintf "Read failed: %s\n" err
-  | Ok content ->
-      let text = content |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string in
-      print_endline text;   (* Hello, World! *)
-
-  (* Inspect metadata *)
-  (match Operator.stat op "hello.txt" with
-  | Error err -> Printf.eprintf "Stat failed: %s\n" err
-  | Ok meta ->
-      Printf.printf "size = %Ld bytes\n" (Operator.Metadata.content_length meta);
-      Printf.printf "is_file = %b\n" (Operator.Metadata.is_file meta));
-
-  (* Delete the file *)
-  (match Operator.delete op "hello.txt" with
-  | Error err -> Printf.eprintf "Delete failed: %s\n" err
-  | Ok () -> print_endline "Deleted.")))
+```ocaml file=bindings/ocaml/examples/getting_started.ml region=quickstart
 ```
 
 `Operator.read` returns `(char array, string) result`. Convert to `Bytes` with

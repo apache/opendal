@@ -84,3 +84,7 @@ jobs:
       - name: Run tests
         working-directory: bindings/zig
         run: zig build test --summary all
+
+      - name: Run getting-started example
+        working-directory: bindings/zig
+        run: zig build run-example

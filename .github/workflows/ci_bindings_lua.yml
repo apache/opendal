@@ -59,3 +59,7 @@ jobs:
         run: |
           sudo "PATH=$PATH" luarocks make
           busted test/opendal_test.lua
+      - name: Run getting-started example
+        working-directory: "bindings/lua"
+        run: |
+          LUA_CPATH="$(luarocks path --lr-cpath)" lua5.2 example/getting-started.lua

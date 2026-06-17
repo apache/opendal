@@ -28,34 +28,7 @@ This program creates an in-memory storage, writes a file, reads it back, and
 checks metadata. It uses the `memory` service so there are no credentials or
 paths to configure.
 
-```dart
-import 'dart:typed_data';
-import 'package:opendal/opendal.dart';
-
-void main() async {
-  // Initialize storage with a service scheme and configuration map.
-  final storage = await Storage.init(schemeStr: "memory", map: {"root": "/"});
-
-  // initFile() returns a factory function that mirrors dart:io File.
-  final File = storage.initFile();
-
-  final file = File("hello.txt");
-
-  // Write bytes to the file.
-  await file.write(Uint8List.fromList("Hello, OpenDAL!".codeUnits));
-
-  // Read bytes back.
-  final data = await file.read();
-  print(String.fromCharCodes(data)); // Hello, OpenDAL!
-
-  // Inspect metadata.
-  final meta = await file.stat();
-  print("isFile: ${meta.isFile}");
-  print("contentLength: ${meta.contentLength}");
-
-  // Delete the file.
-  await file.delete();
-}
+```dart file=bindings/dart/examples/getting_started.dart region=quickstart
 ```
 
 `read()` returns `Uint8List`. `write()` takes `Uint8List`; a plain `List<int>` must be converted first with `Uint8List.fromList(list)`.

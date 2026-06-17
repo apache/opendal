@@ -21,6 +21,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+#[cfg(feature = "reqsign")]
 use bytes::Bytes;
 use http::Request;
 use http::Response;
@@ -124,6 +125,7 @@ impl HttpTransport for HttpTransporter {
     }
 }
 
+#[cfg(feature = "reqsign")]
 impl reqsign_core::HttpSend for HttpTransporter {
     async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
         let req = req.map(Buffer::from);

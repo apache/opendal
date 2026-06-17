@@ -34,7 +34,9 @@ all-features = true
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.57.0", default-features = false, features = [
+  "reqsign",
+] }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-core = "3.0.1"
 reqsign-file-read-tokio = "3.0.1"

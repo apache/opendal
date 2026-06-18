@@ -106,12 +106,12 @@ impl<T: Default> ErrorPolicy<T, Error> for ThrowException {
     ) -> jni::errors::Result<T> {
         if !env.exception_check() {
             fn downcast_payload(payload: Box<dyn std::any::Any + Send + 'static>) -> String {
-                let payload =  match payload.downcast::<&'static str>() {
+                let payload = match payload.downcast::<&'static str>() {
                     Ok(payload) => return payload.to_string(),
                     Err(payload) => payload,
                 };
 
-                let payload =  match payload.downcast::<String>() {
+                let payload = match payload.downcast::<String>() {
                     Ok(payload) => return *payload,
                     Err(payload) => payload,
                 };

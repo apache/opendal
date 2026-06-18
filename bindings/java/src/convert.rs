@@ -35,10 +35,7 @@ pub(crate) fn usize_to_jlong(n: Option<usize>) -> jlong {
 }
 
 pub(crate) fn jmap_to_hashmap(env: &mut Env, params: &JObject) -> Result<HashMap<String, String>> {
-    // `cast_local` consumes its argument, so duplicate the borrowed reference
-    // into an owned local reference before casting.
-    let owned = env.new_local_ref(params)?;
-    let map = env.cast_local::<JMap>(owned)?;
+    let map = env.new_cast_local_ref::<JMap>(params)?;
     let mut iter = map.iter(env)?;
 
     let mut result: HashMap<String, String> = HashMap::new();
@@ -59,8 +56,7 @@ pub(crate) fn hashmap_to_jmap<'a>(
     map: &HashMap<String, String>,
 ) -> Result<JObject<'a>> {
     let map_object = env.new_object(jni_str!("java/util/HashMap"), jni_sig!("()V"), &[])?;
-    let owned = env.new_local_ref(&map_object)?;
-    let jmap = env.cast_local::<JMap>(owned)?;
+    let jmap = env.new_cast_local_ref::<JMap>(&map_object)?;
     for (k, v) in map {
         let key = env.new_string(k)?;
         let value = env.new_string(v)?;

@@ -100,7 +100,7 @@ impl oio::ReadStream for HfReadStream {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator, testing_dataset_core};
+    use super::super::backend::test_utils::{mbpp_operator, testing_dataset_core};
     use super::super::core::test_utils::create_test_core;
     use super::super::core::{CommitFile, DeletedFile};
     use super::super::uri::HfRepoType;
@@ -112,11 +112,26 @@ mod tests {
     const PARQUET_MAGIC: &[u8] = b"PAR1";
 
     #[tokio::test]
-    async fn test_read_model_config() {
-        let op = gpt2_operator();
-        let data = op.read("config.json").await.expect("read should succeed");
-        serde_json::from_slice::<serde_json::Value>(&data.to_vec())
-            .expect("config.json should be valid JSON");
+    async fn test_http_read_uses_resolve_url() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let (_, mut reader) =
+            HfReadStream::try_new(&core, &ctx, "config.json", BytesRange::default()).await?;
+
+        assert_eq!(
+            mock_client.get_captured_url(),
+            "https://huggingface.co/test-user/test-repo/resolve/main/config.json"
+        );
+        assert!(matches!(reader, HfReadStream::Http(_)));
+        let chunk = reader.read().await?;
+        assert_eq!(chunk.to_bytes(), Bytes::from_static(b"hello"));
+
+        Ok(())
     }
 
     #[tokio::test]

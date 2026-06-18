@@ -27,7 +27,7 @@ use jni::sys::jsize;
 
 use crate::Result;
 use crate::convert::string_to_jstring;
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
@@ -38,7 +38,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledService
     _: JClass<'local>,
 ) -> JObjectArray<'local> {
     env.with_env(|env| intern_load_enabled_services(env))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_load_enabled_services<'local>(env: &mut Env<'local>) -> Result<JObjectArray<'local>> {

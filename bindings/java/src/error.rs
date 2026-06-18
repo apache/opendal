@@ -83,9 +83,9 @@ impl Error {
 /// A native-method [`ErrorPolicy`] that converts a Rust [`Error`] into an
 /// `OpenDALException` and a panic into a `RuntimeException`, returning the
 /// default value to the JVM in both cases.
-pub(crate) struct ThrowOpenDal;
+pub(crate) enum ThrowException {}
 
-impl<T: Default> ErrorPolicy<T, Error> for ThrowOpenDal {
+impl<T: Default> ErrorPolicy<T, Error> for ThrowException {
     type Captures<'unowned_env_local: 'native_method, 'native_method> = ();
 
     fn on_error<'unowned_env_local: 'native_method, 'native_method>(

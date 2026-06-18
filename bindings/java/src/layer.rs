@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use crate::Result;
 use crate::convert::jstring_to_string;
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 use jni::Env;
 use jni::EnvUnowned;
 use jni::objects::JClass;
@@ -65,7 +65,7 @@ pub extern "system" fn Java_org_apache_opendal_layer_CapabilityOverrideLayer_doL
     overrides: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_capability_override_layer(env, op, overrides))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_capability_override_layer(

@@ -29,7 +29,7 @@ use opendal::blocking;
 
 use crate::Result;
 use crate::convert::{bytes_to_jbytearray, jstring_to_string};
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 use crate::make_metadata;
 use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
@@ -75,7 +75,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
         let op_ref = unsafe { &mut *op };
         intern_read(env, op_ref, path, read_options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_read<'local>(
@@ -109,7 +109,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write<'local>(
         let op_ref = unsafe { &mut *op };
         intern_write(env, op_ref, path, content, write_options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_write<'local>(
@@ -142,7 +142,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat<'local>(
         let op_ref = unsafe { &mut *op };
         intern_stat(env, op_ref, path, stat_options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_stat<'local>(
@@ -171,7 +171,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
         let op_ref = unsafe { &mut *op };
         intern_delete(env, op_ref, path)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_delete<'local>(
@@ -197,7 +197,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir<'local>
         let op_ref = unsafe { &mut *op };
         intern_create_dir(env, op_ref, path)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_create_dir<'local>(
@@ -224,7 +224,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy<'local>(
         let op_ref = unsafe { &mut *op };
         intern_copy(env, op_ref, source_path, target_path)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_copy<'local>(
@@ -255,7 +255,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename<'local>(
         let op_ref = unsafe { &mut *op };
         intern_rename(env, op_ref, source_path, target_path)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_rename<'local>(
@@ -284,7 +284,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll<'local>
         let op_ref = unsafe { &mut *op };
         intern_remove_all(env, op_ref, path)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_remove_all<'local>(
@@ -319,7 +319,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list<'local>(
         let op_ref = unsafe { &mut *op };
         intern_list(env, op_ref, path, options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_list<'local>(

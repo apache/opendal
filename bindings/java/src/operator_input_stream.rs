@@ -26,7 +26,7 @@ use opendal::blocking;
 use opendal::blocking::StdBytesIterator;
 
 use crate::convert::jstring_to_string;
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
@@ -45,7 +45,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constr
         let op_ref = unsafe { &mut *op };
         intern_construct_reader(env, op_ref, path, options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_construct_reader(
@@ -97,7 +97,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNe
         let reader_ref = unsafe { &mut *reader };
         intern_read_next_bytes(env, reader_ref)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_read_next_bytes<'local>(

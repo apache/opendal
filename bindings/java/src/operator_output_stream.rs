@@ -25,7 +25,7 @@ use jni::sys::jlong;
 use opendal::blocking;
 
 use crate::convert::jstring_to_string;
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
@@ -44,7 +44,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
         let op_ref = unsafe { &mut *op };
         intern_construct_write(env, op_ref, path, options)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_construct_write(
@@ -74,7 +74,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_dispo
         let mut writer = unsafe { Box::from_raw(writer) };
         intern_dispose_write(&mut writer)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
@@ -96,7 +96,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_write
         let writer_ref = unsafe { &mut *writer };
         intern_write_bytes(env, writer_ref, content)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 fn intern_write_bytes(

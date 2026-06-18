@@ -34,7 +34,7 @@ use jni::sys::{jint, jlong};
 use tokio::task::JoinHandle;
 
 use crate::Result;
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 
 static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
 
@@ -96,7 +96,7 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor<'
         let executor = make_tokio_executor(cores)?;
         Ok(Box::into_raw(Box::new(executor)) as jlong)
     })
-    .resolve::<ThrowOpenDal>()
+    .resolve::<ThrowException>()
 }
 
 /// # Safety

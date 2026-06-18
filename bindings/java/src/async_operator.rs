@@ -38,7 +38,7 @@ use crate::convert::{
     bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
     read_int64_field,
 };
-use crate::error::ThrowOpenDal;
+use crate::error::ThrowException;
 use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::make_metadata;
@@ -54,7 +54,7 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>
     map: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| intern_constructor(env, scheme, map))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_constructor(env: &mut Env, scheme: JString, map: JObject) -> Result<jlong> {
@@ -105,7 +105,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write<'local
     write_options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| intern_write(env, op, executor, path, content, write_options))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_write(
@@ -147,7 +147,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat<'local>
     stat_options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| intern_stat(env, op, executor, path, stat_options))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_stat(
@@ -184,7 +184,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read<'local>
     read_options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| intern_read(env, op, executor, path, read_options))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_read(
@@ -229,7 +229,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete<'loca
     path: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_delete(env, op, executor, path))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_delete(
@@ -265,7 +265,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlocking
     executor: *const Executor,
 ) -> jlong {
     env.with_env(|env| intern_make_blocking_op(env, op, executor))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_make_blocking_op(
@@ -289,7 +289,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperator
     op: *mut Operator,
 ) -> JObject<'local> {
     env.with_env(|env| intern_make_operator_info(env, op))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_make_operator_info<'local>(
@@ -312,7 +312,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir<'l
     path: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_create_dir(env, op, executor, path))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_create_dir(
@@ -350,7 +350,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy<'local>
     target_path: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_copy(env, op, executor, source_path, target_path))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_copy(
@@ -390,7 +390,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename<'loca
     target_path: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_rename(env, op, executor, source_path, target_path))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_rename(
@@ -429,7 +429,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll<'l
     path: JString<'local>,
 ) -> jlong {
     env.with_env(|env| intern_remove_all(env, op, executor, path))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_remove_all(
@@ -467,7 +467,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list<'local>
     options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| intern_list(env, op, executor, path, options))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_list(
@@ -518,7 +518,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead<
     expire: jlong,
 ) -> jlong {
     env.with_env(|env| intern_presign_read(env, op, executor, path, expire))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_presign_read(
@@ -554,7 +554,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite
     expire: jlong,
 ) -> jlong {
     env.with_env(|env| intern_presign_write(env, op, executor, path, expire))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_presign_write(
@@ -591,7 +591,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat<
     expire: jlong,
 ) -> jlong {
     env.with_env(|env| intern_presign_stat(env, op, executor, path, expire))
-        .resolve::<ThrowOpenDal>()
+        .resolve::<ThrowException>()
 }
 
 fn intern_presign_stat(

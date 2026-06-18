@@ -204,4 +204,7 @@ fn format_php_err(e: od::Error) -> PhpException {
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
     module
+        .class::<Operator>()
+        .class::<Metadata>()
+        .class::<EntryMode>()
 }

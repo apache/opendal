@@ -84,9 +84,7 @@ impl<R: PositionRead> PositionReader<R> {
     }
 
     async fn handle(&self) -> Result<&R::Handle> {
-        self.handle
-            .get_or_try_init(|| async { self.reader.open().await })
-            .await
+        self.handle.get_or_try_init(|| self.reader.open()).await
     }
 }
 
@@ -175,10 +173,7 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
             .map(|remaining| remaining.min(self.max_buf_size as u64) as usize)
             .unwrap_or(self.max_buf_size);
 
-        let handle = self
-            .handle
-            .get_or_try_init(|| async { self.reader.open().await })
-            .await?;
+        let handle = self.handle.get_or_try_init(|| self.reader.open()).await?;
         let buf = R::read_at(handle, self.offset, read_size).await?;
         check_position_read_size(read_size, buf.len())?;
         if buf.is_empty() {

@@ -15,59 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
-use goosefs_sdk::io::GoosefsFileReader as SdkReader;
-
+use super::backend::*;
 use super::core::GoosefsCore;
-use super::error::parse_error;
+use super::core::parse_error;
+use goosefs_sdk::io::GoosefsFileReader as SdkReader;
 use opendal_core::raw::*;
 use opendal_core::*;
+use std::sync::Arc;
 
-/// `GoosefsReadStream` implements [`oio::ReadStream`] on top of the goosefs-sdk
-/// high-level streaming reader (`GoosefsFileReader`).
-///
-/// # Streaming semantics
-///
-/// Unlike the first-cut implementation, which called
-/// `GoosefsCore::read_file()` to fetch the entire requested range into
-/// one `bytes::Bytes` before returning anything to the caller, this
-/// reader pulls the file **one block at a time** via
-/// [`SdkReader::read_next_block`] and hands each block to OpenDAL as a
-/// separate `Buffer`:
-///
-///   - Peak memory is bounded by a single GooseFS block (64 MiB by
-///     default), not by the full object size.
-///   - Large reads start surfacing data to the caller as soon as the
-///     first block lands, rather than stalling until the whole range
-///     is materialised.
-///   - When `read_next_block` returns `None` the reader returns an
-///     empty `Buffer`, which is OpenDAL's `oio::ReadStream` EOF signal.
-///
-/// # Range handling
-///
-/// The underlying SDK exposes two entry points:
-///
-///   - [`SdkReader::open_with_context`] for a full-file stream.
-///   - [`SdkReader::open_range_with_context`] for a bounded
-///     `[offset, offset+length)` stream.
-///
-/// We pick between them based on the incoming [`BytesRange`]. When
-/// only `offset` is specified (unbounded tail read), we resolve the
-/// actual tail length via `get_status` and fall through to the
-/// range-based opener, so the SDK can still use its efficient
-/// per-block streaming code path.
-///
-/// # Authentication retry
-///
-/// The authentication-reset / retry logic lives inside
-/// [`GoosefsCore::open_reader`] and [`GoosefsCore::open_range_reader`],
-/// so the reader stays focused on streaming. Once the stream is open
-/// we do not attempt to rebuild the context mid-read — a mid-stream
-/// auth failure almost always means a transport / worker problem
-/// rather than a stale SASL credential, and transparent mid-stream
-/// recovery would require replaying `bytes_read` bytes, which is
-/// more complexity than the failure mode warrants.
 pub struct GoosefsReadStream {
     core: Arc<GoosefsCore>,
     path: String,
@@ -155,5 +110,48 @@ impl oio::ReadStream for GoosefsReadStream {
                 Ok(Buffer::new())
             }
         }
+    }
+}
+
+/// Reader returned by this backend.
+pub struct GoosefsReader {
+    backend: GoosefsBackend,
+    path: String,
+}
+
+impl GoosefsReader {
+    pub(super) fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for GoosefsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let content_length = if range.offset() != 0 && range.size().is_none() {
+            let file_info = backend.core.get_status(path).await?;
+            Some(
+                backend
+                    .core
+                    .file_info_to_metadata(&file_info)
+                    .content_length(),
+            )
+        } else {
+            None
+        };
+        let rp = RpRead::default();
+        let stream = GoosefsReadStream::new(
+            backend.core.clone(),
+            path.to_string(),
+            range,
+            content_length,
+        );
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }

@@ -23,7 +23,7 @@ use super::core::GcsCore;
 use super::core::RewriteResponse;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
 use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -26,10 +26,9 @@ use super::config::HDFS_SCHEME_PREFIX;
 use super::config::HdfsNativeConfig;
 use super::config::init_hdfs_config;
 use super::core::HdfsNativeCore;
+use super::core::parse_hdfs_error;
 use super::deleter::HdfsNativeDeleter;
-use super::error::parse_hdfs_error;
-use super::lister::HdfsNativeLister;
-use super::writer::HdfsNativeWriter;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -158,143 +157,7 @@ impl Builder for HdfsNativeBuilder {
 /// Backend for hdfs-native services.
 #[derive(Debug, Clone)]
 pub struct HdfsNativeBackend {
-    core: Arc<HdfsNativeCore>,
-}
-
-/// Reader returned by this backend.
-pub struct HdfsNativeReader {
-    core: Arc<HdfsNativeCore>,
-    path: String,
-}
-
-impl HdfsNativeReader {
-    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-        }
-    }
-}
-
-pub struct HdfsNativeReaderHandle {
-    file: hdfs_native::file::FileReader,
-}
-
-impl HdfsNativeReaderHandle {
-    fn new(file: hdfs_native::file::FileReader) -> Self {
-        Self { file }
-    }
-}
-
-impl oio::PositionRead for HdfsNativeReader {
-    type Handle = HdfsNativeReaderHandle;
-
-    async fn open(&self) -> Result<Self::Handle> {
-        let file = self.core.hdfs_open(&self.path).await?;
-        Ok(HdfsNativeReaderHandle::new(file))
-    }
-
-    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let Ok(offset) = usize::try_from(offset) else {
-            return Ok(Buffer::new());
-        };
-
-        let file_length = handle.file.file_length();
-        if offset >= file_length {
-            return Ok(Buffer::new());
-        }
-
-        let size = size.min(file_length - offset);
-        let bytes = handle
-            .file
-            .read_range(offset, size)
-            .await
-            .map_err(parse_hdfs_error)?;
-
-        Ok(Buffer::from(bytes))
-    }
-}
-
-pub struct HdfsNativeLazyWriter {
-    core: Arc<HdfsNativeCore>,
-    path: String,
-    args: OpWrite,
-    inner: Option<HdfsNativeWriter>,
-}
-
-impl HdfsNativeLazyWriter {
-    fn new(core: Arc<HdfsNativeCore>, path: &str, args: OpWrite) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            args,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut HdfsNativeWriter> {
-        if self.inner.is_none() {
-            let (f, initial_size) = self.core.hdfs_write(&self.path, &self.args).await?;
-            self.inner = Some(HdfsNativeWriter::new(f, initial_size));
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for HdfsNativeLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
-    }
-}
-
-pub struct HdfsNativeLazyLister {
-    core: Arc<HdfsNativeCore>,
-    path: String,
-    inner: Option<Option<HdfsNativeLister>>,
-}
-
-impl HdfsNativeLazyLister {
-    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-}
-
-impl oio::List for HdfsNativeLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if self.inner.is_none() {
-            self.inner = Some(match self.core.hdfs_list(&self.path).await? {
-                Some((p, current_path)) => Some(HdfsNativeLister::new(
-                    &self.core.root,
-                    &self.core.client,
-                    &p,
-                    current_path,
-                )),
-                None => None,
-            });
-        }
-
-        match self.inner.as_mut().expect("lister must be initialized") {
-            Some(lister) => lister.next().await,
-            None => Ok(None),
-        }
-    }
+    pub(crate) core: Arc<HdfsNativeCore>,
 }
 
 impl Service for HdfsNativeBackend {

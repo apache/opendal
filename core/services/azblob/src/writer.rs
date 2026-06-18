@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use super::core::AzblobCore;
 use super::core::constants::X_MS_VERSION_ID;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

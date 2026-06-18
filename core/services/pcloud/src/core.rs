@@ -26,9 +26,6 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use serde::Deserialize;
 
-use super::error::PcloudError;
-use super::error::parse_error;
-
 #[derive(Clone)]
 pub struct PcloudCore {
     pub info: ServiceInfo,
@@ -520,3 +517,77 @@ pub struct ListMetadata {
     pub size: Option<u64>,
     pub contents: Option<Vec<ListMetadata>>,
 }
+
+mod error {
+    use std::fmt::Debug;
+
+    use http::Response;
+    use opendal_core::raw::*;
+    use opendal_core::*;
+    use serde::Deserialize;
+
+    /// PcloudError is the error returned by Pcloud service.
+    #[derive(Default, Deserialize)]
+    pub(crate) struct PcloudError {
+        pub result: u32,
+        pub error: Option<String>,
+    }
+
+    impl Debug for PcloudError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("PcloudError")
+                .field("result", &self.result)
+                .field("error", &self.error)
+                .finish_non_exhaustive()
+        }
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+        let message = String::from_utf8_lossy(&bs).into_owned();
+
+        let mut err = Error::new(ErrorKind::Unexpected, message);
+
+        err = with_error_response_context(err, parts);
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![(
+                r#"<html>
+
+                <head>
+                    <title>Invalid link</title>
+                </head>
+
+                <body>This link was generated for another IP address. Try previous step again.</body>
+
+                </html> "#,
+                ErrorKind::Unexpected,
+                StatusCode::GONE,
+            )];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

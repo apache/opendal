@@ -21,7 +21,6 @@ use std::sync::Arc;
 use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 
-use super::error::parse_hdfs_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -200,3 +199,50 @@ impl HdfsNativeCore {
         Ok(())
     }
 }
+
+mod error {
+    use hdfs_native::HdfsError;
+
+    use opendal_core::*;
+
+    /// Parse hdfs-native error into opendal::Error.
+    pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
+        let (kind, retryable, msg) = match &hdfs_error {
+            HdfsError::IOError(err) => (ErrorKind::Unexpected, false, err.to_string()),
+            HdfsError::DataTransferError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
+            HdfsError::ChecksumError => (
+                ErrorKind::Unexpected,
+                false,
+                "checksums didn't match".to_string(),
+            ),
+            HdfsError::UrlParseError(err) => (ErrorKind::Unexpected, false, err.to_string()),
+            HdfsError::AlreadyExists(msg) => (ErrorKind::AlreadyExists, false, msg.clone()),
+            HdfsError::OperationFailed(msg) => (ErrorKind::Unexpected, false, msg.clone()),
+            HdfsError::RPCError(msg0, msg1) => {
+                if msg0.contains("java.io.FileNotFoundException") {
+                    (ErrorKind::NotFound, false, msg1.clone())
+                } else {
+                    (ErrorKind::Unexpected, false, msg1.clone())
+                }
+            }
+            HdfsError::FileNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
+            HdfsError::BlocksNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
+            HdfsError::IsADirectoryError(msg) => (ErrorKind::IsADirectory, false, msg.clone()),
+            _ => (
+                ErrorKind::Unexpected,
+                false,
+                "unexpected error from hdfs".to_string(),
+            ),
+        };
+
+        let mut err = Error::new(kind, msg).set_source(hdfs_error);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

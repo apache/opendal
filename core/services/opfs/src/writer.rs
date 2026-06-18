@@ -29,8 +29,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OpfsCore;
-use super::error::*;
-use super::utils::*;
+use super::core::*;
+use super::core::*;
 
 pub struct OpfsWriter {
     core: Arc<OpfsCore>,

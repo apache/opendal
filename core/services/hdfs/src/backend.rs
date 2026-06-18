@@ -25,7 +25,7 @@ use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
-use super::writer::HdfsWriter;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -187,109 +187,7 @@ impl Builder for HdfsBuilder {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
-    core: Arc<HdfsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct HdfsReader {
-    core: Arc<HdfsCore>,
-    path: String,
-}
-
-impl HdfsReader {
-    fn new(core: Arc<HdfsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-        }
-    }
-}
-
-pub struct HdfsReaderHandle {
-    file: Arc<hdrs::File>,
-}
-
-impl HdfsReaderHandle {
-    fn new(file: hdrs::File) -> Self {
-        Self { file: file.into() }
-    }
-}
-
-impl oio::PositionRead for HdfsReader {
-    type Handle = HdfsReaderHandle;
-
-    async fn open(&self) -> Result<Self::Handle> {
-        let file = self.core.hdfs_open(&self.path).await?;
-        Ok(HdfsReaderHandle::new(file))
-    }
-
-    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let file = handle.file.clone();
-        let buf = tokio::task::spawn_blocking(move || {
-            let mut buf = vec![0; size];
-            let n = file.read_at(&mut buf, offset).map_err(new_std_io_error)?;
-            buf.truncate(n);
-            Ok::<_, Error>(Buffer::from(buf))
-        })
-        .await
-        .map_err(|e| Error::new(ErrorKind::Unexpected, "tokio task join failed").set_source(e))??;
-
-        Ok(buf)
-    }
-}
-
-pub struct HdfsLazyWriter {
-    core: Arc<HdfsCore>,
-    path: String,
-    op: OpWrite,
-    inner: Option<HdfsWriter<hdrs::AsyncFile>>,
-}
-
-impl HdfsLazyWriter {
-    fn new(core: Arc<HdfsCore>, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            op,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut HdfsWriter<hdrs::AsyncFile>> {
-        if self.inner.is_none() {
-            let (target_path, tmp_path, f, target_exists, initial_size) =
-                self.core.hdfs_write(&self.path, &self.op).await?;
-
-            self.inner = Some(HdfsWriter::new(
-                target_path,
-                tmp_path,
-                f,
-                Arc::clone(&self.core.client),
-                target_exists,
-                initial_size,
-            ));
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for HdfsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
-    }
+    pub(crate) core: Arc<HdfsCore>,
 }
 
 impl Service for HdfsBackend {

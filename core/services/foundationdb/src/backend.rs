@@ -24,6 +24,7 @@ use super::FOUNDATIONDB_SCHEME;
 use super::config::FoundationdbConfig;
 use super::core::*;
 use super::deleter::FoundationdbDeleter;
+use super::reader::*;
 use super::writer::FoundationdbWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -85,10 +86,10 @@ impl Builder for FoundationdbBuilder {
 /// Backend for Foundationdb services.
 #[derive(Clone, Debug)]
 pub struct FoundationdbBackend {
-    core: Arc<FoundationdbCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<FoundationdbCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl FoundationdbBackend {
@@ -116,44 +117,6 @@ impl FoundationdbBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct FoundationdbReader {
-    backend: FoundationdbBackend,
-    path: String,
-}
-
-impl FoundationdbReader {
-    fn new(backend: FoundationdbBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for FoundationdbReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "kv not found in foundationdb",
-                ));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

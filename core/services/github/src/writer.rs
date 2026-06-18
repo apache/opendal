@@ -21,7 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::GithubCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

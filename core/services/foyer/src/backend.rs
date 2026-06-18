@@ -27,6 +27,7 @@ use super::FoyerValue;
 use super::config::FoyerConfig;
 use super::core::FoyerCore;
 use super::deleter::FoyerDeleter;
+use super::reader::*;
 use super::writer::FoyerWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -204,10 +205,10 @@ impl Builder for FoyerBuilder {
 
 #[derive(Debug, Clone)]
 pub struct FoyerBackend {
-    core: Arc<FoyerCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<FoyerCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl FoyerBackend {
@@ -235,43 +236,6 @@ impl FoyerBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct FoyerReader {
-    backend: FoyerBackend,
-    path: String,
-}
-
-impl FoyerReader {
-    fn new(backend: FoyerBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for FoyerReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        let buffer = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),
-        };
-        let content_length = buffer.len() as u64;
-
-        let buffer = buffer.slice(range.to_content_range(buffer.len())?);
-
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

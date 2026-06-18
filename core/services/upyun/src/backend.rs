@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use opendal_core::raw::*;
@@ -26,10 +25,11 @@ use opendal_core::*;
 
 use super::UPYUN_SCHEME;
 use super::config::UpyunConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::UpyunDeleter;
-use super::error::parse_error;
 use super::lister::UpyunLister;
+use super::reader::*;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 
@@ -180,48 +180,7 @@ impl Builder for UpyunBuilder {
 /// Backend for upyun services.
 #[derive(Debug, Clone)]
 pub struct UpyunBackend {
-    core: Arc<UpyunCore>,
-}
-
-/// Reader returned by this backend.
-pub struct UpyunReader {
-    backend: UpyunBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl UpyunReader {
-    fn new(backend: UpyunBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for UpyunReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.download_file(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<UpyunCore>,
 }
 
 impl Service for UpyunBackend {

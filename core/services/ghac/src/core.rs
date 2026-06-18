@@ -36,7 +36,6 @@ use prost::Message;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -525,3 +524,43 @@ mod tests {
         );
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
+            StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let bs = body.to_bytes();
+        let message = String::from_utf8_lossy(&bs);
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

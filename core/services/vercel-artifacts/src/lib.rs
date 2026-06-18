@@ -26,11 +26,10 @@ pub fn register_vercel_artifacts_service(registry: &opendal_core::OperatorRegist
 }
 
 mod backend;
-mod builder;
 mod config;
 mod core;
-mod error;
+mod reader;
 mod writer;
 
-pub use builder::VercelArtifactsBuilder as VercelArtifacts;
+pub use backend::VercelArtifactsBuilder as VercelArtifacts;
 pub use config::VercelArtifactsConfig;

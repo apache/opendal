@@ -21,7 +21,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 
-use crate::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -251,3 +250,43 @@ impl IpfsCore {
         }
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT
+        // IPFS Gateway will return `408 REQUEST_TIMEOUT` while `ipfs resolve -r` failed.
+        | StatusCode::REQUEST_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+        let message = String::from_utf8_lossy(&bs);
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

@@ -28,8 +28,7 @@ use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
-use super::reader::MonoiofsReader;
-use super::writer::MonoiofsWriter;
+use super::reader::*;
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
@@ -89,81 +88,7 @@ impl Builder for MonoiofsBuilder {
 
 #[derive(Debug, Clone)]
 pub struct MonoiofsBackend {
-    core: Arc<MonoiofsCore>,
-}
-
-pub struct MonoiofsPositionReader {
-    core: Arc<MonoiofsCore>,
-    path: PathBuf,
-}
-
-impl MonoiofsPositionReader {
-    fn new(core: Arc<MonoiofsCore>, path: PathBuf) -> Self {
-        Self { core, path }
-    }
-}
-
-impl oio::PositionRead for MonoiofsPositionReader {
-    type Handle = MonoiofsReader;
-
-    async fn open(&self) -> Result<Self::Handle> {
-        MonoiofsReader::new(self.core.clone(), self.path.clone()).await
-    }
-
-    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
-        handle.read_at(offset, size).await
-    }
-}
-
-pub struct MonoiofsLazyWriter {
-    core: Arc<MonoiofsCore>,
-    path: String,
-    append: bool,
-    inner: Option<MonoiofsWriter>,
-}
-
-impl MonoiofsLazyWriter {
-    fn new(core: Arc<MonoiofsCore>, path: &str, args: OpWrite) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            append: args.append(),
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut MonoiofsWriter> {
-        if self.inner.is_none() {
-            let path = self.core.prepare_write_path(&self.path).await?;
-            let writer = MonoiofsWriter::new(self.core.clone(), path, self.append).await?;
-            self.inner = Some(writer);
-        }
-
-        Ok(self
-            .inner
-            .as_mut()
-            .expect("monoiofs writer must be initialized"))
-    }
-}
-
-impl oio::Write for MonoiofsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        match &mut self.inner {
-            Some(w) => w.abort().await,
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "Monoiofs doesn't support abort",
-            )),
-        }
-    }
+    pub(crate) core: Arc<MonoiofsCore>,
 }
 
 impl Service for MonoiofsBackend {

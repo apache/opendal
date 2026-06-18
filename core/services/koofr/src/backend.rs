@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use mea::mutex::Mutex;
@@ -30,9 +29,10 @@ use super::config::KoofrConfig;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
+use super::core::parse_error;
 use super::deleter::KoofrDeleter;
-use super::error::parse_error;
 use super::lister::KoofrLister;
+use super::reader::*;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use opendal_core::raw::*;
@@ -181,47 +181,7 @@ impl Builder for KoofrBuilder {
 /// Backend for Koofr services.
 #[derive(Debug, Clone)]
 pub struct KoofrBackend {
-    core: Arc<KoofrCore>,
-}
-
-/// Reader returned by this backend.
-pub struct KoofrReader {
-    backend: KoofrBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl KoofrReader {
-    fn new(backend: KoofrBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for KoofrReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.get(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<KoofrCore>,
 }
 
 impl Service for KoofrBackend {

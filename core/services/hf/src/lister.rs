@@ -162,8 +162,8 @@ mod tests {
     use std::collections::VecDeque;
     use std::sync::Arc;
 
+    use super::super::core::HfRepoType;
     use super::super::core::test_utils::create_test_core;
-    use super::super::uri::HfRepoType;
     use super::*;
     use opendal_core::raw::oio::PageList;
 

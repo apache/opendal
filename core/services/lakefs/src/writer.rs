@@ -24,7 +24,7 @@ use opendal_core::*;
 
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
-use super::error::parse_error;
+use super::core::parse_error;
 
 pub struct LakefsWriter {
     core: Arc<LakefsCore>,

@@ -1051,3 +1051,179 @@ pub struct CopyObjectOutput {
     #[serde(rename = "ETag")]
     pub etag: String,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::{Response, StatusCode};
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// TosError is the error returned by TOS service.
+    #[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+    #[serde(default, rename_all = "PascalCase")]
+    pub(crate) struct TosError {
+        pub code: String,
+        pub message: String,
+        pub resource: String,
+        pub request_id: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (mut kind, mut retryable) = match parts.status {
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+            code if code.is_server_error() => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, tos_err) = parse_tos_error(&bs)
+            .map(|tos_err| (format!("{tos_err:?}"), Some(tos_err)))
+            .unwrap_or_else(|| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        if let Some(tos_err) = tos_err {
+            (kind, retryable) =
+                parse_tos_error_code(tos_err.code.as_str()).unwrap_or((kind, retryable));
+        }
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+        de::from_reader::<_, TosError>(bs.chunk().reader())
+            .or_else(|_| serde_json::from_slice::<TosError>(bs))
+            .ok()
+    }
+
+    /// Returns the `Error kind` of this code and whether the error is retryable.
+    /// TOS error codes: https://www.volcengine.com/docs/6349/74874
+    pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+        match code {
+            "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
+            "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+            "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
+            "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
+            "InternalError" => Some((ErrorKind::Unexpected, true)),
+            "OperationAborted" => Some((ErrorKind::Unexpected, true)),
+            "SlowDown" => Some((ErrorKind::RateLimited, true)),
+            "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+            "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+            "ExceedAccountQPSLimit" | "ExceedAccountRateLimit" => {
+                Some((ErrorKind::RateLimited, true))
+            }
+            "ExceedBucketQPSLimit" | "ExceedBucketRateLimit" => {
+                Some((ErrorKind::RateLimited, true))
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_parse_error() {
+            let bs = bytes::Bytes::from(
+                r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchKey</Code>
+  <Message>The resource you requested does not exist</Message>
+  <Resource>/mybucket/myfoto.jpg</Resource>
+  <RequestId>4442587FB7D0A2F9</RequestId>
+</Error>
+"#,
+            );
+
+            let out: TosError = de::from_reader(bs.reader()).expect("must success");
+            println!("{out:?}");
+
+            assert_eq!(out.code, "NoSuchKey");
+            assert_eq!(out.message, "The resource you requested does not exist");
+            assert_eq!(out.resource, "/mybucket/myfoto.jpg");
+            assert_eq!(out.request_id, "4442587FB7D0A2F9");
+        }
+
+        #[test]
+        fn test_parse_json_error() {
+            let bs = bytes::Bytes::from(
+                r#"{"Code":"DuplicateObject","RequestId":"request-id","Message":"The object already exists."}"#,
+            );
+
+            let out = parse_tos_error(&bs).expect("must success");
+
+            assert_eq!(out.code, "DuplicateObject");
+            assert_eq!(out.message, "The object already exists.");
+            assert_eq!(out.request_id, "request-id");
+        }
+
+        #[test]
+        fn test_parse_error_from_unrelated_input() {
+            let bs = bytes::Bytes::from(
+                r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult xmlns="http://tos.apache.org/doc/2024-01-01/">
+  <Bucket>example-bucket</Bucket>
+  <Key>example-object</Key>
+  <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
+</CompleteMultipartUploadResult>
+"#,
+            );
+
+            let out: TosError = de::from_reader(bs.reader()).expect("must success");
+            assert_eq!(out, TosError::default());
+        }
+    }
+}
+
+pub(super) use error::*;
+
+mod utils {
+    use http::HeaderMap;
+    use http::header::ETAG;
+    use opendal_core::Metadata;
+    use opendal_core::raw::{parse_header_to_str, parse_into_metadata};
+
+    /// Parse etag from header map.
+    ///
+    /// Trim quotes from etag if present (TOS returns etag with quotes)
+    pub fn tos_parse_etag(headers: &HeaderMap) -> opendal_core::Result<Option<&str>> {
+        let etag = parse_header_to_str(headers, ETAG)?.map(|etag| etag.trim_matches('"'));
+        Ok(etag)
+    }
+
+    pub(crate) fn tos_parse_into_metadata(
+        path: &str,
+        headers: &HeaderMap,
+    ) -> opendal_core::Result<Metadata> {
+        let mut metadata = parse_into_metadata(path, headers)?;
+
+        if let Some(etag) = tos_parse_etag(headers)? {
+            metadata.set_etag(etag);
+        }
+
+        Ok(metadata)
+    }
+}
+
+pub(super) use utils::*;

@@ -23,7 +23,7 @@ use opendal_core::*;
 
 use super::core::LakefsCore;
 use super::core::LakefsListResponse;
-use super::error::parse_error;
+use super::core::parse_error;
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,

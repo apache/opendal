@@ -17,65 +17,203 @@
 
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
+use super::core::parse_error;
 use super::deleter::OneDriveDeleter;
-use super::error::parse_error;
 use super::lister::OneDriveLister;
+use super::reader::*;
 use super::writer::OneDriveWriter;
+
+use std::fmt::Debug;
+
+use log::debug;
+use mea::mutex::Mutex;
+
+use super::ONEDRIVE_SCHEME;
+use super::config::OnedriveConfig;
+use super::core::OneDriveSigner;
+
+/// Microsoft [OneDrive](https://onedrive.com) backend support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct OnedriveBuilder {
+    pub(super) config: OnedriveConfig,
+}
+
+impl Debug for OnedriveBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnedriveBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl OnedriveBuilder {
+    /// Set root path of OneDrive folder.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Set the access token for a time limited access to Microsoft Graph API (also OneDrive).
+    ///
+    /// Microsoft Graph API uses a typical OAuth 2.0 flow for authentication and authorization.
+    /// You can get a access token from [Microsoft Graph Explore](https://developer.microsoft.com/en-us/graph/graph-explorer).
+    ///
+    /// # Note
+    ///
+    /// - An access token is short-lived.
+    /// - Use a refresh_token if you want to use OneDrive API for an extended period of time.
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
+        self
+    }
+
+    /// Set the refresh token for long term access to Microsoft Graph API.
+    ///
+    /// OpenDAL will use a refresh token to maintain a fresh access token automatically.
+    ///
+    /// # Note
+    ///
+    /// - A refresh token is available through a OAuth 2.0 flow, with an additional scope `offline_access`.
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
+        self.config.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client_id for a Microsoft Graph API application (available though Azure's registration portal)
+    ///
+    /// Required when using the refresh token.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        self.config.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client_secret for a Microsoft Graph API application
+    ///
+    /// Required for Web app when using the refresh token.
+    /// Don't use a client secret when use in a native app since the native app can't store the secret reliably.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+
+    /// Deprecated: OneDrive versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
+        self
+    }
+}
+
+impl Builder for OnedriveBuilder {
+    type Config = OnedriveConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        debug!("backend use root {root}");
+
+        let info = ServiceInfo::new(ONEDRIVE_SCHEME, &root, "");
+        let capability = Capability {
+            read: true,
+            read_with_suffix: true,
+            read_with_if_none_match: true,
+
+            write: true,
+            write_with_if_match: true,
+            // OneDrive supports the file size up to 250GB
+            // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
+            // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
+            // file up to this size.
+            // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
+            copy: true,
+            rename: true,
+
+            stat: true,
+            stat_with_if_none_match: true,
+            stat_with_version: true,
+
+            delete: true,
+            create_dir: true,
+
+            list: true,
+            list_with_limit: true,
+            list_with_versions: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
+        let accessor_info = info;
+        let mut signer = OneDriveSigner::new();
+
+        // Requires OAuth 2.0 tokens:
+        // - `access_token` (the short-lived token)
+        // - `refresh_token` flow (the long term token)
+        // to be mutually exclusive for setting up for implementation simplicity
+        match (self.config.access_token, self.config.refresh_token) {
+            (Some(access_token), None) => {
+                signer.access_token = access_token;
+                signer.expires_in = Timestamp::MAX;
+            }
+            (None, Some(refresh_token)) => {
+                let client_id = self.config.client_id.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", ONEDRIVE_SCHEME)
+                })?;
+
+                signer.refresh_token = refresh_token;
+                signer.client_id = client_id;
+                if let Some(client_secret) = self.config.client_secret {
+                    signer.client_secret = client_secret;
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token and refresh_token cannot be set at the same time",
+                )
+                .with_context("service", ONEDRIVE_SCHEME));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", ONEDRIVE_SCHEME));
+            }
+        };
+
+        let core = Arc::new(OneDriveCore {
+            info: accessor_info,
+            capability,
+            root,
+            signer: Arc::new(Mutex::new(signer)),
+        });
+
+        Ok(OnedriveBackend { core })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct OnedriveBackend {
     pub core: Arc<OneDriveCore>,
-}
-
-/// Reader returned by this backend.
-pub struct OnedriveReader {
-    backend: OnedriveBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl OnedriveReader {
-    fn new(backend: OnedriveBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for OnedriveReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let response = backend
-            .core
-            .onedrive_get_content(&self.ctx, path, range, &args)
-            .await?;
-        let (rp, stream) = match response.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, response.headers())?),
-                response.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = response.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
 }
 
 impl Service for OnedriveBackend {

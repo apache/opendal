@@ -21,7 +21,7 @@ use bytes::Buf;
 
 use super::core::KoofrCore;
 use super::core::ListResponse;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::Metadata;
 use opendal_core::OperationContext;

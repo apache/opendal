@@ -35,7 +35,6 @@ use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_azure_storage::Credential;
 use reqsign_core::{Context, Signer};
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -629,3 +628,96 @@ mod tests {
         assert_eq!(decoded.get("good"), Some(&"good".to_string()));
     }
 }
+
+mod error {
+    use std::fmt::Debug;
+
+    use bytes::Buf;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::*;
+    use opendal_service_azure_common::with_azure_error_response_context;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    /// AzdlsError is the error returned by azure dfs service.
+    #[derive(Default, Deserialize)]
+    #[serde(default, rename_all = "PascalCase")]
+    struct AzdlsError {
+        code: String,
+        message: String,
+        query_parameter_name: String,
+        query_parameter_value: String,
+        reason: String,
+    }
+
+    impl Debug for AzdlsError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let mut de = f.debug_struct("AzdlsError");
+            de.field("code", &self.code);
+            // replace `\n` to ` ` for better reading.
+            de.field("message", &self.message.replace('\n', " "));
+
+            if !self.query_parameter_name.is_empty() {
+                de.field("query_parameter_name", &self.query_parameter_name);
+            }
+            if !self.query_parameter_value.is_empty() {
+                de.field("query_parameter_value", &self.query_parameter_value);
+            }
+            if !self.reason.is_empty() {
+                de.field("reason", &self.reason);
+            }
+
+            de.finish()
+        }
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
+            Ok(azdls_err) => format!("{azdls_err:?}"),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+        // If there is no body here, fill with error code.
+        if message.is_empty()
+            && let Some(v) = parts.headers.get("x-ms-error-code")
+            && let Ok(code) = v.to_str()
+        {
+            message = format!(
+                "{:?}",
+                AzdlsError {
+                    code: code.to_string(),
+                    ..Default::default()
+                }
+            )
+        }
+
+        let mut err = Error::new(kind, &message);
+
+        err = with_azure_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

@@ -25,6 +25,7 @@ use super::GRIDFS_SCHEME;
 use super::config::GridfsConfig;
 use super::core::*;
 use super::deleter::GridfsDeleter;
+use super::reader::*;
 use super::writer::GridfsWriter;
 
 #[doc = include_str!("docs.md")]
@@ -151,10 +152,10 @@ impl Builder for GridfsBuilder {
 /// Backend for Gridfs services.
 #[derive(Clone, Debug)]
 pub struct GridfsBackend {
-    core: Arc<GridfsCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<GridfsCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl GridfsBackend {
@@ -186,41 +187,6 @@ impl GridfsBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct GridfsReader {
-    backend: GridfsBackend,
-    path: String,
-}
-
-impl GridfsReader {
-    fn new(backend: GridfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GridfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

@@ -27,7 +27,7 @@ use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveFileList;
 use super::core::GdriveRecentPathState;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -21,6 +21,7 @@ use super::CACACHE_SCHEME;
 use super::config::CacacheConfig;
 use super::core::CacacheCore;
 use super::deleter::CacacheDeleter;
+use super::reader::*;
 use super::writer::CacacheWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -76,45 +77,9 @@ impl Builder for CacacheBuilder {
 /// Backend for cacache services.
 #[derive(Debug, Clone)]
 pub struct CacacheBackend {
-    core: Arc<CacacheCore>,
-    info: ServiceInfo,
-    capability: Capability,
-}
-
-/// Reader returned by this backend.
-pub struct CacacheReader {
-    backend: CacacheBackend,
-    path: String,
-}
-
-impl CacacheReader {
-    fn new(backend: CacacheBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for CacacheReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let data = backend.core.get(path).await?;
-
-        match data {
-            Some(bytes) => {
-                let content_length = bytes.len() as u64;
-                let buffer = Buffer::from(bytes.slice(range.to_content_range(bytes.len())?));
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
-        }
-    }
+    pub(crate) core: Arc<CacacheCore>,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl Service for CacacheBackend {

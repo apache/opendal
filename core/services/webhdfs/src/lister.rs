@@ -21,7 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::WebhdfsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::message::*;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;

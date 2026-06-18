@@ -23,8 +23,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::PcloudCore;
-use super::error::PcloudError;
-use super::error::parse_error;
+use super::core::PcloudError;
+use super::core::parse_error;
 
 pub type PcloudWriters = oio::OneShotWriter<PcloudWriter>;
 

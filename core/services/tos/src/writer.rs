@@ -22,9 +22,9 @@ use constants::X_TOS_OBJECT_SIZE;
 use constants::X_TOS_VERSION_ID;
 use http::StatusCode;
 
+use crate::core::parse_error;
+use crate::core::tos_parse_etag;
 use crate::core::*;
-use crate::error::parse_error;
-use crate::utils::tos_parse_etag;
 use opendal_core::raw::*;
 use opendal_core::*;
 

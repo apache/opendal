@@ -22,7 +22,7 @@ use http::StatusCode;
 use serde::Deserialize;
 
 use super::core::IpmfsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;

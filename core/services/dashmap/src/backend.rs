@@ -27,6 +27,7 @@ use super::config::DashmapConfig;
 use super::core::DashmapCore;
 use super::deleter::DashmapDeleter;
 use super::lister::DashmapLister;
+use super::reader::*;
 use super::writer::DashmapWriter;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -75,10 +76,10 @@ impl Builder for DashmapBuilder {
 
 #[derive(Debug, Clone)]
 pub struct DashmapBackend {
-    core: Arc<DashmapCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<DashmapCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl DashmapBackend {
@@ -106,44 +107,6 @@ impl DashmapBackend {
             root,
             info,
             capability,
-        }
-    }
-}
-
-/// Reader returned by this backend.
-pub struct DashmapReader {
-    backend: DashmapBackend,
-    path: String,
-}
-
-impl DashmapReader {
-    fn new(backend: DashmapBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for DashmapReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        match backend.core.get(&p)? {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let buffer = value
-                    .content
-                    .slice(range.to_content_range(value.content.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),
         }
     }
 }

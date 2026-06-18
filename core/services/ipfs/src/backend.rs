@@ -18,15 +18,15 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use prost::Message;
 
+use super::reader::*;
 use crate::IPFS_SCHEME;
 use crate::config::IpfsConfig;
 use crate::core::IpfsCore;
-use crate::error::parse_error;
+use crate::core::parse_error;
 use crate::ipld::PBNode;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -139,48 +139,7 @@ impl Builder for IpfsBuilder {
 /// Backend for IPFS.
 #[derive(Clone, Debug)]
 pub struct IpfsBackend {
-    core: Arc<IpfsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct IpfsReader {
-    backend: IpfsBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl IpfsReader {
-    fn new(backend: IpfsBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for IpfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.ipfs_get(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<IpfsCore>,
 }
 
 impl Service for IpfsBackend {

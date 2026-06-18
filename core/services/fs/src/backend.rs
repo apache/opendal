@@ -25,9 +25,7 @@ use super::FS_SCHEME;
 use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
-use super::lister::FsLister;
-use super::writer::FsWriter;
-use super::writer::FsWriters;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -174,154 +172,7 @@ impl Builder for FsBuilder {
 /// FsBackend implements [`Service`] for POSIX-like file systems.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
-    core: Arc<FsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct FsReader {
-    core: Arc<FsCore>,
-    path: String,
-}
-
-impl FsReader {
-    fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-        }
-    }
-}
-
-pub struct FsReaderHandle {
-    core: Arc<FsCore>,
-    file: Arc<File>,
-}
-
-impl FsReaderHandle {
-    fn new(core: Arc<FsCore>, file: File) -> Self {
-        Self {
-            core,
-            file: file.into(),
-        }
-    }
-}
-
-impl oio::PositionRead for FsReader {
-    type Handle = FsReaderHandle;
-
-    async fn open(&self) -> Result<Self::Handle> {
-        let file = self.core.fs_open(&self.path).await?;
-        Ok(FsReaderHandle::new(self.core.clone(), file))
-    }
-
-    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let mut bs = handle.core.buf_pool.get();
-        bs.resize(size, 0);
-
-        let f = handle.file.clone();
-        let (n, mut bs) = tokio::task::spawn_blocking(move || {
-            let n = read_at(&f, &mut bs, offset)?;
-            Ok::<_, Error>((n, bs))
-        })
-        .await
-        .map_err(new_task_join_error)??;
-
-        let frozen = bs.split_to(n).freeze();
-        handle.core.buf_pool.put(bs);
-
-        Ok(Buffer::from(frozen))
-    }
-}
-
-pub struct FsLazyWriter {
-    core: Arc<FsCore>,
-    executor: Executor,
-    path: String,
-    op: OpWrite,
-    inner: Option<FsWriters>,
-}
-
-impl FsLazyWriter {
-    fn new(core: Arc<FsCore>, executor: Executor, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            executor,
-            path: path.to_string(),
-            op,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut FsWriters> {
-        if self.inner.is_none() {
-            let is_append = self.op.append();
-            let concurrent = self.op.concurrent();
-            let writer = FsWriter::create(self.core.clone(), &self.path, self.op.clone()).await?;
-            let writer = if is_append {
-                FsWriters::One(writer)
-            } else {
-                FsWriters::Two(oio::PositionWriter::new(
-                    self.executor.clone(),
-                    writer,
-                    concurrent,
-                ))
-            };
-
-            self.inner = Some(writer);
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for FsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
-    }
-}
-
-pub struct FsLazyLister {
-    core: Arc<FsCore>,
-    path: String,
-    inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
-}
-
-impl FsLazyLister {
-    fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-}
-
-impl oio::List for FsLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if self.inner.is_none() {
-            self.inner = Some(match self.core.fs_list(&self.path).await? {
-                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
-                None => None,
-            });
-        }
-
-        match self.inner.as_mut().expect("lister must be initialized") {
-            Some(lister) => lister.next().await,
-            None => Ok(None),
-        }
-    }
+    pub(crate) core: Arc<FsCore>,
 }
 
 impl Service for FsBackend {
@@ -420,13 +271,13 @@ impl Service for FsBackend {
 }
 
 #[cfg(windows)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::windows::fs::FileExt;
     f.seek_read(buf, offset).map_err(new_std_io_error)
 }
 
 #[cfg(unix)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.read_at(buf, offset).map_err(new_std_io_error)
 }

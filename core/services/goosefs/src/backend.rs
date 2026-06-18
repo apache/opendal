@@ -25,7 +25,7 @@ use super::config::GoosefsConfig;
 use super::core::GoosefsCore;
 use super::deleter::GoosefsDeleter;
 use super::lister::GoosefsLister;
-use super::reader::GoosefsReadStream;
+use super::reader::*;
 use super::writer::GoosefsWriter;
 use super::writer::GoosefsWriters;
 use opendal_core::raw::*;
@@ -294,50 +294,7 @@ impl Builder for GoosefsBuilder {
 
 #[derive(Debug, Clone)]
 pub struct GoosefsBackend {
-    core: Arc<GoosefsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct GoosefsReader {
-    backend: GoosefsBackend,
-    path: String,
-}
-
-impl GoosefsReader {
-    fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GoosefsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-
-        let content_length = if range.offset() != 0 && range.size().is_none() {
-            let file_info = backend.core.get_status(path).await?;
-            Some(
-                backend
-                    .core
-                    .file_info_to_metadata(&file_info)
-                    .content_length(),
-            )
-        } else {
-            None
-        };
-        let rp = RpRead::default();
-        let stream = GoosefsReadStream::new(
-            backend.core.clone(),
-            path.to_string(),
-            range,
-            content_length,
-        );
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<GoosefsCore>,
 }
 
 impl Service for GoosefsBackend {

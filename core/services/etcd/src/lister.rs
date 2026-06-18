@@ -43,7 +43,7 @@ impl EtcdLister {
         let resp = client
             .get(abs_path.as_str(), get_options)
             .await
-            .map_err(super::error::format_etcd_error)?;
+            .map_err(super::core::format_etcd_error)?;
 
         // Collect all keys that match the prefix
         let mut keys = Vec::new();

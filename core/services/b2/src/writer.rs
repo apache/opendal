@@ -24,7 +24,7 @@ use super::core::B2Core;
 use super::core::StartLargeFileResponse;
 use super::core::UploadPartResponse;
 use super::core::UploadResponse;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -23,7 +23,7 @@ use opendal_core::*;
 
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
-use super::error::parse_error;
+use super::core::parse_error;
 
 pub struct UpyunLister {
     core: Arc<UpyunCore>,

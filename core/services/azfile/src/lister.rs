@@ -23,7 +23,7 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use super::core::AzfileCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

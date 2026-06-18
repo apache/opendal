@@ -23,7 +23,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
-use super::error::parse_error;
+use super::core::parse_error;
 
 /// Delete operation
 /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online

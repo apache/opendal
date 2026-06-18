@@ -19,7 +19,6 @@ use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use sha2::Digest;
@@ -27,8 +26,9 @@ use sha2::Digest;
 use super::GHAC_SCHEME;
 use super::config::GhacConfig;
 use super::core::GhacCore;
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
+use super::reader::*;
 use super::writer::GhacLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -199,47 +199,7 @@ fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
 /// Backend for github action cache services.
 #[derive(Debug, Clone)]
 pub struct GhacBackend {
-    core: Arc<GhacCore>,
-}
-
-/// Reader returned by this backend.
-pub struct GhacReader {
-    backend: GhacBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl GhacReader {
-    fn new(backend: GhacBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GhacReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.ghac_read(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<GhacCore>,
 }
 
 impl Service for GhacBackend {

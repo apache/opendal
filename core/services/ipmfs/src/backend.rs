@@ -18,61 +18,146 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
 use super::core::IpmfsCore;
+use super::core::parse_error;
 use super::deleter::IpmfsDeleter;
-use super::error::parse_error;
 use super::lister::IpmfsLister;
+use super::reader::*;
 use super::writer::IpmfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
 #[doc = include_str!("docs.md")]
+use std::fmt::Debug;
+
+use log::debug;
+
+use super::IPMFS_SCHEME;
+use super::config::IpmfsConfig;
+
+/// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] blocking
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `endpoint`: Customizable endpoint setting
+///
+/// You can refer to [`IpmfsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```rust,no_run
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
+/// use opendal_service_ipmfs::Ipmfs;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Ipmfs::default()
+///         .endpoint("http://127.0.0.1:5001");
+///
+///     let op: Operator = Operator::new(builder)?;
+///     Ok(())
+/// }
+/// ```
+#[derive(Default)]
+pub struct IpmfsBuilder {
+    pub(super) config: IpmfsConfig,
+}
+
+impl Debug for IpmfsBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IpmfsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl IpmfsBuilder {
+    /// Set root for ipfs.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Set endpoint for ipfs.
+    ///
+    /// Default: http://localhost:5001
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        self.config.endpoint = if endpoint.is_empty() {
+            None
+        } else {
+            Some(endpoint.to_string())
+        };
+        self
+    }
+}
+
+impl Builder for IpmfsBuilder {
+    type Config = IpmfsConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        debug!("backend use root {root}");
+
+        let endpoint = self
+            .config
+            .endpoint
+            .clone()
+            .unwrap_or_else(|| "http://localhost:5001".to_string());
+
+        let info = ServiceInfo::new(IPMFS_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+
+            write: true,
+            delete: true,
+
+            list: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
+        let accessor_info = info;
+        let core = Arc::new(IpmfsCore {
+            info: accessor_info,
+            capability,
+            root: root.to_string(),
+            endpoint: endpoint.to_string(),
+        });
+
+        Ok(IpmfsBackend { core })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IpmfsBackend {
     pub core: Arc<IpmfsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct IpmfsReader {
-    backend: IpmfsBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl IpmfsReader {
-    fn new(backend: IpmfsBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for IpmfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.ipmfs_read(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (RpRead::default(), resp.into_body()),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
 }
 
 impl Service for IpmfsBackend {

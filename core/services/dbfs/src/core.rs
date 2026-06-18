@@ -26,7 +26,6 @@ use http::StatusCode;
 use http::header;
 use serde_json::json;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -228,3 +227,66 @@ impl DbfsCore {
         Ok(())
     }
 }
+
+mod error {
+    use std::fmt::Debug;
+
+    use http::Response;
+    use http::StatusCode;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// DbfsError is the error returned by DBFS service.
+    #[derive(Default, Deserialize)]
+    struct DbfsError {
+        error_code: String,
+        message: String,
+    }
+
+    impl Debug for DbfsError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("DbfsError")
+                .field("error_code", &self.error_code)
+                // replace `\n` to ` ` for better reading.
+                .field("message", &self.message.replace('\n', " "))
+                .finish()
+        }
+    }
+
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                (ErrorKind::PermissionDenied, false)
+            }
+            StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = match serde_json::from_slice::<DbfsError>(&bs) {
+            Ok(dbfs_error) => format!("{:?}", dbfs_error.message),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

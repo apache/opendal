@@ -20,9 +20,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
+use crate::core::parse_error;
+use crate::core::tos_parse_into_metadata;
 use crate::core::*;
-use crate::error::parse_error;
-use crate::utils::tos_parse_into_metadata;
 use opendal_core::raw::*;
 use opendal_core::*;
 

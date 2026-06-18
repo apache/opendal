@@ -26,6 +26,7 @@ use super::config::RocksdbConfig;
 use super::core::*;
 use super::deleter::RocksdbDeleter;
 use super::lister::RocksdbLister;
+use super::reader::*;
 use super::writer::RocksdbWriter;
 
 /// RocksDB service support.
@@ -80,10 +81,10 @@ impl Builder for RocksdbBuilder {
 /// Backend for rocksdb service.
 #[derive(Clone, Debug)]
 pub struct RocksdbBackend {
-    core: Arc<RocksdbCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<RocksdbCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl RocksdbBackend {
@@ -113,41 +114,6 @@ impl RocksdbBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct RocksdbReader {
-    backend: RocksdbBackend,
-    path: String,
-}
-
-impl RocksdbReader {
-    fn new(backend: RocksdbBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for RocksdbReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

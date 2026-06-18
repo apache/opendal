@@ -24,7 +24,7 @@ use super::core::InitiateMultipartUploadResponse;
 use super::core::Part;
 use super::core::UploadPartResponse;
 use super::core::VercelBlobCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -22,7 +22,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::CloudflareKvCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::model::{CfKvListKey, CfKvListResponse};
 
 pub struct CloudflareKvLister {

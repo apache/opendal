@@ -19,16 +19,16 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::WEBDAV_SCHEME;
 use super::config::WebdavConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::WebdavDeleter;
-use super::error::parse_error;
 use super::lister::WebdavLister;
+use super::reader::*;
 use super::writer::WebdavWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -240,54 +240,7 @@ impl Builder for WebdavBuilder {
 
 #[derive(Clone, Debug)]
 pub struct WebdavBackend {
-    core: Arc<WebdavCore>,
-}
-
-/// Reader returned by this backend.
-pub struct WebdavReader {
-    backend: WebdavBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl WebdavReader {
-    fn new(backend: WebdavBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for WebdavReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .webdav_get(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<WebdavCore>,
 }
 
 impl Service for WebdavBackend {

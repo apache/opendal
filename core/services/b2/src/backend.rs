@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use http::Request;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use mea::rwlock::RwLock;
@@ -29,10 +28,11 @@ use super::config::B2Config;
 use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;
+use super::core::parse_error;
 use super::core::parse_file_info;
 use super::deleter::B2Deleter;
-use super::error::parse_error;
 use super::lister::B2Lister;
+use super::reader::*;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
 use opendal_core::raw::*;
@@ -215,53 +215,7 @@ impl Builder for B2Builder {
 /// Backend for b2 services.
 #[derive(Debug, Clone)]
 pub struct B2Backend {
-    core: Arc<B2Core>,
-}
-
-/// Reader returned by this backend.
-pub struct B2Reader {
-    backend: B2Backend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl B2Reader {
-    fn new(backend: B2Backend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for B2Reader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .download_file_by_name(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<B2Core>,
 }
 
 impl Service for B2Backend {

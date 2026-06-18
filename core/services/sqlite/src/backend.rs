@@ -25,6 +25,7 @@ use super::SQLITE_SCHEME;
 use super::config::SqliteConfig;
 use super::core::SqliteCore;
 use super::deleter::SqliteDeleter;
+use super::reader::*;
 use super::writer::SqliteWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -170,10 +171,10 @@ pub fn parse_sqlite_error(err: sqlx::Error) -> Error {
 /// SqliteBackend implements [`Service`] for SQLite-backed object storage.
 #[derive(Debug, Clone)]
 pub struct SqliteBackend {
-    core: Arc<SqliteCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<SqliteCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl SqliteBackend {
@@ -203,73 +204,6 @@ impl SqliteBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct SqliteReader {
-    backend: SqliteBackend,
-    path: String,
-}
-
-impl SqliteReader {
-    fn new(backend: SqliteBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for SqliteReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        let (buffer, content_length) = if range.is_full() {
-            // Full read - use GET
-            match backend.core.get(&p).await? {
-                Some(bs) => {
-                    let content_length = bs.len() as u64;
-                    (bs, content_length)
-                }
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let content_length = match backend.core.get_length(&p).await? {
-                Some(v) => v,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            };
-            let content_range = range.to_content_range(content_length)?;
-
-            let buffer = if content_range.is_empty() {
-                Buffer::new()
-            } else {
-                let start: isize = content_range.start.try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                let limit: isize = content_range.len().try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range size exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                match backend.core.get_range(&p, start, Some(limit)).await? {
-                    Some((bs, _)) => bs,
-                    None => {
-                        return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
-                    }
-                }
-            };
-            (buffer, content_length as u64)
-        };
-
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

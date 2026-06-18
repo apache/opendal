@@ -22,8 +22,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use super::core::OpfsCore;
-use super::error::*;
-use super::utils::*;
+use super::core::*;
+use super::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 

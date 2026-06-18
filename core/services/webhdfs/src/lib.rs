@@ -27,9 +27,9 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
 mod message;
+mod reader;
 mod writer;
 
 pub use backend::WebhdfsBuilder as Webhdfs;

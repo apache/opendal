@@ -18,15 +18,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use log::debug;
 
 use super::ALLUXIO_SCHEME;
 use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
 use super::deleter::AlluxioDeleter;
-use super::error::parse_error;
 use super::lister::AlluxioLister;
+use super::reader::*;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use opendal_core::raw::*;
@@ -125,44 +124,7 @@ impl Builder for AlluxioBuilder {
 
 #[derive(Debug, Clone)]
 pub struct AlluxioBackend {
-    core: Arc<AlluxioCore>,
-}
-
-/// Reader returned by this backend.
-pub struct AlluxioReader {
-    backend: AlluxioBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl AlluxioReader {
-    fn new(backend: AlluxioBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for AlluxioReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let stream_id = backend.core.open_file(&self.ctx, path).await?;
-
-        let resp = backend.core.read(&self.ctx, stream_id, range).await?;
-        if !resp.status().is_success() {
-            let (part, mut body) = resp.into_parts();
-            let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)));
-        }
-
-        let rp = RpRead::new(parse_into_metadata(path, resp.headers())?);
-        let stream = resp.into_body();
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<AlluxioCore>,
 }
 
 impl Service for AlluxioBackend {

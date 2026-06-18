@@ -28,7 +28,6 @@ use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -701,3 +700,47 @@ pub struct GetUploadRequest<'a> {
 pub struct PartInfoItem {
     part_number: Option<usize>,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use serde::Deserialize;
+
+    use opendal_core::*;
+
+    #[derive(Default, Debug, Deserialize)]
+    struct AliyunDriveError {
+        code: String,
+        message: String,
+    }
+
+    pub(crate) fn parse_error(res: Response<Buffer>) -> Error {
+        let (parts, body) = res.into_parts();
+        let bs = body.to_bytes();
+        let (code, message) = serde_json::from_reader::<_, AliyunDriveError>(bs.clone().reader())
+            .map(|err| (Some(err.code), err.message))
+            .unwrap_or((None, String::from_utf8_lossy(&bs).into_owned()));
+        let (kind, retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            400 => match code {
+                Some(code) if code == "NotFound.File" => (ErrorKind::NotFound, false),
+                Some(code) if code == "AlreadyExist.File" => (ErrorKind::AlreadyExists, false),
+                Some(code) if code == "PreHashMatched" => (ErrorKind::IsSameFile, false),
+                _ => (ErrorKind::Unexpected, false),
+            },
+            409 => (ErrorKind::AlreadyExists, false),
+            429 => match code {
+                Some(code) if code == "TooManyRequests" => (ErrorKind::RateLimited, true),
+                _ => (ErrorKind::Unexpected, false),
+            },
+            _ => (ErrorKind::Unexpected, false),
+        };
+        let mut err = Error::new(kind, message);
+        if retryable {
+            err = err.set_temporary();
+        }
+        err
+    }
+}
+
+pub(super) use error::*;

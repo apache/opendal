@@ -25,6 +25,7 @@ use super::config::MokaConfig;
 use super::core::*;
 use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
+use super::reader::*;
 use super::writer::MokaWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -181,10 +182,10 @@ impl Builder for MokaBuilder {
 
 #[derive(Debug, Clone)]
 pub struct MokaBackend {
-    core: Arc<MokaCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<MokaCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl MokaBackend {
@@ -217,44 +218,6 @@ impl MokaBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct MokaReader {
-    backend: MokaBackend,
-    path: String,
-}
-
-impl MokaReader {
-    fn new(backend: MokaBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for MokaReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        match backend.core.get(&p).await? {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let buffer = value
-                    .content
-                    .slice(range.to_content_range(value.content.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
-        }
     }
 }
 

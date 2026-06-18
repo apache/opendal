@@ -23,7 +23,8 @@
 mod backend;
 mod config;
 mod core;
-mod delete;
+mod deleter;
+mod reader;
 mod writer;
 
 pub use backend::RedisBuilder as Redis;

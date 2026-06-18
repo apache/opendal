@@ -19,16 +19,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::YANDEX_DISK_SCHEME;
 use super::config::YandexDiskConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::YandexDiskDeleter;
-use super::error::parse_error;
 use super::lister::YandexDiskLister;
+use super::reader::*;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use opendal_core::raw::*;
@@ -128,47 +128,7 @@ impl Builder for YandexDiskBuilder {
 /// Backend for YandexDisk services.
 #[derive(Debug, Clone)]
 pub struct YandexDiskBackend {
-    core: Arc<YandexDiskCore>,
-}
-
-/// Reader returned by this backend.
-pub struct YandexDiskReader {
-    backend: YandexDiskBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl YandexDiskReader {
-    fn new(backend: YandexDiskBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for YandexDiskReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.download(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<YandexDiskCore>,
 }
 
 impl Service for YandexDiskBackend {

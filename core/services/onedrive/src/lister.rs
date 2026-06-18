@@ -24,7 +24,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;

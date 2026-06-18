@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
-use http::StatusCode;
 use log::debug;
 use reqsign_core::Context;
 use reqsign_core::Env as _;
@@ -42,10 +40,11 @@ use super::config::GcsConfig;
 use super::copier::GcsCopier;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
 use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::GcsDeleter;
-use super::error::parse_error;
 use super::lister::GcsLister;
+use super::reader::*;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
@@ -422,56 +421,7 @@ impl Builder for GcsBuilder {
 /// GCS storage backend
 #[derive(Clone, Debug)]
 pub struct GcsBackend {
-    core: Arc<GcsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct GcsReader {
-    backend: GcsBackend,
-    // StreamReader opens requests lazily, so keep the per-operation context
-    // available for later range requests.
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl GcsReader {
-    fn new(backend: GcsBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for GcsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .gcs_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<GcsCore>,
 }
 
 impl Service for GcsBackend {

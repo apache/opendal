@@ -91,8 +91,8 @@ impl oio::BatchDelete for HfDeleter {
 mod tests {
     use serde_json::Value;
 
+    use super::super::core::HfRepoType;
     use super::super::core::test_utils::create_test_core;
-    use super::super::uri::HfRepoType;
     use super::*;
     use opendal_core::raw::oio::BatchDelete;
 

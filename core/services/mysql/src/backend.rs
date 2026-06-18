@@ -26,6 +26,7 @@ use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
 use super::lister::MysqlLazyLister;
+use super::reader::*;
 use super::writer::MysqlWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -152,10 +153,10 @@ impl Builder for MysqlBuilder {
 /// Backend for mysql service
 #[derive(Clone, Debug)]
 pub struct MysqlBackend {
-    core: Arc<MysqlCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<MysqlCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl MysqlBackend {
@@ -185,39 +186,6 @@ impl MysqlBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct MysqlReader {
-    backend: MysqlBackend,
-    path: String,
-}
-
-impl MysqlReader {
-    fn new(backend: MysqlBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for MysqlReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in mysql")),
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

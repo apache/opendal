@@ -18,14 +18,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::HTTP_SCHEME;
 use super::config::HttpConfig;
 use super::core::HttpCore;
-use super::error::parse_error;
+use super::core::parse_error;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -166,51 +166,7 @@ impl Builder for HttpBuilder {
 /// HttpBackend implements [`Service`] for read-only HTTP directory listings and files.
 #[derive(Clone, Debug)]
 pub struct HttpBackend {
-    core: Arc<HttpCore>,
-}
-
-/// Reader returned by this backend.
-pub struct HttpReader {
-    backend: HttpBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl HttpReader {
-    fn new(backend: HttpBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for HttpReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend.core.http_get(&self.ctx, path, range, &args).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<HttpCore>,
 }
 
 impl Service for HttpBackend {

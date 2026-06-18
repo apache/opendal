@@ -18,66 +18,180 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 
 use super::core::*;
 use super::deleter::DropboxDeleter;
-use super::error::*;
 use super::lister::DropboxLister;
+use super::reader::*;
 use super::writer::DropboxWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-#[derive(Clone, Debug)]
-pub struct DropboxBackend {
-    pub core: Arc<DropboxCore>,
+use std::fmt::Debug;
+
+use mea::mutex::Mutex;
+
+use super::DROPBOX_SCHEME;
+use super::config::DropboxConfig;
+use super::core::DropboxCore;
+use super::core::DropboxSigner;
+
+/// [Dropbox](https://www.dropbox.com/) backend support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct DropboxBuilder {
+    pub(super) config: DropboxConfig,
 }
 
-/// Reader returned by this backend.
-pub struct DropboxReader {
-    backend: DropboxBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl DropboxReader {
-    fn new(backend: DropboxBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
+impl Debug for DropboxBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
-impl oio::StreamRead for DropboxReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .dropbox_get(&self.ctx, path, range, &args)
-            .await?;
+impl DropboxBuilder {
+    /// Set the root directory for dropbox.
+    ///
+    /// Default to `/` if not set.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
+        self
+    }
+
+    /// Access token is used for temporary access to the Dropbox API.
+    ///
+    /// You can get the access token from [Dropbox App Console](https://www.dropbox.com/developers/apps)
+    ///
+    /// NOTE: this token will be expired in 4 hours.
+    /// If you are trying to use the Dropbox service in a long time, please set a refresh_token instead.
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
+        self
+    }
+
+    /// Refresh token is used for long term access to the Dropbox API.
+    ///
+    /// You can get the refresh token via OAuth 2.0 Flow of Dropbox.
+    ///
+    /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
+        self.config.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client id for Dropbox.
+    ///
+    /// This is required for OAuth 2.0 Flow to refresh the access token.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        self.config.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client secret for Dropbox.
+    ///
+    /// This is required for OAuth 2.0 Flow with refresh the access token.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+}
+
+impl Builder for DropboxBuilder {
+    type Config = DropboxConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+
+        let signer = match (self.config.access_token, self.config.refresh_token) {
+            (Some(access_token), None) => DropboxSigner {
+                access_token,
+                // We will never expire user specified token.
+                expires_in: Timestamp::MAX,
+                ..Default::default()
+            },
+            (None, Some(refresh_token)) => {
+                let client_id = self.config.client_id.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", DROPBOX_SCHEME)
+                })?;
+                let client_secret = self.config.client_secret.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_secret must be set when refresh_token is set",
+                    )
+                    .with_context("service", DROPBOX_SCHEME)
+                })?;
+
+                DropboxSigner {
+                    refresh_token,
+                    client_id,
+                    client_secret,
+                    ..Default::default()
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token and refresh_token can not be set at the same time",
+                )
+                .with_context("service", DROPBOX_SCHEME));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", DROPBOX_SCHEME));
             }
         };
 
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        Ok(DropboxBackend {
+            core: Arc::new(DropboxCore {
+                info: ServiceInfo::new(DROPBOX_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
+
+                    read: true,
+                    read_with_suffix: true,
+
+                    write: true,
+
+                    create_dir: true,
+
+                    delete: true,
+
+                    list: true,
+                    list_with_recursive: true,
+
+                    copy: true,
+
+                    rename: true,
+
+                    shared: true,
+
+                    ..Default::default()
+                },
+                root,
+                signer: Arc::new(Mutex::new(signer)),
+            }),
+        })
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct DropboxBackend {
+    pub core: Arc<DropboxCore>,
 }
 
 impl Service for DropboxBackend {

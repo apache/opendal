@@ -29,7 +29,6 @@ use serde::Serialize;
 use serde_json::json;
 
 use self::constants::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -474,3 +473,102 @@ pub struct InitiateMultipartUploadResponse {
 pub struct UploadPartResponse {
     pub etag: String,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// VercelBlobError is the error returned by VercelBlob service.
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default)]
+    struct VercelBlobError {
+        error: VercelBlobErrorDetail,
+    }
+
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default)]
+    struct VercelBlobErrorDetail {
+        code: String,
+        message: Option<String>,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, _vercel_blob_err) =
+            de::from_reader::<_, VercelBlobError>(bs.clone().reader())
+                .map(|vercel_blob_err| (format!("{vercel_blob_err:?}"), Some(vercel_blob_err)))
+                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![(
+                r#"{
+                    "error": {
+                        "code": "forbidden",
+                        "message": "Invalid token"
+                    }
+                }"#,
+                ErrorKind::PermissionDenied,
+                StatusCode::FORBIDDEN,
+            )];
+
+            for res in err_res {
+                let body = Buffer::from(res.0.as_bytes().to_vec());
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+
+            let bs = bytes::Bytes::from(
+                r#"{
+                "error": {
+                    "code": "forbidden",
+                    "message": "Invalid token"
+                }
+            }"#,
+            );
+
+            let out: VercelBlobError = serde_json::from_reader(bs.reader()).expect("must success");
+            println!("{out:?}");
+
+            assert_eq!(out.error.code, "forbidden");
+            assert_eq!(out.error.message, Some("Invalid token".to_string()));
+        }
+    }
+}
+
+pub(super) use error::*;

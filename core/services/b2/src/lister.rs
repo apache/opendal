@@ -21,8 +21,8 @@ use bytes::Buf;
 
 use super::core::B2Core;
 use super::core::ListFileNamesResponse;
+use super::core::parse_error;
 use super::core::parse_file_info;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -22,7 +22,7 @@ use http::StatusCode;
 use uuid::Uuid;
 
 use super::core::WebhdfsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use crate::message::FileStatusWrapper;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;

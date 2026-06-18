@@ -23,11 +23,12 @@ use web_sys::File;
 
 use super::config::OpfsConfig;
 use super::core::OpfsCore;
+use super::core::*;
+use super::core::*;
 use super::deleter::OpfsDeleter;
-use super::error::*;
 use super::lister::OpfsLister;
 use super::reader::OpfsReadStream;
-use super::utils::*;
+use super::reader::*;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -63,36 +64,7 @@ impl Builder for OpfsBuilder {
 /// OPFS Service backend
 #[derive(Debug, Clone)]
 pub struct OpfsBackend {
-    core: Arc<OpfsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct OpfsReader {
-    backend: OpfsBackend,
-    path: String,
-}
-
-impl OpfsReader {
-    fn new(backend: OpfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for OpfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-
-        let p = build_abs_path(&backend.core.root, path);
-        let handle = get_file_handle(&p, false).await?;
-        let rp = RpRead::default();
-        let stream = OpfsReadStream::new(handle, range);
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<OpfsCore>,
 }
 
 impl Service for OpfsBackend {

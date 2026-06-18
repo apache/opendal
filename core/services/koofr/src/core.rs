@@ -31,7 +31,6 @@ use mea::once::OnceCell;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -493,3 +492,63 @@ pub struct File {
     pub modified: i64,
     pub content_type: String,
 }
+
+mod error {
+    use http::Response;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            304 | 412 => (ErrorKind::ConditionNotMatch, false),
+            // Service like Koofr could return 499 error with a message like:
+            // Client Disconnect, we should retry it.
+            499 => (ErrorKind::Unexpected, true),
+            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = String::from_utf8_lossy(&bs).into_owned();
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![(r#""#, ErrorKind::NotFound, StatusCode::NOT_FOUND)];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

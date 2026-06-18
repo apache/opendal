@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign_azure_storage::DefaultCredentialProvider;
@@ -35,9 +34,10 @@ use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
+use super::core::parse_error;
 use super::deleter::AzdlsDeleter;
-use super::error::parse_error;
 use super::lister::AzdlsLister;
+use super::reader::*;
 use super::writer::AzdlsLazyPositionWriter;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
@@ -366,53 +366,7 @@ impl Builder for AzdlsBuilder {
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct AzdlsBackend {
-    core: Arc<AzdlsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct AzdlsReader {
-    backend: AzdlsBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl AzdlsReader {
-    fn new(backend: AzdlsBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for AzdlsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .azdls_read(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<AzdlsCore>,
 }
 
 impl Service for AzdlsBackend {

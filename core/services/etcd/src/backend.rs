@@ -28,6 +28,7 @@ use super::core::EtcdCore;
 use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
 use super::lister::EtcdLazyLister;
+use super::reader::*;
 use super::writer::EtcdWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -171,9 +172,9 @@ impl EtcdBuilder {
 
 #[derive(Debug, Clone)]
 pub struct EtcdBackend {
-    core: Arc<EtcdCore>,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<EtcdCore>,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl EtcdBackend {
@@ -198,43 +199,6 @@ impl EtcdBackend {
             core: Arc::new(core),
             info,
             capability,
-        }
-    }
-}
-
-/// Reader returned by this backend.
-pub struct EtcdReader {
-    backend: EtcdBackend,
-    path: String,
-}
-
-impl EtcdReader {
-    fn new(backend: EtcdBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for EtcdReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.info.root(), path);
-
-        match backend.core.get(&abs_path).await? {
-            Some(buffer) => {
-                let total_size = buffer.len() as u64;
-                let sliced_buffer = buffer.slice(range.to_content_range(buffer.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(sliced_buffer) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }
     }
 }

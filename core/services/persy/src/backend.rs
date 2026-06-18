@@ -22,6 +22,7 @@ use super::PERSY_SCHEME;
 use super::config::PersyConfig;
 use super::core::*;
 use super::deleter::PersyDeleter;
+use super::reader::*;
 use super::writer::PersyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -120,10 +121,10 @@ impl Builder for PersyBuilder {
 /// Backend for persy services.
 #[derive(Clone, Debug)]
 pub struct PersyBackend {
-    core: Arc<PersyCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<PersyCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl PersyBackend {
@@ -145,41 +146,6 @@ impl PersyBackend {
             info,
             capability,
         }
-    }
-}
-
-/// Reader returned by this backend.
-pub struct PersyReader {
-    backend: PersyBackend,
-    path: String,
-}
-
-impl PersyReader {
-    fn new(backend: PersyBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for PersyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in persy"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

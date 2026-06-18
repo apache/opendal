@@ -24,10 +24,10 @@ use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
 use super::core::HfDownloadMode;
+use super::core::{HfRepo, HfRepoType};
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
-use super::reader::HfReadStream;
-use super::uri::{HfRepo, HfRepoType};
+use super::reader::*;
 use super::writer::HfLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -255,32 +255,6 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
-/// Reader returned by this backend.
-pub struct HfReader {
-    backend: HfBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl HfReader {
-    fn new(backend: HfBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for HfReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let (rp, stream) = HfReadStream::try_new(&backend.core, &self.ctx, path, range).await?;
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
 impl Service for HfBackend {
     type Reader = oio::StreamReader<HfReader>;
     type Writer = HfLazyWriter;
@@ -412,7 +386,7 @@ pub(super) mod test_utils {
     use std::sync::Arc;
 
     use super::super::core::{HfCore, HfDownloadMode};
-    use super::super::uri::{HfRepo, HfRepoType};
+    use super::super::core::{HfRepo, HfRepoType};
     use super::HfBuilder;
     use opendal_core::Capability;
     use opendal_core::HttpTransporter;

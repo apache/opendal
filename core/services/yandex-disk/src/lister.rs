@@ -21,8 +21,8 @@ use bytes::Buf;
 
 use super::core::MetainformationResponse;
 use super::core::YandexDiskCore;
+use super::core::parse_error;
 use super::core::parse_info;
-use super::error::parse_error;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;

@@ -20,7 +20,6 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::*;
-use super::error::*;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;

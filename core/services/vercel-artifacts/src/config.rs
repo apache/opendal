@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::builder::VercelArtifactsBuilder;
+use super::backend::VercelArtifactsBuilder;
 
 /// Config for Vercel Cache support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

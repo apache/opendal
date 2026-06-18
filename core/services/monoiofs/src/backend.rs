@@ -92,29 +92,26 @@ pub struct MonoiofsBackend {
     core: Arc<MonoiofsCore>,
 }
 
-pub struct MonoiofsLazyReader {
+pub struct MonoiofsPositionReader {
     core: Arc<MonoiofsCore>,
     path: PathBuf,
 }
 
-impl MonoiofsLazyReader {
+impl MonoiofsPositionReader {
     fn new(core: Arc<MonoiofsCore>, path: PathBuf) -> Self {
         Self { core, path }
     }
-
-    async fn reader(&self) -> Result<oio::PositionReader<MonoiofsReader>> {
-        let reader = MonoiofsReader::new(self.core.clone(), self.path.clone()).await?;
-        Ok(oio::PositionReader::new(reader))
-    }
 }
 
-impl oio::Read for MonoiofsLazyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.reader().await?.open(range).await
+impl oio::PositionRead for MonoiofsPositionReader {
+    type Handle = MonoiofsReader;
+
+    async fn open(&self) -> Result<Self::Handle> {
+        MonoiofsReader::new(self.core.clone(), self.path.clone()).await
     }
 
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.reader().await?.read(range).await
+    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
+        handle.read_at(offset, size).await
     }
 }
 
@@ -170,7 +167,7 @@ impl oio::Write for MonoiofsLazyWriter {
 }
 
 impl Service for MonoiofsBackend {
-    type Reader = MonoiofsLazyReader;
+    type Reader = oio::PositionReader<MonoiofsPositionReader>;
     type Writer = MonoiofsLazyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
@@ -207,7 +204,10 @@ impl Service for MonoiofsBackend {
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
         let path = self.core.prepare_path(path)?;
-        Ok(MonoiofsLazyReader::new(self.core.clone(), path))
+        Ok(oio::PositionReader::new(MonoiofsPositionReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {

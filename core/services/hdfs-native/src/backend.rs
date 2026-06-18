@@ -163,17 +163,38 @@ pub struct HdfsNativeBackend {
 
 /// Reader returned by this backend.
 pub struct HdfsNativeReader {
-    file: hdfs_native::file::FileReader,
+    core: Arc<HdfsNativeCore>,
+    path: String,
 }
 
 impl HdfsNativeReader {
+    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+        }
+    }
+}
+
+pub struct HdfsNativeReaderHandle {
+    file: hdfs_native::file::FileReader,
+}
+
+impl HdfsNativeReaderHandle {
     fn new(file: hdfs_native::file::FileReader) -> Self {
         Self { file }
     }
 }
 
 impl oio::PositionRead for HdfsNativeReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    type Handle = HdfsNativeReaderHandle;
+
+    async fn open(&self) -> Result<Self::Handle> {
+        let file = self.core.hdfs_open(&self.path).await?;
+        Ok(HdfsNativeReaderHandle::new(file))
+    }
+
+    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
         if size == 0 {
             return Ok(Buffer::new());
         }
@@ -182,48 +203,19 @@ impl oio::PositionRead for HdfsNativeReader {
             return Ok(Buffer::new());
         };
 
-        let file_length = self.file.file_length();
+        let file_length = handle.file.file_length();
         if offset >= file_length {
             return Ok(Buffer::new());
         }
 
         let size = size.min(file_length - offset);
-        let bytes = self
+        let bytes = handle
             .file
             .read_range(offset, size)
             .await
             .map_err(parse_hdfs_error)?;
 
         Ok(Buffer::from(bytes))
-    }
-}
-
-pub struct HdfsNativeLazyReader {
-    core: Arc<HdfsNativeCore>,
-    path: String,
-}
-
-impl HdfsNativeLazyReader {
-    fn new(core: Arc<HdfsNativeCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-        }
-    }
-
-    async fn reader(&self) -> Result<oio::PositionReader<HdfsNativeReader>> {
-        let file = self.core.hdfs_open(&self.path).await?;
-        Ok(oio::PositionReader::new(HdfsNativeReader::new(file)))
-    }
-}
-
-impl oio::Read for HdfsNativeLazyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.reader().await?.open(range).await
-    }
-
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.reader().await?.read(range).await
     }
 }
 
@@ -306,7 +298,7 @@ impl oio::List for HdfsNativeLazyLister {
 }
 
 impl Service for HdfsNativeBackend {
-    type Reader = HdfsNativeLazyReader;
+    type Reader = oio::PositionReader<HdfsNativeReader>;
     type Writer = HdfsNativeLazyWriter;
     type Lister = HdfsNativeLazyLister;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -335,7 +327,10 @@ impl Service for HdfsNativeBackend {
         Ok(RpStat::new(m))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(HdfsNativeLazyReader::new(self.core.clone(), path))
+        Ok(oio::PositionReader::new(HdfsNativeReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {

@@ -125,51 +125,30 @@ pub struct CompfsBackend {
 /// Reader returned by this backend.
 pub struct CompfsReader {
     core: Arc<CompfsCore>,
-    file: compio::fs::File,
+    path: PathBuf,
 }
 
 impl CompfsReader {
+    fn new(core: Arc<CompfsCore>, path: PathBuf) -> Self {
+        Self { core, path }
+    }
+}
+
+pub struct CompfsReaderHandle {
+    core: Arc<CompfsCore>,
+    file: compio::fs::File,
+}
+
+impl CompfsReaderHandle {
     fn new(core: Arc<CompfsCore>, file: compio::fs::File) -> Self {
         Self { core, file }
     }
 }
 
 impl oio::PositionRead for CompfsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
+    type Handle = CompfsReaderHandle;
 
-        let mut bs = self.core.buf_pool.get();
-        bs.reserve(size);
-
-        let file = self.file.clone();
-        let (n, mut bs) = self
-            .core
-            .exec(move || async move {
-                let (n, bs) = buf_try!(@try file.read_at(bs.slice(..size), offset).await);
-                Ok((n, bs.into_inner()))
-            })
-            .await?;
-
-        let frozen = bs.split_to(n).freeze();
-        self.core.buf_pool.put(bs);
-
-        Ok(CompfsBuffer::from(Buffer::from(frozen)).into())
-    }
-}
-
-pub struct CompfsLazyReader {
-    core: Arc<CompfsCore>,
-    path: PathBuf,
-}
-
-impl CompfsLazyReader {
-    fn new(core: Arc<CompfsCore>, path: PathBuf) -> Self {
-        Self { core, path }
-    }
-
-    async fn reader(&self) -> Result<oio::PositionReader<CompfsReader>> {
+    async fn open(&self) -> Result<Self::Handle> {
         let path = self.path.clone();
         let file = self
             .core
@@ -182,20 +161,30 @@ impl CompfsLazyReader {
             })
             .await?;
 
-        Ok(oio::PositionReader::new(CompfsReader::new(
-            self.core.clone(),
-            file,
-        )))
-    }
-}
-
-impl oio::Read for CompfsLazyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.reader().await?.open(range).await
+        Ok(CompfsReaderHandle::new(self.core.clone(), file))
     }
 
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.reader().await?.read(range).await
+    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
+        }
+
+        let mut bs = handle.core.buf_pool.get();
+        bs.reserve(size);
+
+        let file = handle.file.clone();
+        let (n, mut bs) = handle
+            .core
+            .exec(move || async move {
+                let (n, bs) = buf_try!(@try file.read_at(bs.slice(..size), offset).await);
+                Ok((n, bs.into_inner()))
+            })
+            .await?;
+
+        let frozen = bs.split_to(n).freeze();
+        handle.core.buf_pool.put(bs);
+
+        Ok(CompfsBuffer::from(Buffer::from(frozen)).into())
     }
 }
 
@@ -306,7 +295,7 @@ impl oio::List for CompfsLazyLister {
 }
 
 impl Service for CompfsBackend {
-    type Reader = CompfsLazyReader;
+    type Reader = oio::PositionReader<CompfsReader>;
     type Writer = CompfsLazyWriter;
     type Lister = CompfsLazyLister;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
@@ -422,10 +411,10 @@ impl Service for CompfsBackend {
         Ok(RpRename::default())
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(CompfsLazyReader::new(
+        Ok(oio::PositionReader::new(CompfsReader::new(
             self.core.clone(),
             self.core.prepare_path(path)?,
-        ))
+        )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {

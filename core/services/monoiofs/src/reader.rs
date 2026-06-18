@@ -94,11 +94,11 @@ impl MonoiofsReader {
     }
 }
 
-impl oio::PositionRead for MonoiofsReader {
+impl MonoiofsReader {
     /// Send read request to worker thread and wait for result. Actual
     /// read happens in [`MonoiofsReader::worker_entrypoint`] running
     /// on worker thread.
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    pub async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
         if size == 0 {
             return Ok(Buffer::new());
         }

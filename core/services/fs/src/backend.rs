@@ -180,10 +180,24 @@ pub struct FsBackend {
 /// Reader returned by this backend.
 pub struct FsReader {
     core: Arc<FsCore>,
-    file: Arc<File>,
+    path: String,
 }
 
 impl FsReader {
+    fn new(core: Arc<FsCore>, path: &str) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+        }
+    }
+}
+
+pub struct FsReaderHandle {
+    core: Arc<FsCore>,
+    file: Arc<File>,
+}
+
+impl FsReaderHandle {
     fn new(core: Arc<FsCore>, file: File) -> Self {
         Self {
             core,
@@ -193,15 +207,22 @@ impl FsReader {
 }
 
 impl oio::PositionRead for FsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
+    type Handle = FsReaderHandle;
+
+    async fn open(&self) -> Result<Self::Handle> {
+        let file = self.core.fs_open(&self.path).await?;
+        Ok(FsReaderHandle::new(self.core.clone(), file))
+    }
+
+    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
         if size == 0 {
             return Ok(Buffer::new());
         }
 
-        let mut bs = self.core.buf_pool.get();
+        let mut bs = handle.core.buf_pool.get();
         bs.resize(size, 0);
 
-        let f = self.file.clone();
+        let f = handle.file.clone();
         let (n, mut bs) = tokio::task::spawn_blocking(move || {
             let n = read_at(&f, &mut bs, offset)?;
             Ok::<_, Error>((n, bs))
@@ -210,48 +231,9 @@ impl oio::PositionRead for FsReader {
         .map_err(new_task_join_error)??;
 
         let frozen = bs.split_to(n).freeze();
-        self.core.buf_pool.put(bs);
+        handle.core.buf_pool.put(bs);
 
         Ok(Buffer::from(frozen))
-    }
-}
-
-pub struct FsLazyReader {
-    core: Arc<FsCore>,
-    path: String,
-    // Open the file once and reuse the same handle across every read operation
-    reader: tokio::sync::OnceCell<oio::PositionReader<FsReader>>,
-}
-
-impl FsLazyReader {
-    fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            reader: tokio::sync::OnceCell::new(),
-        }
-    }
-
-    async fn reader(&self) -> Result<&oio::PositionReader<FsReader>> {
-        self.reader
-            .get_or_try_init(|| async {
-                let file = self.core.fs_open(&self.path).await?;
-                Ok(oio::PositionReader::new(FsReader::new(
-                    self.core.clone(),
-                    file,
-                )))
-            })
-            .await
-    }
-}
-
-impl oio::Read for FsLazyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.reader().await?.open(range).await
-    }
-
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.reader().await?.read(range).await
     }
 }
 
@@ -343,7 +325,7 @@ impl oio::List for FsLazyLister {
 }
 
 impl Service for FsBackend {
-    type Reader = FsLazyReader;
+    type Reader = oio::PositionReader<FsReader>;
     type Writer = FsLazyWriter;
     type Lister = FsLazyLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -373,7 +355,10 @@ impl Service for FsBackend {
     }
 
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(FsLazyReader::new(self.core.clone(), path))
+        Ok(oio::PositionReader::new(FsReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {

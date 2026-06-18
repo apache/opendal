@@ -25,7 +25,6 @@ use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
-use super::reader::HdfsReadStream;
 use super::writer::HdfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -193,29 +192,53 @@ pub struct HdfsBackend {
 
 /// Reader returned by this backend.
 pub struct HdfsReader {
-    backend: HdfsBackend,
+    core: Arc<HdfsCore>,
     path: String,
 }
 
 impl HdfsReader {
-    fn new(backend: HdfsBackend, path: &str, _: OpRead) -> Self {
+    fn new(core: Arc<HdfsCore>, path: &str) -> Self {
         Self {
-            backend,
+            core,
             path: path.to_string(),
         }
     }
 }
 
-impl oio::StreamRead for HdfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
+pub struct HdfsReaderHandle {
+    file: Arc<hdrs::File>,
+}
 
-        let f = backend.core.hdfs_read(path, range).await?;
-        let rp = RpRead::default();
-        let stream = HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _);
+impl HdfsReaderHandle {
+    fn new(file: hdrs::File) -> Self {
+        Self { file: file.into() }
+    }
+}
 
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+impl oio::PositionRead for HdfsReader {
+    type Handle = HdfsReaderHandle;
+
+    async fn open(&self) -> Result<Self::Handle> {
+        let file = self.core.hdfs_open(&self.path).await?;
+        Ok(HdfsReaderHandle::new(file))
+    }
+
+    async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
+        }
+
+        let file = handle.file.clone();
+        let buf = tokio::task::spawn_blocking(move || {
+            let mut buf = vec![0; size];
+            let n = file.read_at(&mut buf, offset).map_err(new_std_io_error)?;
+            buf.truncate(n);
+            Ok::<_, Error>(Buffer::from(buf))
+        })
+        .await
+        .map_err(|e| Error::new(ErrorKind::Unexpected, "tokio task join failed").set_source(e))??;
+
+        Ok(buf)
     }
 }
 
@@ -270,7 +293,7 @@ impl oio::Write for HdfsLazyWriter {
 }
 
 impl Service for HdfsBackend {
-    type Reader = oio::StreamReader<HdfsReader>;
+    type Reader = oio::PositionReader<HdfsReader>;
     type Writer = HdfsLazyWriter;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -298,16 +321,11 @@ impl Service for HdfsBackend {
         let m = self.core.hdfs_stat(path)?;
         Ok(RpStat::new(m))
     }
-    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let output: oio::StreamReader<HdfsReader> = {
-            Ok(oio::StreamReader::new(HdfsReader::new(
-                self.clone(),
-                path,
-                args,
-            )))
-        }?;
-
-        Ok(output)
+    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+        Ok(oio::PositionReader::new(HdfsReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {

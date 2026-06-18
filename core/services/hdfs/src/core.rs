@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::io::SeekFrom;
 use std::sync::Arc;
 
 use opendal_core::raw::*;
@@ -67,24 +66,14 @@ impl HdfsCore {
         Ok(m)
     }
 
-    pub async fn hdfs_read(&self, path: &str, range: BytesRange) -> Result<hdrs::AsyncFile> {
+    pub async fn hdfs_open(&self, path: &str) -> Result<hdrs::File> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let client = self.client.clone();
-        let mut f = client
-            .open_file()
-            .read(true)
-            .async_open(&p)
+        let f = tokio::task::spawn_blocking(move || client.open_file().read(true).open(&p))
             .await
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "tokio task join failed").set_source(e))?
             .map_err(new_std_io_error)?;
-
-        if range.offset() != 0 {
-            use futures::AsyncSeekExt;
-
-            f.seek(SeekFrom::Start(range.offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
 
         Ok(f)
     }

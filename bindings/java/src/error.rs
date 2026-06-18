@@ -105,14 +105,23 @@ impl<T: Default> ErrorPolicy<T, Error> for ThrowException {
         payload: Box<dyn std::any::Any + Send + 'static>,
     ) -> jni::errors::Result<T> {
         if !env.exception_check() {
-            let msg = match payload.downcast::<&'static str>() {
-                Ok(s) => (*s).to_string(),
-                Err(payload) => match payload.downcast::<String>() {
-                    Ok(s) => *s,
-                    Err(_) => "native method panicked".to_string(),
-                },
-            };
-            let _ = env.throw(format!("Rust panic: {msg}"));
+            fn downcast_payload(payload: Box<dyn std::any::Any + Send + 'static>) -> String {
+                let payload =  match payload.downcast::<&'static str>() {
+                    Ok(payload) => return payload.to_string(),
+                    Err(payload) => payload,
+                };
+
+                let payload =  match payload.downcast::<String>() {
+                    Ok(payload) => return *payload,
+                    Err(payload) => payload,
+                };
+
+                let _ = payload;
+                "native method panicked".to_string()
+            }
+
+            let payload = downcast_payload(payload);
+            env.fatal_error(JNIString::new(payload).as_ref());
         }
         Ok(T::default())
     }

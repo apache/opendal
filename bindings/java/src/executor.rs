@@ -15,16 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
 use std::thread::available_parallelism;
 
-use jni::JNIEnv;
+use jni::Env;
+use jni::EnvUnowned;
 use jni::JavaVM;
+use jni::jni_sig;
+use jni::jni_str;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JValue;
@@ -32,14 +34,15 @@ use jni::sys::{jint, jlong};
 use tokio::task::JoinHandle;
 
 use crate::Result;
+use crate::error::ThrowException;
 
 static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
-thread_local! {
-    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = const { RefCell::new(None) };
-}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn JNI_OnLoad(_: JavaVM, _: *mut c_void) -> jint {
+pub unsafe extern "system" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: *mut c_void) -> jint {
+    // Register the JavaVM singleton so worker threads can attach to the JVM
+    // later via `JavaVM::singleton()`.
+    let _ = unsafe { JavaVM::from_raw(vm) };
     opendal::init_default_registry();
     jni::sys::JNI_VERSION_1_8
 }
@@ -49,20 +52,10 @@ pub unsafe extern "system" fn JNI_OnLoad(_: JavaVM, _: *mut c_void) -> jint {
 /// This function could be only called by java vm when unload this lib.
 #[allow(static_mut_refs)]
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
+pub unsafe extern "system" fn JNI_OnUnload(_: *mut jni::sys::JavaVM, _: *mut c_void) {
     unsafe {
         RUNTIME.take();
     }
-}
-
-/// # Safety
-///
-/// This function could be only called when the lib is loaded and within an executor thread.
-pub(crate) unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
-    let env = ENV
-        .with(|cell| *cell.borrow_mut())
-        .expect("env must be available");
-    unsafe { JNIEnv::from_raw(env) }.expect("env must be valid")
 }
 
 pub enum Executor {
@@ -94,26 +87,25 @@ impl Executor {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
-    mut env: JNIEnv,
-    _: JClass,
+pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     cores: usize,
 ) -> jlong {
-    make_tokio_executor(&mut env, cores)
-        .map(|executor| Box::into_raw(Box::new(executor)) as jlong)
-        .unwrap_or_else(|e| {
-            e.throw(&mut env);
-            0
-        })
+    env.with_env(|_env| -> Result<jlong> {
+        let executor = make_tokio_executor(cores)?;
+        Ok(Box::into_raw(Box::new(executor)) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
 ///
 /// This function should not be called before the AsyncExecutor is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal(
-    _: JNIEnv,
-    _: JObject,
+pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal<'local>(
+    _: EnvUnowned<'local>,
+    _: JObject<'local>,
     executor: *mut Executor,
 ) {
     unsafe {
@@ -121,8 +113,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInter
     }
 }
 
-pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {
-    let vm = Arc::new(env.get_java_vm().expect("JavaVM must be available"));
+pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
     let counter = AtomicUsize::new(0);
     let executor = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(cores)
@@ -130,37 +121,23 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
             let id = counter.fetch_add(1, Ordering::SeqCst);
             format!("opendal-tokio-worker-{id}")
         })
-        .on_thread_start({
-            let vm = vm.clone();
-            move || {
-                ENV.with(|cell| {
-                    let mut env = vm
-                        .attach_current_thread_as_daemon()
-                        .expect("attach thread must succeed");
-
-                    set_current_thread_name(&mut env)
-                        .expect("current thread name has been set above");
-
-                    *cell.borrow_mut() = Some(env.get_raw());
-                })
-            }
+        .on_thread_start(|| {
+            // `attach_current_thread` creates a permanent attachment; the thread
+            // is detached automatically when it exits.
+            let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
+            vm.attach_current_thread(set_current_thread_name)
+                .expect("attach current thread must succeed");
         })
-        .on_thread_stop(move || {
-            // Typically, the thread attached to the JVM will be detached automatically when the thread exits
-            // and the corresponding thread-local AttachGuard is dropped.
+        .on_thread_stop(|| {
+            // Typically, the thread attached to the JVM will be detached automatically
+            // when the thread exits. However, there are some edge cases on Windows that
+            // may lead to deadlocks. To mitigate this, we explicitly detach the thread here.
             //
-            // However, there are some edge cases on Windows that may lead to deadlocks. To mitigate this,
-            // we explicitly detach the thread here.
-            //
-            // See https://github.com/apache/opendal/issues/6869 and https://github.com/jni-rs/jni-rs/issues/701
-            // for more details.
-
-            ENV.with(|cell| {
-                *cell.borrow_mut() = None;
-            });
-
-            // SAFETY: JNIEnv is unset above and we do not use AttachGuard anywhere.
-            unsafe { vm.detach_current_thread() };
+            // See https://github.com/apache/opendal/issues/6869 and
+            // https://github.com/jni-rs/jni-rs/issues/701 for more details.
+            if let Ok(vm) = JavaVM::singleton() {
+                let _ = vm.detach_current_thread();
+            }
         })
         .enable_all()
         .build()
@@ -174,12 +151,12 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
     Ok(Executor::Tokio(executor))
 }
 
-fn set_current_thread_name(env: &mut JNIEnv) -> Result<()> {
+fn set_current_thread_name(env: &mut Env) -> Result<()> {
     let current_thread = env
         .call_static_method(
-            "java/lang/Thread",
-            "currentThread",
-            "()Ljava/lang/Thread;",
+            jni_str!("java/lang/Thread"),
+            jni_str!("currentThread"),
+            jni_sig!("()Ljava/lang/Thread;"),
             &[],
         )?
         .l()?;
@@ -188,9 +165,9 @@ fn set_current_thread_name(env: &mut JNIEnv) -> Result<()> {
         None => unreachable!("thread name must be set"),
     };
     env.call_method(
-        current_thread,
-        "setName",
-        "(Ljava/lang/String;)V",
+        &current_thread,
+        jni_str!("setName"),
+        jni_sig!("(Ljava/lang/String;)V"),
         &[JValue::Object(&thread_name)],
     )?;
     Ok(())
@@ -200,13 +177,10 @@ fn set_current_thread_name(env: &mut JNIEnv) -> Result<()> {
 ///
 /// Crash if the executor is disposed.
 #[inline]
-pub(crate) fn executor_or_default<'a>(
-    env: &mut JNIEnv<'a>,
-    executor: *const Executor,
-) -> Result<&'a Executor> {
+pub(crate) fn executor_or_default(executor: *const Executor) -> Result<&'static Executor> {
     unsafe {
         if executor.is_null() {
-            default_executor(env)
+            default_executor()
         } else {
             // SAFETY: executor must be valid
             Ok(&*executor)
@@ -218,17 +192,15 @@ pub(crate) fn executor_or_default<'a>(
 ///
 /// This function could be only when the lib is loaded.
 #[allow(static_mut_refs)]
-unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
+unsafe fn default_executor() -> Result<&'static Executor> {
     // Return the executor if it's already initialized
     if let Some(runtime) = unsafe { RUNTIME.get() } {
         return Ok(runtime);
     }
 
     // Try to initialize the executor
-    let executor = make_tokio_executor(
-        env,
-        available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
-    )?;
+    let executor =
+        make_tokio_executor(available_parallelism().map(NonZeroUsize::get).unwrap_or(1))?;
 
     Ok(unsafe { RUNTIME.get_or_init(|| executor) })
 }

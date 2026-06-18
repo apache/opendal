@@ -112,6 +112,10 @@ impl Service for VercelArtifactsBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        if path == "/" || path.ends_with('/') {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
         let response = self.core.vercel_artifacts_stat(ctx, path).await?;
 
         let status = response.status();

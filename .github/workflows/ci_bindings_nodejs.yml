@@ -82,6 +82,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Run getting-started example
+        run: node examples/getting-started.mjs
+
       - name: Check diff
         run: git diff --exit-code
 

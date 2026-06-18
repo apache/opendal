@@ -22,34 +22,7 @@ The example below creates an `Operator` against the in-memory backend (no
 credentials needed), writes a file, reads it back, checks that it exists,
 inspects its metadata, and deletes it.
 
-```d
-import opendal;
-import std.stdio : writeln;
-
-void main() @safe
-{
-    // Build an OperatorOptions, then construct the Operator.
-    auto options = new OperatorOptions();
-    auto op = Operator("memory", options);
-
-    // Write bytes to a path.
-    string data = "Hello, OpenDAL!";
-    op.write("hello.txt", cast(ubyte[]) data.dup);
-
-    // Read them back.
-    ubyte[] result = op.read("hello.txt");
-    writeln(cast(string) result.idup);   // Hello, OpenDAL!
-
-    // Inspect metadata.
-    auto meta = op.stat("hello.txt");
-    writeln("size = ", meta.contentLength(), " bytes");
-    writeln("isFile = ", meta.isFile());
-
-    // Check existence, then delete.
-    assert(op.exists("hello.txt"));
-    op.remove("hello.txt");
-    assert(!op.exists("hello.txt"));
-}
+```d file=bindings/d/examples/getting-started/source/app.d region=quickstart
 ```
 
 ## Listing a directory

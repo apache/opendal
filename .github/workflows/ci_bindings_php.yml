@@ -86,6 +86,10 @@ jobs:
       - name: Check PHP Extensions
         run: php -m
 
+      - name: Run getting-started example
+        working-directory: "bindings/php"
+        run: php examples/getting-started.php
+
       - name: Install Composer dependencies
         working-directory: "bindings/php"
         run: |

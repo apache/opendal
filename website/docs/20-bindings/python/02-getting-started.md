@@ -16,22 +16,7 @@ credentials, so you can run it right after installing.
 pip install opendal
 ```
 
-```python
-import opendal
-
-# Configure a service, then build an operator from it.
-op = opendal.Operator("memory")
-
-# The same verbs work on every service.
-op.write("hello.txt", b"Hello, World!")
-
-data = op.read("hello.txt")        # returns bytes
-print(data.decode())
-
-meta = op.stat("hello.txt")
-print(f"size = {meta.content_length} bytes")
-
-op.delete("hello.txt")
+```python file=bindings/python/examples/getting_started.py region=quickstart
 ```
 
 Note that `write` takes `bytes` and `read` returns `bytes`.

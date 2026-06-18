@@ -15,29 +15,7 @@ credentials, so you can run it right after adding the dependency.
 The operator holds a native resource, so close it when you are done — a
 try-with-resources block does this for you:
 
-```java
-import java.util.HashMap;
-import java.util.Map;
-import org.apache.opendal.Metadata;
-import org.apache.opendal.Operator;
-
-public class Main {
-    public static void main(String[] args) {
-        // Configure a service, then build an operator from it.
-        try (Operator op = Operator.of("memory", new HashMap<>())) {
-            // The same verbs work on every service.
-            op.write("hello.txt", "Hello, World!");
-
-            byte[] data = op.read("hello.txt");
-            System.out.println(new String(data));
-
-            Metadata meta = op.stat("hello.txt");
-            System.out.println("size = " + meta.getContentLength() + " bytes");
-
-            op.delete("hello.txt");
-        }
-    }
-}
+```java file=bindings/java/src/test/java/org/apache/opendal/examples/Main.java region=quickstart
 ```
 
 `write` accepts a `String` or `byte[]`; `read` returns `byte[]`.

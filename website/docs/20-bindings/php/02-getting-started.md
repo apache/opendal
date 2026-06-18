@@ -15,24 +15,7 @@ The example below builds an operator against the in-memory service — no
 credentials or configuration needed — then writes a file, reads it back,
 inspects its metadata, and deletes it.
 
-```php
-use OpenDAL\Operator;
-
-$op = new Operator("memory", []);
-
-// Write a UTF-8 string.
-$op->write("hello.txt", "Hello, World!");
-
-// Read it back. Returns a string (binary-safe).
-$content = $op->read("hello.txt");
-echo $content; // Hello, World!
-
-// Inspect metadata.
-$meta = $op->stat("hello.txt");
-echo $meta->content_length; // 13
-
-// Delete. Succeeds even if the path does not exist.
-$op->delete("hello.txt");
+```php file=bindings/php/examples/getting-started.php region=quickstart
 ```
 
 ## Point it at a real backend

@@ -20,46 +20,7 @@ go get github.com/apache/opendal/bindings/go@latest
 go get github.com/apache/opendal-go-services/memory
 ```
 
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/apache/opendal-go-services/memory"
-	opendal "github.com/apache/opendal/bindings/go"
-)
-
-func main() {
-	// Configure a service, then build an operator from it.
-	op, err := opendal.NewOperator(memory.Scheme, opendal.OperatorOptions{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer op.Close() // Always close the operator to release resources.
-
-	// The same verbs work on every service.
-	if err := op.Write("hello.txt", []byte("Hello, World!")); err != nil {
-		log.Fatal(err)
-	}
-
-	data, err := op.Read("hello.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("read %d bytes: %s\n", len(data), data)
-
-	meta, err := op.Stat("hello.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("size = %d bytes\n", meta.ContentLength())
-
-	if err := op.Delete("hello.txt"); err != nil {
-		log.Fatal(err)
-	}
-}
+```go file=bindings/go/examples/guide/getting_started.go region=quickstart
 ```
 
 Note that `Write` takes `[]byte` and `Read` returns `[]byte`. Every method

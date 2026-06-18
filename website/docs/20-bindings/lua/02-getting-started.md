@@ -13,47 +13,11 @@ of the examples below. See [Overview](./01-overview.md) for the build steps.
 
 ## Your first program
 
-This program creates an operator against the local filesystem, writes a file,
-reads it back, and checks its metadata. No credentials needed.
+This program creates an operator against the in-memory service, writes a file,
+reads it back, and checks its metadata. No credentials needed — paste it into a
+fresh project and run it as-is.
 
-```lua
-local opendal = require("opendal")
-
--- Create an operator: first argument is the service scheme,
--- second is a table of configuration key-value pairs.
--- Wrap in pcall because errors are raised as Lua errors, not returned.
-local ok, op = pcall(opendal.operator.new, "fs", { root = "/tmp" })
-if not ok then
-    print("failed to create operator:", op)
-    return
-end
-
--- Write a string to a path (relative to the operator root).
-local ok, err = pcall(function() op:write("hello.txt", "Hello, World!") end)
-if not ok then
-    print("write failed:", err)
-    return
-end
-
--- Read it back. Returns the content as a Lua string on success.
-local ok, data = pcall(function() return op:read("hello.txt") end)
-if not ok then
-    print("read failed:", data)
-    return
-end
-print("content:", data)
-
--- Inspect metadata.
-local ok, meta = pcall(function() return op:stat("hello.txt") end)
-if not ok then
-    print("stat failed:", meta)
-    return
-end
-print("size:", meta:content_length())   -- 13
-print("is_file:", meta:is_file())       -- true
-
--- Clean up.
-op:delete("hello.txt")
+```lua file=bindings/lua/example/getting-started.lua region=quickstart
 ```
 
 ## Error handling

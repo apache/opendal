@@ -25,48 +25,7 @@ This program builds a memory-backed operator, writes data, reads it back,
 inspects the metadata, and frees every heap-allocated value. It requires no
 credentials and no filesystem access.
 
-```c
-#include <assert.h>
-#include <stdio.h>
-#include "opendal.h"
-
-int main(void)
-{
-    /* Build an operator for the "memory" service with no options. */
-    opendal_result_operator_new result = opendal_operator_new("memory", NULL);
-    assert(result.op != NULL);
-    assert(result.error == NULL);
-    opendal_operator *op = result.op;
-
-    /* Write bytes to a path. opendal_operator_write consumes the bytes. */
-    const char *msg = "Hello, OpenDAL!";
-    opendal_bytes data = {
-        .data = (uint8_t *)msg,
-        .len  = 15,
-    };
-    opendal_error *err = opendal_operator_write(op, "/hello.txt", &data);
-    assert(err == NULL);
-
-    /* Read the bytes back. */
-    opendal_result_read r = opendal_operator_read(op, "/hello.txt");
-    assert(r.error == NULL);
-    assert(r.data.len == 15);
-    printf("%.*s\n", (int)r.data.len, r.data.data);  /* Hello, OpenDAL! */
-    opendal_bytes_free(&r.data);
-
-    /* Stat the path to get metadata. */
-    opendal_result_stat s = opendal_operator_stat(op, "/hello.txt");
-    assert(s.error == NULL);
-    printf("size = %llu\n", (unsigned long long)opendal_metadata_content_length(s.meta));
-    opendal_metadata_free(s.meta);
-
-    /* Delete the file. */
-    opendal_error *del_err = opendal_operator_delete(op, "/hello.txt");
-    assert(del_err == NULL);
-
-    opendal_operator_free(op);
-    return 0;
-}
+```c file=bindings/c/examples/getting-started.c region=quickstart
 ```
 
 Every operation returns either an `opendal_error *` (NULL on success) or a

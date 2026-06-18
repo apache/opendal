@@ -70,6 +70,10 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
+      - name: Run getting-started example
+        working-directory: "bindings/c"
+        run: ./build/getting_started
+
       - name: Build and Run tests
         working-directory: "bindings/c"
         run: ./build/tests

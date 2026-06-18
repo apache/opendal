@@ -76,3 +76,10 @@ jobs:
           cd bindings/ocaml
           dune build @fmt
           dune runtest
+
+      - name: Run getting-started example
+        run: |
+          eval $(opam env)
+          cd bindings/ocaml
+          dune build examples/getting_started.exe
+          dune build @run_examples

@@ -16,22 +16,7 @@ credentials, so you can run it right after installing.
 gem install opendal
 ```
 
-```ruby
-require "opendal"
-
-# Configure a service, then build an operator from it.
-op = OpenDal::Operator.new("memory", {})
-
-# The same verbs work on every service.
-op.write("hello.txt", "Hello, World!")
-
-data = op.read("hello.txt")        # returns a String
-puts data
-
-meta = op.stat("hello.txt")
-puts "size = #{meta.content_length} bytes"
-
-op.delete("hello.txt")
+```ruby file=bindings/ruby/examples/getting_started.rb region=quickstart
 ```
 
 `write` takes a `String`, and `read` returns a `String`.

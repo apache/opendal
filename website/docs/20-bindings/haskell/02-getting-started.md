@@ -26,27 +26,7 @@ The snippet below creates an in-memory operator (no credentials needed), writes
 two keys, reads them back, checks existence, inspects metadata, and deletes a
 key.
 
-```haskell
-import OpenDAL
-
-main :: IO ()
-main = do
-  -- newOperator returns Either OpenDALError Operator
-  Right op <- newOperator "memory"
-
-  result <- runOp op $ do
-    writeOp "hello.txt" "Hello, World!"
-    content <- readOp "hello.txt"
-    isExistOp "hello.txt"         -- returns Bool inside the monad
-    meta <- statOp "hello.txt"
-    deleteOp "hello.txt"
-    return (content, mContentLength meta)
-
-  case result of
-    Left err  -> putStrLn $ "Error: " ++ show (errorCode err) ++ " — " ++ message err
-    Right (bytes, len) -> do
-      print bytes    -- "Hello, World!"
-      print len      -- 13
+```haskell file=bindings/haskell/examples/GettingStarted.hs region=quickstart
 ```
 
 `runOp` executes the `OperatorT` block against the operator and returns

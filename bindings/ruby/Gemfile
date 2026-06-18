@@ -25,7 +25,7 @@ gemspec
 group :development, :test do
   gem "rake", ">= 13.2"
   gem "minitest", "~> 6.0.6" # test library
-  gem "minitest-reporters", "~> 1.7.1" # better test output
+  gem "minitest-reporters", "~> 1.8.0" # better test output
   gem "activesupport", "~> 8.1.3" # testing support
   gem "standard", "~> 1.54" # linter with pre-specified rules
   gem "redcarpet", "~> 3.6" # for documentation markdown parsing

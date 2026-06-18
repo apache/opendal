@@ -426,17 +426,6 @@ pub(super) mod test_utils {
         op.with_context(OperationContext::new().with_http_transport(transport))
     }
 
-    pub fn gpt2_operator() -> Operator {
-        let op = Operator::new(
-            HfBuilder::default()
-                .repo_type("model")
-                .repo_id("openai-community/gpt2")
-                .download_mode("http"),
-        )
-        .unwrap();
-        finish_operator(op)
-    }
-
     pub fn mbpp_operator() -> Operator {
         let op = Operator::new(
             HfBuilder::default()

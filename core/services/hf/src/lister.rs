@@ -159,8 +159,13 @@ impl oio::PageList for HfLister {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::gpt2_operator;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use super::super::core::test_utils::create_test_core;
+    use super::super::uri::HfRepoType;
     use super::*;
+    use opendal_core::raw::oio::PageList;
 
     #[test]
     fn test_parse_next_cursor() {
@@ -177,10 +182,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_model_root() {
-        let op = gpt2_operator();
-        let entries = op.list("/").await.expect("list should succeed");
-        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
-        assert!(names.contains(&"config.json"));
+    async fn test_list_model_root() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        let lister = HfLister::new(Arc::new(core), ctx, String::new(), false);
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+
+        lister.next_page(&mut page_ctx).await?;
+
+        assert_eq!(
+            mock_client.get_captured_url(),
+            "https://huggingface.co/api/models/test-user/test-repo/tree/main/?expand=True"
+        );
+        assert!(page_ctx.done);
+        let entry = page_ctx.entries.pop_front().expect("entry must exist");
+        assert_eq!(entry.path(), "test.txt");
+        assert_eq!(entry.metadata().mode(), EntryMode::FILE);
+        assert_eq!(entry.metadata().content_length(), 100);
+
+        Ok(())
     }
 }

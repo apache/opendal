@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use futures::Future;
+use mea::once::OnceCell;
 
 use crate::raw::*;
 use crate::*;
@@ -26,26 +27,38 @@ const DEFAULT_POSITION_READ_MAX_BUF_SIZE: usize = 2 * 1024 * 1024;
 
 /// PositionRead is used to implement [`oio::Read`] based on positioned reads.
 ///
-/// Services that implement [`PositionRead`] must support position-independent
-/// reads. `size` is the maximum number of bytes to read, and implementations may
-/// return fewer bytes. Returning an empty buffer means EOF.
+/// Services that implement [`PositionRead`] create a positioned read handle lazily
+/// and must support position-independent reads on that handle. `size` is the
+/// maximum number of bytes to read, and implementations may return fewer bytes.
+/// Returning an empty buffer means EOF.
 pub trait PositionRead: Send + Sync + Unpin + 'static {
+    /// The opened positioned read handle.
+    type Handle: Send + Sync + Unpin + 'static;
+
+    /// Open the positioned read handle.
+    fn open(&self) -> impl Future<Output = Result<Self::Handle>> + MaybeSend;
+
     /// Read up to `size` bytes from `offset`.
-    fn read_at(&self, offset: u64, size: usize)
-    -> impl Future<Output = Result<Buffer>> + MaybeSend;
+    fn read_at(
+        handle: &Self::Handle,
+        offset: u64,
+        size: usize,
+    ) -> impl Future<Output = Result<Buffer>> + MaybeSend;
 }
 
 /// PositionReader implements [`oio::Read`] based on [`PositionRead`].
 pub struct PositionReader<R: PositionRead> {
-    inner: Arc<R>,
+    reader: Arc<R>,
+    handle: Arc<OnceCell<R::Handle>>,
     max_buf_size: usize,
 }
 
 impl<R: PositionRead> PositionReader<R> {
     /// Create a new [`PositionReader`].
-    pub fn new(inner: R) -> Self {
+    pub fn new(reader: R) -> Self {
         Self {
-            inner: Arc::new(inner),
+            reader: Arc::new(reader),
+            handle: Arc::new(OnceCell::new()),
             max_buf_size: DEFAULT_POSITION_READ_MAX_BUF_SIZE,
         }
     }
@@ -67,13 +80,24 @@ impl<R: PositionRead> PositionReader<R> {
     ///
     /// Panics if there are active streams that still share the inner reader.
     pub fn into_inner(self) -> R {
-        Arc::into_inner(self.inner).expect("position reader must not be shared")
+        Arc::into_inner(self.reader).expect("position reader must not be shared")
+    }
+
+    async fn handle(&self) -> Result<&R::Handle> {
+        self.handle
+            .get_or_try_init(|| async { self.reader.open().await })
+            .await
     }
 }
 
 impl<R: PositionRead> oio::Read for PositionReader<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let stream = PositionReadStream::new(self.inner.clone(), range, self.max_buf_size);
+        let stream = PositionReadStream::new(
+            self.reader.clone(),
+            self.handle.clone(),
+            range,
+            self.max_buf_size,
+        );
         Ok((
             RpRead::default(),
             Box::new(stream) as Box<dyn oio::ReadStreamDyn>,
@@ -91,7 +115,8 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
 
         while remaining > 0 {
             let read_size = remaining.min(self.max_buf_size as u64) as usize;
-            let buf = self.inner.read_at(offset, read_size).await?;
+            let handle = self.handle().await?;
+            let buf = R::read_at(handle, offset, read_size).await?;
             check_position_read_size(read_size, buf.len())?;
             if buf.is_empty() {
                 return Err(Error::new(
@@ -113,7 +138,8 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
 }
 
 struct PositionReadStream<R: PositionRead> {
-    inner: Arc<R>,
+    reader: Arc<R>,
+    handle: Arc<OnceCell<R::Handle>>,
     offset: u64,
     remaining: Option<u64>,
     max_buf_size: usize,
@@ -121,9 +147,15 @@ struct PositionReadStream<R: PositionRead> {
 }
 
 impl<R: PositionRead> PositionReadStream<R> {
-    fn new(inner: Arc<R>, range: BytesRange, max_buf_size: usize) -> Self {
+    fn new(
+        reader: Arc<R>,
+        handle: Arc<OnceCell<R::Handle>>,
+        range: BytesRange,
+        max_buf_size: usize,
+    ) -> Self {
         Self {
-            inner,
+            reader,
+            handle,
             offset: range.offset(),
             remaining: range.size(),
             max_buf_size,
@@ -143,7 +175,11 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
             .map(|remaining| remaining.min(self.max_buf_size as u64) as usize)
             .unwrap_or(self.max_buf_size);
 
-        let buf = self.inner.read_at(self.offset, read_size).await?;
+        let handle = self
+            .handle
+            .get_or_try_init(|| async { self.reader.open().await })
+            .await?;
+        let buf = R::read_at(handle, self.offset, read_size).await?;
         check_position_read_size(read_size, buf.len())?;
         if buf.is_empty() {
             self.done = true;
@@ -195,6 +231,7 @@ mod tests {
         content: Bytes,
         max_read: usize,
         calls: Arc<Mutex<Vec<(u64, usize)>>>,
+        opens: Arc<Mutex<usize>>,
     }
 
     impl TestPositionRead {
@@ -203,21 +240,34 @@ mod tests {
                 content: Bytes::from_static(content),
                 max_read,
                 calls: Arc::default(),
+                opens: Arc::default(),
             }
         }
     }
 
     impl PositionRead for TestPositionRead {
-        async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-            self.calls.lock().unwrap().push((offset, size));
+        type Handle = Self;
+
+        async fn open(&self) -> Result<Self::Handle> {
+            *self.opens.lock().unwrap() += 1;
+            Ok(Self {
+                content: self.content.clone(),
+                max_read: self.max_read,
+                calls: self.calls.clone(),
+                opens: self.opens.clone(),
+            })
+        }
+
+        async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
+            handle.calls.lock().unwrap().push((offset, size));
 
             let offset = offset as usize;
-            if offset >= self.content.len() {
+            if offset >= handle.content.len() {
                 return Ok(Buffer::new());
             }
 
-            let end = offset + size.min(self.max_read).min(self.content.len() - offset);
-            Ok(Buffer::from(self.content.slice(offset..end)))
+            let end = offset + size.min(handle.max_read).min(handle.content.len() - offset);
+            Ok(Buffer::from(handle.content.slice(offset..end)))
         }
     }
 
@@ -225,12 +275,14 @@ mod tests {
     async fn test_position_reader_read_handles_partial_reads() -> Result<()> {
         let inner = TestPositionRead::new(b"0123456789", 2);
         let calls = inner.calls.clone();
+        let opens = inner.opens.clone();
         let reader = PositionReader::new(inner).with_max_buf_size(4);
 
         let (_, buf) = reader.read(BytesRange::from(2..8)).await?;
 
         assert_eq!(buf.to_vec(), b"234567");
         assert_eq!(calls.lock().unwrap().as_slice(), &[(2, 4), (4, 4), (6, 2)]);
+        assert_eq!(*opens.lock().unwrap(), 1);
 
         Ok(())
     }

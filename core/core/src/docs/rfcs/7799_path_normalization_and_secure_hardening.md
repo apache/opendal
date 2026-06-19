@@ -409,7 +409,7 @@ Reference: https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
   the target backend. This would be an init-time concern on the Operator
   builder, not a per-operation cost.
 
-- Consider providing better explaination on:
+- Consider providing better explanation on:
   - `build_rooted_abs_path`
   - `confined_join`
   including:

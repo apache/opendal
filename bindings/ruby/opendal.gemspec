@@ -65,7 +65,7 @@ Gem::Specification.new do |spec|
   # the unpacked files when Bundler loads this gemspec from an installed gem.
   spec.files = Dir.chdir(__dir__) do
     git_files = tracked_files_or_glob.call(__dir__).reject do |f|
-      f.start_with?(*%w[gems/ pkg/ target/ tmp/ .git])
+      f.start_with?(*%w[./ .bundle/ gems/ pkg/ target/ tmp/ .git/ vendor/]) || f.end_with?(*%w[.log .lock .tmp .bak])
     end
 
     # When building release package, include core directory files for rake build

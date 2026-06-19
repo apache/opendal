@@ -126,9 +126,9 @@ impl Service for MemoryBackend {
     }
 
     async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             match self.core.get(&p)? {
@@ -150,7 +150,7 @@ impl Service for MemoryBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
@@ -162,7 +162,7 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let keys = self.core.scan(&p)?;
         let lister = MemoryLister::new(&self.root, keys);
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
@@ -224,7 +224,7 @@ impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let value = match backend.core.get(&p)? {
             Some(value) => value,

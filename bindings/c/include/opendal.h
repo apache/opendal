@@ -92,9 +92,11 @@ typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;
 /**
  * \brief opendal_bytes carries raw-bytes with its length
  *
- * The opendal_bytes type is a C-compatible substitute for Vec type
- * in Rust, it has to be manually freed. You have to call opendal_bytes_free()
- * to free the heap memory to avoid memory leak.
+ * The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
+ * For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
+ * the heap memory and avoid memory leaks. For caller-owned input buffers
+ * passed to OpenDAL C APIs, the caller keeps ownership and must not call
+ * opendal_bytes_free() on them.
  *
  * @see opendal_bytes_free
  */
@@ -1420,8 +1422,8 @@ struct opendal_result_operator_new opendal_operator_new_with_layers(const char *
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
- * * The `bytes` provided has valid byte in the `data` field and the `len` field is set
- *   correctly.
+ * * If `bytes.len` is greater than 0, `bytes.data` must point to at least
+ *   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` may be NULL.
  *
  * # Panic
  *

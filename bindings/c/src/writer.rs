@@ -52,6 +52,15 @@ impl opendal_writer {
         bytes: &opendal_bytes,
     ) -> opendal_result_writer_write {
         let size = bytes.len;
+        let bytes = match bytes.to_buffer() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                return opendal_result_writer_write {
+                    size: 0,
+                    error: opendal_error::new(e),
+                }
+            }
+        };
         match self.deref_mut().write(bytes) {
             Ok(()) => opendal_result_writer_write {
                 size,

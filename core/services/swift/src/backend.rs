@@ -205,6 +205,7 @@ impl Builder for SwiftBuilder {
 
                     list: true,
                     list_with_recursive: true,
+                    list_with_start_after: true,
 
                     presign: has_temp_url_key,
                     presign_stat: has_temp_url_key,
@@ -325,6 +326,7 @@ impl Service for SwiftBackend {
                 path.to_string(),
                 args.recursive(),
                 args.limit(),
+                args.start_after().map(String::from),
             );
 
             Ok(oio::PageLister::new(l))

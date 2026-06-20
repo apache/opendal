@@ -24,9 +24,9 @@
     "docusaurus-plugin-image-zoom": "^3.0.1",
     "lunr": "^2.3.9",
     "prism-react-renderer": "^2.4.1",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "semver": "^7.8.2"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "semver": "^7.8.4"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.10.1",
@@ -47,7 +47,7 @@
     ]
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.17.0"
   },
-  "packageManager": "pnpm@8.11.0"
+  "packageManager": "pnpm@11.8.0"
 }

@@ -476,12 +476,13 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         with:
-          version: 8
+          # Follow website/package.json packageManager field
+          version: 11.8.0
           run_install: false
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "24.17"
+          node-version-file: "website/.node-version"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
 

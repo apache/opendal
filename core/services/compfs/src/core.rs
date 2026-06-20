@@ -138,14 +138,4 @@ mod tests {
         assert_eq!(buf.total_len(), len);
         assert_eq!(collected, bytes);
     }
-
-    fn new_test_core() -> CompfsCore {
-        CompfsCore {
-            info: ServiceInfo::new("compfs", "", ""),
-            capability: Capability::default(),
-            root: PathBuf::from("/data/root"),
-            dispatcher: Dispatcher::new().unwrap(),
-            buf_pool: oio::PooledBuf::new(16),
-        }
-    }
 }

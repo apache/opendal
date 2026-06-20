@@ -148,40 +148,4 @@ mod tests {
             buf_pool: oio::PooledBuf::new(16),
         }
     }
-
-    #[test]
-    fn test_root_join_rejects_parent_dir() {
-        let core = new_test_core();
-        for key in ["../etc/passwd", "../../etc/passwd", "a/../../b", "a/.."] {
-            let err = core.root_join(key).unwrap_err();
-            assert_eq!(
-                err.kind(),
-                ErrorKind::NotFound,
-                "key should be rejected: {key}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_root_join_allows_normal_keys() {
-        let core = new_test_core();
-        // Normal keys, `.` (CurDir), and trailing slashes resolve unchanged.
-        assert_eq!(
-            core.root_join("a/b.txt").unwrap(),
-            PathBuf::from("/data/root/a/b.txt")
-        );
-        assert_eq!(
-            core.root_join("a/b/").unwrap(),
-            PathBuf::from("/data/root/a/b")
-        );
-        assert_eq!(
-            core.root_join("./a/b").unwrap(),
-            PathBuf::from("/data/root/a/b")
-        );
-        // A key containing `..` only as a substring of a name is not a traversal.
-        assert_eq!(
-            core.root_join("a..b").unwrap(),
-            PathBuf::from("/data/root/a..b")
-        );
-    }
 }

@@ -421,6 +421,10 @@ mod tests {
             ("input nested file", "abc/def", root.join("abc/def")),
             ("input dir", "def/", root.join("def")),
             ("input nested dir", "abc/def/", root.join("abc/def")),
+
+            (". in path", "dir/file.txt", root.join("dir/file.txt")),
+            (". in path with dir", "dir/./file.txt", root.join("dir/file.txt")),
+            (".. in path", "a..b", root.join("a..b")),
         ];
 
         for (name, input, expect) in cases {

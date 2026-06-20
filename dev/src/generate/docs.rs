@@ -57,6 +57,12 @@ const BINDINGS: &[Binding] = &[
         cargo: None,
     },
     Binding {
+        id: "java",
+        label: "Java",
+        language: "java",
+        cargo: Some("bindings/java/Cargo.toml"),
+    },
+    Binding {
         id: "python",
         label: "Python",
         language: "python",
@@ -69,10 +75,28 @@ const BINDINGS: &[Binding] = &[
         cargo: Some("bindings/nodejs/Cargo.toml"),
     },
     Binding {
-        id: "java",
-        label: "Java",
-        language: "java",
-        cargo: Some("bindings/java/Cargo.toml"),
+        id: "ruby",
+        label: "Ruby",
+        language: "ruby",
+        cargo: Some("bindings/ruby/Cargo.toml"),
+    },
+    Binding {
+        id: "go",
+        label: "Go",
+        language: "go",
+        cargo: None,
+    },
+    Binding {
+        id: "c",
+        label: "C",
+        language: "c",
+        cargo: None,
+    },
+    Binding {
+        id: "cpp",
+        label: "C++",
+        language: "cpp",
+        cargo: None,
     },
 ];
 
@@ -393,14 +417,22 @@ fn build(required: &[&Field], grouped: &[(&str, Vec<&Field>)], s: &Syntax) -> (S
         if multi {
             full.push_str(&format!("{}{}--- {group} ---\n", s.indent, s.comment));
         }
-        for f in fields {
-            comment_block(f.comments, &mut full);
-            let assign = (s.assign)(f);
-            if f.required {
-                full.push_str(&format!("{}{assign}\n\n", s.indent));
+        let mut config_options = vec![];
+        for field in fields {
+            let mut field_comment = String::new();
+            comment_block(field.comments, &mut field_comment);
+            let assign = (s.assign)(field);
+            // field have block indententation
+            if field.required {
+                config_options.push(format!("{field_comment}{}{assign}", s.indent));
             } else {
-                full.push_str(&format!("{}{}{assign}\n\n", s.indent, s.comment));
+                config_options.push(format!("{field_comment}{}{}{assign}", s.indent, s.comment));
             }
+        }
+
+        if !config_options.is_empty() {
+            full.push_str(config_options.join("\n\n").trim_end());
+            full.push('\n');
         }
     }
     full.push_str(&s.close);
@@ -416,7 +448,7 @@ fn render_examples(
 ) -> (String, String) {
     let syntax = match binding {
         "rust" => Syntax {
-            open: format!("use opendal::Operator;\n\nlet op = Operator::via_iter(\"{scheme}\", [\n"),
+            open: format!("use opendal::Operator;\n\nlet operator = Operator::via_iter(\"{scheme}\", [\n"),
             close: "])?;".to_string(),
             indent: "    ",
             comment: "// ",
@@ -429,7 +461,7 @@ fn render_examples(
             },
         },
         "python" => Syntax {
-            open: format!("import opendal\n\nop = opendal.Operator(\n    \"{scheme}\",\n"),
+            open: format!("import opendal\n\noperator = opendal.Operator(\n    \"{scheme}\",\n"),
             close: ")".to_string(),
             indent: "    ",
             comment: "# ",
@@ -437,7 +469,7 @@ fn render_examples(
         },
         "nodejs" => Syntax {
             open: format!(
-                "import {{ Operator }} from \"opendal\";\n\nconst op = new Operator(\"{scheme}\", {{\n"
+                "import {{ Operator }} from \"opendal\";\n\nconst operator = new Operator(\"{scheme}\", {{\n"
             ),
             close: "});".to_string(),
             indent: "  ",
@@ -445,11 +477,51 @@ fn render_examples(
             assign: |f| format!("{}: \"{}\",", f.name, value_of(f)),
         },
         "java" => Syntax {
-            open: "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> conf = new HashMap<>();\n".to_string(),
-            close: format!("Operator op = Operator.of(\"{scheme}\", conf);"),
+            open: "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n".to_string(),
+            close: format!("Operator operator = Operator.of(\"{scheme}\", config);"),
             indent: "",
             comment: "// ",
-            assign: |f| format!("conf.put(\"{}\", \"{}\");", f.name, value_of(f)),
+            assign: |f| format!("config.put(\"{}\", \"{}\");", f.name, value_of(f)),
+        },
+        "go" => Syntax {
+            open: format!(
+                "import (\n	\"github.com/apache/opendal-go-services/{scheme}\"\n	opendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator({scheme}.Scheme, opendal.OperatorOptions{{\n",
+            ),
+            close: "})".to_string(),
+            indent: "	",
+            comment: "// ",
+            assign: |f| format!("\"{}\": \"{}\",", f.name, value_of(f)),
+        },
+        "c" => Syntax {
+            open: "#include \"opendal.h\"\n\nopendal_operator_options *options = opendal_operator_options_new();\n".to_string(),
+            close: format!(
+                "opendal_result_operator_new result = opendal_operator_new(\"{scheme}\", options);\nopendal_operator *operator = result.op;\n\n/* ... use operator ... */\n\nopendal_operator_free(operator);\nopendal_operator_options_free(options);"
+            ),
+            indent: "",
+            comment: "// ",
+            assign: |f| {
+                format!(
+                    "opendal_operator_options_set(options, \"{}\", \"{}\");",
+                    f.name,
+                    value_of(f)
+                )
+            },
+        },
+        "cpp" => Syntax {
+            open: "#include \"opendal.hpp\"\n\nstd::unordered_map<std::string, std::string> config{\n".to_string(),
+            close: format!("}};\nopendal::Operator operator(\"{scheme}\", config);"),
+            indent: "    ",
+            comment: "// ",
+            assign: |f| format!("{{\"{}\", \"{}\"}},", f.name, value_of(f)),
+        },
+        "ruby" => Syntax {
+            open: format!(
+                "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"{scheme}\", {{\n"
+            ),
+            close: "})".to_string(),
+            indent: "  ",
+            comment: "# ",
+            assign: |f| format!("\"{}\" => \"{}\",", f.name, value_of(f)),
         },
         other => unreachable!("no renderer for binding {other}"),
     };

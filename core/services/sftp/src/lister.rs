@@ -21,8 +21,8 @@ use futures::StreamExt;
 use openssh_sftp_client::fs::DirEntry;
 use openssh_sftp_client::fs::ReadDir;
 
-use super::error::parse_sftp_error;
-use super::utils::to_metadata;
+use super::core::parse_sftp_error;
+use super::core::to_metadata;
 use opendal_core::Result;
 use opendal_core::raw::oio;
 use opendal_core::raw::oio::Entry;

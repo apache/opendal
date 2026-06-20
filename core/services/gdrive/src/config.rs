@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::builder::GdriveBuilder;
+use super::backend::GdriveBuilder;
 
 /// [GoogleDrive](https://drive.google.com/) configuration.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

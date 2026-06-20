@@ -21,7 +21,7 @@ use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
 use super::core::Manager;
-use super::err::format_ftp_error;
+use super::core::format_ftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

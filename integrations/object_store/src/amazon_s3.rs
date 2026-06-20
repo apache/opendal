@@ -70,9 +70,7 @@ impl OpendalStore {
             }
         }
 
-        let op = Operator::new(s3)
-            .map_err(|err| format_object_store_error(err, ""))?
-            .finish();
+        let op = Operator::new(s3).map_err(|err| format_object_store_error(err, ""))?;
         Ok(OpendalStore::new(op))
     }
 }

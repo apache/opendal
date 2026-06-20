@@ -32,7 +32,8 @@ use redis::cluster::ClusterClientBuilder;
 use super::REDIS_SCHEME;
 use super::config::RedisConfig;
 use super::core::*;
-use super::delete::RedisDeleter;
+use super::deleter::RedisDeleter;
+use super::reader::*;
 use super::writer::RedisWriter;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
@@ -142,7 +143,7 @@ impl RedisBuilder {
 impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(
             self.config
                 .root
@@ -269,21 +270,19 @@ impl RedisBuilder {
     }
 }
 
-/// RedisBackend implements Access trait directly
+/// RedisBackend implements [`Service`] for Redis-compatible key-value stores.
 #[derive(Debug, Clone)]
 pub struct RedisBackend {
-    core: Arc<RedisCore>,
-    root: String,
-    info: Arc<AccessorInfo>,
+    pub(crate) core: Arc<RedisCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl RedisBackend {
     fn new(core: RedisCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(REDIS_SCHEME);
-        info.set_name(core.addr());
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(REDIS_SCHEME, "/", core.addr());
+        let capability = Capability {
             read: true,
             write: true,
             delete: true,
@@ -291,101 +290,51 @@ impl RedisBackend {
             write_can_empty: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
 }
 
-/// Reader returned by this backend.
-pub struct RedisReader {
-    backend: RedisBackend,
-    path: String,
-}
-
-impl RedisReader {
-    fn new(backend: RedisBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for RedisReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        let (buffer, metadata) = if range.is_full() {
-            // Full read - use GET
-            match backend.core.get(&p).await? {
-                Some(bs) => {
-                    let metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-                    (bs, Some(metadata))
-                }
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let content_length = match backend.core.len(&p).await? {
-                Some(v) => v,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
-            };
-            let content_range = range.to_content_range(content_length)?;
-
-            let buffer = if content_range.is_empty() {
-                Buffer::new()
-            } else {
-                let start: isize = content_range.start.try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                let end: isize = (content_range.end - 1).try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range end exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                match backend.core.get_range(&p, start, end).await? {
-                    Some(bs) => bs,
-                    None => {
-                        return Err(Error::new(ErrorKind::NotFound, "key not found in redis"));
-                    }
-                }
-            };
-            let metadata =
-                Metadata::new(EntryMode::FILE).with_content_length(content_length as u64);
-            (buffer, Some(metadata))
-        };
-
-        let rp = metadata.map_or_else(RpRead::default, RpRead::new);
-        Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for RedisBackend {
+impl Service for RedisBackend {
     type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -400,22 +349,81 @@ impl Access for RedisBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(RedisReader::new(self.clone(), path, args)),
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<RedisReader> = {
+            Ok(oio::StreamReader::new(RedisReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: RedisWriter = {
+            let p = build_abs_path(&self.root, path);
+            Ok(RedisWriter::new(self.core.clone(), p))
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<RedisDeleter> = {
+            Ok(oio::OneShotDeleter::new(RedisDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p)))
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(RedisDeleter::new(self.core.clone(), self.root.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

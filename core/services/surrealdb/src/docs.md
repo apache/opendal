@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
         .key_field("key")
         .value_field("value");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     Ok(())
 }
 ```

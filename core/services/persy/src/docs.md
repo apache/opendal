@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
         .segment("data")
         .index("index");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

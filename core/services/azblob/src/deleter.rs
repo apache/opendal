@@ -19,25 +19,26 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct AzblobDeleter {
     core: Arc<AzblobCore>,
+    ctx: OperationContext,
 }
 
 impl AzblobDeleter {
-    pub fn new(core: Arc<AzblobCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<AzblobCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::BatchDelete for AzblobDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.azblob_delete_blob(&path).await?;
+        let resp = self.core.azblob_delete_blob(&self.ctx, &path).await?;
 
         let status = resp.status();
 
@@ -52,7 +53,7 @@ impl oio::BatchDelete for AzblobDeleter {
         let paths = batch.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
 
         // construct and complete batch request
-        let resp = self.core.azblob_batch_delete(&paths).await?;
+        let resp = self.core.azblob_batch_delete(&self.ctx, &paths).await?;
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {

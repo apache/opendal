@@ -60,8 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Create operator
-    let op = Operator::new(Foyer::new().cache(cache))?
-        .finish();
+    let op = Operator::new(Foyer::new().cache(cache))?;
 
     // Use it like any other OpenDAL operator
     op.write("key", "value").await?;
@@ -89,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .recover_mode("quiet")              // Recover on restart
             .shards(4)                          // 4 shards for concurrency
     )?
-    .finish();
+    ;
 
     op.write("key", "value").await?;
     let value = op.read("key").await?;

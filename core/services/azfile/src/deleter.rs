@@ -19,27 +19,28 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct AzfileDeleter {
     core: Arc<AzfileCore>,
+    ctx: OperationContext,
 }
 
 impl AzfileDeleter {
-    pub fn new(core: Arc<AzfileCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<AzfileCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for AzfileDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let resp = if path.ends_with('/') {
-            self.core.azfile_delete_dir(&path).await?
+            self.core.azfile_delete_dir(&self.ctx, &path).await?
         } else {
-            self.core.azfile_delete_file(&path).await?
+            self.core.azfile_delete_file(&self.ctx, &path).await?
         };
 
         let status = resp.status();

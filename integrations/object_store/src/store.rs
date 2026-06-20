@@ -155,7 +155,7 @@ fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::E
 ///     .region("my_region");
 ///
 ///     // Create a new operator
-///     let operator = Operator::new(builder).unwrap().finish();
+///     let operator = Operator::new(builder).unwrap();
 ///
 ///     // Create a new object store
 ///     let object_store = Arc::new(OpendalStore::new(operator));
@@ -384,7 +384,7 @@ impl Debug for OpendalStore {
             .field("scheme", &self.info.scheme())
             .field("name", &self.info.name())
             .field("root", &self.info.root())
-            .field("capability", &self.info.full_capability())
+            .field("capability", &self.info.capability())
             .finish()
     }
 }
@@ -634,7 +634,7 @@ impl ObjectStore for OpendalStore {
         let this = self.clone();
 
         let fut = async move {
-            let list_with_start_after = this.inner.info().full_capability().list_with_start_after;
+            let list_with_start_after = this.inner.info().capability().list_with_start_after;
             let mut fut = this.inner.lister_with(&path).recursive(true);
 
             // Use native start_after support if possible.
@@ -839,7 +839,7 @@ mod tests {
     use super::*;
 
     async fn create_test_object_store() -> Arc<dyn ObjectStore> {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let object_store = Arc::new(OpendalStore::new(op));
 
         let path: Path = "data/test.txt".into();
@@ -855,7 +855,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         // Retrieve a specific file
@@ -882,7 +882,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_put_multipart() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         let mut rng = rng();
@@ -1015,89 +1015,114 @@ mod tests {
             }
         }
 
-        impl<A: opendal::raw::Access> opendal::raw::Layer<A> for StatCounterLayer {
-            type LayeredAccess = StatCounterAccessor<A>;
-
-            fn layer(&self, inner: A) -> Self::LayeredAccess {
-                StatCounterAccessor {
-                    inner,
+        impl opendal::raw::Layer for StatCounterLayer {
+            fn apply_service(&self, srv: opendal::raw::Servicer) -> opendal::raw::Servicer {
+                Arc::new(StatCounterService {
+                    srv,
                     count: self.count.clone(),
-                }
+                })
             }
         }
 
-        #[derive(Debug, Clone)]
-        pub struct StatCounterAccessor<A> {
-            inner: A,
+        #[derive(Debug)]
+        pub struct StatCounterService {
+            srv: opendal::raw::Servicer,
             count: Arc<AtomicUsize>,
         }
 
-        impl<A: opendal::raw::Access> opendal::raw::LayeredAccess for StatCounterAccessor<A> {
-            type Inner = A;
-            type Reader = A::Reader;
-            type Writer = A::Writer;
-            type Lister = A::Lister;
-            type Deleter = A::Deleter;
-            type Copier = A::Copier;
+        impl opendal::raw::Service for StatCounterService {
+            type Reader = opendal::raw::oio::Reader;
+            type Writer = opendal::raw::oio::Writer;
+            type Lister = opendal::raw::oio::Lister;
+            type Deleter = opendal::raw::oio::Deleter;
+            type Copier = opendal::raw::oio::Copier;
 
-            fn inner(&self) -> &Self::Inner {
-                &self.inner
+            fn info(&self) -> opendal::raw::ServiceInfo {
+                self.srv.info()
+            }
+
+            fn capability(&self) -> opendal::Capability {
+                self.srv.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: opendal::raw::OpCreateDir,
+            ) -> opendal::Result<opendal::raw::RpCreateDir> {
+                self.srv.create_dir(ctx, path, args).await
             }
 
             async fn stat(
                 &self,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpStat,
             ) -> opendal::Result<opendal::raw::RpStat> {
                 self.count.fetch_add(1, Ordering::SeqCst);
-                self.inner.stat(path, args).await
+                self.srv.stat(ctx, path, args).await
             }
 
-            async fn read(
+            fn read(
                 &self,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpRead,
-            ) -> opendal::Result<(opendal::raw::RpRead, Self::Reader)> {
-                self.inner.read(path, args).await
+            ) -> opendal::Result<Self::Reader> {
+                self.srv.read(ctx, path, args)
             }
 
-            async fn write(
+            fn write(
                 &self,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpWrite,
-            ) -> opendal::Result<(opendal::raw::RpWrite, Self::Writer)> {
-                self.inner.write(path, args).await
+            ) -> opendal::Result<Self::Writer> {
+                self.srv.write(ctx, path, args)
             }
 
-            async fn delete(&self) -> opendal::Result<(opendal::raw::RpDelete, Self::Deleter)> {
-                self.inner.delete().await
+            fn delete(&self, ctx: &opendal::OperationContext) -> opendal::Result<Self::Deleter> {
+                self.srv.delete(ctx)
             }
 
-            async fn list(
+            fn list(
                 &self,
+                ctx: &opendal::OperationContext,
                 path: &str,
                 args: opendal::raw::OpList,
-            ) -> opendal::Result<(opendal::raw::RpList, Self::Lister)> {
-                self.inner.list(path, args).await
+            ) -> opendal::Result<Self::Lister> {
+                self.srv.list(ctx, path, args)
             }
 
-            async fn copy(
+            fn copy(
                 &self,
+                ctx: &opendal::OperationContext,
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpCopy,
                 opts: opendal::raw::OpCopier,
-            ) -> opendal::Result<(opendal::raw::RpCopy, Self::Copier)> {
-                self.inner.copy(from, to, args, opts).await
+            ) -> opendal::Result<Self::Copier> {
+                self.srv.copy(ctx, from, to, args, opts)
             }
 
             async fn rename(
                 &self,
+                ctx: &opendal::OperationContext,
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpRename,
             ) -> opendal::Result<opendal::raw::RpRename> {
-                self.inner.rename(from, to, args).await
+                self.srv.rename(ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: opendal::raw::OpPresign,
+            ) -> opendal::Result<opendal::raw::RpPresign> {
+                self.srv.presign(ctx, path, args).await
             }
         }
     }
@@ -1110,8 +1135,7 @@ mod tests {
         let stat_count = Arc::new(AtomicUsize::new(0));
         let op = Operator::new(opendal::services::Memory::default())
             .unwrap()
-            .layer(stat_counter::StatCounterLayer::new(stat_count.clone()))
-            .finish();
+            .layer(stat_counter::StatCounterLayer::new(stat_count.clone()));
         let store = OpendalStore::new(op);
 
         // Create a test file

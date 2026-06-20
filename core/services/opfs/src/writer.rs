@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use send_wrapper::SendWrapper;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemWritableFileStream;
@@ -25,31 +28,59 @@ use web_sys::WriteParams;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::error::*;
+use super::core::OpfsCore;
+use super::core::*;
+use super::core::*;
 
 pub struct OpfsWriter {
-    stream: SendWrapper<FileSystemWritableFileStream>,
+    core: Arc<OpfsCore>,
+    path: String,
+    stream: Option<SendWrapper<FileSystemWritableFileStream>>,
     bytes_written: u64,
 }
 
 impl OpfsWriter {
-    pub fn new(stream: FileSystemWritableFileStream) -> Self {
+    pub fn new(core: Arc<OpfsCore>, path: String) -> Self {
         Self {
-            stream: SendWrapper::new(stream),
+            core,
+            path,
+            stream: None,
             bytes_written: 0,
         }
+    }
+
+    async fn init_stream(&mut self) -> Result<()> {
+        if self.stream.is_some() {
+            return Ok(());
+        }
+
+        let p = build_abs_path(&self.core.root, &self.path);
+        let handle = get_file_handle(&p, true).await?;
+        let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
+        self.stream = Some(SendWrapper::new(stream));
+
+        Ok(())
     }
 }
 
 impl oio::Write for OpfsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.init_stream().await?;
+
         let bytes = bs.to_bytes();
         let params = WriteParams::new(WriteCommandType::Write);
         params.set_size(Some(bytes.len() as f64));
         let data: JsValue = js_sys::Uint8Array::from(bytes.as_ref()).into();
         params.set_data(&data);
+        let stream = self
+            .stream
+            .as_ref()
+            .expect("opfs writable stream must be initialized");
         JsFuture::from(
-            self.stream
+            stream
                 .write_with_write_params(&params.into())
                 .map_err(parse_js_error)?,
         )
@@ -61,9 +92,13 @@ impl oio::Write for OpfsWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        JsFuture::from(self.stream.close())
-            .await
-            .map_err(parse_js_error)?;
+        self.init_stream().await?;
+
+        if let Some(stream) = self.stream.take() {
+            JsFuture::from(stream.close())
+                .await
+                .map_err(parse_js_error)?;
+        }
 
         // We cannot set LastModified here - stream does not have such metadata
         let mut meta = Metadata::new(EntryMode::FILE);
@@ -72,9 +107,11 @@ impl oio::Write for OpfsWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        JsFuture::from(self.stream.abort())
-            .await
-            .map_err(parse_js_error)?;
+        if let Some(stream) = self.stream.take() {
+            JsFuture::from(stream.abort())
+                .await
+                .map_err(parse_js_error)?;
+        }
         Ok(())
     }
 }

@@ -98,25 +98,30 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
-          - os: macos-15
-            platform: arm64-darwin23
-            rust_target: aarch64-apple-darwin
-          - os: macos-26
-            platform: arm64-darwin23
+          # Publish a versionless macOS platform gem. RubyGems matches
+          # arm64-darwin against runtime platforms like arm64-darwin23/24/25,
+          # so separate Darwin-version gems only add release artifacts.
+          # Compatibility with older macOS is controlled by the binary's
+          # deployment target, not this platform suffix. For Rust ARM64 macOS,
+          # rustc defaults to macOS 11.0 unless MACOSX_DEPLOYMENT_TARGET is set.
+          #
+          # Read more https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html
+          - os: macos-latest
+            platform: arm64-darwin
             rust_target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
     continue-on-error: true
 
     env:
-      RB_SYS_CARGO_TARGET: ${{ matrix.rust_target }}
+      CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
+      OPENDAL_RUBY_PLATFORM: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
-        shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
@@ -126,13 +131,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-          working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
+          working-directory: bindings/ruby # must repeat because actions will not use defaults.run
 
       - name: Show available rake tasks
         run: bundle exec rake --tasks
 
       - name: Build native gem
-        run: bundle exec rake native:opendal:${{ matrix.platform }} gem
+        run: bundle exec rake native:opendal
 
       - name: Collect built gem
         run: |

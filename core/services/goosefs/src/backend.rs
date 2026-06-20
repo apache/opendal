@@ -25,7 +25,7 @@ use super::config::GoosefsConfig;
 use super::core::GoosefsCore;
 use super::deleter::GoosefsDeleter;
 use super::lister::GoosefsLister;
-use super::reader::GoosefsReadStream;
+use super::reader::*;
 use super::writer::GoosefsWriter;
 use super::writer::GoosefsWriters;
 use opendal_core::raw::*;
@@ -127,7 +127,7 @@ impl Builder for GoosefsBuilder {
     type Config = GoosefsConfig;
 
     /// Build the backend and return a GoosefsBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("GoosefsBuilder::build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -268,27 +268,22 @@ impl Builder for GoosefsBuilder {
 
         Ok(GoosefsBackend {
             core: Arc::new(GoosefsCore::new(
-                {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(GOOSEFS_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            read: true,
-                            write: true,
-                            write_can_multi: true,
-                            // GooseFS createFile fails with AlreadyExists if file exists,
-                            // which naturally provides if_not_exists semantics.
-                            // Lance Dataset relies on this for manifest commit safety.
-                            write_with_if_not_exists: true,
-                            create_dir: true,
-                            delete: true,
-                            list: true,
-                            rename: true,
-                            shared: true,
-                            ..Default::default()
-                        });
-                    am.into()
+                ServiceInfo::new(GOOSEFS_SCHEME, &root, ""),
+                Capability {
+                    stat: true,
+                    read: true,
+                    write: true,
+                    write_can_multi: true,
+                    // GooseFS createFile fails with AlreadyExists if file exists,
+                    // which naturally provides if_not_exists semantics.
+                    // Lance Dataset relies on this for manifest commit safety.
+                    write_with_if_not_exists: true,
+                    create_dir: true,
+                    delete: true,
+                    list: true,
+                    rename: true,
+                    shared: true,
+                    ..Default::default()
                 },
                 root,
                 goosefs_config,
@@ -299,99 +294,113 @@ impl Builder for GoosefsBuilder {
 
 #[derive(Debug, Clone)]
 pub struct GoosefsBackend {
-    core: Arc<GoosefsCore>,
+    pub(crate) core: Arc<GoosefsCore>,
 }
 
-/// Reader returned by this backend.
-pub struct GoosefsReader {
-    backend: GoosefsBackend,
-    path: String,
-}
-
-impl GoosefsReader {
-    fn new(backend: GoosefsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GoosefsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-
-        let content_length = if range.offset() != 0 && range.size().is_none() {
-            let file_info = backend.core.get_status(path).await?;
-            Some(
-                backend
-                    .core
-                    .file_info_to_metadata(&file_info)
-                    .content_length(),
-            )
-        } else {
-            None
-        };
-        let rp = RpRead::default();
-        let stream = GoosefsReadStream::new(
-            backend.core.clone(),
-            path.to_string(),
-            range,
-            content_length,
-        );
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for GoosefsBackend {
+impl Service for GoosefsBackend {
     type Reader = oio::StreamReader<GoosefsReader>;
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.core.create_dir(path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let file_info = self.core.get_status(path).await?;
         Ok(RpStat::new(self.core.file_info_to_metadata(&file_info)))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(GoosefsReader::new(self.clone(), path, args)),
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GoosefsReader> = {
+            Ok(oio::StreamReader::new(GoosefsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: GoosefsWriters = {
+            let w = GoosefsWriter::new(self.core.clone(), args.clone(), path.to_string());
+            Ok(w)
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<GoosefsDeleter> = {
+            Ok(oio::OneShotDeleter::new(GoosefsDeleter::new(
+                self.core.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<GoosefsLister> = {
+            let l = GoosefsLister::new(self.core.clone(), path);
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = GoosefsWriter::new(self.core.clone(), args.clone(), path.to_string());
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(GoosefsDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GoosefsLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
         self.core.rename(from, to).await?;
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }
 

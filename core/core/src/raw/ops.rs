@@ -357,6 +357,7 @@ pub struct OpRead {
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
+    content_length_hint: Option<u64>,
 }
 
 impl OpRead {
@@ -453,6 +454,10 @@ impl OpRead {
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
+
+    pub(crate) fn content_length_hint(&self) -> Option<u64> {
+        self.content_length_hint
+    }
 }
 
 /// Args for reader operation.
@@ -466,8 +471,6 @@ pub struct OpReader {
     gap: Option<usize>,
     /// The maximum number of buffers that can be prefetched.
     prefetch: usize,
-    /// Known content length of the object.
-    content_length_hint: Option<u64>,
 }
 
 impl Default for OpReader {
@@ -477,7 +480,6 @@ impl Default for OpReader {
             chunk: None,
             gap: None,
             prefetch: 0,
-            content_length_hint: None,
         }
     }
 }
@@ -531,17 +533,6 @@ impl OpReader {
     pub fn prefetch(&self) -> usize {
         self.prefetch
     }
-
-    /// Set content length hint of the option
-    pub fn with_content_length_hint(mut self, content_length: u64) -> Self {
-        self.content_length_hint = Some(content_length);
-        self
-    }
-
-    /// Get content length hint from option
-    pub fn content_length_hint(&self) -> Option<u64> {
-        self.content_length_hint
-    }
 }
 
 impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
@@ -557,6 +548,7 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
                 override_cache_control: value.override_cache_control,
                 override_content_disposition: value.override_content_disposition,
                 version: value.version,
+                content_length_hint: value.content_length_hint,
             },
             OpReader {
                 // Ensure concurrent is at least 1
@@ -564,7 +556,6 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
                 chunk: value.chunk,
                 gap: value.gap,
                 prefetch: 0,
-                content_length_hint: value.content_length_hint,
             },
         )
     }
@@ -582,6 +573,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 override_cache_control: None,
                 override_content_disposition: None,
                 version: value.version,
+                content_length_hint: value.content_length_hint,
             },
             OpReader {
                 // Ensure concurrent is at least 1
@@ -589,7 +581,6 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 chunk: value.chunk,
                 gap: value.gap,
                 prefetch: value.prefetch,
-                content_length_hint: value.content_length_hint,
             },
         )
     }

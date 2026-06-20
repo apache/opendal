@@ -22,7 +22,7 @@ use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
-use crate::error::parse_hdfs_error;
+use crate::core::parse_hdfs_error;
 
 pub struct HdfsNativeLister {
     root: String,

@@ -24,7 +24,7 @@ use std::time::UNIX_EPOCH;
 use goosefs_sdk::io::GoosefsFileWriter as ClientWriter;
 
 use super::core::GoosefsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use compio::buf::{IoBuf, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
@@ -56,7 +55,8 @@ impl IoVectoredBuf for CompfsBuffer {
 
 #[derive(Debug)]
 pub(super) struct CompfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub root: PathBuf,
     pub dispatcher: Dispatcher,
@@ -155,7 +155,8 @@ mod tests {
 
     fn new_test_core() -> CompfsCore {
         CompfsCore {
-            info: Arc::new(AccessorInfo::default()),
+            info: ServiceInfo::new("compfs", "", ""),
+            capability: Capability::default(),
             root: PathBuf::from("/data/root"),
             dispatcher: Dispatcher::new().unwrap(),
             buf_pool: oio::PooledBuf::new(16),

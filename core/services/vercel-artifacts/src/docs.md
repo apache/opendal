@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
         .endpoint("https://my-vercel-api.example.com")
         .team_id("team_xxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

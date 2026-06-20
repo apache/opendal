@@ -38,11 +38,10 @@ func (op *Operator) Info() *OperatorInfo {
 	defer ffiOperatorInfoFree.symbol(op.ctx)(inner)
 
 	return &OperatorInfo{
-		scheme:    ffiOperatorInfoGetScheme.symbol(op.ctx)(inner),
-		root:      ffiOperatorInfoGetRoot.symbol(op.ctx)(inner),
-		name:      ffiOperatorInfoGetName.symbol(op.ctx)(inner),
-		fullCap:   &Capability{inner: ffiOperatorInfoGetFullCapability.symbol(op.ctx)(inner)},
-		nativeCap: &Capability{inner: ffiOperatorInfoGetNativeCapability.symbol(op.ctx)(inner)},
+		scheme:     ffiOperatorInfoGetScheme.symbol(op.ctx)(inner),
+		root:       ffiOperatorInfoGetRoot.symbol(op.ctx)(inner),
+		name:       ffiOperatorInfoGetName.symbol(op.ctx)(inner),
+		capability: &Capability{inner: ffiOperatorInfoGetCapability.symbol(op.ctx)(inner)},
 	}
 }
 
@@ -52,19 +51,14 @@ func (op *Operator) Info() *OperatorInfo {
 // and its capabilities, allowing users to query details about the
 // Operator they are working with.
 type OperatorInfo struct {
-	scheme    string
-	root      string
-	name      string
-	fullCap   *Capability
-	nativeCap *Capability
+	scheme     string
+	root       string
+	name       string
+	capability *Capability
 }
 
-func (i *OperatorInfo) GetFullCapability() *Capability {
-	return i.fullCap
-}
-
-func (i *OperatorInfo) GetNativeCapability() *Capability {
-	return i.nativeCap
+func (i *OperatorInfo) GetCapability() *Capability {
+	return i.capability
 }
 
 func (i *OperatorInfo) GetScheme() string {
@@ -359,23 +353,8 @@ var ffiOperatorInfoFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorInfoGetFullCapability = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_full_capability",
-	rType:  &typeCapability,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) *opendalCapability {
-	return func(info *opendalOperatorInfo) *opendalCapability {
-		var cap opendalCapability
-		ffiCall(
-			unsafe.Pointer(&cap),
-			unsafe.Pointer(&info),
-		)
-		return &cap
-	}
-})
-
-var ffiOperatorInfoGetNativeCapability = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_native_capability",
+var ffiOperatorInfoGetCapability = newFFI(ffiOpts{
+	sym:    "opendal_operator_info_get_capability",
 	rType:  &typeCapability,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) *opendalCapability {

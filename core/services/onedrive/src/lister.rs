@@ -24,13 +24,15 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
 
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,
+    ctx: OperationContext,
+    capability: Capability,
     path: String,
     op: OpList,
 }
@@ -38,9 +40,17 @@ pub struct OneDriveLister {
 impl OneDriveLister {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
-    pub(crate) fn new(path: String, core: Arc<OneDriveCore>, args: &OpList) -> Self {
+    pub(crate) fn new(
+        path: String,
+        core: Arc<OneDriveCore>,
+        ctx: OperationContext,
+        capability: Capability,
+        args: &OpList,
+    ) -> Self {
         Self {
             core,
+            ctx,
+            capability,
             path,
             op: args.clone(),
         }
@@ -64,7 +74,10 @@ impl oio::PageList for OneDriveLister {
             ctx.token.clone()
         };
 
-        let response = self.core.onedrive_get_next_list_page(&request_url).await?;
+        let response = self
+            .core
+            .onedrive_get_next_list_page(&self.ctx, &request_url)
+            .await?;
 
         let status_code = response.status();
         if !status_code.is_success() {
@@ -79,7 +92,7 @@ impl oio::PageList for OneDriveLister {
         let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
-        let list_with_versions = self.core.info.native_capability().list_with_versions;
+        let list_with_versions = self.capability.list_with_versions;
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
@@ -91,7 +104,10 @@ impl oio::PageList for OneDriveLister {
                 self.path.clone()
             };
 
-            let meta = self.core.onedrive_stat(&path, OpStat::default()).await?;
+            let meta = self
+                .core
+                .onedrive_stat(&self.ctx, &path, OpStat::default())
+                .await?;
 
             // skip `list_with_versions` intentionally because a folder doesn't have versions
 
@@ -135,7 +151,7 @@ impl oio::PageList for OneDriveLister {
             // N+1 is horrendous but we can't do any better without OneDrive's API support.
             // When OneDrive supports listing with versions API, remove this.
             if list_with_versions {
-                let versions = self.core.onedrive_list_versions(&path).await?;
+                let versions = self.core.onedrive_list_versions(&self.ctx, &path).await?;
                 if let Some(version) = versions.first() {
                     meta.set_version(&version.id);
                 }

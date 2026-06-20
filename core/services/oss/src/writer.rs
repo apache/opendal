@@ -21,8 +21,8 @@ use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -30,15 +30,17 @@ pub type OssWriters = TwoWays<oio::MultipartWriter<OssWriter>, oio::AppendWriter
 
 pub struct OssWriter {
     core: Arc<OssCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl OssWriter {
-    pub fn new(core: Arc<OssCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<OssCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         OssWriter {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
@@ -65,9 +67,9 @@ impl oio::MultipartWrite for OssWriter {
         let req =
             self.core
                 .oss_put_object_request(&self.path, Some(size), &self.op, body, false)?;
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();
@@ -82,6 +84,7 @@ impl oio::MultipartWrite for OssWriter {
         let resp = self
             .core
             .oss_initiate_upload(
+                &self.ctx,
                 &self.path,
                 self.op.content_type(),
                 self.op.content_disposition(),
@@ -119,7 +122,15 @@ impl oio::MultipartWrite for OssWriter {
 
         let resp = self
             .core
-            .oss_upload_part_request(&self.path, upload_id, part_number, false, size, body)
+            .oss_upload_part_request(
+                &self.ctx,
+                &self.path,
+                upload_id,
+                part_number,
+                false,
+                size,
+                body,
+            )
             .await?;
 
         let status = resp.status();
@@ -161,7 +172,7 @@ impl oio::MultipartWrite for OssWriter {
 
         let resp = self
             .core
-            .oss_complete_multipart_upload_request(&self.path, upload_id, false, parts)
+            .oss_complete_multipart_upload_request(&self.ctx, &self.path, upload_id, false, parts)
             .await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
@@ -176,7 +187,7 @@ impl oio::MultipartWrite for OssWriter {
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .oss_abort_multipart_upload(&self.path, upload_id)
+            .oss_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
         match resp.status() {
             // OSS returns code 204 if abort succeeds.
@@ -190,7 +201,7 @@ impl oio::AppendWrite for OssWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .oss_head_object(&self.path, &OpStat::new())
+            .oss_head_object(&self.ctx, &self.path, &OpStat::new())
             .await?;
 
         let status = resp.status();
@@ -213,9 +224,9 @@ impl oio::AppendWrite for OssWriter {
         let req = self
             .core
             .oss_append_object_request(&self.path, offset, size, &self.op, body)?;
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
         let status = resp.status();

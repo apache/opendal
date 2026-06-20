@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -25,6 +24,8 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::HeaderValue;
 use http::header::USER_AGENT;
+use reqsign_core::Context;
+use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_volcengine_tos::Credential;
 use reqsign_volcengine_tos::{percent_encode_path, percent_encode_query};
@@ -57,7 +58,8 @@ pub mod constants {
 }
 
 pub struct TosCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub bucket: String,
     pub endpoint: String, // full endpoint with scheme, e.g. https://tos-cn-beijing.volces.com
@@ -88,11 +90,24 @@ impl Debug for TosCore {
 }
 
 impl TosCore {
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(ctx.http_transport().clone())
+                .with_env(OsEnv),
+        )
+    }
+
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
         let (mut parts, body) = req.into_parts();
 
         if !self.skip_signature {
-            self.signer
+            self.signer(ctx)
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
@@ -104,20 +119,23 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        let resp = self
-            .info
-            .http_client()
+        let resp = ctx
+            .http_transport()
             .send(Request::from_parts(parts, body))
             .await?;
 
         Ok(resp)
     }
 
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+    pub async fn fetch(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<HttpBody>> {
         let (mut parts, body) = req.into_parts();
 
         if !self.skip_signature {
-            self.signer
+            self.signer(ctx)
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
@@ -131,8 +149,7 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        self.info
-            .http_client()
+        ctx.http_transport()
             .fetch(Request::from_parts(parts, body))
             .await
     }
@@ -263,7 +280,9 @@ impl TosCore {
             );
         }
 
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -272,12 +291,13 @@ impl TosCore {
 
     pub async fn tos_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.tos_get_object_request(path, range, args)?;
-        self.fetch(req).await
+        self.fetch(ctx, req).await
     }
 
     pub fn tos_put_object_request(
@@ -300,7 +320,9 @@ impl TosCore {
 
         req = self.insert_metadata_headers(req, size, args);
 
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
@@ -372,19 +394,31 @@ impl TosCore {
             );
         }
 
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         Ok(req)
     }
 
-    pub async fn tos_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
+    pub async fn tos_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.tos_head_object_request(path, args)?;
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn tos_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn tos_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -412,14 +446,16 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_delete_objects(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("https://{}.{}?delete", self.bucket, self.endpoint_domain);
@@ -442,17 +478,20 @@ impl TosCore {
         req = req.header(CONTENT_TYPE, "application/json");
         req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteMultipleObjects"));
 
         let req = req
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_copy_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -478,13 +517,18 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn tos_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn tos_initiate_multipart_copy(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -505,10 +549,11 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CreateMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn tos_upload_part_copy_request(
@@ -530,6 +575,7 @@ impl TosCore {
 
         let req = Request::put(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_TOS_COPY_SOURCE, source)
             .header(constants::X_TOS_COPY_SOURCE_RANGE, input.range.to_header());
 
@@ -540,6 +586,7 @@ impl TosCore {
 
     pub async fn tos_complete_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -568,14 +615,16 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_abort_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -591,14 +640,16 @@ impl TosCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_list_objects_v2(
         &self,
+        ctx: &OperationContext,
         path: &str,
         continuation_token: &str,
         delimiter: &str,
@@ -635,14 +686,16 @@ impl TosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -676,14 +729,16 @@ impl TosCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -727,11 +782,13 @@ impl TosCore {
             }
         }
 
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn tos_upload_part_request(
@@ -756,6 +813,7 @@ impl TosCore {
         let req = Request::put(&url)
             .header(CONTENT_LENGTH, size)
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -764,6 +822,7 @@ impl TosCore {
 
     pub async fn tos_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -795,14 +854,16 @@ impl TosCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(content))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn tos_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -818,10 +879,11 @@ impl TosCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 
@@ -989,3 +1051,179 @@ pub struct CopyObjectOutput {
     #[serde(rename = "ETag")]
     pub etag: String,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::{Response, StatusCode};
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// TosError is the error returned by TOS service.
+    #[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+    #[serde(default, rename_all = "PascalCase")]
+    pub(crate) struct TosError {
+        pub code: String,
+        pub message: String,
+        pub resource: String,
+        pub request_id: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (mut kind, mut retryable) = match parts.status {
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+            code if code.is_server_error() => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, tos_err) = parse_tos_error(&bs)
+            .map(|tos_err| (format!("{tos_err:?}"), Some(tos_err)))
+            .unwrap_or_else(|| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        if let Some(tos_err) = tos_err {
+            (kind, retryable) =
+                parse_tos_error_code(tos_err.code.as_str()).unwrap_or((kind, retryable));
+        }
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+        de::from_reader::<_, TosError>(bs.chunk().reader())
+            .or_else(|_| serde_json::from_slice::<TosError>(bs))
+            .ok()
+    }
+
+    /// Returns the `Error kind` of this code and whether the error is retryable.
+    /// TOS error codes: https://www.volcengine.com/docs/6349/74874
+    pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+        match code {
+            "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
+            "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+            "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
+            "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
+            "InternalError" => Some((ErrorKind::Unexpected, true)),
+            "OperationAborted" => Some((ErrorKind::Unexpected, true)),
+            "SlowDown" => Some((ErrorKind::RateLimited, true)),
+            "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+            "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+            "ExceedAccountQPSLimit" | "ExceedAccountRateLimit" => {
+                Some((ErrorKind::RateLimited, true))
+            }
+            "ExceedBucketQPSLimit" | "ExceedBucketRateLimit" => {
+                Some((ErrorKind::RateLimited, true))
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_parse_error() {
+            let bs = bytes::Bytes::from(
+                r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchKey</Code>
+  <Message>The resource you requested does not exist</Message>
+  <Resource>/mybucket/myfoto.jpg</Resource>
+  <RequestId>4442587FB7D0A2F9</RequestId>
+</Error>
+"#,
+            );
+
+            let out: TosError = de::from_reader(bs.reader()).expect("must success");
+            println!("{out:?}");
+
+            assert_eq!(out.code, "NoSuchKey");
+            assert_eq!(out.message, "The resource you requested does not exist");
+            assert_eq!(out.resource, "/mybucket/myfoto.jpg");
+            assert_eq!(out.request_id, "4442587FB7D0A2F9");
+        }
+
+        #[test]
+        fn test_parse_json_error() {
+            let bs = bytes::Bytes::from(
+                r#"{"Code":"DuplicateObject","RequestId":"request-id","Message":"The object already exists."}"#,
+            );
+
+            let out = parse_tos_error(&bs).expect("must success");
+
+            assert_eq!(out.code, "DuplicateObject");
+            assert_eq!(out.message, "The object already exists.");
+            assert_eq!(out.request_id, "request-id");
+        }
+
+        #[test]
+        fn test_parse_error_from_unrelated_input() {
+            let bs = bytes::Bytes::from(
+                r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult xmlns="http://tos.apache.org/doc/2024-01-01/">
+  <Bucket>example-bucket</Bucket>
+  <Key>example-object</Key>
+  <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
+</CompleteMultipartUploadResult>
+"#,
+            );
+
+            let out: TosError = de::from_reader(bs.reader()).expect("must success");
+            assert_eq!(out, TosError::default());
+        }
+    }
+}
+
+pub(super) use error::*;
+
+mod utils {
+    use http::HeaderMap;
+    use http::header::ETAG;
+    use opendal_core::Metadata;
+    use opendal_core::raw::{parse_header_to_str, parse_into_metadata};
+
+    /// Parse etag from header map.
+    ///
+    /// Trim quotes from etag if present (TOS returns etag with quotes)
+    pub fn tos_parse_etag(headers: &HeaderMap) -> opendal_core::Result<Option<&str>> {
+        let etag = parse_header_to_str(headers, ETAG)?.map(|etag| etag.trim_matches('"'));
+        Ok(etag)
+    }
+
+    pub(crate) fn tos_parse_into_metadata(
+        path: &str,
+        headers: &HeaderMap,
+    ) -> opendal_core::Result<Metadata> {
+        let mut metadata = parse_into_metadata(path, headers)?;
+
+        if let Some(etag) = tos_parse_etag(headers)? {
+            metadata.set_etag(etag);
+        }
+
+        Ok(metadata)
+    }
+}
+
+pub(super) use utils::*;

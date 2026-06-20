@@ -28,8 +28,7 @@ use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
-use super::reader::MonoiofsReader;
-use super::writer::MonoiofsWriter;
+use super::reader::*;
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
@@ -55,7 +54,7 @@ impl MonoiofsBuilder {
 impl Builder for MonoiofsBuilder {
     type Config = MonoiofsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = self.config.root.map(PathBuf::from).ok_or(
             Error::new(ErrorKind::ConfigInvalid, "root is not specified")
                 .with_operation("Builder::build"),
@@ -89,21 +88,25 @@ impl Builder for MonoiofsBuilder {
 
 #[derive(Debug, Clone)]
 pub struct MonoiofsBackend {
-    core: Arc<MonoiofsCore>,
+    pub(crate) core: Arc<MonoiofsCore>,
 }
 
-impl Access for MonoiofsBackend {
-    type Reader = oio::PositionReader<MonoiofsReader>;
-    type Writer = MonoiofsWriter;
+impl Service for MonoiofsBackend {
+    type Reader = oio::PositionReader<MonoiofsPositionReader>;
+    type Writer = MonoiofsLazyWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let path = self.core.prepare_path(path)?;
         let meta = self
             .core
@@ -124,26 +127,42 @@ impl Access for MonoiofsBackend {
             )?);
         Ok(RpStat::new(m))
     }
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
         let path = self.core.prepare_path(path)?;
-        let reader = MonoiofsReader::new(self.core.clone(), path).await?;
-        Ok((RpRead::default(), oio::PositionReader::new(reader)))
+        Ok(oio::PositionReader::new(MonoiofsPositionReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = self.core.prepare_write_path(path).await?;
-        let writer = MonoiofsWriter::new(self.core.clone(), path, args.append()).await?;
-        Ok((RpWrite::default(), writer))
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        Ok(MonoiofsLazyWriter::new(self.core.clone(), path, args))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(MonoiofsDeleter::new(self.core.clone())),
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<MonoiofsDeleter> = {
+            Ok(oio::OneShotDeleter::new(MonoiofsDeleter::new(
+                self.core.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         let from = self.core.prepare_path(from)?;
         // ensure file exists
         self.core
@@ -161,7 +180,12 @@ impl Access for MonoiofsBackend {
         Ok(RpRename::default())
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let path = self.core.prepare_path(path)?;
         self.core
             .dispatch(move || monoio::fs::create_dir_all(path))
@@ -170,26 +194,29 @@ impl Access for MonoiofsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
         let from = self.core.prepare_path(from)?;
-        // ensure file exists
-        self.core
-            .dispatch({
+        let to = to.to_string();
+
+        let copier = oio::OneShotCopier::new(async move {
+            // ensure file exists
+            core.dispatch({
                 let from = from.clone();
                 move || monoio::fs::metadata(from)
             })
             .await
             .map_err(new_std_io_error)?;
-        let to = self.core.prepare_write_path(to).await?;
-        self.core
-            .dispatch({
-                let core = self.core.clone();
+            let to = core.prepare_write_path(&to).await?;
+            core.dispatch({
+                let core = core.clone();
                 move || async move {
                     let from = OpenOptions::new().read(true).open(from).await?;
                     let to = OpenOptions::new()
@@ -229,6 +256,21 @@ impl Access for MonoiofsBackend {
             })
             .await
             .map_err(new_std_io_error)?;
-        Ok((RpCopy::default(), ()))
+            Ok(Metadata::default())
+        });
+
+        Ok(copier)
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

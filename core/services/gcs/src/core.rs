@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -35,12 +34,11 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 use reqsign_google::Credential;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::uri::percent_encode_path;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -59,12 +57,14 @@ pub mod constants {
 }
 
 pub struct GcsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub bucket: String,
     pub root: String,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -83,14 +83,22 @@ impl Debug for GcsCore {
 }
 
 impl GcsCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            self.sign_ctx
+                .clone()
+                .with_http_send(ctx.http_transport().clone()),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -106,14 +114,19 @@ impl GcsCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -130,8 +143,12 @@ impl GcsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -148,7 +165,7 @@ impl GcsCore {
             "{}/storage/v1/b/{}/o/{}?alt=media",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p)
+            gcs_percent_encode_path(&p)
         );
 
         let mut req = Request::get(&url);
@@ -214,14 +231,15 @@ impl GcsCore {
 
     pub async fn gcs_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.gcs_get_object_request(path, range, args)?;
 
-        let req = self.sign(req).await?;
-        self.info.http_client().fetch(req).await
+        let req = self.sign(ctx, req).await?;
+        ctx.http_transport().fetch(req).await
     }
 
     pub fn gcs_insert_object_request(
@@ -250,7 +268,7 @@ impl GcsCore {
             } else {
                 "multipart"
             },
-            percent_encode_path(&p)
+            gcs_percent_encode_path(&p)
         );
 
         if let Some(acl) = &self.predefined_acl {
@@ -366,7 +384,7 @@ impl GcsCore {
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p)
+            gcs_percent_encode_path(&p)
         );
 
         let mut req = Request::get(&url);
@@ -419,21 +437,26 @@ impl GcsCore {
 
     pub async fn gcs_get_object_metadata(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.gcs_head_object_request(path, args)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn gcs_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let req = self.gcs_delete_object_request(path)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
@@ -443,7 +466,7 @@ impl GcsCore {
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p)
+            gcs_percent_encode_path(&p)
         );
 
         Request::delete(&url)
@@ -453,7 +476,11 @@ impl GcsCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_delete_objects(&self, paths: Vec<String>) -> Result<Response<Buffer>> {
+    pub async fn gcs_delete_objects(
+        &self,
+        ctx: &OperationContext,
+        paths: Vec<String>,
+    ) -> Result<Response<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -471,12 +498,13 @@ impl GcsCore {
             .extension(ServiceOperation("BatchDeleteObjects"));
         let req = multipart.apply(req)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_rewrite_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -490,15 +518,15 @@ impl GcsCore {
             "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&source),
+            gcs_percent_encode_path(&source),
             self.bucket,
-            percent_encode_path(&dest)
+            gcs_percent_encode_path(&dest)
         );
 
         let mut url = QueryPairsWriter::new(&url);
 
         if let Some(version) = args.source_version() {
-            url = url.push("sourceGeneration", &percent_encode_path(version));
+            url = url.push("sourceGeneration", &gcs_percent_encode_path(version));
         }
         if args.if_not_exists() {
             url = url.push("ifGenerationMatch", "0");
@@ -507,7 +535,7 @@ impl GcsCore {
             url = url.push("maxBytesRewrittenPerCall", &max_bytes.to_string());
         }
         if let Some(token) = rewrite_token {
-            url = url.push("rewriteToken", &percent_encode_path(token));
+            url = url.push("rewriteToken", &gcs_percent_encode_path(token));
         }
 
         let req = Request::post(url.finish())
@@ -517,12 +545,13 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         page_token: &str,
         delimiter: &str,
@@ -534,7 +563,7 @@ impl GcsCore {
         let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket,);
 
         let mut url = QueryPairsWriter::new(&url);
-        url = url.push("prefix", &percent_encode_path(&p));
+        url = url.push("prefix", &gcs_percent_encode_path(&p));
 
         if !delimiter.is_empty() {
             url = url.push("delimiter", delimiter);
@@ -544,7 +573,7 @@ impl GcsCore {
         }
         if let Some(start_after) = start_after {
             let start_after = build_abs_path(&self.root, &start_after);
-            url = url.push("startOffset", &percent_encode_path(&start_after));
+            url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
         }
 
         if !page_token.is_empty() {
@@ -554,7 +583,7 @@ impl GcsCore {
             //
             // Don't know how will those tokens be like so this part are copied
             // directly from AWS S3 service.
-            url = url.push("pageToken", &percent_encode_path(page_token));
+            url = url.push("pageToken", &gcs_percent_encode_path(page_token));
         }
 
         let req = Request::get(url.finish())
@@ -563,13 +592,14 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
+        let req = self.sign(ctx, req).await?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         op: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -616,12 +646,13 @@ impl GcsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_upload_part(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -634,9 +665,9 @@ impl GcsCore {
             "{}/{}/{}?partNumber={}&uploadId={}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p),
+            gcs_percent_encode_path(&p),
             part_number,
-            percent_encode_path(upload_id)
+            gcs_percent_encode_path(upload_id)
         );
 
         let mut req = Request::put(&url);
@@ -649,12 +680,13 @@ impl GcsCore {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -665,8 +697,8 @@ impl GcsCore {
             "{}/{}/{}?uploadId={}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p),
-            percent_encode_path(upload_id)
+            gcs_percent_encode_path(&p),
+            gcs_percent_encode_path(upload_id)
         );
 
         let req = Request::post(&url);
@@ -686,12 +718,13 @@ impl GcsCore {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn gcs_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -701,8 +734,8 @@ impl GcsCore {
             "{}/{}/{}?uploadId={}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(&p),
-            percent_encode_path(upload_id)
+            gcs_percent_encode_path(&p),
+            gcs_percent_encode_path(upload_id)
         );
 
         let req = Request::delete(&url)
@@ -710,8 +743,8 @@ impl GcsCore {
             .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub fn build_metadata_from_object_response(path: &str, data: Buffer) -> Result<Metadata> {
@@ -1111,3 +1144,176 @@ mod tests {
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+    use serde::Deserialize;
+    use serde_json::de;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default, rename_all = "camelCase")]
+    struct GcsErrorResponse {
+        error: GcsError,
+    }
+
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default, rename_all = "camelCase")]
+    struct GcsError {
+        code: usize,
+        message: String,
+        errors: Vec<GcsErrorDetail>,
+    }
+
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default, rename_all = "camelCase")]
+    struct GcsErrorDetail {
+        domain: String,
+        location: String,
+        location_type: String,
+        message: String,
+        reason: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = match de::from_slice::<GcsErrorResponse>(&bs) {
+            Ok(gcs_err) => format!("{gcs_err:?}"),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_parse_error() {
+            let bs = bytes::Bytes::from(
+                r#"
+{
+"error": {
+ "errors": [
+  {
+   "domain": "global",
+   "reason": "required",
+   "message": "Login Required",
+   "locationType": "header",
+   "location": "Authorization"
+  }
+ ],
+ "code": 401,
+ "message": "Login Required"
+ }
+}
+"#,
+            );
+
+            let out: GcsErrorResponse = de::from_slice(&bs).expect("must success");
+            println!("{out:?}");
+
+            assert_eq!(out.error.code, 401);
+            assert_eq!(out.error.message, "Login Required");
+            assert_eq!(out.error.errors[0].domain, "global");
+            assert_eq!(out.error.errors[0].reason, "required");
+            assert_eq!(out.error.errors[0].message, "Login Required");
+            assert_eq!(out.error.errors[0].location_type, "header");
+            assert_eq!(out.error.errors[0].location, "Authorization");
+        }
+    }
+}
+
+pub(super) use error::*;
+
+mod uri {
+    use percent_encoding::AsciiSet;
+    use percent_encoding::NON_ALPHANUMERIC;
+    use percent_encoding::utf8_percent_encode;
+
+    /// PATH_ENCODE_SET is the encode set for http url path.
+    ///
+    /// This set follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+    ///
+    /// Following characters is allowed in GCS, check "https://cloud.google.com/storage/docs/request-endpoints#encoding" for details
+    static GCS_PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
+        .remove(b'-')
+        .remove(b'_')
+        .remove(b'.')
+        .remove(b'*');
+
+    /// gcs_percent_encode_path will do percent encoding for http encode path.
+    ///
+    /// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent)
+    /// which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . *`
+    ///
+    /// GCS does not allow '/'s in paths, this should also be dealt with
+    pub(crate) fn gcs_percent_encode_path(path: &str) -> String {
+        utf8_percent_encode(path, &GCS_PATH_ENCODE_SET).to_string()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_percent_encode_path() {
+            let cases = vec![
+                (
+                    "Reserved Characters",
+                    ";,/?:@&=+$",
+                    "%3B%2C%2F%3F%3A%40%26%3D%2B%24",
+                ),
+                ("Unescaped Characters", "-_.*", "-_.*"),
+                ("Number Sign", "#", "%23"),
+                (
+                    "Alphanumeric Characters + Space",
+                    "ABC abc 123",
+                    "ABC%20abc%20123",
+                ),
+                (
+                    "Unicode",
+                    "你好，世界！❤",
+                    "%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
+                ),
+            ];
+
+            for (name, input, expected) in cases {
+                let actual = gcs_percent_encode_path(input);
+
+                assert_eq!(actual, expected, "{name}");
+            }
+        }
+    }
+}
+
+pub(super) use uri::*;

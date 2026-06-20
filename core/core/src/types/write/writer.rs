@@ -107,7 +107,7 @@ impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) async fn new(ctx: WriteContext) -> Result<Self> {
         let ctx = Arc::new(ctx);
-        let inner = WriteGenerator::create(ctx.clone()).await?;
+        let inner = std::future::ready(WriteGenerator::create(ctx.clone())).await?;
 
         Ok(Self { _ctx: ctx, inner })
     }
@@ -396,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -414,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write_from() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -432,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write_from_chain() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let part1 = Bytes::from(gen_random_bytes());

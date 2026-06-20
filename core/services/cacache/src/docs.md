@@ -31,7 +31,7 @@ use opendal_service_cacache::Cacache;
 async fn main() -> Result<()> {
     let mut builder = Cacache::default().datadir("/tmp/opendal/cacache");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

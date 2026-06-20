@@ -22,8 +22,8 @@
 mod backend;
 mod config;
 mod core;
-mod error;
 
+mod reader;
 pub use backend::HttpBuilder as Http;
 pub use config::HttpConfig;
 

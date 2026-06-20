@@ -44,6 +44,7 @@ fn parse_next_cursor(link_str: &str) -> Option<String> {
 
 pub struct HfLister {
     core: Arc<HfCore>,
+    ctx: OperationContext,
     /// The directory path to list via the tree API (always ends with `/` or is empty for root).
     list_path: String,
     /// When the original path didn't end with `/`, filter results to this prefix.
@@ -52,10 +53,11 @@ pub struct HfLister {
 }
 
 impl HfLister {
-    pub fn new(core: Arc<HfCore>, path: String, recursive: bool) -> Self {
+    pub fn new(core: Arc<HfCore>, ctx: OperationContext, path: String, recursive: bool) -> Self {
         if path.is_empty() || path.ends_with('/') {
             Self {
                 core,
+                ctx,
                 list_path: path,
                 prefix: None,
                 recursive,
@@ -68,6 +70,7 @@ impl HfLister {
             };
             Self {
                 core,
+                ctx,
                 list_path: parent,
                 prefix: Some(path),
                 recursive,
@@ -86,10 +89,13 @@ impl HfLister {
 
         let req = self
             .core
-            .request(http::Method::GET, &url, Operation::List)?
+            .request(http::Method::GET, &url, Operation::List, "FileTree")?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (parts, files) = self.core.send_parse::<Vec<PathInfo>>(req).await?;
+        let (parts, files) = self
+            .core
+            .send_parse::<Vec<PathInfo>>(&self.ctx, req)
+            .await?;
 
         let next_cursor = parts
             .headers
@@ -153,8 +159,13 @@ impl oio::PageList for HfLister {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::gpt2_operator;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use super::super::core::HfRepoType;
+    use super::super::core::test_utils::create_test_core;
     use super::*;
+    use opendal_core::raw::oio::PageList;
 
     #[test]
     fn test_parse_next_cursor() {
@@ -171,10 +182,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_model_root() {
-        let op = gpt2_operator();
-        let entries = op.list("/").await.expect("list should succeed");
-        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
-        assert!(names.contains(&"config.json"));
+    async fn test_list_model_root() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        let lister = HfLister::new(Arc::new(core), ctx, String::new(), false);
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+
+        lister.next_page(&mut page_ctx).await?;
+
+        assert_eq!(
+            mock_client.get_captured_url(),
+            "https://huggingface.co/api/models/test-user/test-repo/tree/main/?expand=True"
+        );
+        assert!(page_ctx.done);
+        let entry = page_ctx.entries.pop_front().expect("entry must exist");
+        assert_eq!(entry.path(), "test.txt");
+        assert_eq!(entry.metadata().mode(), EntryMode::FILE);
+        assert_eq!(entry.metadata().content_length(), 100);
+
+        Ok(())
     }
 }

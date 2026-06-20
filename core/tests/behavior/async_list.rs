@@ -27,7 +27,7 @@ use log::debug;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write && cap.list {
         tests.extend(async_trials!(
@@ -82,7 +82,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    let (content, size) = gen_bytes(op.info().capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -107,7 +107,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 pub async fn test_list_prefix(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
 
     op.write(&path, content).await.expect("write must succeed");
 
@@ -122,7 +122,7 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -161,7 +161,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
 /// List empty dir should return itself.
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -259,7 +259,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 
 /// List dir should return correct sub dir.
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -293,7 +293,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -381,7 +381,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let file = format!("{parent}/{}", uuid::Uuid::new_v4());
 
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
     op.write(&file, content).await?;
 
     let obs = op.list(&parent).await?;
@@ -396,7 +396,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
 /// List with start after should start listing after the specified key
 pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_start_after {
+    if !op.info().capability().list_with_start_after {
         return Ok(());
     }
 
@@ -452,7 +452,7 @@ pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> 
 }
 
 pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -476,7 +476,7 @@ pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
 
 // Walk top down should output as expected
 pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -520,7 +520,7 @@ pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
 
 // same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
 pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -595,7 +595,7 @@ pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub async fn test_remove_all(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -652,7 +652,7 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_files_with_versions(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_versions {
+    if !op.info().capability().list_with_versions {
         return Ok(());
     }
 
@@ -677,7 +677,7 @@ pub async fn test_list_files_with_versions(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_deleted {
+    if !op.info().capability().list_with_deleted {
         return Ok(());
     }
 
@@ -718,7 +718,7 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
     if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
-    if !op.info().full_capability().list_with_versions {
+    if !op.info().capability().list_with_versions {
         return Ok(());
     }
     if skip_cos_create_dir_list_check(&op) {
@@ -756,7 +756,7 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_with_versions_and_start_after(op: Operator) -> Result<()> {
-    if !op.info().full_capability().list_with_versions {
+    if !op.info().capability().list_with_versions {
         return Ok(());
     }
 

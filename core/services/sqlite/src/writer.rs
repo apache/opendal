@@ -16,7 +16,7 @@
 // under the License.
 
 use opendal_core::raw::oio;
-use opendal_core::{Buffer, EntryMode, Metadata};
+use opendal_core::{Buffer, EntryMode, Metadata, Result};
 
 use super::core::SqliteCore;
 
@@ -37,12 +37,12 @@ impl SqliteWriter {
 }
 
 impl oio::Write for SqliteWriter {
-    async fn write(&mut self, bs: Buffer) -> opendal_core::Result<()> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.buffer.push(bs);
         Ok(())
     }
 
-    async fn close(&mut self) -> opendal_core::Result<Metadata> {
+    async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
         self.core.set(&self.path, buf).await?;
@@ -51,7 +51,7 @@ impl oio::Write for SqliteWriter {
         Ok(meta)
     }
 
-    async fn abort(&mut self) -> opendal_core::Result<()> {
+    async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
         Ok(())
     }

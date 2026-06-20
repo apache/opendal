@@ -23,19 +23,26 @@ use opendal_core::*;
 
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
-use super::error::parse_error;
+use super::core::parse_error;
 
 pub struct UpyunLister {
     core: Arc<UpyunCore>,
+    ctx: OperationContext,
 
     path: String,
     limit: Option<usize>,
 }
 
 impl UpyunLister {
-    pub(super) fn new(core: Arc<UpyunCore>, path: &str, limit: Option<usize>) -> Self {
+    pub(super) fn new(
+        core: Arc<UpyunCore>,
+        ctx: OperationContext,
+        path: &str,
+        limit: Option<usize>,
+    ) -> Self {
         UpyunLister {
             core,
+            ctx,
             path: path.to_string(),
             limit,
         }
@@ -46,7 +53,7 @@ impl oio::PageList for UpyunLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .list_objects(&self.path, &ctx.token, self.limit)
+            .list_objects(&self.ctx, &self.path, &ctx.token, self.limit)
             .await?;
 
         if resp.status() == http::StatusCode::NOT_FOUND {

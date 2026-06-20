@@ -60,7 +60,7 @@ func testWriteOnly(assert *require.Assertions, op *opendal.Operator, fixture *fi
 }
 
 func testWriteWithEmptyContent(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().WriteCanEmpty() {
+	if !op.Info().GetCapability().WriteCanEmpty() {
 		return
 	}
 
@@ -91,7 +91,7 @@ func testWriteWithSpecialChars(assert *require.Assertions, op *opendal.Operator,
 }
 
 func testWriteOverwrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().WriteCanMulti() {
+	if !op.Info().GetCapability().WriteCanMulti() {
 		return
 	}
 
@@ -112,7 +112,7 @@ func testWriteOverwrite(assert *require.Assertions, op *opendal.Operator, fixtur
 }
 
 func testWriteWithCacheControl(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithCacheControl, "write_with_cache_control") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithCacheControl, "write_with_cache_control") {
 		return
 	}
 
@@ -129,7 +129,7 @@ func testWriteWithCacheControl(assert *require.Assertions, op *opendal.Operator,
 }
 
 func testWriteWithContentType(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentType, "write_with_content_type") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithContentType, "write_with_content_type") {
 		return
 	}
 
@@ -146,7 +146,7 @@ func testWriteWithContentType(assert *require.Assertions, op *opendal.Operator, 
 }
 
 func testWriteWithContentDisposition(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentDisposition, "write_with_content_disposition") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithContentDisposition, "write_with_content_disposition") {
 		return
 	}
 
@@ -163,7 +163,7 @@ func testWriteWithContentDisposition(assert *require.Assertions, op *opendal.Ope
 }
 
 func testWriteWithContentEncoding(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithContentEncoding, "write_with_content_encoding") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithContentEncoding, "write_with_content_encoding") {
 		return
 	}
 
@@ -180,7 +180,7 @@ func testWriteWithContentEncoding(assert *require.Assertions, op *opendal.Operat
 }
 
 func testWriteWithUserMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithUserMetadata, "write_with_user_metadata") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithUserMetadata, "write_with_user_metadata") {
 		return
 	}
 
@@ -201,7 +201,7 @@ func testWriteWithUserMetadata(assert *require.Assertions, op *opendal.Operator,
 }
 
 func testWriteWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfMatch, "write_with_if_match") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithIfMatch, "write_with_if_match") {
 		return
 	}
 
@@ -219,7 +219,7 @@ func testWriteWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixt
 }
 
 func testWriteWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfNoneMatch, "write_with_if_none_match") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithIfNoneMatch, "write_with_if_none_match") {
 		return
 	}
 
@@ -240,7 +240,7 @@ func testWriteWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, 
 }
 
 func testWriteWithIfNotExists(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteWithIfNotExists, "write_with_if_not_exists") {
+	if !isCapEnabled(op.Info().GetCapability().WriteWithIfNotExists, "write_with_if_not_exists") {
 		return
 	}
 
@@ -256,7 +256,7 @@ func testWriteWithIfNotExists(assert *require.Assertions, op *opendal.Operator, 
 }
 
 func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().WriteCanMulti() {
+	if !op.Info().GetCapability().WriteCanMulti() {
 		return
 	}
 
@@ -285,7 +285,7 @@ func testWriterWrite(assert *require.Assertions, op *opendal.Operator, fixture *
 }
 
 func testWriteWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteCanMulti, "write_can_multi") {
+	if !isCapEnabled(op.Info().GetCapability().WriteCanMulti, "write_can_multi") {
 		return
 	}
 
@@ -299,7 +299,7 @@ func testWriteWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Ope
 }
 
 func testWriterWithAppend(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !isCapEnabled(op.Info().GetFullCapability().WriteCanAppend, "write_can_append") {
+	if !isCapEnabled(op.Info().GetCapability().WriteCanAppend, "write_can_append") {
 		return
 	}
 

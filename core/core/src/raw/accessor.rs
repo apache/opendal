@@ -16,698 +16,65 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::future::ready;
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::mem;
+use std::future::Future;
 use std::sync::Arc;
-
-use futures::Future;
 
 use crate::raw::*;
 use crate::*;
 
-/// Underlying trait of all backends for implementers.
+/// Immutable identity facts for a storage service.
 ///
-/// The actual data access of storage service happens in Accessor layer.
-/// Every storage supported by OpenDAL must implement [`Access`] but not all
-/// methods of [`Access`] will be implemented according to how the storage service is.
-///
-/// For example, user can not modify the content from one HTTP file server directly.
-/// So [`Http`][crate::services::Http] implements and provides only read related actions.
-///
-/// [`Access`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
-/// And what action this [`Access`] supports will be pointed out in [`AccessorInfo`].
-///
-/// # Note
-///
-/// Visit [`internals`][crate::docs::internals] for more tutorials.
-///
-/// # Operations
-///
-/// - Path in args will all be normalized into the same style, services
-///   should handle them based on services' requirement.
-///   - Path that ends with `/` means it's Dir, otherwise, it's File.
-///   - Root dir is `/`
-///   - Path will never be empty.
-/// - Operations without capability requirement like `metadata`, `create` are
-///   basic operations.
-///   - All services must implement them.
-///   - Use `unimplemented!()` if not implemented or can't implement.
-/// - Operations with capability requirement like `presign` are optional operations.
-///   - Services can implement them based on services capabilities.
-///   - The default implementation should return [`ErrorKind::Unsupported`].
-pub trait Access: Send + Sync + Debug + Unpin + 'static {
-    /// Reader is the associated reader returned in `read` operation.
-    type Reader: oio::Read;
-    /// Writer is the associated writer returned in `write` operation.
-    type Writer: oio::Write;
-    /// Lister is the associated lister returned in `list` operation.
-    type Lister: oio::List;
-    /// Deleter is the associated deleter returned in `delete` operation.
-    type Deleter: oio::Delete;
-    /// Copier is the associated copier returned in `copy` operation.
-    type Copier: oio::Copy;
-
-    /// Invoke the `info` operation to get metadata of accessor.
-    ///
-    /// # Notes
-    ///
-    /// This function is required to be implemented.
-    ///
-    /// By returning AccessorInfo, underlying services can declare
-    /// some useful information about itself.
-    ///
-    /// - scheme: declare the scheme of backend.
-    /// - capabilities: declare the capabilities of current backend.
-    fn info(&self) -> Arc<AccessorInfo>;
-
-    /// Invoke the `create` operation on the specified path
-    ///
-    /// Require [`Capability::create_dir`]
-    ///
-    /// # Behavior
-    ///
-    /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
-    /// - Create on existing dir SHOULD succeed.
-    fn create_dir(
-        &self,
-        path: &str,
-        args: OpCreateDir,
-    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `stat` operation on the specified path.
-    ///
-    /// Require [`Capability::stat`]
-    ///
-    /// # Behavior
-    ///
-    /// - `stat` empty path means stat backend's root path.
-    /// - `stat` a path endswith "/" means stating a dir.
-    /// - `mode` and `content_length` must be set.
-    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `read` operation on the specified path, returns a raw
-    /// reader if operate successful.
-    ///
-    /// Require [`Capability::read`]
-    ///
-    /// # Behavior
-    ///
-    /// - Input path MUST be file path, DON'T NEED to check mode.
-    /// - Range I/O is selected by the returned reader's `open` or `read`
-    ///   operation.
-    fn read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `write` operation on the specified path, returns a
-    /// written size if operate successful.
-    ///
-    /// Require [`Capability::write`]
-    ///
-    /// # Behavior
-    ///
-    /// - Input path MUST be file path, DON'T NEED to check mode.
-    fn write(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `delete` operation on the specified path.
-    ///
-    /// Require [`Capability::delete`]
-    ///
-    /// # Behavior
-    ///
-    /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
-    /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
-    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `list` operation on the specified path.
-    ///
-    /// Require [`Capability::list`]
-    ///
-    /// # Behavior
-    ///
-    /// - Input path MUST be dir path, DON'T NEED to check mode.
-    /// - List non-exist dir should return Empty.
-    fn list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `copy` operation on the specified `from` path and `to` path.
-    ///
-    /// Require [Capability::copy]
-    ///
-    /// # Behaviour
-    ///
-    /// - `from` and `to` MUST be file path, DON'T NEED to check mode.
-    /// - Copy on existing file SHOULD succeed.
-    /// - Copy on existing file SHOULD overwrite and truncate.
-    fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
-        let (_, _, _, _) = (from, to, args, opts);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `rename` operation on the specified `from` path and `to` path.
-    ///
-    /// Require [Capability::rename]
-    fn rename(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpRename,
-    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
-        let (_, _, _) = (from, to, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-
-    /// Invoke the `presign` operation on the specified path.
-    ///
-    /// Require [`Capability::presign`]
-    ///
-    /// # Behavior
-    ///
-    /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
-    fn presign(
-        &self,
-        path: &str,
-        args: OpPresign,
-    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
-        let (_, _) = (path, args);
-
-        ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        )))
-    }
-}
-
-/// `AccessDyn` is the dyn version of [`Access`] make it possible to use as
-/// `Box<dyn AccessDyn>`.
-pub trait AccessDyn: Send + Sync + Debug + Unpin {
-    /// Dyn version of [`Accessor::info`]
-    fn info_dyn(&self) -> Arc<AccessorInfo>;
-    /// Dyn version of [`Accessor::create_dir`]
-    fn create_dir_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpCreateDir,
-    ) -> BoxedFuture<'a, Result<RpCreateDir>>;
-    /// Dyn version of [`Accessor::stat`]
-    fn stat_dyn<'a>(&'a self, path: &'a str, args: OpStat) -> BoxedFuture<'a, Result<RpStat>>;
-    /// Dyn version of [`Accessor::read`]
-    fn read_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpRead,
-    ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>>;
-    /// Dyn version of [`Accessor::write`]
-    fn write_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpWrite,
-    ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>>;
-    /// Dyn version of [`Accessor::delete`]
-    fn delete_dyn(&self) -> BoxedFuture<'_, Result<(RpDelete, oio::Deleter)>>;
-    /// Dyn version of [`Accessor::list`]
-    fn list_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpList,
-    ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>>;
-    /// Dyn version of [`Accessor::copy`]
-    fn copy_dyn<'a>(
-        &'a self,
-        from: &'a str,
-        to: &'a str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>>;
-    /// Dyn version of [`Accessor::rename`]
-    fn rename_dyn<'a>(
-        &'a self,
-        from: &'a str,
-        to: &'a str,
-        args: OpRename,
-    ) -> BoxedFuture<'a, Result<RpRename>>;
-    /// Dyn version of [`Accessor::presign`]
-    fn presign_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpPresign,
-    ) -> BoxedFuture<'a, Result<RpPresign>>;
-}
-
-impl<A: ?Sized> AccessDyn for A
-where
-    A: Access<
-            Reader = oio::Reader,
-            Writer = oio::Writer,
-            Lister = oio::Lister,
-            Deleter = oio::Deleter,
-            Copier = oio::Copier,
-        >,
-{
-    fn info_dyn(&self) -> Arc<AccessorInfo> {
-        self.info()
-    }
-
-    fn create_dir_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpCreateDir,
-    ) -> BoxedFuture<'a, Result<RpCreateDir>> {
-        Box::pin(self.create_dir(path, args))
-    }
-
-    fn stat_dyn<'a>(&'a self, path: &'a str, args: OpStat) -> BoxedFuture<'a, Result<RpStat>> {
-        Box::pin(self.stat(path, args))
-    }
-
-    fn read_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpRead,
-    ) -> BoxedFuture<'a, Result<(RpRead, oio::Reader)>> {
-        Box::pin(self.read(path, args))
-    }
-
-    fn write_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpWrite,
-    ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>> {
-        Box::pin(self.write(path, args))
-    }
-
-    fn delete_dyn(&self) -> BoxedFuture<'_, Result<(RpDelete, oio::Deleter)>> {
-        Box::pin(self.delete())
-    }
-
-    fn list_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpList,
-    ) -> BoxedFuture<'a, Result<(RpList, oio::Lister)>> {
-        Box::pin(self.list(path, args))
-    }
-
-    fn copy_dyn<'a>(
-        &'a self,
-        from: &'a str,
-        to: &'a str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> BoxedFuture<'a, Result<(RpCopy, oio::Copier)>> {
-        Box::pin(self.copy(from, to, args, opts))
-    }
-
-    fn rename_dyn<'a>(
-        &'a self,
-        from: &'a str,
-        to: &'a str,
-        args: OpRename,
-    ) -> BoxedFuture<'a, Result<RpRename>> {
-        Box::pin(self.rename(from, to, args))
-    }
-
-    fn presign_dyn<'a>(
-        &'a self,
-        path: &'a str,
-        args: OpPresign,
-    ) -> BoxedFuture<'a, Result<RpPresign>> {
-        Box::pin(self.presign(path, args))
-    }
-}
-
-impl Access for dyn AccessDyn {
-    type Reader = oio::Reader;
-    type Writer = oio::Writer;
-    type Deleter = oio::Deleter;
-    type Lister = oio::Lister;
-    type Copier = oio::Copier;
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.info_dyn()
-    }
-
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.create_dir_dyn(path, args).await
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.stat_dyn(path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.read_dyn(path, args).await
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.write_dyn(path, args).await
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.delete_dyn().await
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.list_dyn(path, args).await
-    }
-
-    async fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.copy_dyn(from, to, args, opts).await
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.rename_dyn(from, to, args).await
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.presign_dyn(path, args).await
-    }
-}
-
-/// Dummy implementation of accessor.
-impl Access for () {
-    type Reader = ();
-    type Writer = ();
-    type Lister = ();
-    type Deleter = ();
-    type Copier = ();
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        let ai = AccessorInfo::default();
-        ai.set_scheme("dummy")
-            .set_root("")
-            .set_name("dummy")
-            .set_native_capability(Capability::default());
-        ai.into()
-    }
-}
-
-/// All functions in `Accessor` only requires `&self`, so it's safe to implement
-/// `Accessor` for `Arc<impl Access>`.
-// If we use async fn directly, some weird higher rank trait bound error (`Send`/`Accessor` impl not general enough) will happen.
-// Probably related to https://github.com/rust-lang/rust/issues/96865
-#[allow(clippy::manual_async_fn)]
-impl<T: Access + ?Sized> Access for Arc<T> {
-    type Reader = T::Reader;
-    type Writer = T::Writer;
-    type Lister = T::Lister;
-    type Deleter = T::Deleter;
-    type Copier = T::Copier;
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.as_ref().info()
-    }
-
-    fn create_dir(
-        &self,
-        path: &str,
-        args: OpCreateDir,
-    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend {
-        async move { self.as_ref().create_dir(path, args).await }
-    }
-
-    fn stat(&self, path: &str, args: OpStat) -> impl Future<Output = Result<RpStat>> + MaybeSend {
-        async move { self.as_ref().stat(path, args).await }
-    }
-
-    fn read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> impl Future<Output = Result<(RpRead, Self::Reader)>> + MaybeSend {
-        async move { self.as_ref().read(path, args).await }
-    }
-
-    fn write(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
-        async move { self.as_ref().write(path, args).await }
-    }
-
-    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
-        async move { self.as_ref().delete().await }
-    }
-
-    fn list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> impl Future<Output = Result<(RpList, Self::Lister)>> + MaybeSend {
-        async move { self.as_ref().list(path, args).await }
-    }
-
-    fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-        opts: OpCopier,
-    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
-        async move { self.as_ref().copy(from, to, args, opts).await }
-    }
-
-    fn rename(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpRename,
-    ) -> impl Future<Output = Result<RpRename>> + MaybeSend {
-        async move { self.as_ref().rename(from, to, args).await }
-    }
-
-    fn presign(
-        &self,
-        path: &str,
-        args: OpPresign,
-    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend {
-        async move { self.as_ref().presign(path, args).await }
-    }
-}
-
-/// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
-pub type Accessor = Arc<dyn AccessDyn>;
-
-#[derive(Debug)]
-struct AccessorInfoInner {
+/// Runtime resources and composed capabilities are kept outside this value so
+/// layers can replace them without mutating shared service identity.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ServiceInfo {
     scheme: &'static str,
     root: Arc<str>,
     name: Arc<str>,
-
-    native_capability: Capability,
-    full_capability: Capability,
-
-    http_client: HttpClient,
-    executor: Executor,
 }
 
-impl Default for AccessorInfoInner {
-    fn default() -> Self {
+impl Debug for ServiceInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServiceInfo")
+            .field("scheme", &self.scheme())
+            .field("root", &self.root())
+            .field("name", &self.name())
+            .finish_non_exhaustive()
+    }
+}
+
+impl ServiceInfo {
+    /// Create a new service info value.
+    pub fn new(scheme: &'static str, root: impl AsRef<str>, name: impl AsRef<str>) -> Self {
         Self {
-            scheme: "unknown",
-            root: Arc::from(""),
-            name: Arc::from(""),
-            native_capability: Capability::default(),
-            full_capability: Capability::default(),
-            http_client: HttpClient::default(),
-            executor: Executor::default(),
+            scheme,
+            root: Arc::from(root.as_ref()),
+            name: Arc::from(name.as_ref()),
         }
     }
-}
 
-/// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.
-///
-/// This struct is intentionally not implemented with `Clone` to ensure that all accesses
-/// within the same operator, access layers, and services use the same instance of `AccessorInfo`.
-/// This is especially important for `HttpClient` and `Executor`.
-///
-/// ## Panic Safety
-///
-/// All methods provided by `AccessorInfo` will safely handle lock poisoning scenarios.
-/// If the inner `RwLock` is poisoned (which happens when another thread panicked while holding
-/// the write lock), this method will gracefully continue execution.
-///
-/// - For read operations, the method will return the current state.
-/// - For write operations, the method will do nothing.
-///
-/// ## Maintain Notes
-///
-/// We are using `std::sync::RwLock` to provide thread-safe access to the inner data.
-///
-/// I have performed [the bench across different arc-swap alike crates](https://github.com/krdln/arc-swap-benches):
-///
-/// ```txt
-/// test arcswap                    ... bench:          14.85 ns/iter (+/- 0.33)
-/// test arcswap_full               ... bench:         128.27 ns/iter (+/- 4.30)
-/// test baseline                   ... bench:          11.33 ns/iter (+/- 0.76)
-/// test mutex_4                    ... bench:         296.73 ns/iter (+/- 49.96)
-/// test mutex_unconteded           ... bench:          13.26 ns/iter (+/- 0.56)
-/// test rwlock_fast_4              ... bench:         201.60 ns/iter (+/- 7.47)
-/// test rwlock_fast_uncontended    ... bench:          12.77 ns/iter (+/- 0.37)
-/// test rwlock_parking_4           ... bench:         232.02 ns/iter (+/- 11.14)
-/// test rwlock_parking_uncontended ... bench:          13.18 ns/iter (+/- 0.39)
-/// test rwlock_std_4               ... bench:         219.56 ns/iter (+/- 5.56)
-/// test rwlock_std_uncontended     ... bench:          13.55 ns/iter (+/- 0.33)
-/// ```
-///
-/// The results show that as long as there aren't too many uncontended accesses, `RwLock` is the
-/// best choice, allowing for fast access and the ability to modify partial data without cloning
-/// everything.
-///
-/// And it's true: we only update and modify the internal data in a few instances, such as when
-/// building an operator or applying new layers.
-#[derive(Debug, Default)]
-pub struct AccessorInfo {
-    inner: std::sync::RwLock<AccessorInfoInner>,
-}
-
-impl PartialEq for AccessorInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.scheme() == other.scheme()
-            && self.root() == other.root()
-            && self.name() == other.name()
+    /// Create a new service info value with only scheme.
+    pub fn with_scheme(scheme: &'static str) -> Self {
+        Self::new(scheme, "", "")
     }
-}
 
-impl Eq for AccessorInfo {}
-
-impl Hash for AccessorInfo {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.scheme().hash(state);
-        self.root().hash(state);
-        self.name().hash(state);
+    /// Return a copy of this service info with a different root.
+    pub fn with_root(&self, root: impl AsRef<str>) -> Self {
+        Self {
+            scheme: self.scheme,
+            root: Arc::from(root.as_ref()),
+            name: self.name.clone(),
+        }
     }
-}
 
-impl AccessorInfo {
     /// Scheme of backend.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current scheme.
     pub fn scheme(&self) -> &'static str {
-        match self.inner.read() {
-            Ok(v) => v.scheme,
-            Err(err) => err.get_ref().scheme,
-        }
+        self.scheme
     }
 
-    /// Set scheme for backend.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
-    pub fn set_scheme(&self, scheme: &'static str) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.scheme = scheme;
-        }
-
-        self
-    }
-
-    /// Root of backend, will be in format like `/path/to/dir/`
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current root.
+    /// Root of backend, will be in format like `/path/to/dir/`.
     pub fn root(&self) -> Arc<str> {
-        match self.inner.read() {
-            Ok(v) => v.root.clone(),
-            Err(err) => err.get_ref().root.clone(),
-        }
-    }
-
-    /// Set root for backend.
-    ///
-    /// Note: input root must be normalized.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
-    pub fn set_root(&self, root: &str) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.root = Arc::from(root);
-        }
-
-        self
+        self.root.clone()
     }
 
     /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
@@ -718,156 +85,502 @@ impl AccessorInfo {
     /// - `azblob` => container name
     /// - `azdfs` => filesystem name
     /// - `azfile` => share name
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current scheme.
     pub fn name(&self) -> Arc<str> {
-        match self.inner.read() {
-            Ok(v) => v.name.clone(),
-            Err(err) => err.get_ref().name.clone(),
-        }
+        self.name.clone()
+    }
+}
+
+/// Underlying trait of all storage services.
+///
+/// Every storage backend supported by OpenDAL implements [`Service`]. Backends
+/// must implement every operation so unsupported behavior is explicit at the
+/// implementation boundary.
+///
+/// # Operations
+///
+/// - Paths passed into service operations are normalized by the operator.
+///   - `/` means the root path.
+///   - Paths ending with `/` are directory paths.
+///   - Other paths are file paths.
+/// - Services report their supported operation set through [`Service::capability`].
+/// - The [`OperationContext`] carries layer-composed runtime resources for each
+///   operation.
+pub trait Service: Send + Sync + Debug + Unpin + 'static {
+    /// Reader returned by `read`.
+    type Reader: oio::Read;
+    /// Writer returned by `write`.
+    type Writer: oio::Write;
+    /// Lister returned by `list`.
+    type Lister: oio::List;
+    /// Deleter returned by `delete`.
+    type Deleter: oio::Delete;
+    /// Copier returned by `copy`.
+    type Copier: oio::Copy;
+
+    /// Return immutable identity facts for this service.
+    fn info(&self) -> ServiceInfo;
+
+    /// Return the capability of this service stack.
+    ///
+    /// Layers may transform capabilities, so callers should use this value for
+    /// the current stack instead of assuming the backend's native capability.
+    fn capability(&self) -> Capability;
+
+    /// Invoke the `create` operation on the specified path.
+    ///
+    /// Requires [`Capability::create_dir`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized directory path.
+    /// - Creating an existing directory should succeed.
+    fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> impl Future<Output = Result<RpCreateDir>> + MaybeSend;
+
+    /// Invoke the `stat` operation on the specified path.
+    ///
+    /// Requires [`Capability::stat`].
+    ///
+    /// # Behavior
+    ///
+    /// - `/` means the service root.
+    /// - A path ending with `/` stats a directory.
+    /// - Returned metadata must set `mode` and `content_length`.
+    fn stat(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> impl Future<Output = Result<RpStat>> + MaybeSend;
+
+    /// Invoke the `read` operation on the specified path.
+    ///
+    /// Requires [`Capability::read`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized file path.
+    /// - Range I/O is handled by the returned reader.
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader>;
+
+    /// Invoke the `write` operation on the specified path.
+    ///
+    /// Requires [`Capability::write`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized file path.
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer>;
+
+    /// Invoke the `delete` operation.
+    ///
+    /// Requires [`Capability::delete`].
+    ///
+    /// # Behavior
+    ///
+    /// - The returned deleter handles one or more delete requests.
+    /// - Deleting a missing path should succeed.
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter>;
+
+    /// Invoke the `list` operation on the specified path.
+    ///
+    /// Requires [`Capability::list`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized directory path or prefix.
+    /// - Listing a non-existing directory should return an empty stream.
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister>;
+
+    /// Invoke the `copy` operation on the specified `from` path and `to` path.
+    ///
+    /// Requires [`Capability::copy`].
+    ///
+    /// # Behavior
+    ///
+    /// - `from` and `to` are normalized file paths.
+    /// - Copying to an existing file should overwrite and truncate it.
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<Self::Copier>;
+
+    /// Invoke the `rename` operation on the specified `from` path and `to` path.
+    ///
+    /// Requires [`Capability::rename`].
+    ///
+    /// # Behavior
+    ///
+    /// - `from` and `to` are normalized file paths.
+    fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> impl Future<Output = Result<RpRename>> + MaybeSend;
+
+    /// Invoke the `presign` operation on the specified path.
+    ///
+    /// Requires [`Capability::presign`] and the matching presign operation
+    /// capability.
+    fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> impl Future<Output = Result<RpPresign>> + MaybeSend;
+}
+
+/// `ServiceDyn` is the dyn version of [`Service`].
+pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
+    /// Dyn version of [`Service::info`].
+    fn info_dyn(&self) -> ServiceInfo;
+
+    /// Dyn version of [`Service::capability`].
+    fn capability_dyn(&self) -> Capability;
+
+    /// Dyn version of [`Service::create_dir`].
+    fn create_dir_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpCreateDir,
+    ) -> BoxedFuture<'a, Result<RpCreateDir>>;
+
+    /// Dyn version of [`Service::stat`].
+    fn stat_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpStat,
+    ) -> BoxedFuture<'a, Result<RpStat>>;
+
+    /// Dyn version of [`Service::read`].
+    fn read_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRead,
+    ) -> Result<oio::Reader>;
+
+    /// Dyn version of [`Service::write`].
+    fn write_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpWrite,
+    ) -> Result<oio::Writer>;
+
+    /// Dyn version of [`Service::delete`].
+    fn delete_dyn<'a>(&'a self, ctx: &'a OperationContext) -> Result<oio::Deleter>;
+
+    /// Dyn version of [`Service::list`].
+    fn list_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpList,
+    ) -> Result<oio::Lister>;
+
+    /// Dyn version of [`Service::copy`].
+    fn copy_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        from: &'a str,
+        to: &'a str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<oio::Copier>;
+
+    /// Dyn version of [`Service::rename`].
+    fn rename_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        from: &'a str,
+        to: &'a str,
+        args: OpRename,
+    ) -> BoxedFuture<'a, Result<RpRename>>;
+
+    /// Dyn version of [`Service::presign`].
+    fn presign_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpPresign,
+    ) -> BoxedFuture<'a, Result<RpPresign>>;
+}
+
+/// Type-erased service handle used by layer composition and operators.
+pub type Servicer = Arc<dyn ServiceDyn>;
+
+impl<S: Service + ?Sized> ServiceDyn for S {
+    fn info_dyn(&self) -> ServiceInfo {
+        self.info()
     }
 
-    /// Set name of this backend.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
-    pub fn set_name(&self, name: &str) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.name = Arc::from(name)
-        }
-
-        self
+    fn capability_dyn(&self) -> Capability {
+        self.capability()
     }
 
-    /// Get backend's native capabilities.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current native capability.
-    pub fn native_capability(&self) -> Capability {
-        match self.inner.read() {
-            Ok(v) => v.native_capability,
-            Err(err) => err.get_ref().native_capability,
-        }
+    fn create_dir_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpCreateDir,
+    ) -> BoxedFuture<'a, Result<RpCreateDir>> {
+        Box::pin(self.create_dir(ctx, path, args))
     }
 
-    /// Set native capabilities for service.
-    ///
-    /// # NOTES
-    ///
-    /// Set native capability will also flush the full capability. The only way to change
-    /// full_capability is via `update_full_capability`.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
-    pub fn set_native_capability(&self, capability: Capability) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.native_capability = capability;
-            v.full_capability = capability;
-        }
-
-        self
+    fn stat_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpStat,
+    ) -> BoxedFuture<'a, Result<RpStat>> {
+        Box::pin(self.stat(ctx, path, args))
     }
 
-    /// Get service's full capabilities.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current native capability.
-    pub fn full_capability(&self) -> Capability {
-        match self.inner.read() {
-            Ok(v) => v.full_capability,
-            Err(err) => err.get_ref().full_capability,
-        }
+    fn read_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRead,
+    ) -> Result<oio::Reader> {
+        Ok(Box::new(self.read(ctx, path, args)?) as oio::Reader)
     }
 
-    /// Update service's full capabilities.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation
-    /// rather than propagating the panic.
-    pub fn update_full_capability(&self, f: impl FnOnce(Capability) -> Capability) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            v.full_capability = f(v.full_capability);
-        }
-
-        self
+    fn write_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpWrite,
+    ) -> Result<oio::Writer> {
+        Ok(Box::new(self.write(ctx, path, args)?) as oio::Writer)
     }
 
-    /// Get http client from the context.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current http client.
-    pub fn http_client(&self) -> HttpClient {
-        match self.inner.read() {
-            Ok(v) => v.http_client.clone(),
-            Err(err) => err.get_ref().http_client.clone(),
-        }
+    fn delete_dyn<'a>(&'a self, ctx: &'a OperationContext) -> Result<oio::Deleter> {
+        Ok(Box::new(self.delete(ctx)?) as oio::Deleter)
     }
 
-    /// Update http client for the context.
-    ///
-    /// # Note
-    ///
-    /// Requests must be forwarded to the old HTTP client after the update. Otherwise, features such as retry, tracing, and metrics may not function properly.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation.
-    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            let client = mem::take(&mut v.http_client);
-            v.http_client = f(client);
-        }
-
-        self
+    fn list_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpList,
+    ) -> Result<oio::Lister> {
+        Ok(Box::new(self.list(ctx, path, args)?) as oio::Lister)
     }
 
-    /// Get executor from the context.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply returning the current executor.
-    pub fn executor(&self) -> Executor {
-        match self.inner.read() {
-            Ok(v) => v.executor.clone(),
-            Err(err) => err.get_ref().executor.clone(),
-        }
+    fn copy_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        from: &'a str,
+        to: &'a str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<oio::Copier> {
+        Ok(Box::new(self.copy(ctx, from, to, args, opts)?) as oio::Copier)
     }
 
-    /// Update executor for the context.
-    ///
-    /// # Note
-    ///
-    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
-    ///
-    /// # Panic Safety
-    ///
-    /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
-    /// this method will gracefully continue execution by simply skipping the update operation.
-    pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) -> &Self {
-        if let Ok(mut v) = self.inner.write() {
-            let executor = mem::take(&mut v.executor);
-            v.executor = f(executor);
-        }
+    fn rename_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        from: &'a str,
+        to: &'a str,
+        args: OpRename,
+    ) -> BoxedFuture<'a, Result<RpRename>> {
+        Box::pin(self.rename(ctx, from, to, args))
+    }
 
-        self
+    fn presign_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpPresign,
+    ) -> BoxedFuture<'a, Result<RpPresign>> {
+        Box::pin(self.presign(ctx, path, args))
+    }
+}
+
+/// Service is used behind a [`Servicer`] everywhere.
+impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+
+    fn info(&self) -> ServiceInfo {
+        self.as_ref().info_dyn()
+    }
+
+    fn capability(&self) -> Capability {
+        self.as_ref().capability_dyn()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.as_ref().create_dir_dyn(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.as_ref().stat_dyn(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<oio::Reader> {
+        self.as_ref().read_dyn(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<oio::Writer> {
+        self.as_ref().write_dyn(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<oio::Deleter> {
+        self.as_ref().delete_dyn(ctx)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<oio::Lister> {
+        self.as_ref().list_dyn(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<oio::Copier> {
+        self.as_ref().copy_dyn(ctx, from, to, args, opts)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.as_ref().rename_dyn(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.as_ref().presign_dyn(ctx, path, args).await
+    }
+}
+
+/// Dummy implementation of service.
+impl Service for () {
+    type Reader = ();
+    type Writer = ();
+    type Lister = ();
+    type Deleter = ();
+    type Copier = ();
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::with_scheme("dummy")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability::default()
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    fn copy(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpCopy,
+        _: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

@@ -110,6 +110,20 @@ jobs:
         working-directory: core
         run: cargo build --locked
 
+  run_examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      # Examples back the snippets shown in the website guide. Running them keeps
+      # the docs honest: a broken example fails CI instead of shipping bad docs.
+      - name: Run guide examples
+        working-directory: core
+        run: cargo run -p opendal-examples-getting-started
+
   build_all_features:
     runs-on: ubuntu-latest
     steps:

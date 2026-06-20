@@ -20,16 +20,15 @@
 #![deny(missing_docs)]
 
 mod backend;
-mod builder;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod graph_model;
 mod lister;
+mod reader;
 mod writer;
 
-pub use builder::OnedriveBuilder as Onedrive;
+pub use backend::OnedriveBuilder as Onedrive;
 pub use config::OnedriveConfig;
 
 /// Default scheme for onedrive service.

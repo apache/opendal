@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         .root("/opendal")
         .access_token("<token>");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

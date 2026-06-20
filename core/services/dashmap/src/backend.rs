@@ -27,6 +27,7 @@ use super::config::DashmapConfig;
 use super::core::DashmapCore;
 use super::deleter::DashmapDeleter;
 use super::lister::DashmapLister;
+use super::reader::*;
 use super::writer::DashmapWriter;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -52,7 +53,7 @@ impl DashmapBuilder {
 impl Builder for DashmapBuilder {
     type Config = DashmapConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(
@@ -75,18 +76,16 @@ impl Builder for DashmapBuilder {
 
 #[derive(Debug, Clone)]
 pub struct DashmapBackend {
-    core: Arc<DashmapCore>,
-    root: String,
-    info: Arc<AccessorInfo>,
+    pub(crate) core: Arc<DashmapCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl DashmapBackend {
     fn new(core: DashmapCore, root: String) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(DASHMAP_SCHEME);
-        info.set_name("dashmap");
-        info.set_root(&root);
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(DASHMAP_SCHEME, &root, "dashmap");
+        let capability = Capability {
             read: true,
 
             write: true,
@@ -101,66 +100,45 @@ impl DashmapBackend {
             list: true,
             shared: false,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root,
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 }
 
-/// Reader returned by this backend.
-pub struct DashmapReader {
-    backend: DashmapBackend,
-    path: String,
-}
-
-impl DashmapReader {
-    fn new(backend: DashmapBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for DashmapReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        match backend.core.get(&p)? {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let buffer = value
-                    .content
-                    .slice(range.to_content_range(value.content.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),
-        }
-    }
-}
-
-impl Access for DashmapBackend {
+impl Service for DashmapBackend {
     type Reader = oio::StreamReader<DashmapReader>;
     type Writer = DashmapWriter;
     type Lister = oio::HierarchyLister<DashmapLister>;
     type Deleter = oio::OneShotDeleter<DashmapDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         match self.core.get(&p)? {
@@ -179,31 +157,84 @@ impl Access for DashmapBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(DashmapReader::new(self.clone(), path, args)),
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<DashmapReader> = {
+            Ok(oio::StreamReader::new(DashmapReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: DashmapWriter = {
+            let p = build_abs_path(&self.root, path);
+            Ok(DashmapWriter::new(self.core.clone(), p, args))
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<DashmapDeleter> = {
+            Ok(oio::OneShotDeleter::new(DashmapDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<DashmapLister> = {
+            let lister = DashmapLister::new(self.core.clone(), self.root.clone(), path.to_string());
+            let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+            Ok(lister)
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((
-            RpWrite::new(),
-            DashmapWriter::new(self.core.clone(), p, args),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(DashmapDeleter::new(self.core.clone(), self.root.clone())),
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = DashmapLister::new(self.core.clone(), self.root.clone(), path.to_string());
-        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-        Ok((RpList::default(), lister))
     }
 }

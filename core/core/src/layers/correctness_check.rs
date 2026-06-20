@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -31,7 +29,7 @@ use crate::*;
 ///
 /// # Notes
 ///
-/// OpenDAL applies this checker to every accessor by default, so users don't need to invoke it manually.
+/// OpenDAL applies this checker to every service by default, so users don't need to invoke it manually.
 /// this checker ensures the operation and its critical arguments, which might affect the correctness of
 /// the call, are supported by the underlying service.
 ///
@@ -40,24 +38,29 @@ use crate::*;
 #[derive(Default)]
 pub struct CorrectnessCheckLayer;
 
-impl<A: Access> Layer<A> for CorrectnessCheckLayer {
-    type LayeredAccess = CorrectnessAccessor<A>;
-
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        CorrectnessAccessor {
-            info: inner.info(),
-            inner,
-        }
+impl std::fmt::Debug for CorrectnessCheckLayer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CorrectnessCheckLayer").finish()
     }
 }
 
-pub struct CorrectnessAccessor<A: Access> {
-    info: Arc<AccessorInfo>,
-    inner: A,
+impl Layer for CorrectnessCheckLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 }
 
-pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
-    let scheme = info.scheme();
+impl CorrectnessCheckLayer {
+    fn layer(&self, inner: Servicer) -> CorrectnessService {
+        CorrectnessService { inner }
+    }
+}
+
+pub struct CorrectnessService {
+    inner: Servicer,
+}
+
+pub(crate) fn new_unsupported_error(scheme: &'static str, op: Operation, args: &str) -> Error {
     let op = op.into_static();
 
     Error::new(
@@ -67,98 +70,82 @@ pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &s
     .with_operation(op)
 }
 
-impl<A: Access> Debug for CorrectnessAccessor<A> {
+impl std::fmt::Debug for CorrectnessService {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CorrectnessCheckAccessor")
+        f.debug_struct("CorrectnessCheckService")
             .field("inner", &self.inner)
             .finish_non_exhaustive()
     }
 }
 
-impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
-    type Inner = A;
-    type Reader = A::Reader;
-    type Writer = A::Writer;
-    type Lister = A::Lister;
-    type Deleter = CheckWrapper<A::Deleter>;
-    type Copier = A::Copier;
+impl Service for CorrectnessService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = CheckWrapper<oio::Deleter>;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.info.clone()
+    fn capability(&self) -> Capability {
+        self.inner.capability()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let capability = self.info.full_capability();
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
         if !capability.read_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Read,
-                "version",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Read, "version"));
         }
         if !capability.read_with_if_match && args.if_match().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Read,
-                "if_match",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Read, "if_match"));
         }
         if !capability.read_with_if_none_match && args.if_none_match().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Read,
                 "if_none_match",
             ));
         }
         if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Read,
                 "if_modified_since",
             ));
         }
         if !capability.read_with_if_unmodified_since && args.if_unmodified_since().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Read,
                 "if_unmodified_since",
             ));
         }
 
-        self.inner.read(path, args).await
+        self.inner.read(ctx, path, args)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.info.full_capability();
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
         if args.append() && !capability.write_can_append {
-            return Err(new_unsupported_error(
-                &self.info,
-                Operation::Write,
-                "append",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Write, "append"));
         }
         if args.if_not_exists() && !capability.write_with_if_not_exists {
             return Err(new_unsupported_error(
-                &self.info,
+                scheme,
                 Operation::Write,
                 "if_not_exists",
             ));
         }
         if args.if_match().is_some() && !capability.write_with_if_match {
-            return Err(new_unsupported_error(
-                &self.info,
-                Operation::Write,
-                "if_match",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
         }
         if let Some(if_none_match) = args.if_none_match() {
             if !capability.write_with_if_none_match {
-                let mut err =
-                    new_unsupported_error(self.info.as_ref(), Operation::Write, "if_none_match");
+                let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
                 if if_none_match == "*" && capability.write_with_if_not_exists {
                     err = err.with_context("hint", "use if_not_exists instead");
                 }
@@ -167,117 +154,140 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
             }
         }
 
-        self.inner.write(path, args).await
+        self.inner.write(ctx, path, args)
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.full_capability();
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
         if !capability.stat_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Stat,
-                "version",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Stat, "version"));
         }
         if !capability.stat_with_if_match && args.if_match().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::Stat,
-                "if_match",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Stat, "if_match"));
         }
         if !capability.stat_with_if_none_match && args.if_none_match().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Stat,
                 "if_none_match",
             ));
         }
         if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Stat,
                 "if_modified_since",
             ));
         }
         if !capability.stat_with_if_unmodified_since && args.if_unmodified_since().is_some() {
             return Err(new_unsupported_error(
-                self.info.as_ref(),
+                scheme,
                 Operation::Stat,
                 "if_unmodified_since",
             ));
         }
 
-        self.inner.stat(path, args).await
+        self.inner.stat(ctx, path, args).await
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await.map(|(rp, deleter)| {
-            let deleter = CheckWrapper::new(deleter, self.info.clone());
-            (rp, deleter)
-        })
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner
+            .delete(ctx)
+            .map(|deleter| CheckWrapper::new(deleter, self.info().scheme(), self.capability()))
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let capability = self.info.full_capability();
+    ) -> Result<Self::Copier> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
         if args.if_not_exists() && !capability.copy_with_if_not_exists {
             return Err(new_unsupported_error(
-                &self.info,
+                scheme,
                 Operation::Copy,
                 "if_not_exists",
             ));
         }
         if args.if_match().is_some() && !capability.copy_with_if_match {
-            return Err(new_unsupported_error(
-                &self.info,
-                Operation::Copy,
-                "if_match",
-            ));
+            return Err(new_unsupported_error(scheme, Operation::Copy, "if_match"));
         }
         if args.source_version().is_some() && !capability.copy_with_source_version {
             return Err(new_unsupported_error(
-                &self.info,
+                scheme,
                 Operation::Copy,
                 "source_version",
             ));
         }
 
-        self.inner.copy(from, to, args, opts).await
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args).await
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 
 pub struct CheckWrapper<T> {
-    info: Arc<AccessorInfo>,
+    scheme: &'static str,
+    capability: Capability,
     inner: T,
 }
 
 impl<T> CheckWrapper<T> {
-    fn new(inner: T, info: Arc<AccessorInfo>) -> Self {
-        Self { inner, info }
+    fn new(inner: T, scheme: &'static str, capability: Capability) -> Self {
+        Self {
+            inner,
+            scheme,
+            capability,
+        }
     }
 
     fn check_delete(&self, args: &OpDelete) -> Result<()> {
-        if args.version().is_some() && !self.info.full_capability().delete_with_version {
+        if args.version().is_some() && !self.capability.delete_with_version {
             return Err(new_unsupported_error(
-                &self.info,
+                self.scheme,
                 Operation::Delete,
                 "version",
             ));
         }
 
-        if args.recursive() && !self.info.full_capability().delete_with_recursive {
+        if args.recursive() && !self.capability.delete_with_recursive {
             return Err(new_unsupported_error(
-                &self.info,
+                self.scheme,
                 Operation::Delete,
                 "recursive",
             ));
@@ -293,8 +303,8 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
         self.inner.delete(path, args).await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.inner.close()
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }
 
@@ -312,42 +322,85 @@ mod tests {
         capability: Capability,
     }
 
-    impl Access for MockService {
-        type Reader = oio::Reader;
-        type Writer = oio::Writer;
-        type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
-        type Copier = oio::Copier;
+    impl Service for MockService {
+        type Reader = MockReader;
+        type Writer = MockWriter;
+        type Lister = ();
+        type Deleter = MockDeleter;
+        type Copier = ();
 
-        fn info(&self) -> Arc<AccessorInfo> {
-            let info = AccessorInfo::default();
-            info.set_scheme("memory");
-            info.set_native_capability(self.capability);
-
-            info.into()
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("memory")
         }
 
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+        fn capability(&self) -> Capability {
+            self.capability
         }
 
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
-                Box::new(MockReader),
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             ))
         }
 
-        async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), Box::new(MockWriter)))
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), Box::new(())))
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(MockReader)
         }
 
-        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-            Ok((RpDelete::default(), Box::new(MockDeleter)))
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(MockWriter)
+        }
+
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Ok(())
+        }
+
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(MockDeleter)
+        }
+
+        fn copy(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 
@@ -355,11 +408,17 @@ mod tests {
 
     impl oio::Read for MockReader {
         async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-            Ok((RpRead::default(), Box::new(Buffer::new())))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Box::new(Buffer::new()) as Box<dyn oio::ReadStreamDyn>,
+            ))
         }
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
-            Ok((RpRead::default(), Buffer::new()))
+            Ok((
+                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                Buffer::new(),
+            ))
         }
     }
 
@@ -394,7 +453,8 @@ mod tests {
     fn new_test_operator(capability: Capability) -> Operator {
         let srv = MockService { capability };
 
-        Operator::from_inner(Arc::new(srv)).layer(CorrectnessCheckLayer)
+        Operator::from_parts(OperationContext::default(), Arc::new(srv))
+            .layer(CorrectnessCheckLayer)
     }
 
     #[tokio::test]

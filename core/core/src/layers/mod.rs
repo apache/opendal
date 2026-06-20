@@ -17,9 +17,6 @@
 
 //! `Layer` is the mechanism to intercept operations.
 
-mod type_eraser;
-pub(crate) use type_eraser::TypeEraseLayer;
-
 mod error_context;
 pub(crate) use error_context::ErrorContextLayer;
 
@@ -37,6 +34,3 @@ pub use capability_override::CapabilityOverrideLayer;
 
 mod correctness_check;
 pub(crate) use correctness_check::CorrectnessCheckLayer;
-
-mod http_client;
-pub use http_client::HttpClientLayer;

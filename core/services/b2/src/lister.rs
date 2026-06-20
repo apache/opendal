@@ -21,13 +21,14 @@ use bytes::Buf;
 
 use super::core::B2Core;
 use super::core::ListFileNamesResponse;
+use super::core::parse_error;
 use super::core::parse_file_info;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct B2Lister {
     core: Arc<B2Core>,
+    ctx: OperationContext,
 
     path: String,
     delimiter: Option<&'static str>,
@@ -40,6 +41,7 @@ pub struct B2Lister {
 impl B2Lister {
     pub fn new(
         core: Arc<B2Core>,
+        ctx: OperationContext,
         path: &str,
         recursive: bool,
         limit: Option<usize>,
@@ -48,6 +50,7 @@ impl B2Lister {
         let delimiter = if recursive { None } else { Some("/") };
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             delimiter,
@@ -62,6 +65,7 @@ impl oio::PageList for B2Lister {
         let resp = self
             .core
             .list_file_names(
+                &self.ctx,
                 Some(&self.path),
                 self.delimiter,
                 self.limit,

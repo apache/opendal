@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
         // set the password for OpenDAL
         .password("xxx xxx xxx xxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

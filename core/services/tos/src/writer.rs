@@ -22,23 +22,25 @@ use constants::X_TOS_OBJECT_SIZE;
 use constants::X_TOS_VERSION_ID;
 use http::StatusCode;
 
+use crate::core::parse_error;
+use crate::core::tos_parse_etag;
 use crate::core::*;
-use crate::error::parse_error;
-use crate::utils::tos_parse_etag;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct TosWriter {
     core: Arc<TosCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl TosWriter {
-    pub fn new(core: Arc<TosCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<TosCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         TosWriter {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
@@ -67,7 +69,7 @@ impl oio::MultipartWrite for TosWriter {
             .core
             .tos_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -82,7 +84,7 @@ impl oio::MultipartWrite for TosWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .tos_initiate_multipart_upload(&self.path, &self.op)
+            .tos_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -112,7 +114,7 @@ impl oio::MultipartWrite for TosWriter {
             self.core
                 .tos_upload_part_request(&self.path, upload_id, part_number, size, body)?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
         let status = resp.status();
 
         match status {
@@ -152,7 +154,7 @@ impl oio::MultipartWrite for TosWriter {
 
         let resp = self
             .core
-            .tos_complete_multipart_upload(&self.path, upload_id, parts, &self.op)
+            .tos_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
             .await?;
 
         let status = resp.status();
@@ -184,7 +186,7 @@ impl oio::MultipartWrite for TosWriter {
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .tos_abort_multipart_upload(&self.path, upload_id)
+            .tos_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
 
         match resp.status() {

@@ -19,15 +19,14 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use super::error::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 #[derive(Debug)]
 pub struct FsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
     pub buf_pool: oio::PooledBuf,
@@ -303,3 +302,22 @@ impl FsCore {
 /// Using "user." as the standard namespace for user-defined attributes.
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
+
+mod error {
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(e: std::io::Error) -> Error {
+        match e.kind() {
+            std::io::ErrorKind::AlreadyExists => Error::new(
+                ErrorKind::ConditionNotMatch,
+                "The file already exists in the filesystem",
+            )
+            .set_source(e),
+            _ => new_std_io_error(e),
+        }
+    }
+}
+
+pub(super) use error::*;

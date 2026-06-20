@@ -20,10 +20,10 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
+use crate::core::S3Error;
+use crate::core::from_s3_error;
+use crate::core::parse_error;
 use crate::core::*;
-use crate::error::S3Error;
-use crate::error::from_s3_error;
-use crate::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -31,12 +31,13 @@ pub type S3Copiers = oio::MultipartCopier<S3Copier>;
 
 pub fn new_s3_copier(
     core: Arc<S3Core>,
+    ctx: &OperationContext,
     from: &str,
     to: &str,
     args: OpCopy,
     opts: OpCopier,
 ) -> Result<S3Copiers> {
-    let capability = core.info.full_capability();
+    let capability = core.capability;
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
         Error::new(
             ErrorKind::Unexpected,
@@ -62,9 +63,10 @@ pub fn new_s3_copier(
     };
 
     Ok(oio::MultipartCopier::new(
-        core.info.clone(),
+        (ctx.executor().clone(), capability),
         S3Copier {
             core,
+            ctx: ctx.clone(),
             from: from.to_string(),
             to: to.to_string(),
             args,
@@ -78,6 +80,7 @@ pub fn new_s3_copier(
 
 pub struct S3Copier {
     core: Arc<S3Core>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -90,7 +93,10 @@ impl oio::MultipartCopy for S3Copier {
             args = args.with_version(version);
         }
 
-        let resp = self.core.s3_head_object(&self.from, args).await?;
+        let resp = self
+            .core
+            .s3_head_object(&self.ctx, &self.from, args)
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -104,7 +110,7 @@ impl oio::MultipartCopy for S3Copier {
     async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
-            .s3_copy_object(&self.from, &self.to, &self.args)
+            .s3_copy_object(&self.ctx, &self.from, &self.to, &self.args)
             .await?;
 
         match resp.status() {
@@ -146,7 +152,10 @@ impl oio::MultipartCopy for S3Copier {
     }
 
     async fn initiate_copy(&self) -> Result<String> {
-        let resp = self.core.s3_initiate_multipart_copy(&self.to).await?;
+        let resp = self
+            .core
+            .s3_initiate_multipart_copy(&self.ctx, &self.to)
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -181,7 +190,7 @@ impl oio::MultipartCopy for S3Copier {
                 range,
             })?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -230,7 +239,7 @@ impl oio::MultipartCopy for S3Copier {
 
         let resp = self
             .core
-            .s3_complete_multipart_copy(&self.to, upload_id, parts, &self.args)
+            .s3_complete_multipart_copy(&self.ctx, &self.to, upload_id, parts, &self.args)
             .await?;
 
         let status = resp.status();
@@ -271,7 +280,7 @@ impl oio::MultipartCopy for S3Copier {
     async fn abort_copy(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .s3_abort_multipart_copy(&self.to, upload_id)
+            .s3_abort_multipart_copy(&self.ctx, &self.to, upload_id)
             .await?;
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),

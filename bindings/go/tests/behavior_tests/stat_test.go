@@ -78,7 +78,7 @@ func testStatFile(assert *require.Assertions, op *opendal.Operator, fixture *fix
 	assert.True(meta.IsFile())
 	assert.Equal(meta.ContentLength(), uint64(size))
 
-	if op.Info().GetFullCapability().CreateDir() {
+	if op.Info().GetCapability().CreateDir() {
 		_, err := op.Stat(fmt.Sprintf("%s/", path))
 		assert.NotNil(err)
 		assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
@@ -86,7 +86,7 @@ func testStatFile(assert *require.Assertions, op *opendal.Operator, fixture *fix
 }
 
 func testStatDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
@@ -106,7 +106,7 @@ func testStatDir(assert *require.Assertions, op *opendal.Operator, fixture *fixt
 }
 
 func testStatNestedParentDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
@@ -149,7 +149,7 @@ func testStatNotExist(assert *require.Assertions, op *opendal.Operator, fixture 
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
-	if op.Info().GetFullCapability().CreateDir() {
+	if op.Info().GetCapability().CreateDir() {
 		_, err := op.Stat(fmt.Sprintf("%s/", path))
 		assert.NotNil(err)
 		assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
@@ -169,7 +169,7 @@ func testStatRoot(assert *require.Assertions, op *opendal.Operator, fixture *fix
 
 func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 
 	writeOpts := make([]opendal.WithWriteFn, 0, 5)
 	writeWithCacheControl := isCapEnabled(cap.WriteWithCacheControl, "write_with_cache_control")
@@ -262,7 +262,7 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 }
 
 func testStatWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfMatch, "stat_with_if_match") {
 		return
 	}
@@ -293,7 +293,7 @@ func testStatWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixtu
 }
 
 func testStatWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfNoneMatch, "stat_with_if_none_match") {
 		return
 	}
@@ -319,7 +319,7 @@ func testStatWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, f
 }
 
 func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfModifiedSince, "stat_with_if_modified_since") {
 		return
 	}
@@ -346,7 +346,7 @@ func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operato
 }
 
 func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfUnmodifiedSince, "stat_with_if_unmodified_since") {
 		return
 	}
@@ -373,7 +373,7 @@ func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 }
 
 func testStatDirMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 

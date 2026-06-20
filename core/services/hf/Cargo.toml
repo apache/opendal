@@ -37,17 +37,14 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 percent-encoding = "2"
-reqwest = { version = "0.13.4", default-features = false, features = [
-  "rustls",
-] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
 base64 = { workspace = true }
 futures = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0", features = [
-  "reqwest-rustls-tls",
+opendal-http-transport-reqwest = { path = "../../http-transports/reqwest", version = "0.57.0", features = [
+  "rustls",
 ] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

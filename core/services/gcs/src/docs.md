@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
        // set the default storage class for GCS
        .default_storage_class("STANDARD");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

@@ -25,11 +25,11 @@ use serde_json::Value;
 use crate::raw::*;
 use crate::*;
 
-/// Layer for overriding an accessor's full capability.
+/// Layer for overriding an operator's effective capability.
 ///
 /// This layer updates [`Capability`] exposed by
-/// [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability]
-/// without changing the accessor's native capability. It is useful when the
+/// [`OperatorInfo::capability`][crate::OperatorInfo::capability]
+/// without changing the service's native capability. It is useful when the
 /// backend implementation supports a capability, but the specific endpoint or
 /// test setup needs to disable or tune it.
 ///
@@ -47,8 +47,7 @@ use crate::*;
 ///         cap.write_with_if_match = false;
 ///         cap.delete_max_size = Some(700);
 ///         cap
-///     }))
-///     .finish();
+///     }));
 /// # Ok(())
 /// # }
 /// ```
@@ -86,14 +85,106 @@ impl CapabilityOverrideLayer {
     }
 }
 
-impl<A: Access> Layer<A> for CapabilityOverrideLayer {
-    type LayeredAccess = A;
+impl Layer for CapabilityOverrideLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-        let apply = self.apply.clone();
-        info.update_full_capability(|cap| apply(cap));
-        inner
+impl CapabilityOverrideLayer {
+    fn layer(&self, inner: Servicer) -> CapabilityOverrideService {
+        CapabilityOverrideService {
+            inner,
+            apply: self.apply.clone(),
+        }
+    }
+}
+
+pub struct CapabilityOverrideService {
+    inner: Servicer,
+    apply: Arc<dyn Fn(Capability) -> Capability + Send + Sync>,
+}
+
+impl fmt::Debug for CapabilityOverrideService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CapabilityOverrideService")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Service for CapabilityOverrideService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> Capability {
+        (self.apply)(self.inner.capability())
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 
@@ -192,23 +283,17 @@ mod tests {
     use crate::services;
 
     #[test]
-    fn capability_override_updates_full_capability_only() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?
-            .layer(CapabilityOverrideLayer::new(|mut cap| {
+    fn capability_override_updates_capability() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?.layer(CapabilityOverrideLayer::new(
+            |mut cap| {
                 cap.read = false;
                 cap.delete_max_size = Some(7);
                 cap
-            }))
-            .finish();
+            },
+        ));
 
-        assert!(!op.info().full_capability().read);
-        assert_eq!(op.info().full_capability().delete_max_size, Some(7));
-
-        assert!(op.info().native_capability().read);
-        assert_ne!(
-            op.info().native_capability().delete_max_size,
-            op.info().full_capability().delete_max_size
-        );
+        assert!(!op.info().capability().read);
+        assert_eq!(op.info().capability().delete_max_size, Some(7));
 
         Ok(())
     }
@@ -218,13 +303,11 @@ mod tests {
         let layer = CapabilityOverrideLayer::from_overrides(
             "read=false,write_can_append=true,delete_max_size=7",
         )?;
-        let op = Operator::new(services::Memory::default())?
-            .layer(layer)
-            .finish();
+        let op = Operator::new(services::Memory::default())?.layer(layer);
 
-        assert!(!op.info().full_capability().read);
-        assert!(op.info().full_capability().write_can_append);
-        assert_eq!(op.info().full_capability().delete_max_size, Some(7));
+        assert!(!op.info().capability().read);
+        assert!(op.info().capability().write_can_append);
+        assert_eq!(op.info().capability().delete_max_size, Some(7));
 
         Ok(())
     }
@@ -233,13 +316,11 @@ mod tests {
     fn parse_bool_assignments_and_unset_sizes() -> Result<()> {
         let layer =
             CapabilityOverrideLayer::from_overrides("read=false,write=true,delete_max_size=none")?;
-        let op = Operator::new(services::Memory::default())?
-            .layer(layer)
-            .finish();
+        let op = Operator::new(services::Memory::default())?.layer(layer);
 
-        assert!(!op.info().full_capability().read);
-        assert!(op.info().full_capability().write);
-        assert_eq!(op.info().full_capability().delete_max_size, None);
+        assert!(!op.info().capability().read);
+        assert!(op.info().capability().write);
+        assert_eq!(op.info().capability().delete_max_size, None);
 
         Ok(())
     }

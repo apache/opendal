@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         // set the password for accessing the repository
         .password("xxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     let stat = op.stat("README.md").await?;
     println!("{:?}", stat);

@@ -71,3 +71,9 @@ jobs:
       - name: Run tests
         working-directory: bindings/d
         run: dub test && cd test && dub
+
+      - name: Run getting-started example
+        working-directory: bindings/d/examples/getting-started
+        env:
+          OPENDAL_TEST: memory
+        run: dub run

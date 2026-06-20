@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
         // Fallback to the default type if no other types found.
         .drive_type("resource");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

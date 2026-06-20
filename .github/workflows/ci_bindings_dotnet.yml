@@ -94,3 +94,11 @@ jobs:
           dotnet test -f ${{ matrix.dotnet-version == '8.0.x' && 'net8.0' || 'net10.0' }}
         env:
           OPENDAL_TEST: memory
+
+      # The example backs the snippet shown in the website guide. Running it
+      # keeps the docs honest: a broken example fails CI instead of shipping
+      # bad docs. It uses the in-memory service, so it needs no credentials.
+      - name: Run guide example
+        working-directory: "bindings/dotnet"
+        run: |
+          dotnet run --project examples/GettingStarted -f ${{ matrix.dotnet-version == '8.0.x' && 'net8.0' || 'net10.0' }}

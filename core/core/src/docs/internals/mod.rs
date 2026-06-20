@@ -15,47 +15,39 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implement details of OpenDAL.
+//! The internal implementation details of OpenDAL.
 //!
-//! OpenDAL has provides unified abstraction via two-level API sets:
+//! OpenDAL provides unified abstraction via two-level API sets:
 //!
-//! - Public API like [`Operator`] provides user level API.
-//! - Raw API like [`Access`], [`Layer`] provides developer level API.
+//! - Public API like [`Operator`] provides user-level API.
+//! - Raw API like [`Service`], [`Layer`] provides developer-level API.
 //!
-//! OpenDAL tries it's best to keep the public API stable. But raw APIs
+//! OpenDAL tries its best to keep the public API stable. But raw APIs
 //! may change between minor releases from time to time. So most users
-//! should only use the public API. And only developers need to implement
-//! with raw API to implement a new service [`Access`] or their own
-//! [`Layer`].
+//! should only use the public API. Developers use raw APIs to implement
+//! storage services or their own [`Layer`].
 //!
 //! In this section, we will talk about the following components:
 //!
-//! - [`Access`][accessor]: to connect underlying storage services.
+//! - [`Service`][accessor]: to connect underlying storage services.
 //! - [`Layer`][layer]: middleware/interceptor between storage services.
 //!
-//! The relation between [`Access`], [`Layer`] and [`Operator`] looks like the following:
+//! The relation between [`Service`], [`Layer`], [`Servicer`], [`OperationContext`],
+//! and [`Operator`] looks like the following:
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────┬──────────┐
-//! │                                                 │          │
-//! │              ┌──────────┐  ┌────────┐           │          │
-//! │              │          │  │        ▼           │          │
-//! │      s3──┐   │          │  │ Tracing Layer      │          │
-//! │          │   │          │  │        │           │          │
-//! │     gcs──┤   │          │  │        ▼           │          │
-//! │          ├──►│ Accessor ├──┘ Metrics Layer ┌───►│ Operator │
-//! │  azblob──┤   │          │           │      │    │          │
-//! │          │   │          │           ▼      │    │          │
-//! │    hdfs──┘   │          │    Logging Layer │    │          │
-//! │              │          │           │      │    │          │
-//! │              └──────────┘           └──────┘    │          │
-//! │                                                 │          │
-//! └─────────────────────────────────────────────────┴──────────┘
+//! ┌──────────────┐     ┌──────────────────────────────┐     ┌──────────────┐
+//! │ Service      │     │ Servicer                     │     │ Operator     │
+//! │ builders     ├────►│ + Layer::apply_* replay      ├────►│ srv + ctx    │
+//! └──────────────┘     │ + OperationContext resources │     └──────────────┘
+//!                      └──────────────────────────────┘
 //! ```
 //!
 //! [`Builder`]: crate::Builder
 //! [`Operator`]: crate::Operator
-//! [`Access`]: crate::raw::Access
+//! [`Service`]: crate::raw::Service
+//! [`Servicer`]: crate::raw::Servicer
+//! [`OperationContext`]: crate::raw::OperationContext
 //! [`Layer`]: crate::raw::Layer
 
 pub mod accessor;

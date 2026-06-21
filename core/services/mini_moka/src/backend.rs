@@ -175,7 +175,7 @@ impl Service for MiniMokaBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // Check if path exists directly in cache
         match self.core.get(&p) {
@@ -221,7 +221,7 @@ impl Service for MiniMokaBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
         let output: MiniMokaWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let writer = MiniMokaWriter::new(self.core.clone(), p, op);
             Ok(writer)
         }?;
@@ -243,7 +243,7 @@ impl Service for MiniMokaBackend {
 
     fn list(&self, _ctx: &OperationContext, path: &str, op: OpList) -> Result<Self::Lister> {
         let output: oio::HierarchyLister<MiniMokaLister> = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
 
             let mini_moka_lister = MiniMokaLister::new(self.core.clone(), self.root.clone(), p);
             let lister = oio::HierarchyLister::new(mini_moka_lister, path, op.recursive());

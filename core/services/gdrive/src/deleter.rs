@@ -37,7 +37,7 @@ impl GdriveDeleter {
 
 impl oio::OneShotDelete for GdriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let path = build_abs_path(&self.core.root, &path);
+        let path = build_absolute_path(&self.core.root, &path);
         let mut file_id = match self.core.resolve_path(&self.ctx, &path).await? {
             Some(id) => id,
             None => match self

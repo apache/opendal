@@ -87,7 +87,7 @@ impl oio::PageList for WebdavLister {
 
             let decoded_path = percent_decode_path(&path);
             let normalized_path = if self.core.root != decoded_path {
-                build_rel_path(&self.core.root, &decoded_path)
+                build_relative_path(&self.core.root, &decoded_path)
             } else {
                 "/".to_owned()
             };

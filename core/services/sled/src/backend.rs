@@ -169,9 +169,9 @@ impl Service for SledBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             let bs = self.core.get(&p)?;
@@ -197,7 +197,7 @@ impl Service for SledBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: SledWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let writer = SledWriter::new(self.core.clone(), p);
             Ok(writer)
         }?;
@@ -216,7 +216,7 @@ impl Service for SledBackend {
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::HierarchyLister<SledLister> = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
             Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
         }?;

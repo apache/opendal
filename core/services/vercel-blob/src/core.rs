@@ -93,7 +93,7 @@ impl VercelBlobCore {
         range: BytesRange,
         _: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
         let resp = self.list(ctx, &p, Some(1)).await?;
@@ -129,7 +129,7 @@ impl VercelBlobCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/{}",
@@ -159,7 +159,7 @@ impl VercelBlobCore {
     }
 
     pub async fn head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let resp = self.list(ctx, &p, Some(1)).await?;
 
@@ -192,7 +192,7 @@ impl VercelBlobCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
+        let from = build_absolute_path(&self.root, from);
 
         let resp = self.list(ctx, &from, Some(1)).await?;
 
@@ -202,7 +202,7 @@ impl VercelBlobCore {
             return Err(Error::new(ErrorKind::NotFound, "Blob not found"));
         }
 
-        let to = build_abs_path(&self.root, to);
+        let to = build_absolute_path(&self.root, to);
 
         let to_url = format!(
             "https://blob.vercel-storage.com/{}?fromUrl={}",
@@ -269,7 +269,7 @@ impl VercelBlobCore {
     }
 
     pub async fn vercel_delete_blob(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let resp = self.list(ctx, &p, Some(1)).await?;
 
@@ -311,7 +311,7 @@ impl VercelBlobCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",
@@ -348,7 +348,7 @@ impl VercelBlobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",
@@ -382,7 +382,7 @@ impl VercelBlobCore {
         upload_id: &str,
         parts: Vec<Part>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",

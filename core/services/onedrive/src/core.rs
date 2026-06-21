@@ -65,7 +65,7 @@ impl OneDriveCore {
         } else {
             // OneDrive returns 400 when try to access a folder with a ending slash
             let absolute_path = if build_absolute_path {
-                let rooted_path = build_rooted_abs_path(&self.root, path);
+                let rooted_path = build_rooted_absolute_path(&self.root, path);
                 rooted_path
                     .strip_suffix('/')
                     .unwrap_or(rooted_path.as_str())

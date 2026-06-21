@@ -130,7 +130,7 @@ impl SwiftCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -176,7 +176,7 @@ impl SwiftCore {
         let body_str: String = paths
             .iter()
             .map(|(path, _)| {
-                let abs = build_abs_path(&self.root, path);
+                let abs = build_absolute_path(&self.root, path);
                 format!("{}/{}", &self.container, percent_encode_path(&abs))
             })
             .collect::<Vec<_>>()
@@ -201,7 +201,7 @@ impl SwiftCore {
         limit: Option<usize>,
         marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
@@ -238,7 +238,7 @@ impl SwiftCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             &self.endpoint,
@@ -287,7 +287,7 @@ impl SwiftCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -339,10 +339,10 @@ impl SwiftCore {
         let src_p = format!(
             "/{}/{}",
             self.container,
-            build_abs_path(&self.root, src_p).trim_end_matches('/')
+            build_absolute_path(&self.root, src_p).trim_end_matches('/')
         );
 
-        let dst_p = build_abs_path(&self.root, dst_p)
+        let dst_p = build_absolute_path(&self.root, dst_p)
             .trim_end_matches('/')
             .to_string();
 
@@ -380,7 +380,7 @@ impl SwiftCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -419,7 +419,7 @@ impl SwiftCore {
     ///
     /// Segments are stored as: `.segments/{object_path}/{upload_id}/{part_number:08}`
     pub fn slo_segment_path(&self, path: &str, upload_id: &str, part_number: usize) -> String {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         format!(
             ".segments/{}{}/{:08}",
             abs.trim_end_matches('/'),
@@ -474,7 +474,7 @@ impl SwiftCore {
         manifest: &[SloManifestEntry],
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?multipart-manifest=put",
             &self.endpoint,
@@ -520,7 +520,7 @@ impl SwiftCore {
         // List segments under the upload_id prefix and delete them individually.
         // We can't use multipart-manifest=delete because we haven't created
         // the manifest yet (abort happens before complete).
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
 
         // List all segments with this prefix.
@@ -587,7 +587,7 @@ impl SwiftCore {
             ));
         }
 
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
 
         // Extract the path portion from the endpoint URL for signing.
         // The endpoint is like "https://host:port/v1/AUTH_account".

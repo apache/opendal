@@ -101,7 +101,7 @@ impl oio::StreamRead for OpfsReader {
         let backend = &self.backend;
         let path = self.path.as_str();
 
-        let p = build_abs_path(&backend.core.root, path);
+        let p = build_absolute_path(&backend.core.root, path);
         let handle = get_file_handle(&p, false).await?;
         let rp = RpRead::default();
         let stream = OpfsReadStream::new(handle, range);

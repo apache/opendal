@@ -110,7 +110,7 @@ impl UpyunCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -133,7 +133,7 @@ impl UpyunCore {
     }
 
     pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -161,7 +161,7 @@ impl UpyunCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -200,7 +200,7 @@ impl UpyunCore {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -227,8 +227,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -262,8 +262,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -292,7 +292,7 @@ impl UpyunCore {
     }
 
     pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = path[..path.len() - 1].to_string();
 
         let url = format!(
@@ -324,7 +324,7 @@ impl UpyunCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -369,7 +369,7 @@ impl UpyunCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -405,7 +405,7 @@ impl UpyunCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -437,7 +437,7 @@ impl UpyunCore {
         iter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",

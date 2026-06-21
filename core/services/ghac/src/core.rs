@@ -99,7 +99,7 @@ impl Debug for GhacCore {
 
 impl GhacCore {
     async fn ghac_get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -224,7 +224,7 @@ impl GhacCore {
     }
 
     pub async fn ghac_get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -341,7 +341,7 @@ impl GhacCore {
         url: &str,
         size: u64,
     ) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {

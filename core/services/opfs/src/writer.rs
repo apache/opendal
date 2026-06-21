@@ -54,7 +54,7 @@ impl OpfsWriter {
             return Ok(());
         }
 
-        let p = build_abs_path(&self.core.root, &self.path);
+        let p = build_absolute_path(&self.core.root, &self.path);
         let handle = get_file_handle(&p, true).await?;
         let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
             .await

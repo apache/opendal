@@ -109,7 +109,7 @@ impl GithubCore {
     }
 
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -140,7 +140,7 @@ impl GithubCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -174,7 +174,7 @@ impl GithubCore {
     ) -> Result<Response<Buffer>> {
         let sha = self.get_file_sha(ctx, path).await?;
 
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -224,7 +224,7 @@ impl GithubCore {
             return Ok(());
         };
 
-        let path = build_abs_path(&self.root, p);
+        let path = build_absolute_path(&self.root, p);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -263,7 +263,7 @@ impl GithubCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",

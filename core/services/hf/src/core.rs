@@ -404,7 +404,7 @@ impl HfCore {
     /// Convert an operator-relative path to a repo-absolute path
     /// (no leading `/`) for use in commit/delete/batch payloads.
     pub(super) fn repo_path(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string()
     }
@@ -905,7 +905,7 @@ mod uri {
         pub fn uri(&self, root: &str, path: &str) -> HfUri {
             HfUri {
                 repo: self.clone(),
-                path: build_abs_path(root, path)
+                path: build_absolute_path(root, path)
                     .trim_start_matches('/')
                     .trim_end_matches('/')
                     .to_string(),

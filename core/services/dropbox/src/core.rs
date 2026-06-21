@@ -50,7 +50,7 @@ impl Debug for DropboxCore {
 
 impl DropboxCore {
     fn build_path(&self, path: &str) -> String {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         // For dropbox, even the path is a directory,
         // we still need to remove the trailing slash.
         path.trim_end_matches('/').to_string()
@@ -113,7 +113,7 @@ impl DropboxCore {
     ) -> Result<Response<HttpBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: build_rooted_absolute_path(&self.root, path),
         };
         let request_payload =
             serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
@@ -146,7 +146,7 @@ impl DropboxCore {
     ) -> Result<Response<Buffer>> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
         let dropbox_update_args = DropboxUploadArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: build_rooted_absolute_path(&self.root, path),
             ..Default::default()
         };
         let mut request_builder = Request::post(&url);

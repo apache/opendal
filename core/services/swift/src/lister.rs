@@ -89,7 +89,7 @@ impl oio::PageList for SwiftLister {
         for status in decoded_response {
             let entry: oio::Entry = match status {
                 ListOpResponse::Subdir { subdir } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), subdir.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), subdir.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }
@@ -103,7 +103,7 @@ impl oio::PageList for SwiftLister {
                     content_type,
                     mut last_modified,
                 } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), name.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), name.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }

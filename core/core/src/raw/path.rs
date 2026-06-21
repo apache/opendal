@@ -67,13 +67,6 @@ pub fn build_absolute_path(root: &str, path: &str) -> String {
     }
 }
 
-/// Deprecated: use [`build_absolute_path`] instead.
-#[deprecated(note = "use build_absolute_path instead")]
-#[inline]
-pub fn build_abs_path(root: &str, path: &str) -> String {
-    build_absolute_path(root, path)
-}
-
 /// Build an absolute path by joining root and path, preserving the leading `/`.
 ///
 /// # Conformance
@@ -119,13 +112,6 @@ pub fn build_rooted_absolute_path(root: &str, path: &str) -> String {
         debug_assert!(!path.starts_with('/'), "path must not start with /");
         p + path
     }
-}
-
-/// Deprecated: use [`build_rooted_absolute_path`] instead.
-#[deprecated(note = "use build_rooted_absolute_path instead")]
-#[inline]
-pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
-    build_rooted_absolute_path(root, path)
 }
 
 /// Build a relative path from a rooted absolute path by stripping the root prefix.
@@ -183,13 +169,6 @@ pub fn build_relative_path(root: &str, path: &str) -> String {
         );
         path[root.len() - 1..].to_string()
     }
-}
-
-/// Deprecated: use [`build_relative_path`] instead.
-#[deprecated(note = "use build_relative_path instead")]
-#[inline]
-pub fn build_rel_path(root: &str, path: &str) -> String {
-    build_relative_path(root, path)
 }
 
 /// Normalize a user-provided path for services.

@@ -208,7 +208,7 @@ impl AzblobCore {
             "{}/{}/{}",
             self.endpoint,
             self.container,
-            percent_encode_path(&build_abs_path(&self.root, path))
+            percent_encode_path(&build_absolute_path(&self.root, path))
         )
     }
 
@@ -768,7 +768,7 @@ impl AzblobCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.container))
             .push("restype", "container")
             .push("comp", "list");

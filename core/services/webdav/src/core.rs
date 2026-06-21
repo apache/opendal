@@ -110,7 +110,7 @@ impl Debug for WebdavCore {
 
 impl WebdavCore {
     pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
@@ -173,7 +173,7 @@ impl WebdavCore {
         range: BytesRange,
         _: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
@@ -203,7 +203,7 @@ impl WebdavCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::put(&url);
@@ -247,7 +247,7 @@ impl WebdavCore {
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPPATCH").uri(&url);
@@ -278,7 +278,7 @@ impl WebdavCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::delete(&url);
@@ -307,10 +307,10 @@ impl WebdavCore {
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("COPY").uri(&source_uri);
@@ -342,10 +342,10 @@ impl WebdavCore {
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("MOVE").uri(&source_uri);
@@ -372,7 +372,7 @@ impl WebdavCore {
         path: &str,
         args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPFIND").uri(&url);
@@ -404,7 +404,7 @@ impl WebdavCore {
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
     pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();

@@ -202,10 +202,10 @@ impl SeafileCore {
             .extension(ServiceOperation("UploadFile"));
 
         let (filename, relative_path) = if path.ends_with('/') {
-            ("", build_abs_path(&self.root, path))
+            ("", build_absolute_path(&self.root, path))
         } else {
             let (filename, relative_path) = (get_basename(path), get_parent(path));
-            (filename, build_abs_path(&self.root, relative_path))
+            (filename, build_absolute_path(&self.root, relative_path))
         };
 
         let file_part = FormDataPart::new("file")
@@ -233,7 +233,7 @@ impl SeafileCore {
             return Ok(());
         }
 
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let path = percent_encode_path(path.trim_end_matches('/'));
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -262,7 +262,7 @@ impl SeafileCore {
 
     /// get download
     async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -317,7 +317,7 @@ impl SeafileCore {
 
     /// file detail
     pub async fn file_detail(&self, ctx: &OperationContext, path: &str) -> Result<FileDetail> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -350,7 +350,7 @@ impl SeafileCore {
 
     /// dir detail
     pub async fn dir_detail(&self, ctx: &OperationContext, path: &str) -> Result<DirDetail> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -383,7 +383,7 @@ impl SeafileCore {
 
     /// delete file or dir
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -420,7 +420,7 @@ impl SeafileCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
-        let rooted_abs_path = build_rooted_abs_path(&self.root, path);
+        let rooted_abs_path = build_rooted_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 

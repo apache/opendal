@@ -118,7 +118,7 @@ impl oio::PageList for OneDriveLister {
                 .unwrap_or("");
 
             let path = format!("{parent_path}/{name}");
-            let mut normalized_path = build_rel_path(self.core.root.as_str(), path.as_str());
+            let mut normalized_path = build_relative_path(self.core.root.as_str(), path.as_str());
             let entry_mode = match drive_item.item_type {
                 ItemType::Folder { .. } => EntryMode::DIR,
                 ItemType::File { .. } => EntryMode::FILE,

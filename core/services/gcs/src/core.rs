@@ -159,7 +159,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}?alt=media",
@@ -196,7 +196,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -249,7 +249,7 @@ impl GcsCore {
         op: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
             storage_class: self.default_storage_class.as_deref(),
@@ -336,7 +336,7 @@ impl GcsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -378,7 +378,7 @@ impl GcsCore {
     }
 
     pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -412,7 +412,7 @@ impl GcsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -460,7 +460,7 @@ impl GcsCore {
     }
 
     pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -511,8 +511,8 @@ impl GcsCore {
         max_bytes_rewritten_per_call: Option<usize>,
         rewrite_token: Option<&str>,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let dest = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let dest = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
@@ -558,7 +558,7 @@ impl GcsCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket,);
 
@@ -572,7 +572,7 @@ impl GcsCore {
             url = url.push("maxResults", &limit.to_string());
         }
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
+            let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
         }
 
@@ -603,7 +603,7 @@ impl GcsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
 
@@ -659,7 +659,7 @@ impl GcsCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?partNumber={}&uploadId={}",
@@ -691,7 +691,7 @@ impl GcsCore {
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",
@@ -728,7 +728,7 @@ impl GcsCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",

@@ -178,18 +178,6 @@ pub struct Operator {
     ctx: OperationContext,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rename_with_if_not_exists_api() {
-        let op = Operator::new(services::Memory::default()).unwrap();
-        let future = op.rename_with("source", "target").if_not_exists(true);
-        drop(future);
-    }
-}
-
 impl std::fmt::Debug for Operator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Operator")

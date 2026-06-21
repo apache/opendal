@@ -275,8 +275,7 @@ impl OneDriveCore {
         limit: Option<usize>,
     ) -> Result<Request<Buffer>> {
         let item_url = self.onedrive_item_url(path, true);
-        // The drive root must be addressed as `root/children`: the path-based form
-        // `root:/children` addresses an item named "children" instead.
+        // Root is addressed as `root/children`, not the path form `root:/children`.
         let mut url = if item_url == Self::DRIVE_ROOT_URL {
             format!("{item_url}/children?{GENERAL_SELECT_PARAM}")
         } else {

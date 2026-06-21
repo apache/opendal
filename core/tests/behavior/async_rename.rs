@@ -253,7 +253,8 @@ pub async fn test_rename_with_if_not_exists_to_existing_file(op: Operator) -> Re
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes(op.info().capability());
+    let mut target_content = source_content.clone();
+    target_content[0] ^= 0xff;
     assert_ne!(source_content, target_content);
 
     op.write(&target_path, target_content.clone()).await?;

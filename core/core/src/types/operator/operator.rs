@@ -178,6 +178,18 @@ pub struct Operator {
     ctx: OperationContext,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rename_with_if_not_exists_api() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let future = op.rename_with("source", "target").if_not_exists(true);
+        drop(future);
+    }
+}
+
 impl std::fmt::Debug for Operator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Operator")
@@ -1389,24 +1401,87 @@ impl Operator {
     /// # }
     /// ```
     pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
-        let from = normalize_path(from);
+        self.rename_options(from, to, options::RenameOptions::default())
+            .await
+    }
 
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// By default, `to` will be overwritten if it exists. Use
+    /// [`FutureRename::if_not_exists`] to require that the target does not exist.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.rename_with("path/to/file", "path/to/file2")
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn rename_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureRename<impl Future<Output = Result<()>>> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (options::RenameOptions::default(), to),
+            Self::rename_inner,
+        )
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// By default, `to` will be overwritten if it exists. Set
+    /// [`options::RenameOptions::if_not_exists`] to require that the target does not exist.
+    pub async fn rename_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: impl Into<options::RenameOptions>,
+    ) -> Result<()> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        Self::rename_inner(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (opts.into(), to),
+        )
+        .await
+    }
+
+    async fn rename_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        from: String,
+        (opts, to): (options::RenameOptions, String),
+    ) -> Result<()> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from),
             );
         }
-
-        let to = normalize_path(to);
 
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
         }
@@ -1415,15 +1490,13 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from)
                     .with_context("to", to),
             );
         }
 
-        self.srv
-            .rename(&self.ctx, &from, &to, OpRename::new())
-            .await?;
+        srv.rename(&ctx, &from, &to, opts.into()).await?;
 
         Ok(())
     }

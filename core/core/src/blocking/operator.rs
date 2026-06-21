@@ -558,7 +558,7 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - `to` will be overwritten if it exists.
+    /// - By default, `to` will be overwritten if it exists.
     /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
     ///
     /// # Examples
@@ -574,10 +574,17 @@ impl Operator {
     /// # }
     /// ```
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        self.rename_options(from, to, options::RenameOptions::default())
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// Set [`options::RenameOptions::if_not_exists`] to require that the target does not exist.
+    pub fn rename_options(&self, from: &str, to: &str, opts: options::RenameOptions) -> Result<()> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.rename(&from, &to).await })?
+        self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
     }
 
     /// Delete given path.

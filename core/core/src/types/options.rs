@@ -601,3 +601,12 @@ pub struct CopyOptions {
     /// step. Services that cannot split copy operations can ignore it.
     pub chunk: Option<usize>,
 }
+
+/// Options for rename operations.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct RenameOptions {
+    /// Sets the condition that rename operation will succeed only if target does not exist.
+    ///
+    /// Check [`Capability::rename_with_if_not_exists`] before using this feature.
+    pub if_not_exists: bool,
+}

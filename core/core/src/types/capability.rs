@@ -164,6 +164,8 @@ pub struct Capability {
 
     /// Indicates if rename operations are supported.
     pub rename: bool,
+    /// Indicates if atomic rename operations that require the destination not to exist are supported.
+    pub rename_with_if_not_exists: bool,
 
     /// Indicates if list operations are supported.
     pub list: bool,

@@ -146,7 +146,7 @@ impl HdfsCore {
         }
     }
 
-    pub fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
+    pub fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 
@@ -176,9 +176,17 @@ impl HdfsCore {
             }
             Ok(metadata) => {
                 if metadata.is_file() {
-                    self.client
-                        .remove_file(&to_path)
-                        .map_err(new_std_io_error)?;
+                    if args.if_not_exists() {
+                        return Err(Error::new(
+                            ErrorKind::AlreadyExists,
+                            "destination already exists",
+                        )
+                        .with_context("input", &to_path));
+                    } else {
+                        self.client
+                            .remove_file(&to_path)
+                            .map_err(new_std_io_error)?;
+                    }
                 } else {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
                         .with_context("input", &to_path));
@@ -186,9 +194,25 @@ impl HdfsCore {
             }
         }
 
-        self.client
-            .rename_file(&from_path, &to_path)
-            .map_err(new_std_io_error)?;
+        if let Err(err) = self.client.rename_file(&from_path, &to_path) {
+            if !args.if_not_exists() || err.kind() == io::ErrorKind::AlreadyExists {
+                return Err(new_std_io_error(err));
+            }
+
+            match self.client.metadata(&to_path) {
+                Ok(metadata) if metadata.is_file() => {
+                    return Err(
+                        Error::new(ErrorKind::AlreadyExists, "destination already exists")
+                            .with_context("input", &to_path),
+                    );
+                }
+                Ok(_) => {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("input", &to_path));
+                }
+                Err(_) => return Err(new_std_io_error(err)),
+            }
+        }
 
         Ok(())
     }

@@ -21,23 +21,31 @@ use bytes::Buf;
 
 use super::core::MetainformationResponse;
 use super::core::YandexDiskCore;
+use super::core::parse_error;
 use super::core::parse_info;
-use super::error::parse_error;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;
 
 pub struct YandexDiskLister {
     core: Arc<YandexDiskCore>,
+    ctx: OperationContext,
 
     path: String,
     limit: Option<usize>,
 }
 
 impl YandexDiskLister {
-    pub(super) fn new(core: Arc<YandexDiskCore>, path: &str, limit: Option<usize>) -> Self {
+    pub(super) fn new(
+        core: Arc<YandexDiskCore>,
+        ctx: OperationContext,
+        path: &str,
+        limit: Option<usize>,
+    ) -> Self {
         YandexDiskLister {
             core,
+            ctx,
             path: path.to_string(),
             limit,
         }
@@ -54,7 +62,7 @@ impl oio::PageList for YandexDiskLister {
 
         let resp = self
             .core
-            .metainformation(&self.path, self.limit, offset)
+            .metainformation(&self.ctx, &self.path, self.limit, offset)
             .await?;
 
         if resp.status() == http::StatusCode::NOT_FOUND {

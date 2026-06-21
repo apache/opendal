@@ -22,6 +22,7 @@ use super::config::SledConfig;
 use super::core::*;
 use super::deleter::SledDeleter;
 use super::lister::SledLister;
+use super::reader::*;
 use super::writer::SledWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -64,7 +65,7 @@ impl SledBuilder {
 impl Builder for SledBuilder {
     type Config = SledConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", SLED_SCHEME)
@@ -104,90 +105,70 @@ impl Builder for SledBuilder {
 /// Backend for sled services.
 #[derive(Clone, Debug)]
 pub struct SledBackend {
-    core: Arc<SledCore>,
-    root: String,
-    info: Arc<AccessorInfo>,
+    pub(crate) core: Arc<SledCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl SledBackend {
     pub fn new(core: SledCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(SLED_SCHEME)
-            .set_name(&core.datadir)
-            .set_root("/")
-            .set_native_capability(Capability {
-                read: true,
-                stat: true,
-                write: true,
-                write_can_empty: true,
-                delete: true,
-                list: true,
-                list_with_recursive: true,
-                shared: false,
-                ..Default::default()
-            });
+        let info = ServiceInfo::new(SLED_SCHEME, "/", &core.datadir);
+        let capability = Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            list: true,
+            list_with_recursive: true,
+            shared: false,
+            ..Default::default()
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
 }
 
-/// Reader returned by this backend.
-pub struct SledReader {
-    backend: SledBackend,
-    path: String,
-}
-
-impl SledReader {
-    fn new(backend: SledBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for SledReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p)? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in sled"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
-    }
-}
-
-impl Access for SledBackend {
+impl Service for SledBackend {
     type Reader = oio::StreamReader<SledReader>;
     type Writer = SledWriter;
     type Lister = oio::HierarchyLister<SledLister>;
     type Deleter = oio::OneShotDeleter<SledDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -202,30 +183,83 @@ impl Access for SledBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(SledReader::new(self.clone(), path, args)),
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SledReader> = {
+            Ok(oio::StreamReader::new(SledReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: SledWriter = {
+            let p = build_abs_path(&self.root, path);
+            let writer = SledWriter::new(self.core.clone(), p);
+            Ok(writer)
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<SledDeleter> = {
+            let deleter = SledDeleter::new(self.core.clone(), self.root.clone());
+            Ok(oio::OneShotDeleter::new(deleter))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::HierarchyLister<SledLister> = {
+            let p = build_abs_path(&self.root, path);
+            let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
+            Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        let writer = SledWriter::new(self.core.clone(), p);
-        Ok((RpWrite::new(), writer))
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = SledDeleter::new(self.core.clone(), self.root.clone());
-        Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = build_abs_path(&self.root, path);
-        let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
-        Ok((
-            RpList::default(),
-            oio::HierarchyLister::new(lister, path, args.recursive()),
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

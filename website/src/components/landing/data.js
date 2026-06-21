@@ -330,24 +330,27 @@ export const serviceGroups = [
   },
 ];
 
+// Each binding links to its docs landing page. Rust is the core crate and lives
+// at /docs/core; every other binding lives under /docs/bindings/<dir>, where the
+// dir matches the doc slug (e.g. Node.js -> nodejs, C++ -> cpp, .NET -> dotnet).
 export const bindings = [
-  { name: "Rust", icon: "/img/bindings/rust.svg" },
-  { name: "Python", icon: "/img/bindings/python.svg" },
-  { name: "Java", icon: "/img/bindings/java.svg" },
-  { name: "Go", icon: "/img/bindings/go.svg" },
-  { name: "Node.js", icon: "/img/bindings/nodejs.svg" },
-  { name: "C", icon: "/img/bindings/c.svg" },
-  { name: "C++", icon: "/img/bindings/cpp.svg" },
-  { name: ".NET", icon: "/img/bindings/dotnet.svg" },
-  { name: "Ruby", icon: "/img/bindings/ruby.svg" },
-  { name: "PHP", icon: "/img/bindings/php.svg" },
-  { name: "Swift", icon: "/img/bindings/swift.svg" },
-  { name: "Haskell", icon: "/img/bindings/haskell.svg" },
-  { name: "OCaml", icon: "/img/bindings/ocaml.svg" },
-  { name: "Lua", icon: "/img/bindings/lua.svg" },
-  { name: "Dart", icon: "/img/bindings/dart.svg" },
-  { name: "D", icon: "/img/bindings/d.svg" },
-  { name: "Zig", icon: "/img/bindings/zig.svg" },
+  { name: "Rust", icon: "/img/bindings/rust.svg", doc: "/docs/core" },
+  { name: "Python", icon: "/img/bindings/python.svg", doc: "/docs/bindings/python" },
+  { name: "Java", icon: "/img/bindings/java.svg", doc: "/docs/bindings/java" },
+  { name: "Go", icon: "/img/bindings/go.svg", doc: "/docs/bindings/go" },
+  { name: "Node.js", icon: "/img/bindings/nodejs.svg", doc: "/docs/bindings/nodejs" },
+  { name: "C", icon: "/img/bindings/c.svg", doc: "/docs/bindings/c" },
+  { name: "C++", icon: "/img/bindings/cpp.svg", doc: "/docs/bindings/cpp" },
+  { name: ".NET", icon: "/img/bindings/dotnet.svg", doc: "/docs/bindings/dotnet" },
+  { name: "Ruby", icon: "/img/bindings/ruby.svg", doc: "/docs/bindings/ruby" },
+  { name: "PHP", icon: "/img/bindings/php.svg", doc: "/docs/bindings/php" },
+  { name: "Swift", icon: "/img/bindings/swift.svg", doc: "/docs/bindings/swift" },
+  { name: "Haskell", icon: "/img/bindings/haskell.svg", doc: "/docs/bindings/haskell" },
+  { name: "OCaml", icon: "/img/bindings/ocaml.svg", doc: "/docs/bindings/ocaml" },
+  { name: "Lua", icon: "/img/bindings/lua.svg", doc: "/docs/bindings/lua" },
+  { name: "Dart", icon: "/img/bindings/dart.svg", doc: "/docs/bindings/dart" },
+  { name: "D", icon: "/img/bindings/d.svg", doc: "/docs/bindings/d" },
+  { name: "Zig", icon: "/img/bindings/zig.svg", doc: "/docs/bindings/zig" },
 ];
 
 export const layers = [

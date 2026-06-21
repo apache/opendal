@@ -46,7 +46,7 @@ jobs:
           command: sdist
           args: -o dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: bindings/python/dist
@@ -105,7 +105,7 @@ jobs:
           manylinux: ${{ matrix.manylinux || 'auto' }}
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: bindings/python/dist
@@ -118,13 +118,13 @@ jobs:
       id-token: write
     needs: [sdist, wheels]
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           merge-multiple: true
           path: bindings/python/dist
       - name: Setup uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       - name: Publish to TestPyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         run: |

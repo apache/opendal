@@ -22,17 +22,18 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::CloudflareKvCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::model::CfKvMetadata;
 
 pub struct CloudflareWriter {
     core: Arc<CloudflareKvCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl CloudflareWriter {
-    pub fn new(core: Arc<CloudflareKvCore>, path: String) -> Self {
-        CloudflareWriter { core, path }
+    pub fn new(core: Arc<CloudflareKvCore>, ctx: OperationContext, path: String) -> Self {
+        CloudflareWriter { core, ctx, path }
     }
 }
 
@@ -47,7 +48,7 @@ impl oio::OneShotWrite for CloudflareWriter {
 
         let resp = self
             .core
-            .set(&self.path, bs, cf_kv_metadata.clone())
+            .set(&self.ctx, &self.path, bs, cf_kv_metadata.clone())
             .await?;
 
         let status = resp.status();

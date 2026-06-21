@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
         // set the repo_name for OpenDAL
         .repo_name("xxxxxxxxxxxxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

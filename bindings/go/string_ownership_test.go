@@ -59,8 +59,7 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 	rootPtr := mustBytePtrFromString(t, "/tmp/")
 	namePtr := mustBytePtrFromString(t, "namespace")
 	infoInner := &opendalOperatorInfo{}
-	fullCap := &opendalCapability{stat: 1}
-	nativeCap := &opendalCapability{list: 1}
+	capability := &opendalCapability{stat: 1}
 	infoFreed := 0
 
 	ctx := context.Background()
@@ -89,17 +88,11 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 		assertOperatorInfoPointer(t, infoInner, aValues...)
 		*(**byte)(rValue) = namePtr
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetFullCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
 		if info != infoInner {
 			t.Fatalf("Info() requested full capability for unexpected operator info: %p", info)
 		}
-		return fullCap
-	})
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetNativeCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
-		if info != infoInner {
-			t.Fatalf("Info() requested native capability for unexpected operator info: %p", info)
-		}
-		return nativeCap
+		return capability
 	})
 
 	op := &Operator{
@@ -117,11 +110,8 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 	if info.GetName() != "namespace" {
 		t.Fatalf("Info().GetName() = %q, want namespace", info.GetName())
 	}
-	if !info.GetFullCapability().Stat() {
-		t.Fatal("Info().GetFullCapability().Stat() = false, want true")
-	}
-	if !info.GetNativeCapability().List() {
-		t.Fatal("Info().GetNativeCapability().List() = false, want true")
+	if !info.GetCapability().Stat() {
+		t.Fatal("Info().GetCapability().Stat() = false, want true")
 	}
 	if infoFreed != 1 {
 		t.Fatalf("Info() freed operator info %d times, want 1", infoFreed)
@@ -897,12 +887,16 @@ func TestReadWithOptions(t *testing.T) {
 	ReadWithConcurrent(4)(o)
 	ReadWithChunk(1024)(o)
 	ReadWithGap(512)(o)
+	ReadWithContentLengthHint(4096)(o)
 	ReadWithOverrideContentType("text/plain")(o)
 	ReadWithOverrideCacheControl("max-age=60")(o)
 	ReadWithOverrideContentDisposition("attachment")(o)
 
 	if !o.hasRange {
 		t.Fatalf("hasRange = false, want true")
+	}
+	if !o.hasRangeLength {
+		t.Fatalf("hasRangeLength = false, want true")
 	}
 	if o.rangeOffset != 1024 {
 		t.Fatalf("rangeOffset = %d, want 1024", o.rangeOffset)
@@ -934,6 +928,9 @@ func TestReadWithOptions(t *testing.T) {
 	if o.gap != 512 {
 		t.Fatalf("gap = %d, want 512", o.gap)
 	}
+	if o.contentLengthHint == nil || *o.contentLengthHint != 4096 {
+		t.Fatalf("contentLengthHint = %v, want 4096", o.contentLengthHint)
+	}
 	if o.overrideContentType != "text/plain" {
 		t.Fatalf("overrideContentType = %q, want text/plain", o.overrideContentType)
 	}
@@ -942,6 +939,30 @@ func TestReadWithOptions(t *testing.T) {
 	}
 	if o.overrideContentDisposition != "attachment" {
 		t.Fatalf("overrideContentDisposition = %q, want attachment", o.overrideContentDisposition)
+	}
+}
+
+func TestReadWithRangeFrom(t *testing.T) {
+	o := &readOptions{}
+	ReadWithRangeFrom(1024)(o)
+
+	if !o.hasRange {
+		t.Fatalf("hasRange = false, want true")
+	}
+	if o.hasRangeLength {
+		t.Fatalf("hasRangeLength = true, want false")
+	}
+	if o.rangeOffset != 1024 {
+		t.Fatalf("rangeOffset = %d, want 1024", o.rangeOffset)
+	}
+
+	// ReadWithRangeFrom overrides a previously set bounded range.
+	o = &readOptions{}
+	ReadWithRange(0, 2048)(o)
+	ReadWithRangeFrom(512)(o)
+	if o.hasRangeLength || o.rangeOffset != 512 || o.rangeLength != 0 {
+		t.Fatalf("after override: hasRangeLength=%v offset=%d length=%d, want false 512 0",
+			o.hasRangeLength, o.rangeOffset, o.rangeLength)
 	}
 }
 
@@ -1015,11 +1036,27 @@ func TestReadOptionsSetterArgTypes(t *testing.T) {
 		}
 	}
 
+	hintATypes := ffiReadOptionsSetContentLengthHint.opts.aTypes
+	if len(hintATypes) != 2 {
+		t.Fatalf("ffiReadOptionsSetContentLengthHint aTypes len = %d, want 2", len(hintATypes))
+	}
+	if hintATypes[0] != &ffi.TypePointer || hintATypes[1] != &ffi.TypeUint64 {
+		t.Fatalf("ffiReadOptionsSetContentLengthHint aTypes = %v, want TypePointer, TypeUint64", hintATypes)
+	}
+
 	rangeATypes := ffiReadOptionsSetRange.opts.aTypes
 	if len(rangeATypes) != 3 {
 		t.Fatalf("ffiReadOptionsSetRange aTypes len = %d, want 3", len(rangeATypes))
 	}
 	if rangeATypes[0] != &ffi.TypePointer || rangeATypes[1] != &ffi.TypeUint64 || rangeATypes[2] != &ffi.TypeUint64 {
 		t.Fatalf("ffiReadOptionsSetRange aTypes = %v, want TypePointer, TypeUint64, TypeUint64", rangeATypes)
+	}
+
+	rangeFromATypes := ffiReadOptionsSetRangeFrom.opts.aTypes
+	if len(rangeFromATypes) != 2 {
+		t.Fatalf("ffiReadOptionsSetRangeFrom aTypes len = %d, want 2", len(rangeFromATypes))
+	}
+	if rangeFromATypes[0] != &ffi.TypePointer || rangeFromATypes[1] != &ffi.TypeUint64 {
+		t.Fatalf("ffiReadOptionsSetRangeFrom aTypes = %v, want TypePointer, TypeUint64", rangeFromATypes)
 	}
 }

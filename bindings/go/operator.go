@@ -62,6 +62,32 @@ func (op *Operator) Rename(src, dest string) error {
 	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
 }
 
+// Check verifies if the operator is functioning correctly.
+//
+// Check is a wrapper around the C-binding function `opendal_operator_check`.
+// It performs a health check against the underlying backend, returning any
+// error encountered while reaching it.
+//
+// # Returns
+//
+//   - error: An error if the check fails, or nil if the operator is working correctly.
+//
+// # Example
+//
+//	func exampleCheck(op *opendal.Operator) {
+//		err = op.Check()
+//		if err != nil {
+//			log.Printf("Operator check failed: %v", err)
+//		} else {
+//			log.Println("Operator is functioning correctly")
+//		}
+//	}
+//
+// Note: This example assumes proper error handling and import statements.
+func (op *Operator) Check() error {
+	return ffiOperatorCheck.symbol(op.ctx)(op.inner)
+}
+
 func normalizeScheme(scheme Scheme) (*byte, error) {
 	return BytePtrFromString(strings.ReplaceAll(scheme.Name(), "_", "-"))
 }
@@ -212,6 +238,21 @@ var ffiOperatorRename = newFFI(ffiOpts{
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&byteSrc),
 			unsafe.Pointer(&byteDest),
+		)
+		return parseError(ctx, e)
+	}
+})
+
+var ffiOperatorCheck = newFFI(ffiOpts{
+	sym:    "opendal_operator_check",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator) error {
+	return func(op *opendalOperator) error {
+		var e *opendalError
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&op),
 		)
 		return parseError(ctx, e)
 	}

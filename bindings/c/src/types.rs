@@ -20,8 +20,9 @@ use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 
 use opendal::options;
-use opendal::raw::{BytesRange, Timestamp};
+use opendal::raw::Timestamp;
 use opendal::Buffer;
+use opendal::BytesRange;
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///
@@ -791,6 +792,11 @@ pub struct opendal_read_options {
     pub has_gap: bool,
     /// Gap size for merging nearby range reads.
     pub gap: usize,
+    /// Whether `content_length_hint` has been set.
+    pub has_content_length_hint: bool,
+    /// Known content length of the object, used as an execution hint to avoid
+    /// extra metadata requests while planning reads.
+    pub content_length_hint: u64,
     /// Override the response Content-Type header (presign only); NULL means unset.
     pub override_content_type: *const c_char,
     /// Override the response Cache-Control header (presign only); NULL means unset.
@@ -817,6 +823,8 @@ impl Default for opendal_read_options {
             chunk: 0,
             has_gap: false,
             gap: 0,
+            has_content_length_hint: false,
+            content_length_hint: 0,
             override_content_type: std::ptr::null(),
             override_cache_control: std::ptr::null(),
             override_content_disposition: std::ptr::null(),
@@ -850,6 +858,19 @@ impl opendal_read_options {
             (*opts).offset = offset;
             (*opts).has_length = true;
             (*opts).length = length;
+        }
+    }
+
+    /// \brief Set the read range to start at `offset` and extend to the end of the file.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_range_from(
+        opts: *mut opendal_read_options,
+        offset: u64,
+    ) {
+        if !opts.is_null() {
+            (*opts).offset = offset;
+            (*opts).has_length = false;
+            (*opts).length = 0;
         }
     }
 
@@ -945,6 +966,22 @@ impl opendal_read_options {
         }
     }
 
+    /// \brief Set the known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_read_options_set_content_length_hint(
+        opts: *mut opendal_read_options,
+        content_length_hint: u64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_content_length_hint = true;
+            (*opts).content_length_hint = content_length_hint;
+        }
+    }
+
     /// \brief Set the override Content-Type (presign only).
     #[no_mangle]
     pub unsafe extern "C" fn opendal_read_options_set_override_content_type(
@@ -1005,7 +1042,9 @@ impl From<&opendal_read_options> for options::ReadOptions {
                 .has_if_unmodified_since
                 .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
                 .flatten(),
-            content_length_hint: None,
+            content_length_hint: value
+                .has_content_length_hint
+                .then_some(value.content_length_hint),
             concurrent: value.concurrent,
             chunk: value.has_chunk.then_some(value.chunk),
             gap: value.has_gap.then_some(value.gap),

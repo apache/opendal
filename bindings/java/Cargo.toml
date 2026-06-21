@@ -31,7 +31,7 @@ crate-type = ["cdylib", "staticlib"]
 doc = false
 
 [dependencies]
-jni = { version = "0.21.1" }
+jni = { version = "0.22.4" }
 # opendal-java won't be published to crates.io, we always use the local version
 opendal = { version = ">=0", path = "../../core", default-features = false, features = [
   "blocking",

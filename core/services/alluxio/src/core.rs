@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
@@ -25,14 +24,14 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// Alluxio core
 #[derive(Clone)]
 pub struct AlluxioCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// root of this backend.
     pub root: String,
     /// endpoint of alluxio
@@ -49,7 +48,7 @@ impl Debug for AlluxioCore {
 }
 
 impl AlluxioCore {
-    pub async fn create_dir(&self, path: &str) -> Result<()> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let r = CreateDirRequest {
@@ -68,13 +67,15 @@ impl AlluxioCore {
 
         req = req.header("Content-Type", "application/json");
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateDirectory"));
 
         let req = req
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
         match status {
@@ -83,7 +84,7 @@ impl AlluxioCore {
         }
     }
 
-    pub async fn create_file(&self, path: &str) -> Result<u64> {
+    pub async fn create_file(&self, ctx: &OperationContext, path: &str) -> Result<u64> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let r = CreateFileRequest {
@@ -100,13 +101,15 @@ impl AlluxioCore {
 
         req = req.header("Content-Type", "application/json");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateFile"));
 
         let req = req
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -120,7 +123,7 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn open_file(&self, path: &str) -> Result<u64> {
+    pub(super) async fn open_file(&self, ctx: &OperationContext, path: &str) -> Result<u64> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
@@ -129,10 +132,12 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("OpenFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -147,7 +152,7 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn delete(&self, path: &str) -> Result<()> {
+    pub(super) async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
@@ -156,10 +161,12 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -175,7 +182,7 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn rename(&self, path: &str, dst: &str) -> Result<()> {
+    pub(super) async fn rename(&self, ctx: &OperationContext, path: &str, dst: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
         let dst = build_rooted_abs_path(&self.root, dst);
 
@@ -186,11 +193,13 @@ impl AlluxioCore {
             percent_encode_path(&dst)
         ));
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -200,7 +209,7 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn get_status(&self, path: &str) -> Result<FileInfo> {
+    pub(super) async fn get_status(&self, ctx: &OperationContext, path: &str) -> Result<FileInfo> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
@@ -209,11 +218,13 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetStatus"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -228,7 +239,11 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn list_status(&self, path: &str) -> Result<Vec<FileInfo>> {
+    pub(super) async fn list_status(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Vec<FileInfo>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let req = Request::post(format!(
@@ -237,11 +252,13 @@ impl AlluxioCore {
             percent_encode_path(&path)
         ));
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListStatus"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -256,7 +273,12 @@ impl AlluxioCore {
         }
     }
 
-    pub async fn read(&self, stream_id: u64, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn read(
+        &self,
+        ctx: &OperationContext,
+        stream_id: u64,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         if !range.is_full() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -270,24 +292,33 @@ impl AlluxioCore {
             self.endpoint, stream_id,
         ));
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("ReadStream"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub(super) async fn write(&self, stream_id: u64, body: Buffer) -> Result<usize> {
+    pub(super) async fn write(
+        &self,
+        ctx: &OperationContext,
+        stream_id: u64,
+        body: Buffer,
+    ) -> Result<usize> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/write",
             self.endpoint, stream_id
         ));
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("WriteStream"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -302,17 +333,19 @@ impl AlluxioCore {
         }
     }
 
-    pub(super) async fn close(&self, stream_id: u64) -> Result<()> {
+    pub(super) async fn close(&self, ctx: &OperationContext, stream_id: u64) -> Result<()> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/close",
             self.endpoint, stream_id
         ));
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CloseStream"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
 
         let status = resp.status();
 
@@ -330,12 +363,14 @@ mod tests {
     #[tokio::test]
     async fn test_read_rejects_range() {
         let core = AlluxioCore {
-            info: AccessorInfo::default().into(),
+            info: ServiceInfo::new("alluxio", "", ""),
+            capability: Capability::default(),
             root: "/".to_string(),
             endpoint: "http://127.0.0.1:1".to_string(),
         };
 
-        let err = match core.read(1, BytesRange::from(0_u64..1)).await {
+        let ctx = OperationContext::new();
+        let err = match core.read(&ctx, 1, BytesRange::from(0_u64..1)).await {
             Ok(_) => panic!("range read should be rejected"),
             Err(err) => err,
         };
@@ -390,3 +425,91 @@ impl TryFrom<FileInfo> for Metadata {
         Ok(metadata)
     }
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// the error response of alluxio
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    #[allow(dead_code)]
+    struct AlluxioError {
+        status_code: String,
+        message: String,
+    }
+
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let mut kind = match parts.status.as_u16() {
+            500 => ErrorKind::Unexpected,
+            _ => ErrorKind::Unexpected,
+        };
+
+        let (message, alluxio_err) =
+            serde_json::from_reader::<_, AlluxioError>(bs.clone().reader())
+                .map(|alluxio_err| (format!("{alluxio_err:?}"), Some(alluxio_err)))
+                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        if let Some(alluxio_err) = alluxio_err {
+            kind = match alluxio_err.status_code.as_str() {
+                "ALREADY_EXISTS" => ErrorKind::AlreadyExists,
+                "NOT_FOUND" => ErrorKind::NotFound,
+                _ => ErrorKind::Unexpected,
+            }
+        }
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        err
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use http::StatusCode;
+
+        use super::*;
+
+        /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+        #[test]
+        fn test_parse_error() {
+            let err_res = vec![
+                (
+                    r#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exist"}"#,
+                    ErrorKind::AlreadyExists,
+                ),
+                (
+                    r#"{"statusCode":"NOT_FOUND","message":"The resource you requested does not exist"}"#,
+                    ErrorKind::NotFound,
+                ),
+                (
+                    r#"{"statusCode":"INTERNAL_SERVER_ERROR","message":"Internal server error"}"#,
+                    ErrorKind::Unexpected,
+                ),
+            ];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(body)
+                    .unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

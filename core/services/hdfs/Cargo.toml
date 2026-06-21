@@ -38,4 +38,4 @@ futures = { workspace = true }
 hdrs = { version = "0.3.2", features = ["async_file"] }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }

@@ -22,20 +22,31 @@ use serde::Deserialize;
 use serde_json::de;
 
 use super::core::AzdlsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct AzdlsLister {
     core: Arc<AzdlsCore>,
+    ctx: OperationContext,
 
     path: String,
     limit: Option<usize>,
 }
 
 impl AzdlsLister {
-    pub fn new(core: Arc<AzdlsCore>, path: String, limit: Option<usize>) -> Self {
-        Self { core, path, limit }
+    pub fn new(
+        core: Arc<AzdlsCore>,
+        ctx: OperationContext,
+        path: String,
+        limit: Option<usize>,
+    ) -> Self {
+        Self {
+            core,
+            ctx,
+            path,
+            limit,
+        }
     }
 }
 
@@ -43,7 +54,7 @@ impl oio::PageList for AzdlsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azdls_list(&self.path, &ctx.token, self.limit)
+            .azdls_list(&self.ctx, &self.path, &ctx.token, self.limit)
             .await?;
 
         // azdls will return not found for not-exist path.

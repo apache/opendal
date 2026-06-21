@@ -23,12 +23,13 @@ use super::core::GcsCore;
 use super::core::RewriteResponse;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
 use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct GcsCopier {
     core: Arc<GcsCore>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -41,7 +42,14 @@ pub struct GcsCopier {
 }
 
 impl GcsCopier {
-    pub fn new(core: Arc<GcsCore>, from: &str, to: &str, args: OpCopy, opts: OpCopier) -> Self {
+    pub fn new(
+        core: Arc<GcsCore>,
+        ctx: OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Self {
         let chunk = opts.chunk().map(|v| {
             let v = v.clamp(GCS_REWRITE_MIN_CHUNK_SIZE, GCS_REWRITE_MAX_CHUNK_SIZE);
             v / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE
@@ -49,6 +57,7 @@ impl GcsCopier {
 
         Self {
             core,
+            ctx,
             from: from.to_string(),
             to: to.to_string(),
             args,
@@ -70,6 +79,7 @@ impl oio::Copy for GcsCopier {
         let resp = self
             .core
             .gcs_rewrite_object(
+                &self.ctx,
                 &self.from,
                 &self.to,
                 &self.args,

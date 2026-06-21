@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -34,9 +33,8 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_azure_storage::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -51,13 +49,15 @@ pub const FILE: &str = "file";
 const X_MS_PROPERTIES: &str = "x-ms-properties";
 
 pub struct AzdlsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,
     pub enable_hns: bool,
 
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 }
 
 impl Debug for AzdlsCore {
@@ -72,7 +72,15 @@ impl Debug for AzdlsCore {
 }
 
 impl AzdlsCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            self.sign_ctx
+                .clone()
+                .with_http_send(ctx.http_transport().clone()),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 
         // Insert x-ms-version header for normal requests.
@@ -86,7 +94,7 @@ impl AzdlsCore {
             HeaderValue::from_static("2022-11-02"),
         );
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -95,14 +103,19 @@ impl AzdlsCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 }
 
 impl AzdlsCore {
     pub async fn azdls_read(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
@@ -141,8 +154,8 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.info.http_client().fetch(req).await
+        let req = self.sign(ctx, req).await?;
+        ctx.http_transport().fetch(req).await
     }
 
     /// resource should be one of `file` or `directory`
@@ -150,6 +163,7 @@ impl AzdlsCore {
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
     pub async fn azdls_create(
         &self,
+        ctx: &OperationContext,
         path: &str,
         resource: &str,
         args: &OpWrite,
@@ -209,11 +223,16 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn azdls_rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -234,13 +253,15 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
+    #[allow(clippy::too_many_arguments)]
     pub async fn azdls_append(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         position: u64,
@@ -277,13 +298,14 @@ impl AzdlsCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     /// Flush pending data appended by [`azdls_append`].
     pub async fn azdls_flush(
         &self,
+        ctx: &OperationContext,
         path: &str,
         position: u64,
         close: bool,
@@ -309,11 +331,15 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azdls_get_properties(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -333,12 +359,16 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azdls_stat_metadata(&self, path: &str) -> Result<Metadata> {
-        let resp = self.azdls_get_properties(path).await?;
+    pub async fn azdls_stat_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Metadata> {
+        let resp = self.azdls_get_properties(ctx, path).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
@@ -387,7 +417,11 @@ impl AzdlsCore {
         }
     }
 
-    pub async fn azdls_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azdls_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -405,11 +439,15 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azdls_recursive_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azdls_recursive_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -440,8 +478,8 @@ impl AzdlsCore {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let req = self.sign(req).await?;
-            let resp = self.send(req).await?;
+            let req = self.sign(ctx, req).await?;
+            let resp = self.send(ctx, req).await?;
 
             let status = resp.status();
             match status {
@@ -466,6 +504,7 @@ impl AzdlsCore {
 
     pub async fn azdls_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         continuation: &str,
         limit: Option<usize>,
@@ -493,11 +532,15 @@ impl AzdlsCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azdls_ensure_parent_path(&self, path: &str) -> Result<Option<Response<Buffer>>> {
+    pub async fn azdls_ensure_parent_path(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Option<Response<Buffer>>> {
         let abs_target_path = path.trim_end_matches('/').to_string();
         let abs_target_path = abs_target_path.as_str();
         let mut parts: Vec<&str> = abs_target_path
@@ -512,7 +555,7 @@ impl AzdlsCore {
         if !parts.is_empty() {
             let parent_path = parts.join("/");
             let resp = self
-                .azdls_create(&parent_path, DIRECTORY, &OpWrite::default())
+                .azdls_create(ctx, &parent_path, DIRECTORY, &OpWrite::default())
                 .await?;
 
             Ok(Some(resp))
@@ -585,3 +628,96 @@ mod tests {
         assert_eq!(decoded.get("good"), Some(&"good".to_string()));
     }
 }
+
+mod error {
+    use std::fmt::Debug;
+
+    use bytes::Buf;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::*;
+    use opendal_service_azure_common::with_azure_error_response_context;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    /// AzdlsError is the error returned by azure dfs service.
+    #[derive(Default, Deserialize)]
+    #[serde(default, rename_all = "PascalCase")]
+    struct AzdlsError {
+        code: String,
+        message: String,
+        query_parameter_name: String,
+        query_parameter_value: String,
+        reason: String,
+    }
+
+    impl Debug for AzdlsError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let mut de = f.debug_struct("AzdlsError");
+            de.field("code", &self.code);
+            // replace `\n` to ` ` for better reading.
+            de.field("message", &self.message.replace('\n', " "));
+
+            if !self.query_parameter_name.is_empty() {
+                de.field("query_parameter_name", &self.query_parameter_name);
+            }
+            if !self.query_parameter_value.is_empty() {
+                de.field("query_parameter_value", &self.query_parameter_value);
+            }
+            if !self.reason.is_empty() {
+                de.field("reason", &self.reason);
+            }
+
+            de.finish()
+        }
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
+            Ok(azdls_err) => format!("{azdls_err:?}"),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+        // If there is no body here, fill with error code.
+        if message.is_empty()
+            && let Some(v) = parts.headers.get("x-ms-error-code")
+            && let Ok(code) = v.to_str()
+        {
+            message = format!(
+                "{:?}",
+                AzdlsError {
+                    code: code.to_string(),
+                    ..Default::default()
+                }
+            )
+        }
+
+        let mut err = Error::new(kind, &message);
+
+        err = with_azure_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

@@ -18,7 +18,7 @@
 use super::backend::HfBuilder;
 use super::core::HfDownloadMode;
 use super::core::HfRepoType;
-use super::uri::HfUri;
+use super::core::HfUri;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;

@@ -127,7 +127,7 @@ jobs:
         uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@v9
         id: id-token
         with:
           script: return await core.getIDToken("sts.amazonaws.com")

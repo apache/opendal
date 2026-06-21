@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign_azure_storage::DefaultCredentialProvider;
@@ -35,9 +34,11 @@ use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
+use super::core::parse_error;
 use super::deleter::AzdlsDeleter;
-use super::error::parse_error;
 use super::lister::AzdlsLister;
+use super::reader::*;
+use super::writer::AzdlsLazyPositionWriter;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use opendal_core::raw::*;
@@ -236,7 +237,7 @@ impl AzdlsBuilder {
 impl Builder for AzdlsBuilder {
     type Config = AzdlsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -292,11 +293,8 @@ impl Builder for AzdlsBuilder {
         }
 
         let os_env = OsEnv;
-        let info = Arc::new(AccessorInfo::default());
-
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -316,50 +314,50 @@ impl Builder for AzdlsBuilder {
             credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
-        let signer = Signer::new(ctx, credential, RequestSigner::new());
+        let sign_ctx = ctx;
+        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
+
+        let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+
+            write: true,
+            write_can_append: true,
+            write_can_multi: true,
+            write_with_if_none_match: true,
+            write_with_if_not_exists: true,
+            write_with_user_metadata: true,
+
+            create_dir: true,
+
+            delete: true,
+            delete_with_recursive: true,
+
+            rename: true,
+
+            list: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
-                info: {
-                    info.set_scheme(AZDLS_SCHEME)
-                        .set_root(&root)
-                        .set_name(filesystem)
-                        .set_native_capability(Capability {
-                            stat: true,
-
-                            read: true,
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
-
-                            write: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_if_none_match: true,
-                            write_with_if_not_exists: true,
-                            write_with_user_metadata: true,
-
-                            create_dir: true,
-
-                            delete: true,
-                            delete_with_recursive: true,
-
-                            rename: true,
-
-                            list: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 filesystem: self.config.filesystem.clone(),
                 root,
                 endpoint,
                 enable_hns: self.config.enable_hns,
                 signer,
+                sign_ctx,
             }),
         })
     }
@@ -368,65 +366,33 @@ impl Builder for AzdlsBuilder {
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct AzdlsBackend {
-    core: Arc<AzdlsCore>,
+    pub(crate) core: Arc<AzdlsCore>,
 }
 
-/// Reader returned by this backend.
-pub struct AzdlsReader {
-    backend: AzdlsBackend,
-    path: String,
-    args: OpRead,
-}
-
-impl AzdlsReader {
-    fn new(backend: AzdlsBackend, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for AzdlsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend.core.azdls_read(path, range, &args).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for AzdlsBackend {
+impl Service for AzdlsBackend {
     type Reader = oio::StreamReader<AzdlsReader>;
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let resp = self
             .core
-            .azdls_create(path, DIRECTORY, &OpWrite::default())
+            .azdls_create(ctx, path, DIRECTORY, &OpWrite::default())
             .await?;
 
         let status = resp.status();
@@ -436,52 +402,106 @@ impl Access for AzdlsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         // TODO: include metadata for the root (#4746)
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let metadata = self.core.azdls_stat_metadata(path).await?;
+        let metadata = self.core.azdls_stat_metadata(ctx, path).await?;
         Ok(RpStat::new(metadata))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(AzdlsReader::new(self.clone(), path, args)),
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<AzdlsReader> = {
+            Ok(oio::StreamReader::new(AzdlsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: AzdlsWriters = {
+            if args.append() {
+                let w = AzdlsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args.clone(),
+                    path.to_string(),
+                );
+                Ok(AzdlsWriters::Two(oio::AppendWriter::new(w)))
+            } else {
+                let w = AzdlsWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    args.clone(),
+                    path.to_string(),
+                );
+                let w = oio::PositionWriter::new(
+                    ctx.executor().clone(),
+                    AzdlsLazyPositionWriter::new(w),
+                    args.concurrent(),
+                );
+                Ok(AzdlsWriters::One(w))
+            }
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<AzdlsDeleter> = {
+            Ok(oio::OneShotDeleter::new(AzdlsDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<AzdlsLister> = {
+            let l = AzdlsLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.limit(),
+            );
+
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
-            let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
-            return Ok((
-                RpWrite::default(),
-                AzdlsWriters::Two(oio::AppendWriter::new(w)),
-            ));
-        }
-
-        let w = AzdlsWriter::create(self.core.clone(), args.clone(), path.to_string()).await?;
-        let w = oio::PositionWriter::new(self.info().clone(), w, args.concurrent());
-        Ok((RpWrite::default(), AzdlsWriters::One(w)))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(AzdlsDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
-
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        if let Some(resp) = self.core.azdls_ensure_parent_path(to).await? {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        if let Some(resp) = self.core.azdls_ensure_parent_path(ctx, to).await? {
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
@@ -489,7 +509,7 @@ impl Access for AzdlsBackend {
             }
         }
 
-        let resp = self.core.azdls_rename(from, to).await?;
+        let resp = self.core.azdls_rename(ctx, from, to).await?;
 
         let status = resp.status();
 
@@ -497,5 +517,17 @@ impl Access for AzdlsBackend {
             StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

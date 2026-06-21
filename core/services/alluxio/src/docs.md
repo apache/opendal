@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
         // set the endpoint for OpenDAL
         .endpoint("http://127.0.0.1:39999");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

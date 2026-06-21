@@ -22,23 +22,26 @@ use http::StatusCode;
 use serde::Deserialize;
 
 use super::core::IpmfsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
 pub struct IpmfsLister {
     core: Arc<IpmfsCore>,
+    ctx: OperationContext,
     root: String,
     path: String,
 }
 
 impl IpmfsLister {
-    pub fn new(core: Arc<IpmfsCore>, root: &str, path: &str) -> Self {
+    pub fn new(core: Arc<IpmfsCore>, ctx: OperationContext, root: &str, path: &str) -> Self {
         Self {
             core,
+            ctx,
             root: root.to_string(),
             path: path.to_string(),
         }
@@ -47,7 +50,7 @@ impl IpmfsLister {
 
 impl oio::PageList for IpmfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.ipmfs_ls(&self.path).await?;
+        let resp = self.core.ipmfs_ls(&self.ctx, &self.path).await?;
 
         if resp.status() != StatusCode::OK {
             let err = parse_error(resp);

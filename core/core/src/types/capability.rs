@@ -31,16 +31,11 @@ use serde::Serialize;
 /// - Advanced operation variants (conditional operations, metadata handling)
 /// - Operational constraints (size limits, batch limitations)
 ///
-/// # Capability Types
+/// # Capability Type
 ///
-/// Every operator maintains two capability sets:
-///
-/// 1. [`OperatorInfo::native_capability`][crate::OperatorInfo::native_capability]:
-///    Represents operations natively supported by the storage backend.
-///
-/// 2. [`OperatorInfo::full_capability`][crate::OperatorInfo::full_capability]:
-///    Represents all available operations, including those implemented through
-///    alternative mechanisms.
+/// [`OperatorInfo::capability`][crate::OperatorInfo::capability] represents all
+/// operations available on the current operator, including those implemented
+/// through layers.
 ///
 /// # Implementation Details
 ///
@@ -49,9 +44,7 @@ use serde::Serialize;
 ///
 /// - Blocking operations are provided through the BlockingLayer
 ///
-/// Developers should:
-/// - Use `full_capability` to determine available operations
-/// - Use `native_capability` to identify optimized operations
+/// Developers should use `capability` to determine available operations.
 ///
 /// # Field Naming Conventions
 ///
@@ -105,6 +98,8 @@ pub struct Capability {
     pub read_with_override_content_type: bool,
     /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
+    /// Indicates if suffix read operations are supported.
+    pub read_with_suffix: bool,
 
     /// Indicates if the operator supports write operations.
     pub write: bool,

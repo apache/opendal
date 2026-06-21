@@ -18,37 +18,63 @@
 use std::sync::Arc;
 
 use http::StatusCode;
+use mea::once::OnceCell;
 
 use super::core::AzdlsCore;
 use super::core::FILE;
 use super::core::X_MS_VERSION_ID;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// Writer type for azdls: non-append uses PositionWriter, append uses AppendWriter.
-pub type AzdlsWriters = TwoWays<oio::PositionWriter<AzdlsWriter>, oio::AppendWriter<AzdlsWriter>>;
+pub type AzdlsWriters =
+    TwoWays<oio::PositionWriter<AzdlsLazyPositionWriter>, oio::AppendWriter<AzdlsWriter>>;
+
+pub struct AzdlsLazyPositionWriter {
+    inner: AzdlsWriter,
+    created: OnceCell<()>,
+}
+
+impl AzdlsLazyPositionWriter {
+    pub fn new(inner: AzdlsWriter) -> Self {
+        Self {
+            inner,
+            created: OnceCell::new(),
+        }
+    }
+
+    async fn ensure_created(&self) -> Result<()> {
+        self.created
+            .get_or_try_init(async || self.inner.create_if_needed().await)
+            .await?;
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl AzdlsWriter {
-    pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
-        Self { core, op, path }
-    }
-
-    pub async fn create(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Result<Self> {
-        let writer = Self::new(core, op, path);
-        writer.create_if_needed().await?;
-        Ok(writer)
+    pub fn new(core: Arc<AzdlsCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        Self {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     async fn create_if_needed(&self) -> Result<()> {
-        let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
+        let resp = self
+            .core
+            .azdls_create(&self.ctx, &self.path, FILE, &self.op)
+            .await?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             StatusCode::CONFLICT if self.op.if_not_exists() => {
@@ -83,7 +109,7 @@ impl oio::PositionWrite for AzdlsWriter {
         let size = buf.len() as u64;
         let resp = self
             .core
-            .azdls_append(&self.path, Some(size), offset, false, false, buf)
+            .azdls_append(&self.ctx, &self.path, Some(size), offset, false, false, buf)
             .await?;
 
         match resp.status() {
@@ -94,7 +120,10 @@ impl oio::PositionWrite for AzdlsWriter {
 
     async fn close(&self, size: u64) -> Result<Metadata> {
         // Flush accumulated appends once.
-        let resp = self.core.azdls_flush(&self.path, size, true).await?;
+        let resp = self
+            .core
+            .azdls_flush(&self.ctx, &self.path, size, true)
+            .await?;
 
         let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
         meta.set_content_length(size);
@@ -113,9 +142,28 @@ impl oio::PositionWrite for AzdlsWriter {
     }
 }
 
+impl oio::PositionWrite for AzdlsLazyPositionWriter {
+    async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+        self.ensure_created().await?;
+        self.inner.write_all_at(offset, buf).await
+    }
+
+    async fn close(&self, size: u64) -> Result<Metadata> {
+        self.ensure_created().await?;
+        self.inner.close(size).await
+    }
+
+    async fn abort(&self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
 impl oio::AppendWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.azdls_get_properties(&self.path).await?;
+        let resp = self
+            .core
+            .azdls_get_properties(&self.ctx, &self.path)
+            .await?;
 
         let status = resp.status();
         let headers = resp.headers();
@@ -136,7 +184,7 @@ impl oio::AppendWrite for AzdlsWriter {
         // append + flush in a single request to minimize roundtrips for append mode.
         let resp = self
             .core
-            .azdls_append(&self.path, Some(size), offset, true, false, body)
+            .azdls_append(&self.ctx, &self.path, Some(size), offset, true, false, body)
             .await?;
 
         let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;

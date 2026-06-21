@@ -64,7 +64,7 @@ async fn main() {
     ).unwrap();
 
     // Create a new operator
-    let operator = Operator::new(builder).unwrap().finish();
+    let operator = Operator::new(builder).unwrap();
 
     // Create a new object store
     let object_store = Arc::new(OpendalStore::new(operator));
@@ -124,9 +124,7 @@ async fn main() -> Result<()> {
         .region(region)
         .access_key_id("my_access_key")
         .secret_access_key("my_secret_key");
-    let op = Operator::new(builder)
-        .map_err(|err| DataFusionError::External(Box::new(err)))?
-        .finish();
+    let op = Operator::new(builder).map_err(|err| DataFusionError::External(Box::new(err)))?;
     let store = object_store_opendal::OpendalStore::new(op);
 
     // Register the object store

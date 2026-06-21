@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     // create http backend builder
     let mut builder = Http::default().endpoint("127.0.0.1");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

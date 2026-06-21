@@ -101,3 +101,7 @@ jobs:
           cd build
           cmake -GNinja ..
           ninja
+
+      - name: Run getting-started example
+        working-directory: "examples/cpp/build"
+        run: ./getting-started

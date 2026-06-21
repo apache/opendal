@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
-
-use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
-
+use super::backend::*;
 use super::core::{HfCore, XetFileResponse};
+use bytes::Buf;
 use opendal_core::raw::*;
 use opendal_core::*;
+use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
 
 pub enum HfReadStream {
     Http(HttpBody),
@@ -29,8 +28,13 @@ pub enum HfReadStream {
 }
 
 impl HfReadStream {
-    pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<(RpRead, Self)> {
-        let resp = core.resolve(path, range, core.download_mode).await?;
+    pub async fn try_new(
+        core: &HfCore,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<(RpRead, Self)> {
+        let resp = core.resolve(ctx, path, range, core.download_mode).await?;
         if resp.headers().contains_key("x-xet-hash") {
             let (_, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
@@ -93,12 +97,38 @@ impl oio::ReadStream for HfReadStream {
     }
 }
 
+/// Reader returned by this backend.
+pub struct HfReader {
+    backend: HfBackend,
+    ctx: OperationContext,
+    path: String,
+}
+
+impl HfReader {
+    pub(super) fn new(backend: HfBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            ctx,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for HfReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+        let (rp, stream) = HfReadStream::try_new(&backend.core, &self.ctx, path, range).await?;
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator, testing_dataset_core};
+    use super::super::backend::test_utils::{mbpp_operator, testing_dataset_core};
+    use super::super::core::HfRepoType;
     use super::super::core::test_utils::create_test_core;
     use super::super::core::{CommitFile, DeletedFile};
-    use super::super::uri::HfRepoType;
     use super::*;
     use bytes::Bytes;
     use opendal_core::raw::oio::ReadStream;
@@ -107,16 +137,31 @@ mod tests {
     const PARQUET_MAGIC: &[u8] = b"PAR1";
 
     #[tokio::test]
-    async fn test_read_model_config() {
-        let op = gpt2_operator();
-        let data = op.read("config.json").await.expect("read should succeed");
-        serde_json::from_slice::<serde_json::Value>(&data.to_vec())
-            .expect("config.json should be valid JSON");
+    async fn test_http_read_uses_resolve_url() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let (_, mut reader) =
+            HfReadStream::try_new(&core, &ctx, "config.json", BytesRange::default()).await?;
+
+        assert_eq!(
+            mock_client.get_captured_url(),
+            "https://huggingface.co/test-user/test-repo/resolve/main/config.json"
+        );
+        assert!(matches!(reader, HfReadStream::Http(_)));
+        let chunk = reader.read().await?;
+        assert_eq!(chunk.to_bytes(), Bytes::from_static(b"hello"));
+
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_http_read_returns_metadata() -> Result<()> {
-        let (core, _) = create_test_core(
+        let (core, ctx, _) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
@@ -124,7 +169,7 @@ mod tests {
         );
 
         let (rp, mut reader) =
-            HfReadStream::try_new(&core, "test.txt", BytesRange::default()).await?;
+            HfReadStream::try_new(&core, &ctx, "test.txt", BytesRange::default()).await?;
         let metadata = rp.metadata().expect("read metadata must be returned");
 
         assert_eq!(metadata.mode(), EntryMode::FILE);
@@ -164,10 +209,14 @@ mod tests {
         use base64::Engine;
 
         let core = testing_dataset_core();
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+            opendal_http_transport_reqwest::ReqwestTransport::default(),
+        ));
         let content = b"non-xet fallback test content";
         let path = "tests/non-xet-fallback.txt";
 
         core.commit_git(
+            &ctx,
             vec![CommitFile {
                 path: path.to_string(),
                 content: base64::prelude::BASE64_STANDARD.encode(content),
@@ -180,7 +229,7 @@ mod tests {
         .await
         .expect("commit should succeed");
 
-        let (_, mut reader) = HfReadStream::try_new(&core, path, BytesRange::default())
+        let (_, mut reader) = HfReadStream::try_new(&core, &ctx, path, BytesRange::default())
             .await
             .expect("reading non-XET file in Xet mode should succeed via HTTP fallback");
 
@@ -200,6 +249,7 @@ mod tests {
         assert_eq!(buf, content);
 
         core.commit_git(
+            &ctx,
             vec![],
             vec![],
             vec![DeletedFile {

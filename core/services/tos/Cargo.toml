@@ -33,10 +33,12 @@ all-features = true
 [dependencies]
 bytes = { workspace = true }
 http = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.57.0", default-features = false, features = [
+  "reqsign",
+] }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-core = { version = "3.0.0", default-features = false }
-reqsign-file-read-tokio = { version = "3.0.0", default-features = false }
-reqsign-volcengine-tos = "3.0.0"
+reqsign-core = { version = "3.0.1", default-features = false }
+reqsign-file-read-tokio = { version = "3.0.1", default-features = false }
+reqsign-volcengine-tos = "3.0.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

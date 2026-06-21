@@ -25,9 +25,7 @@ use super::FS_SCHEME;
 use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
-use super::lister::FsLister;
-use super::writer::FsWriter;
-use super::writer::FsWriters;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -68,7 +66,7 @@ impl FsBuilder {
 impl Builder for FsBuilder {
     type Config = FsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = match self.config.root.map(PathBuf::from) {
@@ -136,38 +134,32 @@ impl Builder for FsBuilder {
 
         Ok(FsBackend {
             core: Arc::new(FsCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(FS_SCHEME)
-                        .set_root(&root.to_string_lossy())
-                        .set_native_capability(Capability {
-                            stat: true,
+                info: ServiceInfo::new(FS_SCHEME, root.to_string_lossy(), ""),
+                capability: Capability {
+                    stat: true,
 
-                            read: true,
+                    read: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_if_not_exists: true,
-                            #[cfg(unix)]
-                            write_with_user_metadata: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_append: true,
+                    write_can_multi: true,
+                    write_with_if_not_exists: true,
+                    #[cfg(unix)]
+                    write_with_user_metadata: true,
 
-                            create_dir: true,
-                            delete: true,
-                            delete_with_recursive: true,
+                    create_dir: true,
+                    delete: true,
+                    delete_with_recursive: true,
 
-                            list: true,
+                    list: true,
 
-                            copy: true,
-                            rename: true,
+                    copy: true,
+                    rename: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 atomic_write_dir,
@@ -177,141 +169,115 @@ impl Builder for FsBuilder {
     }
 }
 
-/// Backend is used to serve `Accessor` support for posix-like fs.
+/// FsBackend implements [`Service`] for POSIX-like file systems.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
-    core: Arc<FsCore>,
+    pub(crate) core: Arc<FsCore>,
 }
 
-/// Reader returned by this backend.
-pub struct FsReader {
-    core: Arc<FsCore>,
-    file: Arc<File>,
-}
-
-impl FsReader {
-    fn new(core: Arc<FsCore>, file: File) -> Self {
-        Self {
-            core,
-            file: file.into(),
-        }
-    }
-}
-
-impl oio::PositionRead for FsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let mut bs = self.core.buf_pool.get();
-        bs.resize(size, 0);
-
-        let f = self.file.clone();
-        let (n, mut bs) = tokio::task::spawn_blocking(move || {
-            let n = read_at(&f, &mut bs, offset)?;
-            Ok::<_, Error>((n, bs))
-        })
-        .await
-        .map_err(new_task_join_error)??;
-
-        let frozen = bs.split_to(n).freeze();
-        self.core.buf_pool.put(bs);
-
-        Ok(Buffer::from(frozen))
-    }
-}
-
-impl Access for FsBackend {
+impl Service for FsBackend {
     type Reader = oio::PositionReader<FsReader>;
-    type Writer = FsWriters;
-    type Lister = Option<FsLister<tokio::fs::ReadDir>>;
+    type Writer = FsLazyWriter;
+    type Lister = FsLazyLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.core.fs_create_dir(path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let m = self.core.fs_stat(path).await?;
         Ok(RpStat::new(m))
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let file = self.core.fs_open(path).await?;
-        Ok((
-            RpRead::default(),
-            oio::PositionReader::new(FsReader::new(self.core.clone(), file)),
+    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+        Ok(oio::PositionReader::new(FsReader::new(
+            self.core.clone(),
+            path,
+        )))
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(FsLazyWriter::new(
+            self.core.clone(),
+            ctx.executor().clone(),
+            path,
+            op,
         ))
     }
 
-    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let is_append = op.append();
-        let concurrent = op.concurrent();
-
-        let writer = FsWriter::create(self.core.clone(), path, op).await?;
-
-        let writer = if is_append {
-            FsWriters::One(writer)
-        } else {
-            FsWriters::Two(oio::PositionWriter::new(
-                self.info().clone(),
-                writer,
-                concurrent,
-            ))
-        };
-
-        Ok((RpWrite::default(), writer))
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        Ok(oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())),
-        ))
+    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        Ok(FsLazyLister::new(self.core.clone(), path))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        match self.core.fs_list(path).await? {
-            Some(f) => {
-                let rd = FsLister::new(&self.core.root, path, f);
-                Ok((RpList::default(), Some(rd)))
-            }
-            None => Ok((RpList::default(), None)),
-        }
-    }
-
-    async fn copy(
+    fn copy(
         &self,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.core.fs_copy(from, to).await?;
-        Ok((RpCopy::default(), ()))
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            core.fs_copy(&from, &to).await?;
+            Ok(Metadata::default())
+        }))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }
 
 #[cfg(windows)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::windows::fs::FileExt;
     f.seek_read(buf, offset).map_err(new_std_io_error)
 }
 
 #[cfg(unix)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.read_at(buf, offset).map_err(new_std_io_error)
 }

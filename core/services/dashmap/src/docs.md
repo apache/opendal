@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let mut builder = Dashmap::default()
         .root("/");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

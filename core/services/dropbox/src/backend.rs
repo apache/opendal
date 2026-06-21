@@ -18,77 +18,205 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 
 use super::core::*;
 use super::deleter::DropboxDeleter;
-use super::error::*;
 use super::lister::DropboxLister;
+use super::reader::*;
 use super::writer::DropboxWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+use std::fmt::Debug;
+
+use mea::mutex::Mutex;
+
+use super::DROPBOX_SCHEME;
+use super::config::DropboxConfig;
+use super::core::DropboxCore;
+use super::core::DropboxSigner;
+
+/// [Dropbox](https://www.dropbox.com/) backend support.
+#[doc = include_str!("docs.md")]
+#[derive(Default)]
+pub struct DropboxBuilder {
+    pub(super) config: DropboxConfig,
+}
+
+impl Debug for DropboxBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl DropboxBuilder {
+    /// Set the root directory for dropbox.
+    ///
+    /// Default to `/` if not set.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Access token is used for temporary access to the Dropbox API.
+    ///
+    /// You can get the access token from [Dropbox App Console](https://www.dropbox.com/developers/apps)
+    ///
+    /// NOTE: this token will be expired in 4 hours.
+    /// If you are trying to use the Dropbox service in a long time, please set a refresh_token instead.
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
+        self
+    }
+
+    /// Refresh token is used for long term access to the Dropbox API.
+    ///
+    /// You can get the refresh token via OAuth 2.0 Flow of Dropbox.
+    ///
+    /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
+        self.config.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client id for Dropbox.
+    ///
+    /// This is required for OAuth 2.0 Flow to refresh the access token.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        self.config.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client secret for Dropbox.
+    ///
+    /// This is required for OAuth 2.0 Flow with refresh the access token.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+}
+
+impl Builder for DropboxBuilder {
+    type Config = DropboxConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+
+        let signer = match (self.config.access_token, self.config.refresh_token) {
+            (Some(access_token), None) => DropboxSigner {
+                access_token,
+                // We will never expire user specified token.
+                expires_in: Timestamp::MAX,
+                ..Default::default()
+            },
+            (None, Some(refresh_token)) => {
+                let client_id = self.config.client_id.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", DROPBOX_SCHEME)
+                })?;
+                let client_secret = self.config.client_secret.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_secret must be set when refresh_token is set",
+                    )
+                    .with_context("service", DROPBOX_SCHEME)
+                })?;
+
+                DropboxSigner {
+                    refresh_token,
+                    client_id,
+                    client_secret,
+                    ..Default::default()
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token and refresh_token can not be set at the same time",
+                )
+                .with_context("service", DROPBOX_SCHEME));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", DROPBOX_SCHEME));
+            }
+        };
+
+        Ok(DropboxBackend {
+            core: Arc::new(DropboxCore {
+                info: ServiceInfo::new(DROPBOX_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
+
+                    read: true,
+                    read_with_suffix: true,
+
+                    write: true,
+
+                    create_dir: true,
+
+                    delete: true,
+
+                    list: true,
+                    list_with_recursive: true,
+
+                    copy: true,
+
+                    rename: true,
+
+                    shared: true,
+
+                    ..Default::default()
+                },
+                root,
+                signer: Arc::new(Mutex::new(signer)),
+            }),
+        })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
 }
 
-/// Reader returned by this backend.
-pub struct DropboxReader {
-    backend: DropboxBackend,
-    path: String,
-    args: OpRead,
-}
-
-impl DropboxReader {
-    fn new(backend: DropboxBackend, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for DropboxReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend.core.dropbox_get(path, range, &args).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for DropboxBackend {
+impl Service for DropboxBackend {
     type Reader = oio::StreamReader<DropboxReader>;
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         // Check if the folder already exists.
-        let resp = self.core.dropbox_get_metadata(path).await?;
+        let resp = self.core.dropbox_get_metadata(ctx, path).await?;
         if StatusCode::OK == resp.status() {
             let bytes = resp.into_body();
             let decoded_response: DropboxMetadataResponse =
@@ -104,12 +232,12 @@ impl Access for DropboxBackend {
             }
         }
 
-        let res = self.core.dropbox_create_folder(path).await?;
+        let res = self.core.dropbox_create_folder(ctx, path).await?;
         Ok(res)
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.core.dropbox_get_metadata(path).await?;
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+        let resp = self.core.dropbox_get_metadata(ctx, path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -145,68 +273,95 @@ impl Access for DropboxBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(DropboxReader::new(self.clone(), path, args)),
-        ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<DropboxReader> = {
+            Ok(oio::StreamReader::new(DropboxReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(DropboxWriter::new(
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<DropboxWriter> = {
+            Ok(oio::OneShotWriter::new(DropboxWriter::new(
                 self.core.clone(),
+                ctx.clone(),
                 args,
                 String::from(path),
-            )),
-        ))
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(DropboxDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            oio::PageLister::new(DropboxLister::new(
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<DropboxDeleter> = {
+            Ok(oio::OneShotDeleter::new(DropboxDeleter::new(
                 self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<DropboxLister> = {
+            Ok(oio::PageLister::new(DropboxLister::new(
+                self.core.clone(),
+                ctx.clone(),
                 path.to_string(),
                 args.recursive(),
                 args.limit(),
-            )),
-        ))
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.dropbox_copy(from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
-        let status = resp.status();
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.dropbox_copy(&ctx, &from, &to).await?;
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok((RpCopy::default(), ())),
-                    _ => Err(err),
+            match status {
+                StatusCode::OK => Ok(Metadata::default()),
+                _ => {
+                    let err = parse_error(resp);
+                    match err.kind() {
+                        ErrorKind::NotFound => Ok(Metadata::default()),
+                        _ => Err(err),
+                    }
                 }
             }
-        }
+        }))
     }
 
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let resp = self.core.dropbox_move(from, to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        let resp = self.core.dropbox_move(ctx, from, to).await?;
 
         let status = resp.status();
 
@@ -220,5 +375,17 @@ impl Access for DropboxBackend {
                 }
             }
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

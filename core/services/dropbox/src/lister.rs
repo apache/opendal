@@ -19,13 +19,14 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct DropboxLister {
     core: Arc<DropboxCore>,
+    ctx: OperationContext,
     path: String,
     recursive: bool,
     limit: Option<usize>,
@@ -34,12 +35,14 @@ pub struct DropboxLister {
 impl DropboxLister {
     pub fn new(
         core: Arc<DropboxCore>,
+        ctx: OperationContext,
         path: String,
         recursive: bool,
         limit: Option<usize>,
     ) -> Self {
         Self {
             core,
+            ctx,
             path,
             recursive,
             limit,
@@ -53,10 +56,12 @@ impl oio::PageList for DropboxLister {
         // When the token exists, we should retrieve more entries using the Dropbox continue API.
         // Refer: https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-continue
         let response = if !ctx.token.is_empty() {
-            self.core.dropbox_list_continue(&ctx.token).await?
+            self.core
+                .dropbox_list_continue(&self.ctx, &ctx.token)
+                .await?
         } else {
             self.core
-                .dropbox_list(&self.path, self.recursive, self.limit)
+                .dropbox_list(&self.ctx, &self.path, self.recursive, self.limit)
                 .await?
         };
 

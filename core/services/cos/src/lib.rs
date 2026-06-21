@@ -40,8 +40,8 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
+mod reader;
 mod writer;
 
 pub use backend::CosBuilder as Cos;

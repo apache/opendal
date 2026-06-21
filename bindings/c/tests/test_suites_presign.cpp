@@ -661,7 +661,7 @@ void test_presign_delete(opendal_test_context* ctx)
 {
     opendal_operator_info* info = opendal_operator_info_new(ctx->config->operator_instance);
     OPENDAL_ASSERT_NOT_NULL(info, "Operator info should not be null");
-    opendal_capability cap = opendal_operator_info_get_full_capability(info);
+    opendal_capability cap = opendal_operator_info_get_capability(info);
     opendal_operator_info_free(info);
     if (!cap.presign_delete) {
         return;

@@ -23,7 +23,7 @@ use opendal::raw::OpDelete;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.stat && cap.delete && cap.write {
         tests.extend(async_trials!(
@@ -67,7 +67,7 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
 
 /// Delete empty dir should succeed.
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
 
@@ -131,7 +131,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
 
 /// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
     // Gdrive think that this test is an abuse of their service and redirect us
@@ -175,7 +175,7 @@ async fn test_blocking_remove_all_with_objects(
 ) -> Result<()> {
     for path in paths {
         let path = format!("{parent}/{path}");
-        let (content, _) = gen_bytes(op.info().full_capability());
+        let (content, _) = gen_bytes(op.info().capability());
         op.write(&path, content).await.expect("write must succeed");
     }
 
@@ -228,7 +228,7 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
     }
 
     let parent = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
     op.write(&parent, content)
         .await
         .expect("write must succeed");
@@ -237,7 +237,7 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_version {
+    if !op.info().capability().delete_with_version {
         return Ok(());
     }
 
@@ -273,7 +273,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_version {
+    if !op.info().capability().delete_with_version {
         return Ok(());
     }
 
@@ -304,7 +304,7 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_recursive {
+    if !op.info().capability().delete_with_recursive {
         return Ok(());
     }
 
@@ -345,7 +345,7 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
 }
 
 pub async fn test_batch_delete(op: Operator) -> Result<()> {
-    let mut cap = op.info().full_capability();
+    let mut cap = op.info().capability();
     if cap.delete_max_size.unwrap_or(1) <= 1 {
         return Ok(());
     }
@@ -376,7 +376,7 @@ pub async fn test_batch_delete(op: Operator) -> Result<()> {
 }
 
 pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
-    let mut cap = op.info().full_capability();
+    let mut cap = op.info().capability();
     if !cap.delete_with_version {
         return Ok(());
     }

@@ -23,9 +23,9 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
 mod model;
+mod reader;
 mod writer;
 
 pub use backend::CloudflareKvBuilder as CloudflareKv;

@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::builder::DropboxBuilder;
+use super::backend::DropboxBuilder;
 
 /// Config for [Dropbox](https://www.dropbox.com/) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

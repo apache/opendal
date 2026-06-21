@@ -67,8 +67,8 @@ async fn main() -> Result<()> {
         .account_name("devstoreaccount1")
         .account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 
-    // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    // `Service` provides the low level APIs, we will use `Operator` normally.
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

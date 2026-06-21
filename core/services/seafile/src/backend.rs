@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
-use http::StatusCode;
 use log::debug;
 use mea::rwlock::RwLock;
 
@@ -30,8 +28,8 @@ use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::deleter::SeafileDeleter;
-use super::error::parse_error;
 use super::lister::SeafileLister;
+use super::reader::*;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use opendal_core::raw::*;
@@ -119,7 +117,7 @@ impl Builder for SeafileBuilder {
     type Config = SeafileConfig;
 
     /// Builds the backend and returns the result of SeafileBackend.
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
@@ -157,29 +155,23 @@ impl Builder for SeafileBuilder {
 
         Ok(SeafileBackend {
             core: Arc::new(SeafileCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(SEAFILE_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            create_dir: true,
-                            stat: true,
+                info: ServiceInfo::new(SEAFILE_SCHEME, &root, ""),
+                capability: Capability {
+                    create_dir: true,
+                    stat: true,
 
-                            read: true,
+                    read: true,
 
-                            write: true,
-                            write_can_empty: true,
+                    write: true,
+                    write_can_empty: true,
 
-                            delete: true,
+                    delete: true,
 
-                            list: true,
+                    list: true,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint,
@@ -195,103 +187,130 @@ impl Builder for SeafileBuilder {
 /// Backend for seafile services.
 #[derive(Debug, Clone)]
 pub struct SeafileBackend {
-    core: Arc<SeafileCore>,
+    pub(crate) core: Arc<SeafileCore>,
 }
 
-/// Reader returned by this backend.
-pub struct SeafileReader {
-    backend: SeafileBackend,
-    path: String,
-}
-
-impl SeafileReader {
-    fn new(backend: SeafileBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for SeafileReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.download_file(path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for SeafileBackend {
+impl Service for SeafileBackend {
     type Reader = oio::StreamReader<SeafileReader>;
     type Writer = SeafileWriters;
     type Lister = oio::PageLister<SeafileLister>;
     type Deleter = oio::OneShotDeleter<SeafileDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.create_dir(ctx, path).await?;
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let metadata = if path.ends_with('/') {
-            let dir_detail = self.core.dir_detail(path).await?;
+            let dir_detail = self.core.dir_detail(ctx, path).await?;
             parse_dir_detail(dir_detail)
         } else {
-            let file_detail = self.core.file_detail(path).await?;
+            let file_detail = self.core.file_detail(ctx, path).await?;
 
             parse_file_detail(file_detail)
         };
 
         metadata.map(RpStat::new)
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(SeafileReader::new(self.clone(), path, args)),
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SeafileReader> = {
+            Ok(oio::StreamReader::new(SeafileReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: SeafileWriters = {
+            let w = SeafileWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
+            let w = oio::OneShotWriter::new(w);
+
+            Ok(w)
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<SeafileDeleter> = {
+            Ok(oio::OneShotDeleter::new(SeafileDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<SeafileLister> = {
+            let l = SeafileLister::new(self.core.clone(), ctx.clone(), path);
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = SeafileWriter::new(self.core.clone(), args, path.to_string());
-        let w = oio::OneShotWriter::new(w);
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(SeafileDeleter::new(self.core.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SeafileLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

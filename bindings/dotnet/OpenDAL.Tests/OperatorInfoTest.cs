@@ -35,8 +35,8 @@ public class OperatorInfoTest
         var info = op.Info;
 
         Assert.Equal("memory", info.Scheme);
-        Assert.True(info.FullCapability.Read);
-        Assert.True(info.FullCapability.Write);
+        Assert.True(info.Capability.Read);
+        Assert.True(info.Capability.Write);
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public class OperatorInfoTest
             var info = op.Info;
 
             Assert.Equal("fs", info.Scheme);
-            Assert.True(info.FullCapability.Read);
-            Assert.True(info.FullCapability.Write);
+            Assert.True(info.Capability.Read);
+            Assert.True(info.Capability.Write);
         }
         finally
         {

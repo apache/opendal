@@ -24,14 +24,13 @@ pub fn register_gdrive_service(registry: &opendal_core::OperatorRegistry) {
 }
 
 mod backend;
-mod builder;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
 mod path_index;
+mod reader;
 mod writer;
 
-pub use builder::GdriveBuilder as Gdrive;
+pub use backend::GdriveBuilder as Gdrive;
 pub use config::GdriveConfig;

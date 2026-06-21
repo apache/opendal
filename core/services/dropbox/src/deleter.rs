@@ -19,24 +19,25 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct DropboxDeleter {
     core: Arc<DropboxCore>,
+    ctx: OperationContext,
 }
 
 impl DropboxDeleter {
-    pub fn new(core: Arc<DropboxCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<DropboxCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for DropboxDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.dropbox_delete(&path).await?;
+        let resp = self.core.dropbox_delete(&self.ctx, &path).await?;
 
         let status = resp.status();
 

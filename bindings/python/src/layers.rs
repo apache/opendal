@@ -31,7 +31,7 @@ pub struct Layer(pub Box<dyn PythonLayer>);
 
 /// A layer that overrides the full capability exposed by an operator.
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.layers", extends=Layer)]
+#[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct CapabilityOverrideLayer(ocore::layers::CapabilityOverrideLayer);
 
@@ -80,7 +80,7 @@ impl CapabilityOverrideLayer {
 /// all retries, the object is in an undefined state. Reusing it
 /// can lead to exceptions.
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.layers", extends=Layer)]
+#[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct RetryLayer(ocore::layers::RetryLayer);
 
@@ -161,7 +161,7 @@ impl RetryLayer {
 /// that the total number of concurrent requests across the entire
 /// application does not exceed the limit.
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.layers", extends = Layer)]
+#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer(ocore::layers::ConcurrentLimitLayer);
 
@@ -211,7 +211,7 @@ impl ConcurrentLimitLayer {
 /// A ``Content-Type`` is not guaranteed. If the file extension is
 /// uncommon or unknown, the content type will remain unset.
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.layers", extends = Layer)]
+#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct MimeGuessLayer(ocore::layers::MimeGuessLayer);
 

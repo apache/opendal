@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
         // NOTE: the root must be absolute path.
         .root("/path/to/dir");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

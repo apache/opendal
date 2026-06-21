@@ -22,11 +22,12 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::CloudflareKvCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::model::{CfKvListKey, CfKvListResponse};
 
 pub struct CloudflareKvLister {
     core: Arc<CloudflareKvCore>,
+    ctx: OperationContext,
 
     path: String,
     limit: Option<usize>,
@@ -36,12 +37,14 @@ pub struct CloudflareKvLister {
 impl CloudflareKvLister {
     pub fn new(
         core: Arc<CloudflareKvCore>,
+        ctx: OperationContext,
         path: &str,
         recursive: bool,
         limit: Option<usize>,
     ) -> Self {
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             limit,
@@ -107,7 +110,7 @@ impl oio::PageList for CloudflareKvLister {
         let new_path = self.path.trim_end_matches('/');
         let resp = self
             .core
-            .list(new_path, self.limit, Some(ctx.token.clone()))
+            .list(&self.ctx, new_path, self.limit, Some(ctx.token.clone()))
             .await?;
 
         if resp.status() != http::StatusCode::OK {

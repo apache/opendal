@@ -25,12 +25,13 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::graph_model::OneDriveItem;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 
 pub struct OneDriveWriter {
     core: Arc<OneDriveCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
@@ -42,8 +43,13 @@ impl OneDriveWriter {
     // Choose a value smaller than `MAX_SIMPLE_SIZE`
     const CHUNK_SIZE_FACTOR: usize = 327_680 * 12; // floor(MAX_SIMPLE_SIZE / 320KB)
 
-    pub fn new(core: Arc<OneDriveCore>, op: OpWrite, path: String) -> Self {
-        OneDriveWriter { core, op, path }
+    pub fn new(core: Arc<OneDriveCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        OneDriveWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 }
 
@@ -68,7 +74,7 @@ impl OneDriveWriter {
     async fn write_simple(&self, bs: Buffer) -> Result<Metadata> {
         let response = self
             .core
-            .onedrive_upload_simple(&self.path, &self.op, bs)
+            .onedrive_upload_simple(&self.ctx, &self.path, &self.op, bs)
             .await?;
 
         match response.status() {
@@ -113,6 +119,7 @@ impl OneDriveWriter {
             let response = self
                 .core
                 .onedrive_chunked_upload(
+                    &self.ctx,
                     &session_response.upload_url,
                     &self.op,
                     offset,
@@ -154,7 +161,7 @@ impl OneDriveWriter {
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
         let response = self
             .core
-            .onedrive_create_upload_session(&self.path, &self.op)
+            .onedrive_create_upload_session(&self.ctx, &self.path, &self.op)
             .await?;
         match response.status() {
             StatusCode::OK => {

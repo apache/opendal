@@ -22,19 +22,21 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 
 pub struct PcloudLister {
     core: Arc<PcloudCore>,
+    ctx: OperationContext,
 
     path: String,
 }
 
 impl PcloudLister {
-    pub(super) fn new(core: Arc<PcloudCore>, path: &str) -> Self {
+    pub(super) fn new(core: Arc<PcloudCore>, ctx: OperationContext, path: &str) -> Self {
         PcloudLister {
             core,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -42,7 +44,7 @@ impl PcloudLister {
 
 impl oio::PageList for PcloudLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.list_folder(&self.path).await?;
+        let resp = self.core.list_folder(&self.ctx, &self.path).await?;
 
         let status = resp.status();
 

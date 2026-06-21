@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Bound;
 use std::ops::Range;
-use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -27,8 +25,10 @@ use crate::*;
 
 /// ReadContext holds the immutable context for give read operation.
 pub struct ReadContext {
-    /// The accessor to the storage services.
-    acc: Accessor,
+    /// The composed context used to execute operations.
+    ctx: OperationContext,
+    /// The composed service to the underlying object storage.
+    srv: Servicer,
     /// Path to the file.
     path: String,
     /// Arguments for the read operation.
@@ -45,14 +45,16 @@ impl ReadContext {
     /// Create a new ReadContext.
     #[inline]
     pub fn new(
-        acc: Accessor,
+        ctx: OperationContext,
+        srv: Servicer,
         path: String,
         args: OpRead,
         options: OpReader,
         reader: oio::Reader,
     ) -> Self {
         Self {
-            acc,
+            ctx,
+            srv,
             path,
             args,
             options,
@@ -61,10 +63,10 @@ impl ReadContext {
         }
     }
 
-    /// Get the accessor.
+    /// Get the composed context.
     #[inline]
-    pub fn accessor(&self) -> &Accessor {
-        &self.acc
+    pub(crate) fn context(&self) -> &OperationContext {
+        &self.ctx
     }
 
     /// Get the path.
@@ -111,46 +113,51 @@ impl ReadContext {
         }
     }
 
-    /// Parse the range bounds into a range.
+    async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self.args().content_length_hint() {
+            return Ok(v);
+        }
+
+        if let Some(v) = self.metadata().map(|v| v.content_length()) {
+            return Ok(v);
+        }
+
+        let mut op_stat = OpStat::new();
+
+        if let Some(v) = self.args().version() {
+            op_stat = op_stat.with_version(v);
+        }
+
+        Ok(self
+            .srv
+            .stat(&self.ctx, self.path(), op_stat)
+            .await?
+            .into_metadata()
+            .content_length())
+    }
+
+    /// Parse the range into an absolute bounded range.
     pub(crate) async fn parse_into_range(
         &self,
-        range: impl RangeBounds<u64>,
+        range: impl Into<BytesRange>,
     ) -> Result<Range<u64>> {
-        let start = match range.start_bound() {
-            Bound::Included(v) => *v,
-            Bound::Excluded(v) => v.checked_add(1).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::RangeNotSatisfied,
-                    "range start overflow: excluded bound at u64::MAX cannot be incremented",
-                )
-            })?,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound() {
-            Bound::Included(v) => v.checked_add(1).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::RangeNotSatisfied,
-                    "range end overflow: inclusive bound at u64::MAX cannot be incremented",
-                )
-            })?,
-            Bound::Excluded(v) => *v,
-            Bound::Unbounded => {
-                if let Some(v) = self.options().content_length_hint() {
-                    v
-                } else {
-                    let mut op_stat = OpStat::new();
-
-                    if let Some(v) = self.args().version() {
-                        op_stat = op_stat.with_version(v);
-                    }
-
-                    self.accessor()
-                        .stat(self.path(), op_stat)
-                        .await?
-                        .into_metadata()
-                        .content_length()
-                }
+        let range = range.into();
+        let (start, end) = match range {
+            BytesRange::Range { offset, size } => {
+                let end = match size {
+                    Some(size) => offset.checked_add(size).ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::RangeNotSatisfied,
+                            "range end overflow: offset + size exceeds u64::MAX",
+                        )
+                    })?,
+                    None => self.content_length().await?,
+                };
+                (offset, end)
+            }
+            BytesRange::Suffix { size } => {
+                let content_length = self.content_length().await?;
+                (content_length.saturating_sub(size), content_length)
             }
         };
 
@@ -170,46 +177,55 @@ impl ReadContext {
 pub struct ReadGenerator {
     ctx: Arc<ReadContext>,
 
-    offset: u64,
-    size: Option<u64>,
+    range: BytesRange,
+    done: bool,
 }
 
 impl ReadGenerator {
     /// Create a new ReadGenerator.
     #[inline]
-    pub fn new(ctx: Arc<ReadContext>, offset: u64, size: Option<u64>) -> Self {
-        Self { ctx, offset, size }
+    pub fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
+        Self {
+            ctx,
+            range,
+            done: false,
+        }
     }
 
     /// Generate next range to read.
     fn next_range(&mut self) -> Option<BytesRange> {
-        if self.size == Some(0) {
+        if self.done || self.range.size() == Some(0) {
             return None;
         }
 
-        let next_offset = self.offset;
-        let next_size = match self.size {
-            // Given size is None, read all data.
-            None => {
-                // Update size to Some(0) to indicate that there is no more data to read.
-                self.size = Some(0);
-                None
+        match self.range {
+            BytesRange::Suffix { .. } => {
+                self.done = true;
+                Some(self.range)
             }
-            Some(remaining) => {
-                // If chunk is set, read data in chunks.
-                let read_size = self
-                    .ctx
-                    .options
-                    .chunk()
-                    .map_or(remaining, |chunk| remaining.min(chunk as u64));
-                // Update (offset, size) before building future.
-                self.offset += read_size;
-                self.size = Some(remaining - read_size);
-                Some(read_size)
-            }
-        };
+            BytesRange::Range { offset, size } => {
+                let next_size = match size {
+                    // Given size is None, read all data.
+                    None => {
+                        self.done = true;
+                        None
+                    }
+                    Some(remaining) => {
+                        // If chunk is set, read data in chunks.
+                        let read_size = self
+                            .ctx
+                            .options
+                            .chunk()
+                            .map_or(remaining, |chunk| remaining.min(chunk as u64));
+                        self.range =
+                            BytesRange::new(offset + read_size, Some(remaining - read_size));
+                        Some(read_size)
+                    }
+                };
 
-        Some(BytesRange::new(next_offset, next_size))
+                Some(BytesRange::new(offset, next_size))
+            }
+        }
     }
 
     /// Generate next reader.
@@ -235,15 +251,26 @@ mod tests {
 
     use super::*;
 
-    async fn new_read_context(
-        acc: crate::raw::Accessor,
+    fn new_read_context(
+        ctx: OperationContext,
+        srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
-        let args = crate::raw::OpRead::new();
-        let (_, reader) = acc.read(path, args.clone()).await?;
+        new_read_context_with_args(ctx, srv, path, crate::raw::OpRead::new(), options)
+    }
+
+    fn new_read_context_with_args(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: &str,
+        args: crate::raw::OpRead,
+        options: crate::raw::OpReader,
+    ) -> crate::Result<ReadContext> {
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
-            acc,
+            ctx,
+            srv,
             path.to_string(),
             args,
             options,
@@ -260,9 +287,15 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
-        let mut generator = ReadGenerator::new(ctx, 0, Some(10));
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_chunk(3),
+        )?);
+        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
             readers.push(r);
@@ -281,9 +314,15 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = Arc::new(new_read_context(acc, "test", OpReader::new().with_chunk(3)).await?);
-        let mut generator = ReadGenerator::new(ctx, 0, None);
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_chunk(3),
+        )?);
+        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, None));
         let mut readers = vec![];
         while let Some(r) = generator.next_reader().await? {
             readers.push(r);
@@ -294,36 +333,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_parse_into_range_inclusive_end_u64_max() -> Result<()> {
+    async fn test_parse_into_range_bounded_end_overflow() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write("test", Buffer::from(Bytes::new())).await?;
 
-        let acc = op.into_inner();
-        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
-
-        let result = ctx.parse_into_range(..=u64::MAX).await;
-        assert!(
-            result.is_err(),
-            "..=u64::MAX should return error, not overflow"
-        );
-        assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_parse_into_range_excluded_start_u64_max() -> Result<()> {
-        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
-        op.write("test", Buffer::from(Bytes::new())).await?;
-
-        let acc = op.into_inner();
-        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context(ctx, srv, "test", OpReader::new())?;
 
         let result = ctx
-            .parse_into_range((Bound::Excluded(u64::MAX), Bound::Unbounded))
+            .parse_into_range(BytesRange::new(u64::MAX, Some(1)))
             .await;
         assert!(
             result.is_err(),
-            "Excluded(u64::MAX) start should return error, not overflow"
+            "bounded range whose end overflows should return error"
         );
         assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
         Ok(())
@@ -332,14 +355,38 @@ mod tests {
     #[tokio::test]
     async fn test_parse_into_range_uses_content_length_hint() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let (_, args, options) = options::ReadOptions {
+            content_length_hint: Some(42),
+            ..Default::default()
+        }
+        .into();
 
-        let acc = op.into_inner();
-        let ctx =
-            new_read_context(acc, "test", OpReader::new().with_content_length_hint(42)).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options)?;
 
         let range = ctx.parse_into_range(10..).await?;
 
         pretty_assertions::assert_eq!(range, 10..42);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_into_range_suffix_uses_content_length_hint() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let (_, args, options) = options::ReadOptions {
+            content_length_hint: Some(42),
+            ..Default::default()
+        }
+        .into();
+
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context_with_args(ctx, srv, "test", args, options)?;
+
+        let range = ctx.parse_into_range(BytesRange::suffix(10)).await?;
+
+        pretty_assertions::assert_eq!(range, 32..42);
         Ok(())
     }
 }

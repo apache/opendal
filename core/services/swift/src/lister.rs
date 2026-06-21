@@ -30,6 +30,7 @@ pub struct SwiftLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
+    abs_start_after: Option<String>,
 }
 
 impl SwiftLister {
@@ -39,29 +40,36 @@ impl SwiftLister {
         path: String,
         recursive: bool,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
+        // Swift listing names are absolute (root-prefixed) and the lister pages
+        // by `marker`, so the start-after must be made absolute as well.
+        let abs_start_after =
+            start_after.map(|start_after| build_abs_path(&core.root, &start_after));
         Self {
             core,
             ctx,
             path,
             delimiter,
             limit,
+            abs_start_after,
         }
     }
 }
 
 impl oio::PageList for SwiftLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        // `start_after` applies to the first page only; subsequent pages
+        // continue from the previous page's last entry carried in `ctx.token`.
+        let marker = if ctx.token.is_empty() {
+            self.abs_start_after.as_deref().unwrap_or("")
+        } else {
+            ctx.token.as_str()
+        };
         let response = self
             .core
-            .swift_list(
-                &self.ctx,
-                &self.path,
-                self.delimiter,
-                self.limit,
-                &ctx.token,
-            )
+            .swift_list(&self.ctx, &self.path, self.delimiter, self.limit, marker)
             .await?;
 
         let status_code = response.status();

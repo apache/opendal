@@ -30,24 +30,23 @@ advertise this capability by default because `hdrs` can build a bundled older
 `libhdfs` that does not provide the required atomic semantics.
 
 After verifying that the loaded system `libhdfs` has this support, enable the
-capability explicitly:
+capability on the builder:
 
 ```rust,no_run
-use opendal_core::layers::CapabilityOverrideLayer;
 use opendal_core::Operator;
 use opendal_service_hdfs::Hdfs;
 
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
-let op = Operator::new(Hdfs::default().name_node("hdfs://127.0.0.1:9000"))?
-    .layer(CapabilityOverrideLayer::new(|mut cap| {
-        cap.rename_with_if_not_exists = true;
-        cap
-    }));
+let op = Operator::new(
+    Hdfs::default()
+        .name_node("hdfs://127.0.0.1:9000")
+        .enable_rename_if_not_exists(true),
+)?;
 # Ok(())
 # }
 ```
 
-Do not enable `rename_with_if_not_exists` with the bundled or an older
+Do not call `enable_rename_if_not_exists(true)` with the bundled or an older
 `libhdfs`; it may not preserve the destination atomically.
 
 ## Configuration
@@ -57,6 +56,7 @@ Do not enable `rename_with_if_not_exists` with the bundled or an older
 - `kerberos_ticket_cache_path`: Set the kerberos ticket cache path for backend, this should be gotten by `klist` after `kinit`
 - `user`: Set the user for backend
 - `enable_append`: Deprecated. HDFS append capability is enabled by default and this option is no longer needed.
+- `enable_rename_if_not_exists`: Enable atomic conditional rename after verifying the linked system `libhdfs` supports HDFS-3592 semantics.
 
 Refer to [`HdfsBuilder`]'s public API docs for more information.
 

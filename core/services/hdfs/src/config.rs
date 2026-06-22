@@ -45,6 +45,8 @@ pub struct HdfsConfig {
     pub enable_append: bool,
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,
+    /// Enable atomic conditional rename when supported by the linked libhdfs.
+    pub enable_rename_if_not_exists: bool,
 }
 
 impl Debug for HdfsConfig {
@@ -58,6 +60,10 @@ impl Debug for HdfsConfig {
             )
             .field("user", &self.user)
             .field("atomic_write_dir", &self.atomic_write_dir)
+            .field(
+                "enable_rename_if_not_exists",
+                &self.enable_rename_if_not_exists,
+            )
             .finish_non_exhaustive()
     }
 }
@@ -111,5 +117,21 @@ mod tests {
 
         let cfg = HdfsConfig::from_uri(&uri).unwrap();
         assert!(cfg.name_node.is_none());
+    }
+
+    #[test]
+    fn rename_if_not_exists_is_disabled_by_default() {
+        assert!(!HdfsConfig::default().enable_rename_if_not_exists);
+    }
+
+    #[test]
+    fn from_iter_enables_rename_if_not_exists() {
+        let cfg = HdfsConfig::from_iter([(
+            "enable_rename_if_not_exists".to_string(),
+            "true".to_string(),
+        )])
+        .unwrap();
+
+        assert!(cfg.enable_rename_if_not_exists);
     }
 }

@@ -104,6 +104,41 @@ impl HdfsBuilder {
         };
         self
     }
+
+    /// Enable atomic rename with `if_not_exists`.
+    ///
+    /// Only enable this when linked against a system Hadoop trunk or newer
+    /// `libhdfs` whose `hdfsRename` uses `rename2` from HDFS-3592. The bundled
+    /// and older `libhdfs` implementations do not provide the required atomic
+    /// conflict semantics and are unsafe for this operation.
+    pub fn enable_rename_if_not_exists(mut self, enable: bool) -> Self {
+        self.config.enable_rename_if_not_exists = enable;
+        self
+    }
+}
+
+fn hdfs_capability(config: &HdfsConfig) -> Capability {
+    Capability {
+        stat: true,
+
+        read: true,
+
+        write: true,
+        write_can_append: true,
+
+        create_dir: true,
+        delete: true,
+        delete_with_recursive: true,
+
+        list: true,
+
+        rename: true,
+        rename_with_if_not_exists: config.enable_rename_if_not_exists,
+
+        shared: true,
+
+        ..Default::default()
+    }
 }
 
 impl Builder for HdfsBuilder {
@@ -111,6 +146,7 @@ impl Builder for HdfsBuilder {
 
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
+        let capability = hdfs_capability(&self.config);
 
         let name_node = match &self.config.name_node {
             Some(v) => v,
@@ -156,26 +192,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             core: Arc::new(HdfsCore {
                 info: ServiceInfo::new(HDFS_SCHEME, &root, ""),
-                capability: Capability {
-                    stat: true,
-
-                    read: true,
-
-                    write: true,
-                    write_can_append: true,
-
-                    create_dir: true,
-                    delete: true,
-                    delete_with_recursive: true,
-
-                    list: true,
-
-                    rename: true,
-
-                    shared: true,
-
-                    ..Default::default()
-                },
+                capability,
                 root,
                 atomic_write_dir,
                 client: Arc::new(client),
@@ -289,5 +306,19 @@ impl Service for HdfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capability_uses_rename_if_not_exists_config() {
+        let mut config = HdfsConfig::default();
+        assert!(!hdfs_capability(&config).rename_with_if_not_exists);
+
+        config.enable_rename_if_not_exists = true;
+        assert!(hdfs_capability(&config).rename_with_if_not_exists);
     }
 }

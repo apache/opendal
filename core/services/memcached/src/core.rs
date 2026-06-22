@@ -219,3 +219,56 @@ impl MemcachedCore {
         conn.delete(&percent_encode_path(key)).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn connect_tcp_socket() -> std::io::Result<()> {
+        // Test both ip and localhost addresses to make sure that both can be parsed.
+        for addr in &["127.0.0.1:11211", "localhost:11211", "[::1]:11211"] {
+            let listener = TcpListener::bind(addr).await?;
+            let addr = listener.local_addr()?.to_string();
+
+            let accepted = tokio::spawn(async move {
+                let _ = listener.accept().await?;
+                Ok::<_, std::io::Error>(())
+            });
+
+            let _stream = SocketStream::connect_tcp(&addr).await?;
+            accepted.await.unwrap()?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn connect_unix_socket() -> std::io::Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use tokio::net::UnixListener;
+
+        let path = std::env::temp_dir().join(format!(
+            "opendal-memcached-{}.sock",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let listener = UnixListener::bind(&path)?;
+
+        let accepted = tokio::spawn(async move {
+            let _ = listener.accept().await?;
+            Ok::<_, std::io::Error>(())
+        });
+
+        let _stream = SocketStream::connect_unix(path.to_str().unwrap()).await?;
+        accepted.await.unwrap()?;
+
+        let _ = std::fs::remove_file(path);
+        Ok(())
+    }
+}

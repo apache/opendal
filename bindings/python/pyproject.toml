@@ -48,7 +48,7 @@ benchmark = [
 ]
 dev = ["maturin>=1.8.2"]
 docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
-lint = ["ruff>=0.9.10"]
+lint = ["ruff>=0.9.10", "ty>=0.0.51"]
 test = [
   "pytest>=8.3.5",
   "pytest-asyncio>=0.25.3",
@@ -61,6 +61,12 @@ features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
 strip = true
+
+[tool.ty.src]
+include = ["python/opendal"]
+# Generated stubs target the abi3 floor (cp311); skip them so the `>=3.10`
+# `requires-python` does not flag `typing.Self` and other newer stdlib symbols.
+exclude = ["python/opendal/*.pyi"]
 
 [tool.uv]
 cache-keys = [

@@ -34,7 +34,7 @@ else:
         types,
     )
 
-from opendal.operator import AsyncOperator, Operator  # pyright:ignore
+from opendal.operator import AsyncOperator, Operator
 
 __all__ = [
     "capability",

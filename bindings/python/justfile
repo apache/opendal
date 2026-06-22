@@ -118,6 +118,8 @@ lint: setup
     @cargo clippy -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
+    @echo "{{ BOLD }}--- Running Python type checker (ty) ---{{ NORMAL }}"
+    @uv run ty check
 
 # Format all code (Rust, Python, etc.)
 [group('lint')]

@@ -77,44 +77,30 @@ impl Buffer {
     }
 }
 
-/// Macro to create and register a PyO3 submodule with multiple classes.
-///
-/// Example:
-/// ```rust
-/// add_pymodule!(py, m, "services", [PyScheme, PyOtherClass]);
-/// ```
-#[macro_export]
-macro_rules! add_pymodule {
-    ($py:expr, $parent:expr, $name:expr, [$($cls:ty),* $(,)?]) => {{
-        let sub_module = pyo3::types::PyModule::new($py, $name)?;
-        $(
-            sub_module.add_class::<$cls>()?;
-        )*
-        $parent.add_submodule(&sub_module)?;
-        $py.import("sys")?
-            .getattr("modules")?
-            .set_item(format!("opendal.{}", $name), &sub_module)?;
-        Ok::<_, pyo3::PyErr>(())
-    }};
+/// Register a submodule in `sys.modules` as `opendal.{name}` and set its
+/// `__name__` to match, so dotted imports resolve and the module reports its
+/// qualified name rather than PyO3's default `_opendal.{name}`.
+pub fn register_in_sys(module: &Bound<'_, PyModule>, name: &str) -> PyResult<()> {
+    let qualified_name = format!("opendal.{name}");
+    module.setattr("__name__", &qualified_name)?;
+    module
+        .py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item(qualified_name, module)?;
+    Ok(())
 }
 
-/// Macro to create and register a PyO3 submodule containing exception types.
+/// Add exception types to a module by their Rust identifier.
 ///
-/// Example:
-/// ```rust
-/// add_pyexceptions!(py, m, "exceptions", [Error, Unexpected]);
-/// ```
+/// `create_exception!` types are `PyErr` subtypes, not `#[pyclass]`es, so they
+/// cannot be listed with `#[pymodule_export]`.
 #[macro_export]
-macro_rules! add_pyexceptions {
-    ($py:expr, $parent:expr, $name:expr, [$($exc:ty),* $(,)?]) => {{
-        let sub_module = pyo3::types::PyModule::new($py, $name)?;
+macro_rules! add_exceptions {
+    ($module:expr, [$($exc:ty),* $(,)?]) => {{
         $(
-            sub_module.add(stringify!($exc), $py.get_type::<$exc>())?;
+            $module.add(stringify!($exc), $module.py().get_type::<$exc>())?;
         )*
-        $parent.add_submodule(&sub_module)?;
-        $py.import("sys")?
-            .getattr("modules")?
-            .set_item(format!("opendal.{}", $name), &sub_module)?;
         Ok::<_, pyo3::PyErr>(())
     }};
 }

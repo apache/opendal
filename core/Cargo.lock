@@ -7135,6 +7135,7 @@ dependencies = [
  "bytes",
  "futures",
  "hdrs",
+ "libc",
  "log",
  "opendal-core",
  "serde",

@@ -22,6 +22,10 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+fn should_classify_legacy_rename_error(err: &io::Error) -> bool {
+    err.raw_os_error() == Some(libc::EIO)
+}
+
 /// HdfsCore contains code that directly interacts with HDFS.
 #[derive(Clone)]
 pub struct HdfsCore {
@@ -198,6 +202,9 @@ impl HdfsCore {
             if !args.if_not_exists() || err.kind() == io::ErrorKind::AlreadyExists {
                 return Err(new_std_io_error(err));
             }
+            if !should_classify_legacy_rename_error(&err) {
+                return Err(new_std_io_error(err));
+            }
 
             match self.client.metadata(&to_path) {
                 Ok(metadata) if metadata.is_file() => {
@@ -215,5 +222,25 @@ impl HdfsCore {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_should_classify_legacy_rename_error_accepts_eio() {
+        let err = io::Error::from_raw_os_error(libc::EIO);
+
+        assert!(should_classify_legacy_rename_error(&err));
+    }
+
+    #[test]
+    fn test_should_classify_legacy_rename_error_rejects_eacces() {
+        let err = io::Error::from_raw_os_error(libc::EACCES);
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+
+        assert!(!should_classify_legacy_rename_error(&err));
     }
 }

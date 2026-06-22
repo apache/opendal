@@ -171,7 +171,6 @@ impl Builder for HdfsBuilder {
                     list: true,
 
                     rename: true,
-                    rename_with_if_not_exists: true,
 
                     shared: true,
 

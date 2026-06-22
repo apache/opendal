@@ -22,6 +22,34 @@ This service can be used to:
 
 HDFS support needs to enable feature `services-hdfs`.
 
+## Conditional rename
+
+Conditional rename requires a system Hadoop trunk or newer `libhdfs` whose
+`hdfsRename` implementation uses `rename2` from HDFS-3592. OpenDAL does not
+advertise this capability by default because `hdrs` can build a bundled older
+`libhdfs` that does not provide the required atomic semantics.
+
+After verifying that the loaded system `libhdfs` has this support, enable the
+capability explicitly:
+
+```rust,no_run
+use opendal_core::layers::CapabilityOverrideLayer;
+use opendal_core::Operator;
+use opendal_service_hdfs::Hdfs;
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let op = Operator::new(Hdfs::default().name_node("hdfs://127.0.0.1:9000"))?
+    .layer(CapabilityOverrideLayer::new(|mut cap| {
+        cap.rename_with_if_not_exists = true;
+        cap
+    }));
+# Ok(())
+# }
+```
+
+Do not enable `rename_with_if_not_exists` with the bundled or an older
+`libhdfs`; it may not preserve the destination atomically.
+
 ## Configuration
 
 - `root`: Set the work dir for backend.

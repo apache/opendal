@@ -225,9 +225,11 @@ mod tests {
     use super::*;
     use tokio::net::TcpListener;
 
+    // regression test for connecting to a webdav server.
+    // Because setting up a dedicated behavior test is expensive, we choose to test `SocketStream::connect_tcp` instead.
+    // In the future, we could set up a webdav server to test TCP connection properly.
     #[tokio::test]
     async fn connect_tcp_socket() -> std::io::Result<()> {
-        // Test both ip and localhost addresses to make sure that both can be parsed.
         for addr in &["127.0.0.1:11211", "localhost:11211", "[::1]:11211"] {
             let listener = TcpListener::bind(addr).await?;
             let addr = listener.local_addr()?.to_string();
@@ -244,6 +246,9 @@ mod tests {
         Ok(())
     }
 
+    // regression test for connecting to a webdav server.
+    // Because setting up a dedicated behavior test is expensive, we choose to test `SocketStream::connect_unix` instead.
+    // In the future, we could set up a webdav server to test UNIX socket connection properly.
     #[cfg(unix)]
     #[tokio::test]
     async fn connect_unix_socket() -> std::io::Result<()> {

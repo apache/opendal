@@ -77,21 +77,14 @@ impl Buffer {
     }
 }
 
-/// Insert nested `#[pymodule]` submodules into `sys.modules` under `parent_name`
-/// and qualify their `__name__`, so `from opendal.operator import ...` resolves.
+/// Recursively insert a module's nested `#[pymodule]` submodules into
+/// `sys.modules` under `parent_name` and qualify their `__name__`, so
+/// `from opendal.operator import ...` resolves.
 ///
 /// PyO3 attaches submodules as attributes but skips `sys.modules` (PyO3 #759);
 /// `parent_name` lets us use the public `opendal` name, not the `_opendal` lib.
 pub fn register_submodules(module: &Bound<'_, PyModule>, parent_name: &str) -> PyResult<()> {
     let sys_modules = module.py().import("sys")?.getattr("modules")?;
-    register_submodules_inner(module, parent_name, &sys_modules)
-}
-
-fn register_submodules_inner(
-    module: &Bound<'_, PyModule>,
-    parent_name: &str,
-    sys_modules: &Bound<'_, PyAny>,
-) -> PyResult<()> {
     for attr_name in module.index()? {
         let attr_name: String = attr_name.extract()?;
         let attr = module.getattr(&attr_name)?;
@@ -99,7 +92,7 @@ fn register_submodules_inner(
             let qualified_name = format!("{parent_name}.{attr_name}");
             submodule.setattr("__name__", &qualified_name)?;
             sys_modules.set_item(&qualified_name, submodule)?;
-            register_submodules_inner(submodule, &qualified_name, sys_modules)?;
+            register_submodules(submodule, &qualified_name)?;
         }
     }
     Ok(())

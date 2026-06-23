@@ -75,6 +75,19 @@ pub struct WebdavConfig {
     ///
     /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
+    /// Disable conditional read headers on GET requests.
+    ///
+    /// By default, OpenDAL advertises and sends the RFC 7232 headers
+    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
+    /// `If-Unmodified-Since` when callers ask for conditional reads.
+    ///
+    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return
+    /// ETags in PROPFIND or don't honor these conditions on GET.
+    /// Enable this option to drop the four `read_with_if_*` capabilities
+    /// so callers fail fast instead of silently losing the condition.
+    ///
+    /// Default: false
+    pub disable_conditional_read: bool,
 }
 
 impl Debug for WebdavConfig {
@@ -86,6 +99,7 @@ impl Debug for WebdavConfig {
             .field("disable_create_dir", &self.disable_create_dir)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
+            .field("disable_conditional_read", &self.disable_conditional_read)
             .finish_non_exhaustive()
     }
 }

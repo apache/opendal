@@ -2657,6 +2657,7 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Webdav, "webdav"],
                 /,
                 *,
+                disable_conditional_read: builtins.bool = ...,
                 disable_copy: builtins.bool = ...,
                 disable_create_dir: builtins.bool = ...,
                 enable_user_metadata: builtins.bool = ...,
@@ -2673,6 +2674,19 @@ submit! {
 
                 Parameters
                 ----------
+                disable_conditional_read : builtins.bool, optional
+                    Disable conditional read headers on GET requests.
+                    By default, OpenDAL advertises and sends the RFC
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` when
+                    callers ask for conditional reads.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
+                    conditions on GET.
+                    Enable this option to drop the four `read_with_if_*`
+                    capabilities so callers fail fast instead of
+                    silently losing the condition.
+                    Default: false
                 disable_copy : builtins.bool, optional
                     Deprecated: WebDAV copy capability is enabled by
                     default.
@@ -5301,6 +5315,7 @@ submit! {
                 scheme: typing.Literal[opendal.services.Scheme.Webdav, "webdav"],
                 /,
                 *,
+                disable_conditional_read: builtins.bool = ...,
                 disable_copy: builtins.bool = ...,
                 disable_create_dir: builtins.bool = ...,
                 enable_user_metadata: builtins.bool = ...,
@@ -5317,6 +5332,19 @@ submit! {
 
                 Parameters
                 ----------
+                disable_conditional_read : builtins.bool, optional
+                    Disable conditional read headers on GET requests.
+                    By default, OpenDAL advertises and sends the RFC
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` when
+                    callers ask for conditional reads.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
+                    conditions on GET.
+                    Enable this option to drop the four `read_with_if_*`
+                    capabilities so callers fail fast instead of
+                    silently losing the condition.
+                    Default: false
                 disable_copy : builtins.bool, optional
                     Deprecated: WebDAV copy capability is enabled by
                     default.

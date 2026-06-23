@@ -171,12 +171,34 @@ impl WebdavCore {
         ctx: &OperationContext,
         path: &str,
         range: BytesRange,
-        _: &OpRead,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(header::IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(
+                header::IF_MODIFIED_SINCE,
+                if_modified_since.format_http_date(),
+            );
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(
+                header::IF_UNMODIFIED_SINCE,
+                if_unmodified_since.format_http_date(),
+            );
+        }
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
@@ -1537,6 +1559,9 @@ mod error {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
             // Some services (like owncloud) return 403 while file locked.
             StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
             // Allowing retry for resource locked.
             StatusCode::LOCKED => (ErrorKind::Unexpected, true),
             StatusCode::INTERNAL_SERVER_ERROR

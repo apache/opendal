@@ -43,6 +43,7 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 		testReadWithRangeFrom,
 		testReadWithContentLengthHint,
 		testReadWithConcurrentChunkGap,
+		testReaderWithConcurrentChunkGap,
 	}
 	if cap.WriteCanMulti() {
 		tests = append(tests, testIOCopy)
@@ -50,6 +51,7 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 	}
 	if cap.ReadWithIfMatch() {
 		tests = append(tests, testReadWithIfMatch)
+		tests = append(tests, testReaderWithIfMatch)
 	}
 	if cap.ReadWithIfNoneMatch() {
 		tests = append(tests, testReadWithIfNoneMatch)
@@ -62,6 +64,7 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 	}
 	if cap.ReadWithVersion() {
 		tests = append(tests, testReadWithVersion)
+		tests = append(tests, testReaderWithVersion)
 	}
 	return tests
 }
@@ -367,4 +370,80 @@ func testReaderSeek(assert *require.Assertions, op *opendal.Operator, fixture *f
 	assert.Nil(err, "read must succeed")
 	assert.Equal(length, int64(n), "read size")
 	assert.Equal(content[int64(size)-length:size], bs[:n], "read content")
+}
+
+func testReaderWithConcurrentChunkGap(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	r, err := op.Reader(path,
+		opendal.ReaderWithConcurrent(2),
+		opendal.ReaderWithChunk(1024*1024),
+		opendal.ReaderWithGap(4096),
+		opendal.ReaderWithPrefetch(2),
+	)
+	assert.Nil(err)
+	defer r.Close()
+
+	bs := make([]byte, size)
+	n, err := io.ReadFull(r, bs)
+	assert.Nil(err)
+	assert.Equal(size, uint(n), "read size")
+	assert.Equal(content, bs[:n], "read content")
+}
+
+func testReaderWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	meta, err := op.Stat(path)
+	assert.Nil(err)
+	etag, ok := meta.ETag()
+	if !ok {
+		return
+	}
+
+	// Some backends defer the request to the first read: reader creation then
+	// succeeds and the condition failure surfaces from Read(). The C reader maps
+	// read-time errors to CodeUnexpected, so only the eager (creation) path
+	// carries the precise CodeConditionNotMatch.
+	r, err := op.Reader(path, opendal.ReaderWithIfMatch("\"invalid_etag\""))
+	if err != nil {
+		assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
+	} else {
+		_, readErr := r.Read(make([]byte, size))
+		assert.NotNil(readErr, "reader with non-matching etag must fail on read")
+		assert.Nil(r.Close(), "close reader must succeed")
+	}
+
+	r, err = op.Reader(path, opendal.ReaderWithIfMatch(etag))
+	assert.Nil(err, "reader with matching etag must succeed")
+	defer r.Close()
+	bs := make([]byte, size)
+	n, err := io.ReadFull(r, bs)
+	assert.Nil(err)
+	assert.Equal(content, bs[:n], "read content")
+}
+
+func testReaderWithVersion(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, size := fixture.NewFile()
+
+	assert.Nil(op.Write(path, content), "write must succeed")
+
+	meta, err := op.Stat(path)
+	assert.Nil(err)
+	version, ok := meta.Version()
+	if !ok {
+		return
+	}
+
+	r, err := op.Reader(path, opendal.ReaderWithVersion(version))
+	assert.Nil(err)
+	defer r.Close()
+	bs := make([]byte, size)
+	n, err := io.ReadFull(r, bs)
+	assert.Nil(err)
+	assert.Equal(content, bs[:n], "read version content")
 }

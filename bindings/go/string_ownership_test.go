@@ -1062,6 +1062,131 @@ func TestReadOptionsSetterArgTypes(t *testing.T) {
 	}
 }
 
+func TestReaderWithOptions(t *testing.T) {
+	modified := time.Unix(1700000000, 0)
+	unmodified := time.Unix(1700000123, 0)
+
+	o := &readerOptions{}
+	ReaderWithVersion("v1")(o)
+	ReaderWithIfMatch("etag-a")(o)
+	ReaderWithIfNoneMatch("etag-b")(o)
+	ReaderWithIfModifiedSince(modified)(o)
+	ReaderWithIfUnmodifiedSince(unmodified)(o)
+	ReaderWithContentLengthHint(4096)(o)
+	ReaderWithConcurrent(4)(o)
+	ReaderWithChunk(1024)(o)
+	ReaderWithGap(512)(o)
+	ReaderWithPrefetch(8)(o)
+
+	if o.version != "v1" {
+		t.Fatalf("version = %q, want v1", o.version)
+	}
+	if o.ifMatch != "etag-a" {
+		t.Fatalf("ifMatch = %q, want etag-a", o.ifMatch)
+	}
+	if o.ifNoneMatch != "etag-b" {
+		t.Fatalf("ifNoneMatch = %q, want etag-b", o.ifNoneMatch)
+	}
+	if o.ifModifiedSince == nil || *o.ifModifiedSince != modified.UnixMilli() {
+		t.Fatalf("ifModifiedSince = %v, want %d", o.ifModifiedSince, modified.UnixMilli())
+	}
+	if o.ifUnmodifiedSince == nil || *o.ifUnmodifiedSince != unmodified.UnixMilli() {
+		t.Fatalf("ifUnmodifiedSince = %v, want %d", o.ifUnmodifiedSince, unmodified.UnixMilli())
+	}
+	if o.contentLengthHint == nil || *o.contentLengthHint != 4096 {
+		t.Fatalf("contentLengthHint = %v, want 4096", o.contentLengthHint)
+	}
+	if o.concurrent != 4 {
+		t.Fatalf("concurrent = %d, want 4", o.concurrent)
+	}
+	if o.chunk != 1024 {
+		t.Fatalf("chunk = %d, want 1024", o.chunk)
+	}
+	if o.gap != 512 {
+		t.Fatalf("gap = %d, want 512", o.gap)
+	}
+	if o.prefetch != 8 {
+		t.Fatalf("prefetch = %d, want 8", o.prefetch)
+	}
+}
+
+func TestFfiOperatorReaderWithReturnType(t *testing.T) {
+	if ffiOperatorReaderWith.opts.rType != &typeResultOperatorReader {
+		t.Fatalf("ffiOperatorReaderWith rType = %v, want typeResultOperatorReader", ffiOperatorReaderWith.opts.rType)
+	}
+}
+
+func TestFfiOperatorReaderWithArgTypes(t *testing.T) {
+	aTypes := ffiOperatorReaderWith.opts.aTypes
+	if len(aTypes) != 3 {
+		t.Fatalf("ffiOperatorReaderWith aTypes len = %d, want 3", len(aTypes))
+	}
+	for i, at := range aTypes {
+		if at != &ffi.TypePointer {
+			t.Fatalf("ffiOperatorReaderWith aTypes[%d] = %v, want TypePointer", i, at)
+		}
+	}
+}
+
+func TestReaderOptionsSetterArgTypes(t *testing.T) {
+	stringSetters := []*FFI[func(*opendalReaderOptions, string) ([]byte, error)]{
+		ffiReaderOptionsSetVersion,
+		ffiReaderOptionsSetIfMatch,
+		ffiReaderOptionsSetIfNoneMatch,
+	}
+	for _, setter := range stringSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+
+	int64Setters := []*FFI[func(*opendalReaderOptions, int64)]{
+		ffiReaderOptionsSetIfModifiedSince,
+		ffiReaderOptionsSetIfUnmodifiedSince,
+	}
+	for _, setter := range int64Setters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeSint64 {
+			t.Fatalf("%s aTypes = %v, want TypePointer, TypeSint64", setter.opts.sym, aTypes)
+		}
+	}
+
+	uintSetters := []*FFI[func(*opendalReaderOptions, uint)]{
+		ffiReaderOptionsSetConcurrent,
+		ffiReaderOptionsSetChunk,
+		ffiReaderOptionsSetGap,
+		ffiReaderOptionsSetPrefetch,
+	}
+	for _, setter := range uintSetters {
+		aTypes := setter.opts.aTypes
+		if len(aTypes) != 2 {
+			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
+		}
+		for i, at := range aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
+			}
+		}
+	}
+
+	hintATypes := ffiReaderOptionsSetContentLengthHint.opts.aTypes
+	if len(hintATypes) != 2 {
+		t.Fatalf("ffiReaderOptionsSetContentLengthHint aTypes len = %d, want 2", len(hintATypes))
+	}
+	if hintATypes[0] != &ffi.TypePointer || hintATypes[1] != &ffi.TypeUint64 {
+		t.Fatalf("ffiReaderOptionsSetContentLengthHint aTypes = %v, want TypePointer, TypeUint64", hintATypes)
+	}
+}
+
 func TestFfiOperatorPresignWithSignatures(t *testing.T) {
 	for _, tc := range []struct {
 		name string

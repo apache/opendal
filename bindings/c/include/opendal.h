@@ -523,6 +523,76 @@ typedef struct opendal_result_operator_reader {
 } opendal_result_operator_reader;
 
 /**
+ * \brief The options for creating a reader via `opendal_operator_reader_with`.
+ *
+ * Use `opendal_reader_options_new()` to construct and
+ * `opendal_reader_options_free()` to free.
+ */
+typedef struct opendal_reader_options {
+  /**
+   * The version of the object to read; NULL means unset.
+   */
+  const char *version;
+  /**
+   * If-Match header value; NULL means unset.
+   */
+  const char *if_match;
+  /**
+   * If-None-Match header value; NULL means unset.
+   */
+  const char *if_none_match;
+  /**
+   * Whether `if_modified_since` has been set.
+   */
+  bool has_if_modified_since;
+  /**
+   * If-Modified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_modified_since;
+  /**
+   * Whether `if_unmodified_since` has been set.
+   */
+  bool has_if_unmodified_since;
+  /**
+   * If-Unmodified-Since condition, in Unix milliseconds.
+   */
+  int64_t if_unmodified_since;
+  /**
+   * Whether `content_length_hint` has been set.
+   */
+  bool has_content_length_hint;
+  /**
+   * Known content length of the object, used as an execution hint to avoid
+   * extra metadata requests while planning reads.
+   */
+  uint64_t content_length_hint;
+  /**
+   * Concurrent read operations. `0` falls back to sequential reads.
+   */
+  uintptr_t concurrent;
+  /**
+   * Whether `chunk` has been set.
+   */
+  bool has_chunk;
+  /**
+   * Chunk size for each read request.
+   */
+  uintptr_t chunk;
+  /**
+   * Whether `gap` has been set.
+   */
+  bool has_gap;
+  /**
+   * Gap size for merging nearby range reads.
+   */
+  uintptr_t gap;
+  /**
+   * Number of prefetched byte ranges buffered during concurrent reads.
+   */
+  uintptr_t prefetch;
+} opendal_reader_options;
+
+/**
  * \brief The result type returned by opendal's writer operation.
  * \note The opendal_writer actually owns a pointer to
  * an opendal::blocking::Writer, which is inside the Rust core code.
@@ -1560,6 +1630,37 @@ struct opendal_result_operator_reader opendal_operator_reader(const struct opend
                                                               const char *path);
 
 /**
+ * \brief Blocking create a reader for the specified path with options.
+ *
+ * This function prepares a reader, applying the conditional, version and
+ * concurrency options carried by `opts`. A NULL `opts` is treated as the
+ * default options, behaving like `opendal_operator_reader`.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path where the reader will be used
+ * @param opts The reader options, or NULL to use the defaults
+ * @see opendal_operator
+ * @see opendal_reader_options
+ * @see opendal_result_operator_reader
+ * @return Returns opendal_result_operator_reader, containing a reader and an opendal_error.
+ * If the operation succeeds, the `reader` field holds a valid reader and the `error` field
+ * is null. Otherwise, the `reader` will be null and the `error` will be set correspondingly.
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_operator_reader opendal_operator_reader_with(const struct opendal_operator *op,
+                                                                   const char *path,
+                                                                   const struct opendal_reader_options *opts);
+
+/**
  * \brief Blocking create a writer for the specified path.
  *
  * This function prepares a writer that can be used to write data to the specified path
@@ -2563,6 +2664,75 @@ void opendal_read_options_set_override_cache_control(struct opendal_read_options
  */
 void opendal_read_options_set_override_content_disposition(struct opendal_read_options *opts,
                                                            const char *override_content_disposition);
+
+/**
+ * \brief Construct a heap-allocated opendal_reader_options with default values.
+ */
+struct opendal_reader_options *opendal_reader_options_new(void);
+
+/**
+ * \brief Free the heap memory used by opendal_reader_options.
+ */
+void opendal_reader_options_free(struct opendal_reader_options *opts);
+
+/**
+ * \brief Set the version of the object to read.
+ */
+void opendal_reader_options_set_version(struct opendal_reader_options *opts, const char *version);
+
+/**
+ * \brief Set If-Match.
+ */
+void opendal_reader_options_set_if_match(struct opendal_reader_options *opts, const char *if_match);
+
+/**
+ * \brief Set If-None-Match.
+ */
+void opendal_reader_options_set_if_none_match(struct opendal_reader_options *opts,
+                                              const char *if_none_match);
+
+/**
+ * \brief Set If-Modified-Since, in Unix milliseconds.
+ */
+void opendal_reader_options_set_if_modified_since(struct opendal_reader_options *opts,
+                                                  int64_t if_modified_since);
+
+/**
+ * \brief Set If-Unmodified-Since, in Unix milliseconds.
+ */
+void opendal_reader_options_set_if_unmodified_since(struct opendal_reader_options *opts,
+                                                    int64_t if_unmodified_since);
+
+/**
+ * \brief Set the known content length of the object.
+ *
+ * This is an execution hint that allows OpenDAL to avoid extra metadata
+ * requests while planning reads. It must not be used as an object identity
+ * or consistency condition.
+ */
+void opendal_reader_options_set_content_length_hint(struct opendal_reader_options *opts,
+                                                    uint64_t content_length_hint);
+
+/**
+ * \brief Set concurrent read operations.
+ */
+void opendal_reader_options_set_concurrent(struct opendal_reader_options *opts,
+                                           uintptr_t concurrent);
+
+/**
+ * \brief Set chunk size.
+ */
+void opendal_reader_options_set_chunk(struct opendal_reader_options *opts, uintptr_t chunk);
+
+/**
+ * \brief Set gap size.
+ */
+void opendal_reader_options_set_gap(struct opendal_reader_options *opts, uintptr_t gap);
+
+/**
+ * \brief Set the number of prefetched byte ranges buffered during concurrent reads.
+ */
+void opendal_reader_options_set_prefetch(struct opendal_reader_options *opts, uintptr_t prefetch);
 
 /**
  * \brief Construct a heap-allocated opendal_copy_options with default values.

@@ -2162,11 +2162,27 @@ struct opendal_result_presign opendal_operator_presign_read(const struct opendal
                                                             uint64_t expire_secs);
 
 /**
+ * \brief Presign a read operation with options.
+ */
+struct opendal_result_presign opendal_operator_presign_read_with(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 uint64_t expire_secs,
+                                                                 const struct opendal_read_options *opts);
+
+/**
  * \brief Presign a write operation.
  */
 struct opendal_result_presign opendal_operator_presign_write(const struct opendal_operator *op,
                                                              const char *path,
                                                              uint64_t expire_secs);
+
+/**
+ * \brief Presign a write operation with options.
+ */
+struct opendal_result_presign opendal_operator_presign_write_with(const struct opendal_operator *op,
+                                                                  const char *path,
+                                                                  uint64_t expire_secs,
+                                                                  const struct opendal_write_options *opts);
 
 /**
  * \brief Presign a delete operation.
@@ -2176,11 +2192,27 @@ struct opendal_result_presign opendal_operator_presign_delete(const struct opend
                                                               uint64_t expire_secs);
 
 /**
+ * \brief Presign a delete operation with options.
+ */
+struct opendal_result_presign opendal_operator_presign_delete_with(const struct opendal_operator *op,
+                                                                   const char *path,
+                                                                   uint64_t expire_secs,
+                                                                   const struct opendal_delete_options *opts);
+
+/**
  * \brief Presign a stat operation.
  */
 struct opendal_result_presign opendal_operator_presign_stat(const struct opendal_operator *op,
                                                             const char *path,
                                                             uint64_t expire_secs);
+
+/**
+ * \brief Presign a stat operation with options.
+ */
+struct opendal_result_presign opendal_operator_presign_stat_with(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 uint64_t expire_secs,
+                                                                 const struct opendal_stat_options *opts);
 
 /**
  * Get the method of the presigned request.

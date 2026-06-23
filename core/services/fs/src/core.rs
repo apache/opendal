@@ -224,7 +224,20 @@ impl FsCore {
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
 
-        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
+        tokio::fs::copy(&from, &to)
+            .await
+            .map_err(new_std_io_error)?;
+
+        // only *nix supports `write_with_user_metadata`
+        #[cfg(unix)]
+        {
+            if let Ok(user_meta) = Self::get_user_metadata(&from) {
+                if !user_meta.is_empty() {
+                    Self::set_user_metadata(&to, &user_meta)?;
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -321,3 +334,40 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_fs_copy_preserves_user_metadata() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+
+        let core = FsCore {
+            info: ServiceInfo::with_scheme("fs"),
+            capability: Capability::default(),
+            root: root.clone(),
+            atomic_write_dir: None,
+            buf_pool: oio::PooledBuf::new(1),
+        };
+
+        let src = "src_meta.txt";
+        let dst = "dst_meta.txt";
+
+        let src_path = root.join(src);
+        let dst_path = root.join(dst);
+
+        tokio::fs::write(&src_path, b"payload").await.unwrap();
+
+        let mut meta = HashMap::new();
+        meta.insert("key".to_string(), "preserved123".to_string());
+        FsCore::set_user_metadata(&src_path, &meta).unwrap();
+
+        core.fs_copy(src, dst).await.unwrap();
+
+        let got = FsCore::get_user_metadata(&dst_path).unwrap();
+        assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
+    }
+}

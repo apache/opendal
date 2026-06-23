@@ -21,6 +21,7 @@ package opendal
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 	"unsafe"
@@ -1059,4 +1060,412 @@ func TestReadOptionsSetterArgTypes(t *testing.T) {
 	if rangeFromATypes[0] != &ffi.TypePointer || rangeFromATypes[1] != &ffi.TypeUint64 {
 		t.Fatalf("ffiReadOptionsSetRangeFrom aTypes = %v, want TypePointer, TypeUint64", rangeFromATypes)
 	}
+}
+
+func TestFfiOperatorPresignWithSignatures(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts ffiOpts
+	}{
+		{
+			name: "ffiOperatorPresignReadWith",
+			opts: ffiOperatorPresignReadWith.opts,
+		},
+		{
+			name: "ffiOperatorPresignWriteWith",
+			opts: ffiOperatorPresignWriteWith.opts,
+		},
+		{
+			name: "ffiOperatorPresignDeleteWith",
+			opts: ffiOperatorPresignDeleteWith.opts,
+		},
+		{
+			name: "ffiOperatorPresignStatWith",
+			opts: ffiOperatorPresignStatWith.opts,
+		},
+	} {
+		if tc.opts.rType != &typeResultPresign {
+			t.Fatalf("%s rType = %v, want typeResultPresign", tc.name, tc.opts.rType)
+		}
+		if len(tc.opts.aTypes) != 4 {
+			t.Fatalf("%s aTypes len = %d, want 4", tc.name, len(tc.opts.aTypes))
+		}
+		if tc.opts.aTypes[0] != &ffi.TypePointer ||
+			tc.opts.aTypes[1] != &ffi.TypePointer ||
+			tc.opts.aTypes[2] != &ffi.TypeUint64 ||
+			tc.opts.aTypes[3] != &ffi.TypePointer {
+			t.Fatalf("%s aTypes = %v, want pointer, pointer, uint64, pointer", tc.name, tc.opts.aTypes)
+		}
+	}
+}
+
+func TestPresignWithoutOptionsUsesSimpleSymbols(t *testing.T) {
+	ctx, reqInner, freeCount := presignTestContext(t, "GET", "https://example.com/simple")
+	opInner := &opendalOperator{}
+	op := &Operator{ctx: ctx, inner: opInner}
+
+	ctx = context.WithValue(ctx, ffiOperatorPresignRead.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		return reqInner, nil
+	})
+	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		return reqInner, nil
+	})
+	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		return reqInner, nil
+	})
+	ctx = context.WithValue(ctx, ffiOperatorPresignStat.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		return reqInner, nil
+	})
+	op.ctx = ctx
+
+	for name, call := range map[string]func() (*http.Request, error){
+		"read":   func() (*http.Request, error) { return op.PresignRead("file.txt", time.Minute) },
+		"write":  func() (*http.Request, error) { return op.PresignWrite("file.txt", time.Minute) },
+		"delete": func() (*http.Request, error) { return op.PresignDelete("file.txt", time.Minute) },
+		"stat":   func() (*http.Request, error) { return op.PresignStat("file.txt", time.Minute) },
+	} {
+		req, err := call()
+		if err != nil {
+			t.Fatalf("Presign%s() failed: %v", name, err)
+		}
+		if req.Method != "GET" || req.URL.String() != "https://example.com/simple" {
+			t.Fatalf("Presign%s() request = %s %s", name, req.Method, req.URL.String())
+		}
+	}
+	if *freeCount != 4 {
+		t.Fatalf("presigned request freed %d times, want 4", *freeCount)
+	}
+}
+
+func TestPresignReadWithOptionsKeepsStringsUntilCall(t *testing.T) {
+	ctx, reqInner, _ := presignTestContext(t, "GET", "https://example.com/read")
+	opInner := &opendalOperator{}
+	cOpts := &opendalReadOptions{}
+	var versionPtr *byte
+	var overrideContentTypePtr *byte
+	var rangeOffset, rangeLength uint64
+
+	ctx = context.WithValue(ctx, ffiReadOptionsNew.opts.sym, func() *opendalReadOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiReadOptionsFree.opts.sym, func(opts *opendalReadOptions) {
+		assertReadOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiReadOptionsSetRange.opts.sym, func(opts *opendalReadOptions, offset, length uint64) {
+		assertReadOptionsPointer(t, cOpts, opts)
+		rangeOffset = offset
+		rangeLength = length
+	})
+	ctx = context.WithValue(ctx, ffiReadOptionsSetVersion.opts.sym, ffiReadOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertReadOptionsPointerFromArgs(t, cOpts, aValues...)
+		versionPtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiReadOptionsSetIfMatch.opts.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetIfNoneMatch.opts.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentType.opts.sym, ffiReadOptionsSetOverrideContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertReadOptionsPointerFromArgs(t, cOpts, aValues...)
+		overrideContentTypePtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideCacheControl.opts.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentDisposition.opts.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiOperatorPresignReadWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		assertReadOptionsPointer(t, cOpts, opts)
+		if rangeOffset != 1 || rangeLength != 2 {
+			t.Fatalf("read range = %d, %d, want 1, 2", rangeOffset, rangeLength)
+		}
+		if got := BytePtrToString(versionPtr); got != "v1" {
+			t.Fatalf("read version pointer = %q, want v1", got)
+		}
+		if got := BytePtrToString(overrideContentTypePtr); got != "text/plain" {
+			t.Fatalf("read override content type pointer = %q, want text/plain", got)
+		}
+		return reqInner, nil
+	})
+
+	op := &Operator{ctx: ctx, inner: opInner}
+	_, err := op.PresignRead("file.txt", time.Minute,
+		ReadWithRange(1, 2),
+		ReadWithVersion("v1"),
+		ReadWithOverrideContentType("text/plain"),
+	)
+	if err != nil {
+		t.Fatalf("PresignRead with options failed: %v", err)
+	}
+}
+
+func TestPresignWriteWithOptionsKeepsStringsUntilCall(t *testing.T) {
+	ctx, reqInner, _ := presignTestContext(t, "PUT", "https://example.com/write")
+	opInner := &opendalOperator{}
+	cOpts := &opendalWriteOptions{}
+	var contentTypePtr *byte
+	var userMetadata []opendalWriteUserMetadataPair
+
+	ctx = context.WithValue(ctx, ffiWriteOptionsNew.opts.sym, func() *opendalWriteOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiWriteOptionsFree.opts.sym, func(opts *opendalWriteOptions) {
+		assertWriteOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetAppend.opts.sym, func(opts *opendalWriteOptions, append bool) {
+		assertWriteOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNotExists.opts.sym, func(opts *opendalWriteOptions, ifNotExists bool) {
+		assertWriteOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentType.opts.sym, ffiWriteOptionsSetContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertWriteOptionsPointerFromArgs(t, cOpts, aValues...)
+		contentTypePtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetCacheControl.opts.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentDisposition.opts.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentEncoding.opts.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfMatch.opts.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNoneMatch.opts.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetUserMetadata.opts.sym, func(opts *opendalWriteOptions, pairs []opendalWriteUserMetadataPair) {
+		assertWriteOptionsPointer(t, cOpts, opts)
+		userMetadata = pairs
+	})
+	ctx = context.WithValue(ctx, ffiOperatorPresignWriteWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		assertWriteOptionsPointer(t, cOpts, opts)
+		if got := BytePtrToString(contentTypePtr); got != "text/plain" {
+			t.Fatalf("write content type pointer = %q, want text/plain", got)
+		}
+		if len(userMetadata) != 1 {
+			t.Fatalf("write user metadata len = %d, want 1", len(userMetadata))
+		}
+		if got := BytePtrToString(userMetadata[0].key); got != "foo" {
+			t.Fatalf("write user metadata key = %q, want foo", got)
+		}
+		if got := BytePtrToString(userMetadata[0].value); got != "bar" {
+			t.Fatalf("write user metadata value = %q, want bar", got)
+		}
+		return reqInner, nil
+	})
+
+	op := &Operator{ctx: ctx, inner: opInner}
+	_, err := op.PresignWrite("file.txt", time.Minute,
+		WriteWithContentType("text/plain"),
+		WriteWithUserMetadata(map[string]string{"foo": "bar"}),
+	)
+	if err != nil {
+		t.Fatalf("PresignWrite with options failed: %v", err)
+	}
+}
+
+func TestPresignStatWithOptionsKeepsStringsUntilCall(t *testing.T) {
+	ctx, reqInner, _ := presignTestContext(t, "HEAD", "https://example.com/stat")
+	opInner := &opendalOperator{}
+	cOpts := &opendalStatOptions{}
+	var versionPtr *byte
+	var overrideContentTypePtr *byte
+
+	ctx = context.WithValue(ctx, ffiStatOptionsNew.opts.sym, func() *opendalStatOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiStatOptionsFree.opts.sym, func(opts *opendalStatOptions) {
+		assertStatOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiStatOptionsSetVersion.opts.sym, ffiStatOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertStatOptionsPointerFromArgs(t, cOpts, aValues...)
+		versionPtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiStatOptionsSetIfMatch.opts.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetIfNoneMatch.opts.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentType.opts.sym, ffiStatOptionsSetOverrideContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertStatOptionsPointerFromArgs(t, cOpts, aValues...)
+		overrideContentTypePtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideCacheControl.opts.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentDisposition.opts.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiOperatorPresignStatWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		assertStatOptionsPointer(t, cOpts, opts)
+		if got := BytePtrToString(versionPtr); got != "v1" {
+			t.Fatalf("stat version pointer = %q, want v1", got)
+		}
+		if got := BytePtrToString(overrideContentTypePtr); got != "text/plain" {
+			t.Fatalf("stat override content type pointer = %q, want text/plain", got)
+		}
+		return reqInner, nil
+	})
+
+	op := &Operator{ctx: ctx, inner: opInner}
+	_, err := op.PresignStat("file.txt", time.Minute,
+		StatWithVersion("v1"),
+		StatWithOverrideContentType("text/plain"),
+	)
+	if err != nil {
+		t.Fatalf("PresignStat with options failed: %v", err)
+	}
+}
+
+func TestPresignDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
+	ctx, reqInner, _ := presignTestContext(t, "DELETE", "https://example.com/delete")
+	opInner := &opendalOperator{}
+	cOpts := &opendalDeleteOptions{}
+	var versionPtr *byte
+	var recursive bool
+
+	ctx = context.WithValue(ctx, ffiDeleteOptionsNew.opts.sym, func() *opendalDeleteOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiDeleteOptionsFree.opts.sym, func(opts *opendalDeleteOptions) {
+		assertDeleteOptionsPointer(t, cOpts, opts)
+	})
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetRecursive.opts.sym, func(opts *opendalDeleteOptions, value bool) {
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		recursive = value
+	})
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetVersion.opts.sym, ffiDeleteOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertDeleteOptionsPointerFromArgs(t, cOpts, aValues...)
+		versionPtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiOperatorPresignDeleteWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
+		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		if !recursive {
+			t.Fatal("delete recursive = false, want true")
+		}
+		if got := BytePtrToString(versionPtr); got != "v1" {
+			t.Fatalf("delete version pointer = %q, want v1", got)
+		}
+		return reqInner, nil
+	})
+
+	op := &Operator{ctx: ctx, inner: opInner}
+	_, err := op.PresignDelete("file.txt", time.Minute,
+		DeleteWithVersion("v1"),
+		DeleteWithRecursive(true),
+	)
+	if err != nil {
+		t.Fatalf("PresignDelete with options failed: %v", err)
+	}
+}
+
+func presignTestContext(t *testing.T, method, uri string) (context.Context, *opendalPresignedRequest, *int) {
+	t.Helper()
+
+	methodData, err := byteSliceFromString(method)
+	if err != nil {
+		t.Fatalf("byteSliceFromString(%q) failed: %v", method, err)
+	}
+	uriData, err := byteSliceFromString(uri)
+	if err != nil {
+		t.Fatalf("byteSliceFromString(%q) failed: %v", uri, err)
+	}
+	reqInner := &opendalPresignedRequest{}
+	freeCount := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiPresignedRequestMethod.opts.sym, func(req *opendalPresignedRequest) *byte {
+		assertPresignedRequestPointer(t, reqInner, req)
+		return &methodData[0]
+	})
+	ctx = context.WithValue(ctx, ffiPresignedRequestUri.opts.sym, func(req *opendalPresignedRequest) *byte {
+		assertPresignedRequestPointer(t, reqInner, req)
+		return &uriData[0]
+	})
+	ctx = context.WithValue(ctx, ffiPresignedRequestHeaders.opts.sym, func(req *opendalPresignedRequest) *opendalHttpHeaderPair {
+		assertPresignedRequestPointer(t, reqInner, req)
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiPresignedRequestHeadersLen.opts.sym, func(req *opendalPresignedRequest) uintptr {
+		assertPresignedRequestPointer(t, reqInner, req)
+		return 0
+	})
+	ctx = context.WithValue(ctx, ffiPresignedRequestFree.opts.sym, func(req *opendalPresignedRequest) {
+		assertPresignedRequestPointer(t, reqInner, req)
+		freeCount++
+	})
+	return ctx, reqInner, &freeCount
+}
+
+func assertPresignCall(t *testing.T, wantOp *opendalOperator, gotOp *opendalOperator, wantPath, gotPath string, wantExpire, gotExpire uint64) {
+	t.Helper()
+	if gotOp != wantOp {
+		t.Fatalf("presign op = %p, want %p", gotOp, wantOp)
+	}
+	if gotPath != wantPath {
+		t.Fatalf("presign path = %q, want %q", gotPath, wantPath)
+	}
+	if gotExpire != wantExpire {
+		t.Fatalf("presign expire = %d, want %d", gotExpire, wantExpire)
+	}
+}
+
+func assertPresignedRequestPointer(t *testing.T, want *opendalPresignedRequest, got *opendalPresignedRequest) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("presigned request = %p, want %p", got, want)
+	}
+}
+
+func assertReadOptionsPointer(t *testing.T, want *opendalReadOptions, got *opendalReadOptions) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("read options = %p, want %p", got, want)
+	}
+}
+
+func assertReadOptionsPointerFromArgs(t *testing.T, want *opendalReadOptions, aValues ...unsafe.Pointer) {
+	t.Helper()
+	if len(aValues) != 2 {
+		t.Fatalf("read option setter received %d arguments, want 2", len(aValues))
+	}
+	assertReadOptionsPointer(t, want, *(**opendalReadOptions)(aValues[0]))
+}
+
+func noopReadOptionsSetString(*opendalReadOptions, string) ([]byte, error) {
+	return nil, nil
+}
+
+func assertWriteOptionsPointer(t *testing.T, want *opendalWriteOptions, got *opendalWriteOptions) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("write options = %p, want %p", got, want)
+	}
+}
+
+func assertWriteOptionsPointerFromArgs(t *testing.T, want *opendalWriteOptions, aValues ...unsafe.Pointer) {
+	t.Helper()
+	if len(aValues) != 2 {
+		t.Fatalf("write option setter received %d arguments, want 2", len(aValues))
+	}
+	assertWriteOptionsPointer(t, want, *(**opendalWriteOptions)(aValues[0]))
+}
+
+func noopWriteOptionsSetString(*opendalWriteOptions, string) ([]byte, error) {
+	return nil, nil
+}
+
+func assertStatOptionsPointer(t *testing.T, want *opendalStatOptions, got *opendalStatOptions) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("stat options = %p, want %p", got, want)
+	}
+}
+
+func assertStatOptionsPointerFromArgs(t *testing.T, want *opendalStatOptions, aValues ...unsafe.Pointer) {
+	t.Helper()
+	if len(aValues) != 2 {
+		t.Fatalf("stat option setter received %d arguments, want 2", len(aValues))
+	}
+	assertStatOptionsPointer(t, want, *(**opendalStatOptions)(aValues[0]))
+}
+
+func noopStatOptionsSetString(*opendalStatOptions, string) ([]byte, error) {
+	return nil, nil
+}
+
+func assertDeleteOptionsPointer(t *testing.T, want *opendalDeleteOptions, got *opendalDeleteOptions) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("delete options = %p, want %p", got, want)
+	}
+}
+
+func assertDeleteOptionsPointerFromArgs(t *testing.T, want *opendalDeleteOptions, aValues ...unsafe.Pointer) {
+	t.Helper()
+	if len(aValues) != 2 {
+		t.Fatalf("delete option setter received %d arguments, want 2", len(aValues))
+	}
+	assertDeleteOptionsPointer(t, want, *(**opendalDeleteOptions)(aValues[0]))
 }

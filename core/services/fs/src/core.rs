@@ -359,7 +359,7 @@ mod tests {
         let src_path = root.join(src);
         let dst_path = root.join(dst);
 
-        tokio::fs::write(&src_path, b"payload").await.unwrap();
+        tokio::fs::File::create(&src_path).await.unwrap();
 
         let mut meta = HashMap::new();
         meta.insert("key".to_string(), "preserved123".to_string());

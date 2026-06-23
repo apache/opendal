@@ -341,17 +341,11 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_fs_copy_preserves_user_metadata() {
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let root = temp_dir.path().to_path_buf();
+    async fn test_fs_backend_copy_preserves_user_metadata() {
+        use opendal_core::Operator;
 
-        let core = FsCore {
-            info: ServiceInfo::with_scheme("fs"),
-            capability: Capability::default(),
-            root: root.clone(),
-            atomic_write_dir: None,
-            buf_pool: oio::PooledBuf::new(1),
-        };
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
 
         let src = "src_meta.txt";
         let dst = "dst_meta.txt";
@@ -359,13 +353,14 @@ mod tests {
         let src_path = root.join(src);
         let dst_path = root.join(dst);
 
-        tokio::fs::File::create(&src_path).await.unwrap();
+        std::fs::File::create(&src_path).unwrap();
 
         let mut meta = HashMap::new();
         meta.insert("key".to_string(), "preserved123".to_string());
         FsCore::set_user_metadata(&src_path, &meta).unwrap();
 
-        core.fs_copy(src, dst).await.unwrap();
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.copy(src, dst).await.unwrap();
 
         let got = FsCore::get_user_metadata(&dst_path).unwrap();
         assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));

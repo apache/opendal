@@ -50,44 +50,24 @@ mod _opendal {
     mod operator {
         #[pymodule_export]
         use crate::{AsyncOperator, Operator};
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "operator")
-        }
     }
 
     #[pymodule]
     mod file {
         #[pymodule_export]
         use crate::{AsyncFile, File};
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "file")
-        }
     }
 
     #[pymodule]
     mod capability {
         #[pymodule_export]
         use crate::Capability;
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "capability")
-        }
     }
 
     #[pymodule]
     mod services {
         #[pymodule_export]
         use crate::PyScheme;
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "services")
-        }
     }
 
     #[pymodule]
@@ -96,22 +76,12 @@ mod _opendal {
         use crate::{
             CapabilityOverrideLayer, ConcurrentLimitLayer, Layer, MimeGuessLayer, RetryLayer,
         };
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "layers")
-        }
     }
 
     #[pymodule]
     mod types {
         #[pymodule_export]
         use crate::{Entry, EntryMode, Metadata, PresignedRequest};
-
-        #[pymodule_init]
-        fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-            crate::register_in_sys(m, "types")
-        }
     }
 
     // Exceptions are `PyErr` subtypes, not `#[pyclass]`es, so they are added
@@ -145,8 +115,7 @@ mod _opendal {
                     RateLimited,
                     RangeNotSatisfied,
                 ]
-            )?;
-            crate::register_in_sys(m, "exceptions")
+            )
         }
     }
 
@@ -157,6 +126,12 @@ mod _opendal {
     #[pymodule_export]
     #[allow(non_upper_case_globals)]
     pub const __version__: &str = env!("CARGO_PKG_VERSION");
+
+    // Make the submodules importable as `opendal.<name>`.
+    #[pymodule_init]
+    fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        crate::register_submodules(m, "opendal")
+    }
 }
 
 define_stub_info_gatherer!(stub_info);

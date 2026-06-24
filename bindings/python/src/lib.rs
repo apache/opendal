@@ -42,6 +42,12 @@ mod services;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 pub use services::*;
 
+// The `opendal` Python package is a mixed Python/native layout: the public
+// package is the hand-written `python/opendal/` (with its own `__init__.py`),
+// and this native module is built as the private submodule `opendal._opendal`
+// (`module-name` in pyproject.toml). The `#[pymodule] mod` name must therefore
+// be `_opendal` to match the compiled `opendal/_opendal.*.so` (its `PyInit`
+// symbol); `__init__.py` imports and re-exports from it as the public API.
 #[pymodule(gil_used = false)]
 mod _opendal {
     use pyo3::prelude::*;

@@ -29,8 +29,7 @@ before rename runs. A service configuration flag is also unsuitable because it
 would make the meaning of the same `rename` call depend on backend construction
 rather than an explicit call-site condition.
 
-OpenDAL already models the equivalent destination condition for write and copy
-through options:
+We will follow how OpenDAL models `write` and `copy` with options:
 
 ```rust
 op.write_with("path", content)

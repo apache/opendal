@@ -41,3 +41,7 @@ tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

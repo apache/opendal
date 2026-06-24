@@ -23,9 +23,21 @@ OpenDAL defines `rename` as an overwrite operation. Some applications also need
 an atomic publish primitive: move a completed staging file into place only when
 no other writer has already published that destination.
 
-A caller cannot implement this safely with `stat` followed by `rename`. Another
-writer can create the destination after `stat` reports that it is absent but
-before rename runs. A service configuration flag is also unsuitable because it
+`stat` followed by `rename` are two atomic actions.
+A user might want to move a file to destination in an atomic action.
+
+An example is that when user is trying to:
+
+```
+stat_result = stat(destination)
+if !stat_result {
+  rename(source, destination)
+}
+```
+
+Another writer could create destination file during the critical section.
+
+A service configuration flag is also unsuitable because it
 would make the meaning of the same `rename` call depend on backend construction
 rather than an explicit call-site condition.
 

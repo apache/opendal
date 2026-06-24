@@ -164,6 +164,20 @@ impl blocking::Operator {
 No standalone `rename_if_not_exists` method is added. The options API matches
 write and copy and leaves room for future composable rename conditions.
 
+The rename API follows the copy API at every layer:
+
+| Layer | Copy | Rename |
+| --- | --- | --- |
+| Default operation | `copy` | `rename` |
+| Fluent options | `copy_with(...).if_not_exists(true)` | `rename_with(...).if_not_exists(true)` |
+| Options struct | `CopyOptions` | `RenameOptions` |
+| Explicit options call | `copy_options` | `rename_options` |
+| Raw arguments | `OpCopy::if_not_exists()` | `OpRename::if_not_exists()` |
+| Capability | `copy_with_if_not_exists` | `rename_with_if_not_exists` |
+
+This RFC does not add a public `copy_if_not_exists`-style standalone method,
+because copy itself exposes the condition through its options APIs.
+
 ## Service API
 
 `RenameOptions` converts into the raw `OpRename`:
@@ -229,6 +243,48 @@ respect to competing destination creation.
 
 ## Service analysis
 
+### Audit scope
+
+At the time of this RFC, 19 services advertise `Capability::rename`. The table
+below audits all of them, plus S3 as the representative object store without a
+native rename operation.
+
+The "assessment" column describes whether the current backend primitive could
+support `rename_with_if_not_exists`. It does not enable the capability. A
+backend must still demonstrate that the destination check and move are one
+atomic service operation and map destination conflicts to
+`ConditionNotMatch`.
+
+| Service | Current rename implementation | Assessment for `if_not_exists` |
+| --- | --- | --- |
+| `aliyun_drive` | Deletes the destination, moves by file ID, then updates the name | Not suitable as implemented; overwrite is a multi-request workflow |
+| `azdls` | Sends one Data Lake Storage rename request | Strong candidate: the API supports `If-None-Match: *` on the destination |
+| `azfile` | Sends one Azure Files rename request with `x-ms-file-rename-replace-if-exists: true` | Strong candidate: set the native replace header to `false` |
+| `compfs` | Calls `compio::fs::rename` | Same portability constraints as `fs` |
+| `dbfs` | Sends one DBFS move request | Candidate, but atomicity must be verified; DBFS rejects an existing destination |
+| `dropbox` | Sends one `files/move_v2` request | Candidate, but destination-conflict and atomicity guarantees must be verified |
+| `fs` | Calls `tokio::fs::rename` | No portable no-replace primitive in the current implementation |
+| `gdrive` | Trashes the destination, then patches source metadata | Not suitable; overwrite is a multi-request workflow and Drive permits duplicate names |
+| `goosefs` | Stats and deletes the destination, then calls the native rename RPC | Candidate if the native conflict is atomic; the current overwrite path is multi-step |
+| `hdfs_native` | Mutates the destination, then calls the client rename API with an overwrite flag | Strong candidate through the native `overwrite = false` path, after removing destination pre-mutation |
+| `hdfs` | Deletes the destination for normal rename, then calls native no-overwrite rename | Supported by this RFC's initial implementation |
+| `koofr` | Removes the destination, then sends one move request | Candidate only if the move endpoint atomically rejects conflicts; current overwrite is multi-step |
+| `monoiofs` | Calls `monoio::fs::rename` | Same portability constraints as `fs` |
+| `onedrive` | Sends a PATCH move request with conflict behavior set to `replace` | Candidate through conflict behavior `fail`, subject to OneDrive variant compatibility |
+| `pcloud` | Sends one `renamefile` or `renamefolder` request | Requires service-specific conflict and atomicity verification |
+| `sftp` | Calls the SFTP client's rename operation | Requires protocol/server-specific verification; overwrite behavior is not portable across servers |
+| `upyun` | Sends one move request using `x-upyun-move-source` | Requires service-specific conflict and atomicity verification |
+| `webdav` | Sends one `MOVE` request with `Overwrite: T` | Strong candidate: RFC 4918 defines `Overwrite: F` and a failed precondition |
+| `yandex_disk` | Sends one move request with `overwrite=true` | Candidate through `overwrite=false`, subject to atomicity and error-mapping verification |
+| `s3` | Does not advertise rename; supports copy and delete separately | Not suitable: conditional copy followed by delete is not an atomic rename |
+
+This audit also reveals that several existing backends implement OpenDAL's
+overwrite contract by deleting the destination before a native move. That
+behavior is inherently multi-step, but it does not prevent the same backend
+from supporting conditional rename when its native move atomically rejects an
+existing destination. The conditional capability must be based on the native
+operation, not on a `stat` or delete preflight.
+
 ### HDFS
 
 HDFS exposes rename options through `Options.Rename`. libhdfs `hdfsRename`
@@ -259,6 +315,41 @@ operations on other platforms, with a clearly defined portability policy.
 Any existing cross-platform differences in default FS overwrite behavior are
 outside this RFC and should be handled separately.
 
+`compfs` and `monoiofs` wrap the same operating-system rename model through
+different runtimes, so they have the same portability constraint. SFTP also
+requires caution because the effective rename behavior depends on the protocol
+operation and server implementation.
+
+### Native conditional move services
+
+Several services expose a destination policy in the same server-side move
+request:
+
+- Azure Data Lake Storage accepts `If-None-Match: *` for rename.
+- Azure Files exposes `x-ms-file-rename-replace-if-exists`.
+- WebDAV defines the `Overwrite` header for `MOVE`; `F` requires the server to
+  reject an existing destination.
+- Yandex Disk exposes an `overwrite` query parameter.
+- OneDrive exposes conflict behavior, although support differs between service
+  variants and must be verified before advertising the capability.
+
+These services are candidates for follow-up implementations. They are not
+enabled by this RFC's initial HDFS change. Each follow-up must include behavior
+coverage and service-specific error translation.
+
+### Multi-step overwrite services
+
+`aliyun_drive`, `gdrive`, `goosefs`, and `koofr` currently delete or trash an
+existing destination before moving the source. `hdfs`, `hdfs_native`, and some
+other filesystem-like services also perform destination preparation to retain
+OpenDAL's default overwrite contract.
+
+A multi-step overwrite implementation does not itself satisfy conditional
+rename. A backend may advertise `rename_with_if_not_exists` only if it can skip
+the destination mutation and invoke a native move that atomically rejects a
+conflict. Where that native guarantee is absent or undocumented, the capability
+must remain disabled.
+
 ### S3 and object stores without rename
 
 S3 does not expose a native rename operation, and the S3 service does not
@@ -271,14 +362,19 @@ by delete is not an atomic rename:
 
 Therefore, `copy_with(...).if_not_exists(true)` plus delete must not be used to
 advertise either rename capability. Other object stores with the same operation
-model follow the same rule.
+model, including services whose `rename` implementation is an unsupported
+placeholder, follow the same rule.
 
 ### Other services
 
-Services can adopt `rename_with_if_not_exists` independently when they have a
-native rename primitive that rejects destination replacement atomically. A
-service-specific implementation may translate native error codes, but it must
-preserve the common OpenDAL result and path-state contract.
+`dbfs`, `dropbox`, `pcloud`, and `upyun` issue server-side move requests but the
+current OpenDAL implementations do not expose enough evidence to claim the
+required atomic destination condition. They remain follow-up candidates pending
+verification against service guarantees and real backend behavior.
+
+Services can adopt `rename_with_if_not_exists` independently after that
+verification. A service-specific implementation may translate native error
+codes, but it must preserve the common OpenDAL result and path-state contract.
 
 # Drawbacks
 

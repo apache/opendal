@@ -45,7 +45,7 @@ Rename should follow the same public API and error model.
 
 # Guide-level explanation
 
-Use `rename` when the destination may be replaced:
+Current behavior: use `rename` when users want to overwrite a destination file when the destination file exist:
 
 ```rust
 use opendal::{Operator, Result};

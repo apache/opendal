@@ -257,6 +257,19 @@ This RFC does not require rename to be crash-atomic beyond the guarantees of the
 underlying service. It requires the no-replace decision to be atomic with
 respect to competing destination creation.
 
+This RFC does not require `rename` (overwrite) to be atomic. A service may
+implement overwrite rename as a multi-step delete-then-rename and still
+advertise `rename: true` because overwrite has no external condition to
+enforce. The atomicity gate is specific to `rename_with_if_not_exists`,
+where the destination existence check and the move must not race with
+another writer.
+
+A backend whose overwrite rename is implemented as delete-then-rename
+may still support `rename_with_if_not_exists` when its native move
+atomically rejects an existing destination: it simply skips the
+pre-delete when `if_not_exists` is set. The HDFS analysis below
+illustrates this pattern.
+
 ## Service analysis
 
 ### Audit scope

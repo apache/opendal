@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Rename If Not Exists
+#[doc = include_str!("0000_rename_if_not_exists.md")]
+pub mod rfc_0000_rename_if_not_exists {}
+
 /// HTTP Transporter
 #[doc = include_str!("7749_http_transporter.md")]
 pub mod rfc_7749_http_transporter {}

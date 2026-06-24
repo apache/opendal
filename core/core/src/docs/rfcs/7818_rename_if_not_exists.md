@@ -215,6 +215,11 @@ pub struct Capability {
 The correctness check returns `Unsupported` before dispatch when the option is
 enabled but the service does not advertise the capability.
 
+This follows the existing pattern for write and copy, where
+`RenameOptions` is always constructable and the runtime check enforces
+the underlying service support. See
+`correctness_check.rs` for the equivalent copy and write checks.
+
 ## Error semantics
 
 `if_not_exists` is a destination precondition, so a destination conflict maps

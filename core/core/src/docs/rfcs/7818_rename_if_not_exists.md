@@ -56,8 +56,8 @@ async fn replace(op: Operator) -> Result<()> {
 }
 ```
 
-Use `rename_with(...).if_not_exists(true)` when an existing destination must be
-preserved:
+New API: use `rename_with(...).if_not_exists(true)` when an existing destination must be
+preserved when the destination file exist:
 
 ```rust
 use opendal::{ErrorKind, Operator, Result};

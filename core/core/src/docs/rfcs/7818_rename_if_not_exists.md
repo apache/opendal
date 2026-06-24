@@ -237,12 +237,13 @@ corresponding directory error, and an unsupported condition returns
 
 ## Atomicity requirement
 
-A service must advertise `rename_with_if_not_exists` only when the destination
-condition and rename are enforced by one native operation. Performing a
-destination check followed by an overwriting rename has a time-of-check to
-time-of-use race and does not satisfy the capability.
+A service must advertise `rename_with_if_not_exists` only when the
+destination-does-not-exist check and the rename itself are performed by a
+single native operation. Performing a separate stat check followed by an
+overwriting rename has a time-of-check to time-of-use race and does not
+satisfy the capability.
 
-When the destination condition fails:
+When the destination already exists (the `if_not_exists` condition fails):
 
 - The source remains at its original path.
 - The destination remains unchanged.

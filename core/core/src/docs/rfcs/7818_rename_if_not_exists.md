@@ -248,7 +248,7 @@ When the destination already exists (the `if_not_exists` condition fails):
 - The source remains at its original path.
 - The destination remains unchanged.
 
-When the operation succeeds:
+When the rename succeeds:
 
 - The source no longer exists at its original path.
 - The destination contains the source data.

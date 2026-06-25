@@ -3851,18 +3851,6 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Webdav implements ServiceConfig {
         /**
-         * <p>Disable conditional read headers on GET requests.</p>
-         * <p>By default, OpenDAL advertises and sends the RFC 7232 headers
-         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
-         * <code>If-Unmodified-Since</code> when callers ask for conditional reads.</p>
-         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return
-         * ETags in PROPFIND or don't honor these conditions on GET.
-         * Enable this option to drop the four <code>read_with_if_*</code> capabilities
-         * so callers fail fast instead of silently losing the condition.</p>
-         * <p>Default: false</p>
-         */
-        public final Boolean disableConditionalRead;
-        /**
          * <p>Deprecated: WebDAV copy capability is enabled by default.</p>
          *
          * @deprecated WebDAV copy capability is enabled by default and this option is no longer needed.
@@ -3878,6 +3866,24 @@ public interface ServiceConfig {
          * <p>Default: false</p>
          */
         public final Boolean disableCreateDir;
+        /**
+         * <p>Enable conditional read support.</p>
+         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
+         * to the server when callers provide them:</p>
+         * <ul>
+         * <li><code>If-Match</code></li>
+         * <li><code>If-None-Match</code></li>
+         * <li><code>If-Modified-Since</code></li>
+         * <li><code>If-Unmodified-Since</code></li>
+         * </ul>
+         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
+         * in PROPFIND or don't honor these headers on GET. Setting this to
+         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
+         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
+         * locally instead of being silently ignored by the server.</p>
+         * <p>Default: true</p>
+         */
+        public final Boolean enableConditionalRead;
         /**
          * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
          *
@@ -3928,14 +3934,14 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
-            if (disableConditionalRead != null) {
-                map.put("disable_conditional_read", String.valueOf(disableConditionalRead));
-            }
             if (disableCopy != null) {
                 map.put("disable_copy", String.valueOf(disableCopy));
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (enableConditionalRead != null) {
+                map.put("enable_conditional_read", String.valueOf(enableConditionalRead));
             }
             if (enableUserMetadata != null) {
                 map.put("enable_user_metadata", String.valueOf(enableUserMetadata));

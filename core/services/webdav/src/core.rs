@@ -1559,6 +1559,10 @@ mod error {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
             // Some services (like owncloud) return 403 while file locked.
             StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+            // RFC 7232: 412 means an If-Match / If-Unmodified-Since
+            // precondition failed; 304 means an If-None-Match /
+            // If-Modified-Since precondition matched. Surface both as
+            // ConditionNotMatch so callers can branch on it.
             StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
                 (ErrorKind::ConditionNotMatch, false)
             }

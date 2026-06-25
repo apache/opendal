@@ -154,20 +154,24 @@ impl WebdavBuilder {
         self
     }
 
-    /// Disable conditional read headers on GET requests.
+    /// Enable conditional read support.
     ///
-    /// By default, OpenDAL advertises and sends the RFC 7232 headers
-    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
-    /// `If-Unmodified-Since` when callers ask for conditional reads.
+    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
+    /// to the server when callers provide them:
+    /// - `If-Match`
+    /// - `If-None-Match`
+    /// - `If-Modified-Since`
+    /// - `If-Unmodified-Since`
     ///
-    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return
-    /// ETags in PROPFIND or don't honor these conditions on GET.
-    /// Enable this option to drop the four `read_with_if_*` capabilities
-    /// so callers fail fast instead of silently losing the condition.
+    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
+    /// in PROPFIND or don't honor these headers on GET. Setting this to
+    /// `false` drops the four `read_with_if_*` capabilities, so calls like
+    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
+    /// locally instead of being silently ignored by the server.
     ///
-    /// Default: false
-    pub fn disable_conditional_read(mut self, disable: bool) -> Self {
-        self.config.disable_conditional_read = disable;
+    /// Default: true
+    pub fn enable_conditional_read(mut self, enable: bool) -> Self {
+        self.config.enable_conditional_read = enable;
         self
     }
 }
@@ -210,7 +214,7 @@ impl Builder for WebdavBuilder {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
-        let conditional_read = !self.config.disable_conditional_read;
+        let conditional_read = self.config.enable_conditional_read;
 
         let core = Arc::new(WebdavCore {
             info: ServiceInfo::new(WEBDAV_SCHEME, &root, ""),

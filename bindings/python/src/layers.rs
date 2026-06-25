@@ -25,12 +25,10 @@ pub trait PythonLayer: Send + Sync {
 }
 
 /// Layers are used to intercept the operations on the underlying storage.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", subclass)]
 pub struct Layer(pub Box<dyn PythonLayer>);
 
 /// A layer that overrides the full capability exposed by an operator.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct CapabilityOverrideLayer(ocore::layers::CapabilityOverrideLayer);
@@ -40,8 +38,6 @@ impl PythonLayer for CapabilityOverrideLayer {
         op.layer(self.0.clone())
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl CapabilityOverrideLayer {
     /// Create a new CapabilityOverrideLayer from capability override entries.
@@ -54,7 +50,6 @@ impl CapabilityOverrideLayer {
     /// Returns
     /// -------
     /// CapabilityOverrideLayer
-    #[gen_stub(override_return_type(type_repr = "CapabilityOverrideLayer"))]
     #[new]
     #[pyo3(signature = (overrides))]
     fn new(overrides: &str) -> PyResult<PyClassInitializer<Self>> {
@@ -79,7 +74,6 @@ impl CapabilityOverrideLayer {
 /// After an operation on a `Reader` or `Writer` has failed through
 /// all retries, the object is in an undefined state. Reusing it
 /// can lead to exceptions.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct RetryLayer(ocore::layers::RetryLayer);
@@ -89,8 +83,6 @@ impl PythonLayer for RetryLayer {
         op.layer(self.0.clone())
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl RetryLayer {
     /// Create a new RetryLayer.
@@ -111,7 +103,6 @@ impl RetryLayer {
     /// Returns
     /// -------
     /// RetryLayer
-    #[gen_stub(override_return_type(type_repr = "RetryLayer"))]
     #[new]
     #[pyo3(signature = (
         max_times = None,
@@ -160,7 +151,6 @@ impl RetryLayer {
 /// allows you to reuse the same layer across multiple operators, ensuring
 /// that the total number of concurrent requests across the entire
 /// application does not exceed the limit.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer(ocore::layers::ConcurrentLimitLayer);
@@ -170,8 +160,6 @@ impl PythonLayer for ConcurrentLimitLayer {
         op.layer(self.0.clone())
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl ConcurrentLimitLayer {
     /// Create a new ConcurrentLimitLayer.
@@ -184,7 +172,6 @@ impl ConcurrentLimitLayer {
     /// Returns
     /// -------
     /// ConcurrentLimitLayer
-    #[gen_stub(override_return_type(type_repr = "ConcurrentLimitLayer"))]
     #[new]
     #[pyo3(signature = (limit))]
     fn new(limit: usize) -> PyResult<PyClassInitializer<Self>> {
@@ -210,7 +197,6 @@ impl ConcurrentLimitLayer {
 ///
 /// A ``Content-Type`` is not guaranteed. If the file extension is
 /// uncommon or unknown, the content type will remain unset.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
 #[derive(Clone)]
 pub struct MimeGuessLayer(ocore::layers::MimeGuessLayer);
@@ -220,8 +206,6 @@ impl PythonLayer for MimeGuessLayer {
         op.layer(self.0.clone())
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl MimeGuessLayer {
     /// Create a new MimeGuessLayer.
@@ -229,7 +213,6 @@ impl MimeGuessLayer {
     /// Returns
     /// -------
     /// MimeGuessLayer
-    #[gen_stub(override_return_type(type_repr = "MimeGuessLayer"))]
     #[new]
     fn new() -> PyResult<PyClassInitializer<Self>> {
         let mime_guess = Self(ocore::layers::MimeGuessLayer::default());

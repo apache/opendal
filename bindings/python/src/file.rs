@@ -39,7 +39,6 @@ use crate::*;
 /// A file-like object for reading and writing data.
 ///
 /// Created by the `open` method of the `Operator` class.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.file")]
 pub struct File(FileState);
 
@@ -58,8 +57,6 @@ impl File {
         Self(FileState::Writer(writer.into_std_write()))
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl File {
     /// Read at most `size` bytes from this file.
@@ -80,8 +77,7 @@ impl File {
     /// -------
     /// bytes
     ///     The bytes read from this file.
-    #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
-    #[pyo3(signature = (size=None))]
+    #[pyo3(signature = (size=None) -> "bytes")]
     pub fn read<'p>(
         &'p mut self,
         py: Python<'p>,
@@ -140,8 +136,7 @@ impl File {
     /// -------
     /// bytes
     ///     The bytes read from this file.
-    #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
-    #[pyo3(signature = (size=None))]
+    #[pyo3(signature = (size=None) -> "bytes")]
     pub fn readline<'p>(
         &'p mut self,
         py: Python<'p>,
@@ -194,11 +189,8 @@ impl File {
     /// -------
     /// int
     ///     The number of bytes read.
-    pub fn readinto(
-        &mut self,
-        #[gen_stub(override_type(type_repr = "builtins.bytes | builtins.bytearray", imports=("builtins")))]
-        buffer: PyBuffer<u8>,
-    ) -> PyResult<usize> {
+    #[pyo3(signature = (buffer: "bytes | bytearray"))]
+    pub fn readinto(&mut self, buffer: PyBuffer<u8>) -> PyResult<usize> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -243,10 +235,8 @@ impl File {
     /// -------
     /// int
     ///     The number of bytes written.
-    pub fn write(
-        &mut self,
-        #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))] bs: &[u8],
-    ) -> PyResult<usize> {
+    #[pyo3(signature = (bs: "bytes"))]
+    pub fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
         let writer = match &mut self.0 {
             FileState::Reader(_) => {
                 return Err(PyIOError::new_err(
@@ -360,14 +350,14 @@ impl File {
     }
 
     #[allow(unused_variables)]
-    #[pyo3(signature = (exc_type, exc_value, traceback))]
+    #[pyo3(signature = (
+        exc_type: "type[BaseException] | None",
+        exc_value: "BaseException | None",
+        traceback: "types.TracebackType | None"))]
     pub fn __exit__(
         &mut self,
-        #[gen_stub(override_type(type_repr = "type[builtins.BaseException] | None", imports=("builtins")))]
         exc_type: Py<PyAny>,
-        #[gen_stub(override_type(type_repr = "builtins.BaseException | None", imports=("builtins")))]
         exc_value: Py<PyAny>,
-        #[gen_stub(override_type(type_repr = "types.TracebackType | None", imports=("types")))]
         traceback: Py<PyAny>,
     ) -> PyResult<()> {
         self.close()
@@ -443,7 +433,6 @@ impl File {
 /// An async file-like object for reading and writing data.
 ///
 /// Created by the `open` method of the `AsyncOperator` class.
-#[gen_stub_pyclass]
 #[pyclass(module = "opendal.file")]
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
@@ -462,8 +451,6 @@ impl AsyncFile {
         Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
-
-#[gen_stub_pymethods]
 #[pymethods]
 impl AsyncFile {
     /// Read at most `size` bytes from this file asynchronously.
@@ -484,11 +471,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns the bytes read from the stream.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.bytes]",
-        imports=("collections.abc", "builtins")
-    ))]
-    #[pyo3(signature = (size=None))]
+    #[pyo3(signature = (size=None) -> "collections.abc.Awaitable[bytes]")]
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
@@ -544,16 +527,8 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns the number of bytes written.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.int]",
-        imports=("collections.abc", "builtins")
-    ))]
-    pub fn write<'p>(
-        &'p mut self,
-        py: Python<'p>,
-        #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))]
-        bs: &'p [u8],
-    ) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (bs: "bytes") -> "collections.abc.Awaitable[int]")]
+    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         // FIXME: can we avoid this clone?
@@ -598,11 +573,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns the current absolute position.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.int]",
-        imports=("collections.abc", "builtins")
-    ))]
-    #[pyo3(signature = (pos, whence = 0))]
+    #[pyo3(signature = (pos, whence = 0) -> "collections.abc.Awaitable[int]")]
     pub fn seek<'p>(
         &'p mut self,
         py: Python<'p>,
@@ -649,10 +620,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns the current absolute position.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.int]",
-        imports=("collections.abc", "builtins")
-    ))]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[int]")]
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
@@ -688,10 +656,7 @@ impl AsyncFile {
     /// Notes
     /// -----
     /// A closed file cannot be used for further I/O operations.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[None]",
-        imports=("collections.abc")
-    ))]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[None]")]
     fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
@@ -704,23 +669,22 @@ impl AsyncFile {
         })
     }
 
-    #[gen_stub(override_return_type(type_repr="typing.Self", imports=("typing")))]
+    #[pyo3(signature = () -> "typing_extensions.Self")]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })
     }
 
     #[allow(unused_variables)]
-    #[gen_stub(override_return_type(type_repr = "None"))]
-    #[pyo3(signature = (exc_type, exc_value, traceback))]
+    #[pyo3(signature = (
+        exc_type: "type[BaseException] | None",
+        exc_value: "BaseException | None",
+        traceback: "types.TracebackType | None") -> "None")]
     fn __aexit__<'a>(
         &'a mut self,
         py: Python<'a>,
-        #[gen_stub(override_type(type_repr = "type[builtins.BaseException] | None", imports=("builtins")))]
         exc_type: &Bound<'a, PyAny>,
-        #[gen_stub(override_type(type_repr = "builtins.BaseException | None", imports=("builtins")))]
         exc_value: &Bound<'a, PyAny>,
-        #[gen_stub(override_type(type_repr = "types.TracebackType | None", imports=("types")))]
         traceback: &Bound<'a, PyAny>,
     ) -> PyResult<Bound<'a, PyAny>> {
         self.close(py)
@@ -732,10 +696,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns True if this file can be read from.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.bool]",
-        imports=("collections.abc", "builtins")
-    ))]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[bool]")]
     pub fn readable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
@@ -750,10 +711,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns True if this file can be written to.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.bool]",
-        imports=("collections.abc", "builtins")
-    ))]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[bool]")]
     pub fn writable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
@@ -772,10 +730,7 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns True if this file can be repositioned.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.bool]",
-        imports=("collections.abc", "builtins")
-    ))]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[bool]")]
     pub fn seekable<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         if true {
             self.readable(py)
@@ -790,10 +745,6 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns True if this file is closed.
-    #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[builtins.bool]",
-        imports=("collections.abc", "builtins")
-    ))]
     #[getter]
     pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();

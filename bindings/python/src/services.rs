@@ -2659,6 +2659,7 @@ submit! {
                 *,
                 disable_copy: builtins.bool = ...,
                 disable_create_dir: builtins.bool = ...,
+                enable_conditional_read: builtins.bool = ...,
                 enable_user_metadata: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 password: builtins.str = ...,
@@ -2689,6 +2690,21 @@ submit! {
                     Enable this option to skip the MKCOL calls and write
                     files directly.
                     Default: false
+                enable_conditional_read : builtins.bool, optional
+                    Enable conditional read support.
+                    When enabled (the default), OpenDAL forwards the RFC
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` to the
+                    server when callers provide them.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
+                    headers on GET.
+                    Setting this to `false` drops the four
+                    `read_with_if_*` capabilities, so calls like
+                    `reader_with(path).if_match(...)` return
+                    `ErrorKind::Unsupported` locally instead of being
+                    silently ignored by the server.
+                    Default: true
                 enable_user_metadata : builtins.bool, optional
                     Deprecated: WebDAV user metadata capability is
                     enabled by default.
@@ -5303,6 +5319,7 @@ submit! {
                 *,
                 disable_copy: builtins.bool = ...,
                 disable_create_dir: builtins.bool = ...,
+                enable_conditional_read: builtins.bool = ...,
                 enable_user_metadata: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 password: builtins.str = ...,
@@ -5333,6 +5350,21 @@ submit! {
                     Enable this option to skip the MKCOL calls and write
                     files directly.
                     Default: false
+                enable_conditional_read : builtins.bool, optional
+                    Enable conditional read support.
+                    When enabled (the default), OpenDAL forwards the RFC
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` to the
+                    server when callers provide them.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
+                    headers on GET.
+                    Setting this to `false` drops the four
+                    `read_with_if_*` capabilities, so calls like
+                    `reader_with(path).if_match(...)` return
+                    `ErrorKind::Unsupported` locally instead of being
+                    silently ignored by the server.
+                    Default: true
                 enable_user_metadata : builtins.bool, optional
                     Deprecated: WebDAV user metadata capability is
                     enabled by default.

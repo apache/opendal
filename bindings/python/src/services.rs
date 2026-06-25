@@ -2693,11 +2693,11 @@ submit! {
                 enable_conditional_read : builtins.bool, optional
                     Enable conditional read support.
                     When enabled (the default), OpenDAL forwards the RFC
-                    7232 headers to the server when callers provide
-                    them: - `If-Match` - `If-None-Match` -
-                    `If-Modified-Since` - `If-Unmodified-Since` Some
-                    WebDAV-compatible servers (e.g., nginx-dav) don't
-                    return ETags in PROPFIND or don't honor these
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` to the
+                    server when callers provide them.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
                     headers on GET.
                     Setting this to `false` drops the four
                     `read_with_if_*` capabilities, so calls like
@@ -5353,11 +5353,11 @@ submit! {
                 enable_conditional_read : builtins.bool, optional
                     Enable conditional read support.
                     When enabled (the default), OpenDAL forwards the RFC
-                    7232 headers to the server when callers provide
-                    them: - `If-Match` - `If-None-Match` -
-                    `If-Modified-Since` - `If-Unmodified-Since` Some
-                    WebDAV-compatible servers (e.g., nginx-dav) don't
-                    return ETags in PROPFIND or don't honor these
+                    7232 headers `If-Match`, `If-None-Match`,
+                    `If-Modified-Since` and `If-Unmodified-Since` to the
+                    server when callers provide them.
+                    Some WebDAV-compatible servers (e.g., nginx-dav)
+                    don't return ETags in PROPFIND or don't honor these
                     headers on GET.
                     Setting this to `false` drops the four
                     `read_with_if_*` capabilities, so calls like

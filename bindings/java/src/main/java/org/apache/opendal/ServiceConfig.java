@@ -3869,13 +3869,8 @@ public interface ServiceConfig {
         /**
          * <p>Enable conditional read support.</p>
          * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
-         * to the server when callers provide them:</p>
-         * <ul>
-         * <li><code>If-Match</code></li>
-         * <li><code>If-None-Match</code></li>
-         * <li><code>If-Modified-Since</code></li>
-         * <li><code>If-Unmodified-Since</code></li>
-         * </ul>
+         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
+         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
          * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
          * in PROPFIND or don't honor these headers on GET. Setting this to
          * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like

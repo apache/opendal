@@ -15,33 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ruff: noqa: D104
-from __future__ import annotations
+from typing import Final, final
 
-# `_opendal` registers the submodules in `sys.modules` on import (see
-# `register_submodules`), so import it before importing from them.
-from opendal import _opendal as _opendal
-from opendal._opendal import __version__ as __version__
-from opendal.operator import AsyncOperator, Operator
+from _typeshed import Incomplete
 
-from opendal import (  # isort: skip
-    capability as capability,
-    exceptions as exceptions,
-    file as file,
-    layers as layers,
-    operator as operator,
-    services as services,
-    types as types,
-)
+__version__: Final[str]
 
-__all__ = [
-    "AsyncOperator",
-    "Operator",
-    "capability",
-    "exceptions",
-    "file",
-    "layers",
-    "operator",
-    "services",
-    "types",
-]
+@final
+class DeleteOptions: ...
+
+@final
+class ListOptions: ...
+
+@final
+class ReadOptions: ...
+
+@final
+class StatOptions: ...
+
+@final
+class WriteOptions: ...
+
+def __getattr__(name: str) -> Incomplete: ...

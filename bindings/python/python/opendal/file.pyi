@@ -29,7 +29,7 @@ class AsyncFile:
     Created by the `open` method of the `AsyncOperator` class.
     """
 
-    def __aenter__(self, /) -> typing_extensions.Self: ...
+    def __aenter__(self, /) -> collections.abc.Awaitable[typing_extensions.Self]: ...
     def __aexit__(
         self,
         /,
@@ -224,7 +224,7 @@ class File:
         bool
             True if this file can be read from.
         """
-    def readinto(self, /, buffer: bytes | bytearray) -> int:
+    def readinto(self, /, buffer: bytearray | memoryview) -> int:
         """
         Read bytes into a pre-allocated buffer.
 

@@ -189,7 +189,7 @@ impl File {
     /// -------
     /// int
     ///     The number of bytes read.
-    #[pyo3(signature = (buffer: "bytes | bytearray"))]
+    #[pyo3(signature = (buffer: "bytearray | memoryview"))]
     pub fn readinto(&mut self, buffer: PyBuffer<u8>) -> PyResult<usize> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
@@ -669,11 +669,8 @@ impl AsyncFile {
         })
     }
 
-    // `typing_extensions.Self` (not `typing.Self`) because the binding's
-    // `requires-python` floor is 3.10, where `typing.Self` (3.11+) is absent;
-    // `typing_extensions` back-ports it. Switch to `typing.Self` once the floor
-    // reaches 3.11.
-    #[pyo3(signature = () -> "typing_extensions.Self")]
+    // `typing_extensions.Self` because `typing.Self` is 3.11+ and the floor is 3.10.
+    #[pyo3(signature = () -> "collections.abc.Awaitable[typing_extensions.Self]")]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })

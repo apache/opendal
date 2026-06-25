@@ -61,6 +61,12 @@ jobs:
         with:
           working-directory: "bindings/python"
       - uses: taiki-e/install-action@just
+      - name: Setup taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+      - name: Setup hawkeye
+        run: cargo install hawkeye --locked
       - name: Regenerate stubs
         working-directory: "bindings/python"
         run: just stub-gen

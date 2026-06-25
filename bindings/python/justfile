@@ -130,7 +130,7 @@ fmt: setup
     @echo "{{ BOLD }}--- Formatting Python ---{{ NORMAL }}"
     @uv run ruff format --quiet
     ## Fixes generated stubs
-    @uv run ruff check --unsafe-fixes --fix --quiet
+    @uv run ruff check --unsafe-fixes --fix --silent
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
     @hawkeye format --config ../../licenserc.toml --fail-if-updated false
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"

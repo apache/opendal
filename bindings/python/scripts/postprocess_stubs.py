@@ -15,42 +15,51 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Post-process the stubs emitted by ``maturin --generate-stubs``.
+"""Post-process the stubs from ``maturin --generate-stubs``.
 
-Temporary fixups, expected to disappear as PyO3 introspection matures:
+``maturin`` writes them under ``opendal/_opendal/``, but the public API and the
+classes' ``module=`` use ``opendal.<name>``; type checkers resolve from the
+filesystem, so the stubs must live at ``opendal/<name>.pyi``. This relocates
+them and applies two temporary fixups (until PyO3 introspection covers them):
 
-1. Inject the module imports that our forward-reference string annotations need.
-   PyO3 writes ``-> "collections.abc.Awaitable[...]"`` verbatim but does not emit
-   the import. (Custom-import injection is on the PyO3 introspection roadmap.)
-2. Replace the generated ``exceptions.pyi`` with a hand-written one, but only
-   while the generated stub is incomplete. ``create_exception!`` produces
-   ``PyErr`` subtypes (not ``#[pyclass]``es), which PyO3 cannot yet introspect,
-   so it emits just ``def __getattr__(name) -> Incomplete``. Once upstream can
-   describe these types, the generated stub will no longer be incomplete and is
-   kept as-is -- automatically retiring this hack.
+1. Inject the imports our forward-ref string annotations need (PyO3 writes the
+   annotation but not the import).
+2. Replace ``exceptions.pyi`` with a hand-written stub while the generated one is
+   incomplete -- ``create_exception!`` types are not introspectable yet, so PyO3
+   emits only ``__getattr__``. When that changes, the stub is kept as-is.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-GEN = Path(__file__).resolve().parent.parent / "python" / "opendal" / "_opendal"
+PKG = Path(__file__).resolve().parent.parent / "python" / "opendal"
+GEN = PKG / "_opendal"
 
-# Names referenced only inside forward-reference string annotations, which PyO3
-# does not emit imports for. Keyed by stub file -> import lines to prepend.
+# Public ``opendal.<name>`` submodules whose stubs are relocated to ``<name>.pyi``.
+SUBMODULES = (
+    "capability",
+    "exceptions",
+    "file",
+    "layers",
+    "operator",
+    "services",
+    "types",
+)
+
+# Imports for forward-ref string annotations that PyO3 does not emit. Relative
+# imports stay valid after relocation (the siblings move together).
 IMPORTS = {
-    "operator.pyi": (
+    "operator": (
         "import collections.abc\n"
         "from .file import AsyncFile\n"
         "from .services import Scheme\n"
         "from .types import Entry, PresignedRequest\n"
     ),
-    "file.pyi": ("import collections.abc\nimport types\nimport typing_extensions\n"),
+    "file": "import collections.abc\nimport types\nimport typing_extensions\n",
 }
 
-# Hand-written exceptions stub, written only when the generated one is
-# incomplete (see module docstring). Mirrors the `create_exception!` types in
-# `src/errors.rs`; keep in sync until PyO3 can introspect them.
+# Mirrors the `create_exception!` types in `src/errors.rs`; keep in sync.
 EXCEPTIONS_STUB = """\
 class Error(Exception): ...
 class Unexpected(Exception): ...
@@ -68,25 +77,31 @@ class RangeNotSatisfied(Exception): ...
 """
 
 
-def inject_imports() -> None:
-    """Prepend forward-reference imports PyO3 introspection does not emit."""
-    for name, header in IMPORTS.items():
-        path = GEN / name
-        path.write_text(header + path.read_text())
-
-
 def fix_incomplete_exceptions() -> None:
-    """Replace exceptions.pyi with the hand-written stub while it is incomplete."""
+    """Use the hand-written exceptions stub while the generated one is incomplete."""
     path = GEN / "exceptions.pyi"
-    incomplete = "__getattr__" in path.read_text()
-    if incomplete:
+    if "__getattr__" in path.read_text():
         path.write_text(EXCEPTIONS_STUB)
 
 
+def relocate() -> None:
+    """Move the stubs to the public ``opendal/<name>.pyi`` paths."""
+    for name in SUBMODULES:
+        text = (GEN / f"{name}.pyi").read_text()
+        (PKG / f"{name}.pyi").write_text(IMPORTS.get(name, "") + text)
+
+    # Stub for the ``opendal/_opendal.*.so`` extension itself.
+    (PKG / "_opendal.pyi").write_text((GEN / "__init__.pyi").read_text())
+
+    for child in GEN.iterdir():
+        child.unlink()
+    GEN.rmdir()
+
+
 def main() -> None:
-    """Run the post-generation stub fixups."""
-    inject_imports()
+    """Apply the fixups, then relocate to the public paths."""
     fix_incomplete_exceptions()
+    relocate()
 
 
 if __name__ == "__main__":

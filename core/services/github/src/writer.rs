@@ -21,7 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::GithubCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -29,12 +29,13 @@ pub type GithubWriters = oio::OneShotWriter<GithubWriter>;
 
 pub struct GithubWriter {
     core: Arc<GithubCore>,
+    ctx: OperationContext,
     path: String,
 }
 
 impl GithubWriter {
-    pub fn new(core: Arc<GithubCore>, path: String) -> Self {
-        GithubWriter { core, path }
+    pub fn new(core: Arc<GithubCore>, ctx: OperationContext, path: String) -> Self {
+        GithubWriter { core, ctx, path }
     }
 
     fn parse_metadata(content: &super::core::Entry) -> Result<Metadata> {
@@ -56,7 +57,7 @@ impl GithubWriter {
 
 impl oio::OneShotWrite for GithubWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.upload(&self.path, bs).await?;
+        let resp = self.core.upload(&self.ctx, &self.path, bs).await?;
 
         let status = resp.status();
 

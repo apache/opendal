@@ -19,24 +19,25 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct KoofrDeleter {
     core: Arc<KoofrCore>,
+    ctx: OperationContext,
 }
 
 impl KoofrDeleter {
-    pub fn new(core: Arc<KoofrCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<KoofrCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::OneShotDelete for KoofrDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.remove(&path).await?;
+        let resp = self.core.remove(&self.ctx, &path).await?;
 
         let status = resp.status();
 

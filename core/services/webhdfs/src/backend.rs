@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use mea::once::OnceCell;
@@ -27,12 +26,13 @@ use mea::once::OnceCell;
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;
 use super::core::WebhdfsCore;
+use super::core::parse_error;
 use super::deleter::WebhdfsDeleter;
-use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
+use super::reader::*;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use opendal_core::raw::oio;
@@ -142,7 +142,7 @@ impl Builder for WebhdfsBuilder {
     /// when building backend, the built backend will check if the root directory
     /// exits.
     /// if the directory does not exit, the directory will be automatically created
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("start building backend: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -165,31 +165,30 @@ impl Builder for WebhdfsBuilder {
 
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
-        let info = AccessorInfo::default();
-        info.set_scheme(WEBHDFS_SCHEME)
-            .set_root(&root)
-            .set_native_capability(Capability {
-                stat: true,
+        let info = ServiceInfo::new(WEBHDFS_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
 
-                read: true,
+            read: true,
 
-                write: true,
-                write_can_append: true,
-                write_can_multi: atomic_write_dir.is_some(),
+            write: true,
+            write_can_append: true,
+            write_can_multi: atomic_write_dir.is_some(),
 
-                create_dir: true,
-                delete: true,
+            create_dir: true,
+            delete: true,
 
-                list: true,
+            list: true,
 
-                shared: true,
+            shared: true,
 
-                ..Default::default()
-            });
+            ..Default::default()
+        };
 
-        let accessor_info = Arc::new(info);
+        let accessor_info = info;
         let core = Arc::new(WebhdfsCore {
             info: accessor_info,
+            capability,
             root,
             endpoint,
             user_name: self.config.user_name,
@@ -206,12 +205,12 @@ impl Builder for WebhdfsBuilder {
 /// Backend for WebHDFS service
 #[derive(Debug, Clone)]
 pub struct WebhdfsBackend {
-    core: Arc<WebhdfsCore>,
+    pub(crate) core: Arc<WebhdfsCore>,
 }
 
 impl WebhdfsBackend {
-    async fn check_root(&self) -> Result<()> {
-        let resp = self.core.webhdfs_get_file_status("/").await?;
+    async fn check_root(&self, ctx: &OperationContext) -> Result<()> {
+        let resp = self.core.webhdfs_get_file_status(ctx, "/").await?;
         match resp.status() {
             StatusCode::OK => {
                 let bs = resp.into_body();
@@ -228,7 +227,7 @@ impl WebhdfsBackend {
                 }
             }
             StatusCode::NOT_FOUND => {
-                self.create_dir("/", OpCreateDir::new()).await?;
+                self.create_dir(ctx, "/", OpCreateDir::new()).await?;
             }
             _ => return Err(parse_error(resp)),
         }
@@ -236,55 +235,29 @@ impl WebhdfsBackend {
     }
 }
 
-/// Reader returned by this backend.
-pub struct WebhdfsReader {
-    backend: WebhdfsBackend,
-    path: String,
-}
-
-impl WebhdfsReader {
-    fn new(backend: WebhdfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for WebhdfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.webhdfs_read_file(path, range).await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (RpRead::default(), resp.into_body()),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for WebhdfsBackend {
+impl Service for WebhdfsBackend {
     type Reader = oio::StreamReader<WebhdfsReader>;
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
     /// Create a file or directory
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.webhdfs_create_dir(path).await?;
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        let resp = self.core.webhdfs_create_dir(ctx, path).await?;
 
         let status = resp.status();
         // WebHDFS's has a two-step create/append to prevent clients to send out
@@ -311,14 +284,14 @@ impl Access for WebhdfsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // if root exists and is a directory, stat will be ok
         self.core
             .root_checker
-            .get_or_try_init(|| async { self.check_root().await })
+            .get_or_try_init(|| async { self.check_root(ctx).await })
             .await?;
 
-        let resp = self.core.webhdfs_get_file_status(path).await?;
+        let resp = self.core.webhdfs_get_file_status(ctx, path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -343,46 +316,108 @@ impl Access for WebhdfsBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(WebhdfsReader::new(self.clone(), path, args)),
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<WebhdfsReader> = {
+            Ok(oio::StreamReader::new(WebhdfsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: WebhdfsWriters = {
+            let w = WebhdfsWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+
+            let w = if args.append() {
+                WebhdfsWriters::Two(oio::AppendWriter::new(w))
+            } else {
+                WebhdfsWriters::One(oio::BlockWriter::new(
+                    ctx.executor().clone(),
+                    w,
+                    args.concurrent(),
+                ))
+            };
+
+            Ok(w)
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<WebhdfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(WebhdfsDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<WebhdfsLister> = {
+            if args.recursive() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "WebHDFS doesn't support list with recursive",
+                ));
+            }
+
+            let path = path.trim_end_matches('/');
+            let l = WebhdfsLister::new(self.core.clone(), ctx.clone(), path);
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = WebhdfsWriter::new(self.core.clone(), args.clone(), path.to_string());
-
-        let w = if args.append() {
-            WebhdfsWriters::Two(oio::AppendWriter::new(w))
-        } else {
-            WebhdfsWriters::One(oio::BlockWriter::new(
-                self.info().clone(),
-                w,
-                args.concurrent(),
-            ))
-        };
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(WebhdfsDeleter::new(self.core.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        if args.recursive() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "WebHDFS doesn't support list with recursive",
-            ));
-        }
-
-        let path = path.trim_end_matches('/');
-        let l = WebhdfsLister::new(self.core.clone(), path);
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

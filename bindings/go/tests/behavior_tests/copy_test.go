@@ -379,7 +379,7 @@ func copyMultiChunkSize(cap *opendal.Capability) (uint, uint) {
 }
 
 func testCopyWithChunk(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	chunk, sourceSize := copyMultiChunkSize(op.Info().GetFullCapability())
+	chunk, sourceSize := copyMultiChunkSize(op.Info().GetCapability())
 	if sourceSize == 0 {
 		return
 	}
@@ -397,7 +397,7 @@ func testCopyWithChunk(assert *require.Assertions, op *opendal.Operator, fixture
 }
 
 func testCopyWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	chunk, sourceSize := copyMultiChunkSize(op.Info().GetFullCapability())
+	chunk, sourceSize := copyMultiChunkSize(op.Info().GetCapability())
 	if sourceSize == 0 {
 		return
 	}

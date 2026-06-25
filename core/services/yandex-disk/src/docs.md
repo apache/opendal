@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
         // set the access_token for OpenDAL
         .access_token("test");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

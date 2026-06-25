@@ -18,7 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::builder::IpmfsBuilder;
+use super::backend::IpmfsBuilder;
 
 /// Config for IPFS MFS support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 # HTTP Optimization
 
-All OpenDAL HTTP-based storage services use the same [HttpClient][crate::raw::HttpClient] abstraction. This design offers users a unified interface for configuring HTTP clients. The default HTTP client is [reqwest](https://crates.io/crates/reqwest), a popular and widely used HTTP client library in Rust.
+All OpenDAL HTTP-based storage services use the same [HttpTransporter][crate::HttpTransporter] abstraction. This design offers users a unified interface for configuring HTTP transports. The `opendal` facade installs [reqwest](https://crates.io/crates/reqwest) as the default HTTP transport when the `http-transport-reqwest` feature is enabled.
 
 Many of the services supported by OpenDAL are HTTP-based. This guide aims to provide optimization tips for using HTTP-based storage services. While these tips are also applicable to other HTTP clients, the configuration methods may vary.
 
@@ -25,8 +25,9 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator via layer.
-let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
+// Replace the operator's base HTTP transport.
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 ## DNS Caching
@@ -44,8 +45,9 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator via layer.
-let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
+// Replace the operator's base HTTP transport.
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 The default DNS cache settings from `hickory_dns` are generally sufficient for most workloads. However, if you have specific requirements—such as sharing the same DNS cache across multiple HTTP clients or configuring the DNS cache size—you can use the `Xuanwo/reqwest-hickory-resolver` crate to set up a custom DNS resolver.
@@ -77,8 +79,9 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator via layer.
-let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
+// Replace the operator's base HTTP transport.
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 The `ResolverOpts` has many options that can be configured. For a complete list of options, please refer to the [hickory_resolver documentation](https://docs.rs/hickory-resolver/latest/hickory_resolver/config/struct.ResolverOpts.html).
@@ -104,8 +107,9 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator via layer.
-let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
+// Replace the operator's base HTTP transport.
+let transport = HttpTransporter::new(ReqwestTransport::new(client));
+let op = op.with_context(OperationContext::new().with_http_transport(transport));
 ```
 
 It's also recommended to use opendal's [`TimeoutLayer`][crate::layers::TimeoutLayer] to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.

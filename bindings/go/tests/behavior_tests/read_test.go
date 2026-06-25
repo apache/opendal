@@ -281,7 +281,7 @@ func testReadNotExist(assert *require.Assertions, op *opendal.Operator, fixture 
 }
 
 func testReadWithDirPath(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetFullCapability().CreateDir() {
+	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 

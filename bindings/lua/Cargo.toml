@@ -34,7 +34,7 @@ lua52 = ["mlua", "mlua/lua52"]
 crate-type = ["cdylib"]
 
 [dependencies]
-mlua = { version = "0.9", features = [
+mlua = { version = "0.11", features = [
   "module",
   "macros",
 ], default-features = false, optional = true }

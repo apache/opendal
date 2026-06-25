@@ -21,15 +21,14 @@
 #![deny(missing_docs)]
 
 mod backend;
-mod builder;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
+mod reader;
 mod writer;
 
-pub use builder::DropboxBuilder as Dropbox;
+pub use backend::DropboxBuilder as Dropbox;
 pub use config::DropboxConfig;
 
 /// Default scheme for dropbox service.

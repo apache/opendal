@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -27,7 +26,8 @@ use opendal_core::*;
 use serde::Deserialize;
 
 pub struct LakefsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub repository: String,
     pub branch: String,
@@ -50,7 +50,11 @@ impl Debug for LakefsCore {
 }
 
 impl LakefsCore {
-    pub async fn get_object_metadata(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn get_object_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -68,14 +72,17 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("StatObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn get_object_content(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _args: &OpRead,
@@ -101,14 +108,17 @@ impl LakefsCore {
             req = req.header(header::RANGE, range.to_header());
         }
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         delimiter: &str,
         amount: &Option<usize>,
@@ -142,14 +152,17 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("ListObjects"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn upload_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         _args: &OpWrite,
         body: Buffer,
@@ -171,13 +184,20 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadObject"));
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn delete_object(&self, path: &str, _args: &OpDelete) -> Result<Response<Buffer>> {
+    pub async fn delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -195,13 +215,20 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
         // Inject operation to the request.
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"));
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn copy_object(&self, path: &str, dest: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        dest: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -228,9 +255,10 @@ impl LakefsCore {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("CopyObject"))
             .body(serde_json::to_vec(&map).unwrap().into())
             .map_err(new_request_build_error)?;
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Parse LakefsStatus into Metadata
@@ -293,3 +321,82 @@ pub(super) struct Pagination {
     pub next_offset: String,
     pub results: u64,
 }
+
+mod error {
+    use std::fmt::Debug;
+
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::raw::*;
+    use opendal_core::*;
+    use serde::Deserialize;
+
+    /// LakefsError is the error returned by Lakefs File System.
+    #[derive(Default, Deserialize)]
+    struct LakefsError {
+        error: String,
+    }
+
+    impl Debug for LakefsError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("LakefsError")
+                .field("message", &self.error.replace('\n', " "))
+                .finish()
+        }
+    }
+
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                (ErrorKind::PermissionDenied, false)
+            }
+            StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = match serde_json::from_slice::<LakefsError>(&bs) {
+            Ok(hf_error) => format!("{:?}", hf_error.error),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_parse_error() -> Result<()> {
+            let resp = r#"
+            {
+                "error": "Invalid username or password."
+            }
+            "#;
+            let decoded_response = serde_json::from_slice::<LakefsError>(resp.as_bytes())
+                .map_err(new_json_deserialize_error)?;
+
+            assert_eq!(decoded_response.error, "Invalid username or password.");
+
+            Ok(())
+        }
+    }
+}
+
+pub(super) use error::*;

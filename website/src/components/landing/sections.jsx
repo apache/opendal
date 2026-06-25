@@ -250,7 +250,13 @@ export function Services() {
               <h3 className={styles.serviceGroupTitle}>{group.category}</h3>
               <div className={styles.serviceChips}>
                 {group.services.map((s) => (
-                  <span className={styles.serviceChip} key={s.name}>
+                  // Service docs live at /services/<scheme>, registered by
+                  // plugins/services-docs-plugin.js; s.name is the scheme.
+                  <Link
+                    className={styles.serviceChip}
+                    to={`/services/${s.name}`}
+                    key={s.name}
+                  >
                     <img
                       src={withBaseUrl(s.icon)}
                       alt=""
@@ -259,7 +265,7 @@ export function Services() {
                       loading="lazy"
                     />
                     {s.name}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -293,7 +299,7 @@ export function Bindings() {
         </div>
         <div className={`${styles.bindingGrid} ${styles.reveal}`}>
           {bindings.map((b) => (
-            <div className={styles.bindingCard} key={b.name}>
+            <Link className={styles.bindingCard} to={b.doc} key={b.name}>
               <img
                 src={withBaseUrl(b.icon)}
                 alt=""
@@ -302,7 +308,7 @@ export function Bindings() {
                 loading="lazy"
               />
               <span className={styles.bindingName}>{b.name}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

@@ -24,14 +24,16 @@ use opendal_core::*;
 
 pub struct SeafileLister {
     core: Arc<SeafileCore>,
+    ctx: OperationContext,
 
     path: String,
 }
 
 impl SeafileLister {
-    pub(super) fn new(core: Arc<SeafileCore>, path: &str) -> Self {
+    pub(super) fn new(core: Arc<SeafileCore>, ctx: OperationContext, path: &str) -> Self {
         SeafileLister {
             core,
+            ctx,
             path: path.to_string(),
         }
     }
@@ -39,7 +41,7 @@ impl SeafileLister {
 
 impl oio::PageList for SeafileLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let list_response = self.core.list(&self.path).await?;
+        let list_response = self.core.list(&self.ctx, &self.path).await?;
         match list_response.infos {
             Some(infos) => {
                 // add path itself

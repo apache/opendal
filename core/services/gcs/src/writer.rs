@@ -23,7 +23,8 @@ use http::StatusCode;
 use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
-use super::error::parse_error;
+use super::core::gcs_percent_encode_path;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -31,14 +32,16 @@ pub type GcsWriters = oio::MultipartWriter<GcsWriter>;
 
 pub struct GcsWriter {
     core: Arc<GcsCore>,
+    ctx: OperationContext,
     path: String,
     op: OpWrite,
 }
 
 impl GcsWriter {
-    pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<GcsCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         GcsWriter {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
@@ -49,15 +52,15 @@ impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
         let req = self.core.gcs_insert_object_request(
-            &percent_encode_path(&self.path),
+            &gcs_percent_encode_path(&self.path),
             Some(size),
             &self.op,
             body,
         )?;
 
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -74,7 +77,11 @@ impl oio::MultipartWrite for GcsWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .gcs_initiate_multipart_upload(&percent_encode_path(&self.path), &self.op)
+            .gcs_initiate_multipart_upload(
+                &self.ctx,
+                &gcs_percent_encode_path(&self.path),
+                &self.op,
+            )
             .await?;
 
         if !resp.status().is_success() {
@@ -99,7 +106,7 @@ impl oio::MultipartWrite for GcsWriter {
 
         let resp = self
             .core
-            .gcs_upload_part(&self.path, upload_id, part_number, size, body)
+            .gcs_upload_part(&self.ctx, &self.path, upload_id, part_number, size, body)
             .await?;
 
         if !resp.status().is_success() {
@@ -138,7 +145,7 @@ impl oio::MultipartWrite for GcsWriter {
 
         let resp = self
             .core
-            .gcs_complete_multipart_upload(&self.path, upload_id, parts)
+            .gcs_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
         if !resp.status().is_success() {
@@ -153,7 +160,7 @@ impl oio::MultipartWrite for GcsWriter {
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .gcs_abort_multipart_upload(&self.path, upload_id)
+            .gcs_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
         match resp.status() {
             // gcs returns code 204 if abort succeeds.

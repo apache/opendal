@@ -1,0 +1,70 @@
+---
+sidebar_label: Concepts
+description: The four ideas behind every OpenDAL API — service, operator, layer, and operation.
+---
+
+import MentalModel from "@site/src/components/concepts/MentalModel";
+import CodeTabs from "@site/src/components/landing/CodeTabs";
+import { conceptSamples } from "@site/src/components/concepts/samples";
+
+# Concepts
+
+Every OpenDAL API, in every language, follows one model:
+
+**Configure a service, build an operator, optionally wrap it with layers, then
+call operations.**
+
+<MentalModel />
+
+## Service
+
+A service is a storage backend: S3, Google Cloud Storage, Azure Blob, a local
+filesystem, an in-memory store — [more than 50 in total](/services).
+
+You never talk to a service directly. You describe it with plain configuration
+— bucket, root, endpoint, credentials — and OpenDAL builds the client for you.
+Because a service is only configuration, switching backends is a configuration
+change, not a code change: `s3` in production, `fs` on your laptop, `memory`
+in tests.
+
+## Operator
+
+The operator is the entry point for everything. It is built from one service's
+configuration, and every storage call in your application goes through it.
+
+Operators are lightweight handles: cheap to create, and safe to share across
+threads and tasks. There are no connections to pool or cursors to manage. One
+operator maps to one service and one root path — to work with two buckets,
+build two operators.
+
+## Layer
+
+A layer adds behavior around an operator: automatic retry, logging, timeouts,
+metrics, concurrency limits.
+
+Layers nest like an onion: every operation passes through every layer on the
+way in and on the way out. Cross-cutting concerns are composed once at startup
+instead of being scattered through your code. Applying a layer returns a new
+operator and leaves the original untouched.
+
+## Operation
+
+Operations are the verbs: `read`, `write`, `stat`, `list`, `delete`, `copy`,
+`rename`, and friends. They are the same on every service, so code written
+against one backend runs against any other.
+
+Paths follow one rule everywhere: they are always relative to the operator's
+root, and a trailing `/` means a directory. `logs/app/` is a directory;
+`logs/app` is a file.
+
+## One model, every language
+
+The same four steps, in the language you already ship:
+
+<CodeTabs samples={conceptSamples} title="service → operator → layer → operation" />
+
+## Next steps
+
+- [Services](/services) — every supported backend and its configuration.
+- [Rust core](./10-core/01-overview.md) — the reference implementation that powers every binding.
+- Pick your language from the sidebar — [Python](/docs/bindings/python), [Node.js](/docs/bindings/nodejs), [Java](/docs/bindings/java), and more.

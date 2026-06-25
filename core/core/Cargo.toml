@@ -37,27 +37,24 @@ unused_async = "warn"
 all-features = true
 
 [features]
-default = ["reqwest-rustls-tls", "executors-tokio"]
-
-# Enable reqwest rustls tls support.
-reqwest-rustls-tls = ["reqwest/rustls"]
-
-# Enable reqwest rustls tls support without selecting a crypto provider.
-# The downstream binary is responsible for installing a `rustls`
-# `CryptoProvider` (e.g. `ring` or `aws-lc-rs`) before issuing requests.
-reqwest-rustls-no-provider-tls = ["reqwest/rustls-no-provider"]
+default = ["executors-tokio"]
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
-# Enable path cache.
-# This is an internal feature, and should not be used by users.
-internal-path-cache = ["dep:moka"]
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
 
 # Enable tokio executors support.
 executors-tokio = ["tokio/rt"]
+
+# Enable reqsign integration.
+#
+# This wires OpenDAL's `HttpTransporter` into reqsign as an `HttpSend` backend,
+# so signing services (s3, gcs, azblob, ...) can load credentials over HTTP.
+# Services that need request signing enable it automatically; it is off by
+# default so local-only services (memory, fs, ...) don't pull in reqsign-core.
+reqsign = ["dep:reqsign-core"]
 
 # Deprecated: memory service is always enabled.
 services-memory = []
@@ -73,25 +70,18 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
-http-body = "1"
 jiff = { version = "0.2.28", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.11.0"
 mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-core = { version = "3.0.1", default-features = false }
-reqwest = { version = "0.13.4", features = [
-  "stream",
-], default-features = false }
+reqsign-core = { version = "3.0.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }
 url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-# Optional dependencies
-moka = { version = "0.12", optional = true, features = ["sync"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 jiff = { version = "0.2.28", features = ["serde", "js"] }

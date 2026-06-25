@@ -39,7 +39,7 @@ Both `Operator.full_capability()` and `AsyncOperator.full_capability()` have bee
 
 ## Breaking change: Service identifiers now have typed enums
 
-The constructors for `Operator` / `AsyncOperator` provide overloads that accept `opendal.services.Scheme` members. While plain strings are still accepted at runtime, type checkers (pyright/mypy) expect the new enum values. Migrate code bases that relied on importing the old `Scheme` enum from `opendal` to `from opendal import services` and use `services.Scheme.<NAME>`.
+The constructors for `Operator` / `AsyncOperator` provide overloads that accept `opendal.services.Scheme` members. While plain strings are still accepted at runtime, type checkers (ty/mypy) expect the new enum values. Migrate code bases that relied on importing the old `Scheme` enum from `opendal` to `from opendal import services` and use `services.Scheme.<NAME>`.
 
 # Upgrade to v0.46
 

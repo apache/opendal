@@ -539,6 +539,15 @@
   font-family: var(--odl-font-mono);
   font-size: var(--odl-text-xs);
   color: var(--odl-fg);
+  text-decoration: none;
+  transition: border-color var(--odl-dur) var(--odl-ease),
+    background-color var(--odl-dur) var(--odl-ease);
+}
+.serviceChip:hover {
+  border-color: var(--odl-accent);
+  background: var(--odl-surface-2);
+  color: var(--odl-fg);
+  text-decoration: none;
 }
 .serviceChip img {
   width: 15px;
@@ -572,10 +581,12 @@
   justify-content: center;
   gap: var(--odl-space-3);
   padding: var(--odl-space-5) var(--odl-space-3);
+  text-decoration: none;
   transition: background-color var(--odl-dur) var(--odl-ease);
 }
 .bindingCard:hover {
   background: var(--odl-surface-2);
+  text-decoration: none;
 }
 .bindingCard img {
   width: 30px;
@@ -586,6 +597,10 @@
   font-family: var(--odl-font-mono);
   font-size: var(--odl-text-xs);
   color: var(--odl-fg-muted);
+  transition: color var(--odl-dur) var(--odl-ease);
+}
+.bindingCard:hover .bindingName {
+  color: var(--odl-fg);
 }
 
 /* ===== Layers (tile grid left, live code preview right) ================= */

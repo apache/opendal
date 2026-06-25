@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
       .access_key_id("access_key_id")
       .secret_access_key("secret_access_key");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -147,7 +147,7 @@ async fn main() -> Result<()> {
       // Enable SSE-C
       .server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -177,7 +177,7 @@ async fn main() -> Result<()> {
       // Enable SSE-KMS with aws managed kms key
       .server_side_encryption_with_aws_managed_kms_key();
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -207,7 +207,7 @@ async fn main() -> Result<()> {
       // Enable SSE-KMS with customer managed kms key
       .server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -237,7 +237,7 @@ async fn main() -> Result<()> {
       // Enable SSE-S3
       .server_side_encryption_with_s3_key();
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -267,7 +267,7 @@ async fn main() -> Result<()> {
       // Enable public-read ACL
       .default_acl("public-read");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // New objects will be created with public-read ACL

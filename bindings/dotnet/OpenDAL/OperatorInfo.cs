@@ -40,21 +40,15 @@ public sealed class OperatorInfo
     public string Name { get; }
 
     /// <summary>
-    /// Gets the full capability of this operator.
+    /// Gets the capability of this operator.
     /// </summary>
-    public Capability FullCapability { get; }
+    public Capability Capability { get; }
 
-    /// <summary>
-    /// Gets the native capability of this operator.
-    /// </summary>
-    public Capability NativeCapability { get; }
-
-    internal OperatorInfo(string scheme, string root, string name, Capability fullCapability, Capability nativeCapability)
+    internal OperatorInfo(string scheme, string root, string name, Capability capability)
     {
         Scheme = scheme;
         Root = root;
         Name = name;
-        FullCapability = fullCapability;
-        NativeCapability = nativeCapability;
+        Capability = capability;
     }
 }

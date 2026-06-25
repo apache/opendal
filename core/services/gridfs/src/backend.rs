@@ -25,6 +25,7 @@ use super::GRIDFS_SCHEME;
 use super::config::GridfsConfig;
 use super::core::*;
 use super::deleter::GridfsDeleter;
+use super::reader::*;
 use super::writer::GridfsWriter;
 
 #[doc = include_str!("docs.md")]
@@ -106,7 +107,7 @@ impl GridfsBuilder {
 impl Builder for GridfsBuilder {
     type Config = GridfsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let conn = match &self.config.connection_string.clone() {
             Some(v) => v.clone(),
             None => {
@@ -151,18 +152,20 @@ impl Builder for GridfsBuilder {
 /// Backend for Gridfs services.
 #[derive(Clone, Debug)]
 pub struct GridfsBackend {
-    core: Arc<GridfsCore>,
-    root: String,
-    info: Arc<AccessorInfo>,
+    pub(crate) core: Arc<GridfsCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl GridfsBackend {
     pub fn new(core: GridfsCore) -> Self {
-        let info = AccessorInfo::default();
-        info.set_scheme(GRIDFS_SCHEME);
-        info.set_name(&format!("{}/{}", core.database, core.bucket));
-        info.set_root("/");
-        info.set_native_capability(Capability {
+        let info = ServiceInfo::new(
+            GRIDFS_SCHEME,
+            "/",
+            format!("{}/{}", core.database, core.bucket),
+        );
+        let capability = Capability {
             read: true,
             stat: true,
             write: true,
@@ -170,69 +173,51 @@ impl GridfsBackend {
             delete: true,
             shared: true,
             ..Default::default()
-        });
+        };
 
         Self {
             core: Arc::new(core),
             root: "/".to_string(),
-            info: Arc::new(info),
+            info,
+            capability,
         }
     }
 
     fn with_normalized_root(mut self, root: String) -> Self {
-        self.info.set_root(&root);
+        self.info = self.info.with_root(&root);
         self.root = root;
         self
     }
 }
 
-/// Reader returned by this backend.
-pub struct GridfsReader {
-    backend: GridfsBackend,
-    path: String,
-}
-
-impl GridfsReader {
-    fn new(backend: GridfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GridfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
-    }
-}
-
-impl Access for GridfsBackend {
+impl Service for GridfsBackend {
     type Reader = oio::StreamReader<GridfsReader>;
     type Writer = GridfsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<GridfsDeleter>;
     type Copier = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.info.clone()
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
@@ -247,22 +232,81 @@ impl Access for GridfsBackend {
             }
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(GridfsReader::new(self.clone(), path, args)),
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GridfsReader> = {
+            Ok(oio::StreamReader::new(GridfsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: GridfsWriter = {
+            let p = build_abs_path(&self.root, path);
+            Ok(GridfsWriter::new(self.core.clone(), p))
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<GridfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(GridfsDeleter::new(
+                self.core.clone(),
+                self.root.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), GridfsWriter::new(self.core.clone(), p)))
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(GridfsDeleter::new(self.core.clone(), self.root.clone())),
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

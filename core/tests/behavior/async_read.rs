@@ -27,7 +27,7 @@ use tokio::time::sleep;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write {
         tests.extend(async_trials!(
@@ -58,6 +58,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if cap.read && cap.write && cap.read_with_suffix {
+        tests.extend(async_trials!(
+            op,
+            test_read_suffix,
+            test_read_suffix_larger_than_file,
+            test_read_suffix_zero,
+            test_reader_suffix_with_chunk
+        ))
+    }
+
     if cap.read && !cap.write {
         tests.extend(async_trials!(
             op,
@@ -71,6 +81,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_reader_only_read_with_if_match,
             test_reader_only_read_with_if_none_match
         ))
+    }
+
+    if cap.read && !cap.write && cap.read_with_suffix {
+        tests.extend(async_trials!(op, test_read_only_read_with_suffix))
     }
 }
 
@@ -107,6 +121,93 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
     assert_eq!(
         sha256_digest(&bs),
         sha256_digest(&content[offset as usize..(offset + length) as usize]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read suffix content should match.
+pub async fn test_read_suffix(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+    let suffix_size = 257;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let bs = op
+        .read_with(&path)
+        .range(BytesRange::suffix(suffix_size as u64))
+        .await?
+        .to_bytes();
+    assert_eq!(bs.len(), suffix_size, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        sha256_digest(&content[content.len() - suffix_size..]),
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read suffix larger than the file should return the full content.
+pub async fn test_read_suffix_larger_than_file(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let bs = op
+        .read_with(&path)
+        .range(BytesRange::suffix((content.len() * 2) as u64))
+        .await?
+        .to_bytes();
+    assert_eq!(bs.len(), content.len(), "read size");
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
+
+    Ok(())
+}
+
+/// Read zero suffix should return empty content.
+pub async fn test_read_suffix_zero(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(1024);
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    let bs = op
+        .read_with(&path)
+        .range(BytesRange::suffix(0))
+        .await?
+        .to_bytes();
+    assert!(bs.is_empty(), "read content must be empty");
+
+    Ok(())
+}
+
+/// Reader suffix with chunk should still return the requested suffix content.
+pub async fn test_reader_suffix_with_chunk(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(4096);
+    let suffix_size = 1025;
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let reader = op.reader_with(&path).chunk(257).concurrent(3).await?;
+    let bs = reader
+        .read(BytesRange::suffix(suffix_size as u64))
+        .await?
+        .to_bytes();
+    assert_eq!(bs.len(), suffix_size, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        sha256_digest(&content[content.len() - suffix_size..]),
         "read content"
     );
 
@@ -337,7 +438,7 @@ pub async fn test_read_not_exist(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -367,7 +468,7 @@ pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -396,7 +497,7 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -429,7 +530,7 @@ pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> 
 
 /// Reader with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
+    if !op.info().capability().read_with_if_modified_since {
         return Ok(());
     }
 
@@ -458,7 +559,7 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
 
 /// Reader with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
+    if !op.info().capability().read_with_if_unmodified_since {
         return Ok(());
     }
 
@@ -487,7 +588,7 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -519,7 +620,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with dir path should return an error.
 pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
 
@@ -552,8 +653,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with override-cache-control should succeed.
 pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_cache_control
-        && op.info().full_capability().presign)
+    if !(op.info().capability().read_with_override_cache_control && op.info().capability().presign)
     {
         return Ok(());
     }
@@ -599,9 +699,9 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Resu
 pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow::Result<()> {
     if !(op
         .info()
-        .full_capability()
+        .capability()
         .read_with_override_content_disposition
-        && op.info().full_capability().presign)
+        && op.info().capability().presign)
     {
         return Ok(());
     }
@@ -647,9 +747,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow
 
 /// Read file with override_content_type should succeed.
 pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_content_type
-        && op.info().full_capability().presign)
-    {
+    if !(op.info().capability().read_with_override_content_type && op.info().capability().presign) {
         return Ok(());
     }
 
@@ -694,7 +792,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
 
 /// Read with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
+    if !op.info().capability().read_with_if_modified_since {
         return Ok(());
     }
 
@@ -725,7 +823,7 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
 
 /// Read with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
+    if !op.info().capability().read_with_if_unmodified_since {
         return Ok(());
     }
 
@@ -800,6 +898,23 @@ pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> 
     Ok(())
 }
 
+/// Read suffix content should match.
+pub async fn test_read_only_read_with_suffix(op: Operator) -> anyhow::Result<()> {
+    let bs = op
+        .read_with("normal_file.txt")
+        .range(BytesRange::suffix(1024))
+        .await?
+        .to_bytes();
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",
+        "read content"
+    );
+
+    Ok(())
+}
+
 /// Read not exist file should return NotFound
 pub async fn test_read_only_read_not_exist(op: Operator) -> anyhow::Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -824,7 +939,7 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -856,7 +971,7 @@ pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
+    if !op.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -886,7 +1001,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -918,7 +1033,7 @@ pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::R
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
+    if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -950,7 +1065,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 }
 
 pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
+    if !op.info().capability().read_with_version {
         return Ok(());
     }
 
@@ -984,7 +1099,7 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
 }
 
 pub async fn test_read_with_not_existing_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
+    if !op.info().capability().read_with_version {
         return Ok(());
     }
 

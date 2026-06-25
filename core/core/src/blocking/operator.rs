@@ -49,7 +49,7 @@ use crate::*;
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Build an `blocking::Operator` with blocking layer to start operating the storage.
 ///     let _: blocking::Operator = blocking::Operator::new(op)?;
@@ -79,7 +79,7 @@ use crate::*;
 /// fn blocking_fn() -> Result<blocking::Operator> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
 ///     let _guard = handle.enter();
@@ -113,7 +113,7 @@ use crate::*;
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
 ///     let _guard = RUNTIME.enter();
@@ -193,11 +193,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_stat(path, expire))
     }
 
+    /// Create a presigned request for stat with additional options.
+    pub fn presign_stat_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::StatOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_stat_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for read.
     ///
     /// See [`Operator::presign_read`] for more details.
     pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_read(path, expire))
+    }
+
+    /// Create a presigned request for read with additional options.
+    pub fn presign_read_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::ReadOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_read_options(&path, expire, opts).await })?
     }
 
     /// Create a presigned request for write.
@@ -207,11 +231,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_write(path, expire))
     }
 
+    /// Create a presigned request for write with additional options.
+    pub fn presign_write_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::WriteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_write_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for delete.
     ///
     /// See [`Operator::presign_delete`] for more details.
     pub fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_delete(path, expire))
+    }
+
+    /// Create a presigned request for delete with additional options.
+    pub fn presign_delete_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::DeleteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_delete_options(&path, expire, opts).await })?
     }
 
     /// Get given path's metadata.

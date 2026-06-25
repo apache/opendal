@@ -20,7 +20,7 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::SeafileCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -28,14 +28,16 @@ pub type SeafileWriters = oio::OneShotWriter<SeafileWriter>;
 
 pub struct SeafileWriter {
     core: Arc<SeafileCore>,
+    ctx: OperationContext,
     _op: OpWrite,
     path: String,
 }
 
 impl SeafileWriter {
-    pub fn new(core: Arc<SeafileCore>, op: OpWrite, path: String) -> Self {
+    pub fn new(core: Arc<SeafileCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
         SeafileWriter {
             core,
+            ctx,
             _op: op,
             path,
         }
@@ -44,7 +46,7 @@ impl SeafileWriter {
 
 impl oio::OneShotWrite for SeafileWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.upload_file(&self.path, bs).await?;
+        let resp = self.core.upload_file(&self.ctx, &self.path, bs).await?;
 
         let status = resp.status();
         match status {

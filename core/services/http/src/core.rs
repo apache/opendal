@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::Request;
 use http::Response;
@@ -28,7 +27,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct HttpCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub endpoint: String,
     pub root: String,
@@ -78,19 +78,22 @@ impl HttpCore {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("Get"));
 
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
     pub async fn http_get(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.http_get_request(path, range, args)?;
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
@@ -112,13 +115,61 @@ impl HttpCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("Head"));
 
         req.body(Buffer::new()).map_err(new_request_build_error)
     }
 
-    pub async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn http_head(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.http_head_request(path, args)?;
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = String::from_utf8_lossy(&bs);
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

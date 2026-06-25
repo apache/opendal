@@ -63,7 +63,7 @@ type behaviorTest = func(assert *require.Assertions, op *opendal.Operator, fixtu
 func TestBehavior(t *testing.T) {
 	assert := require.New(t)
 
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 
 	var tests []behaviorTest
 
@@ -256,7 +256,7 @@ func (f *fixture) NewFile() (string, []byte, uint) {
 }
 
 func (f *fixture) NewFileWithPath(path string) (string, []byte, uint) {
-	maxSize := contentMaxSize(f.op.Info().GetFullCapability())
+	maxSize := contentMaxSize(f.op.Info().GetCapability())
 	return f.NewFileWithRange(path, 1, maxSize)
 }
 
@@ -276,7 +276,7 @@ func contentMaxSize(cap *opendal.Capability) uint {
 }
 
 func (f *fixture) Cleanup(assert *require.Assertions) {
-	if !f.op.Info().GetFullCapability().Delete() {
+	if !f.op.Info().GetCapability().Delete() {
 		return
 	}
 	f.lock.Lock()

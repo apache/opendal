@@ -39,7 +39,7 @@
 //!     .region("my_region");
 //!
 //!     // Create a new operator
-//!     let operator = Operator::new(builder).unwrap().finish();
+//!     let operator = Operator::new(builder).unwrap();
 //!
 //!     // Create a new object store
 //!     let object_store = Arc::new(OpendalStore::new(operator));
@@ -84,9 +84,7 @@ mod assert_send {
 
     #[allow(dead_code)]
     fn assertion() {
-        let op = Operator::new(opendal::services::Memory::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(opendal::services::Memory::default()).unwrap();
         let store = super::OpendalStore::new(op);
         assert_send(store.put(&"test".into(), PutPayload::new()));
         assert_send(store.get(&"test".into()));

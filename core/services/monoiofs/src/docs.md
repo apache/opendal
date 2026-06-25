@@ -36,8 +36,7 @@ async fn main() -> Result<()> {
         // NOTE: the root must be absolute path.
         .root("/tmp");
 
-    // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

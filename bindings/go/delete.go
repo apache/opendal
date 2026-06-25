@@ -21,6 +21,7 @@ package opendal
 
 import (
 	"context"
+	"runtime"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
@@ -93,17 +94,44 @@ func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
 	if len(opts) == 0 {
 		return ffiOperatorDelete.symbol(op.ctx)(op.inner, path)
 	}
+
+	o := parseDeleteOptions(opts...)
+	cOpts, keepAlive, err := newOpendalDeleteOptions(op.ctx, o)
+	if err != nil {
+		return err
+	}
+	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
+	err = ffiOperatorDeleteWith.symbol(op.ctx)(op.inner, path, cOpts)
+	runtime.KeepAlive(keepAlive)
+	return err
+}
+
+func parseDeleteOptions(opts ...WithDeleteFn) *deleteOptions {
 	o := &deleteOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
-	cOpts := ffiDeleteOptionsNew.symbol(op.ctx)()
-	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	ffiDeleteOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
-	if o.version != nil {
-		ffiDeleteOptionsSetVersion.symbol(op.ctx)(cOpts, *o.version)
+	return o
+}
+
+func newOpendalDeleteOptions(ctx context.Context, o *deleteOptions) (*opendalDeleteOptions, [][]byte, error) {
+	cOpts := ffiDeleteOptionsNew.symbol(ctx)()
+	var keepAlive [][]byte
+
+	fail := func(err error) (*opendalDeleteOptions, [][]byte, error) {
+		ffiDeleteOptionsFree.symbol(ctx)(cOpts)
+		return nil, nil, err
 	}
-	return ffiOperatorDeleteWith.symbol(op.ctx)(op.inner, path, cOpts)
+
+	ffiDeleteOptionsSetRecursive.symbol(ctx)(cOpts, o.recursive)
+	if o.version != nil {
+		data, err := ffiDeleteOptionsSetVersion.symbol(ctx)(cOpts, *o.version)
+		if err != nil {
+			return fail(err)
+		}
+		keepAlive = append(keepAlive, data)
+	}
+	return cOpts, keepAlive, nil
 }
 
 var ffiOperatorDelete = newFFI(ffiOpts{
@@ -141,17 +169,19 @@ var ffiDeleteOptionsSetVersion = newFFI(ffiOpts{
 	sym:    "opendal_delete_options_set_version",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalDeleteOptions, version string) {
-	return func(opts *opendalDeleteOptions, version string) {
-		bytePtr, err := BytePtrFromString(version)
+}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalDeleteOptions, version string) ([]byte, error) {
+	return func(opts *opendalDeleteOptions, version string) ([]byte, error) {
+		data, err := byteSliceFromString(version)
 		if err != nil {
-			return
+			return nil, err
 		}
+		bytePtr := &data[0]
 		ffiCall(
 			nil,
 			unsafe.Pointer(&opts),
 			unsafe.Pointer(&bytePtr),
 		)
+		return data, nil
 	}
 })
 

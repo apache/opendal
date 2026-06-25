@@ -49,3 +49,30 @@ jobs:
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-protoc: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          working-directory: bindings/python
+      - name: Build with maturin
+        shell: bash
+        working-directory: "bindings/python"
+        run: |
+          uv venv --python=python3.11
+          uv sync --all-extras
+          uv run -- maturin develop
+      # Examples back the snippets shown in the website guide. Running them keeps
+      # the docs honest: a broken example fails CI instead of shipping bad docs.
+      - name: Run guide examples
+        shell: bash
+        working-directory: "bindings/python"
+        run: uv run -- python examples/getting_started.py

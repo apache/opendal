@@ -29,13 +29,13 @@ use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::error::parse_error;
 use super::path_index::GdrivePathIndex;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct GdriveCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub root: String,
 
@@ -84,32 +84,36 @@ impl GdriveCore {
         self.refresh_path(path).await;
     }
 
-    pub async fn resolve_path(&self, path: &str) -> Result<Option<String>> {
-        self.path_index.get(path).await
+    pub async fn resolve_path(&self, ctx: &OperationContext, path: &str) -> Result<Option<String>> {
+        self.path_index.get(ctx, path).await
     }
 
-    pub async fn resolve_path_after_refresh(&self, path: &str) -> Result<Option<String>> {
+    pub async fn resolve_path_after_refresh(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Option<String>> {
         self.refresh_path(path).await;
-        self.resolve_path(path).await
+        self.resolve_path(ctx, path).await
     }
 
-    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
-        self.path_index.ensure_dir(path).await
+    pub async fn ensure_dir(&self, ctx: &OperationContext, path: &str) -> Result<String> {
+        self.path_index.ensure_dir(ctx, path).await
     }
 
-    pub async fn trash_path_if_exists(&self, path: &str) -> Result<()> {
-        let mut target_id = match self.resolve_path(path).await? {
+    pub async fn trash_path_if_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
+        let mut target_id = match self.resolve_path(ctx, path).await? {
             Some(id) => Some(id),
-            None => self.resolve_path_after_refresh(path).await?,
+            None => self.resolve_path_after_refresh(ctx, path).await?,
         };
 
         if let Some(id) = target_id.take() {
-            let mut resp = self.gdrive_trash(&id).await?;
+            let mut resp = self.gdrive_trash(ctx, &id).await?;
             if resp.status() == StatusCode::NOT_FOUND {
                 self.refresh_path(path).await;
-                target_id = self.resolve_path(path).await?;
+                target_id = self.resolve_path(ctx, path).await?;
                 if let Some(id) = target_id {
-                    resp = self.gdrive_trash(&id).await?;
+                    resp = self.gdrive_trash(ctx, &id).await?;
                 } else {
                     return Ok(());
                 }
@@ -230,21 +234,31 @@ impl GdriveCore {
         entries
     }
 
-    pub async fn gdrive_stat_by_id(&self, file_id: &str) -> Result<Response<Buffer>> {
+    pub async fn gdrive_stat_by_id(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<Response<Buffer>> {
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
             "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
         ))
         .extension(Operation::Stat)
+        .extension(ServiceOperation("GetFile"))
         .body(Buffer::new())
         .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn gdrive_get(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
         match self.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Deleted => {
@@ -255,9 +269,9 @@ impl GdriveCore {
             }
             GdriveRecentPathState::Present(_) | GdriveRecentPathState::Missing => {}
         }
-        let path_id = match self.resolve_path(&path).await? {
+        let path_id = match self.resolve_path(ctx, &path).await? {
             Some(id) => id,
-            None => match self.resolve_path_after_refresh(&path).await? {
+            None => match self.resolve_path_after_refresh(ctx, &path).await? {
                 Some(id) => id,
                 None => {
                     return Err(Error::new(
@@ -272,16 +286,18 @@ impl GdriveCore {
 
         let mut req = Request::get(&url)
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .header(header::RANGE, range.to_header())
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn gdrive_list(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         page_size: i32,
         next_page_token: &str,
@@ -301,11 +317,12 @@ impl GdriveCore {
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// List multiple directories in a single API call using OR query.
@@ -313,6 +330,7 @@ impl GdriveCore {
     /// Google Drive API supports up to ~50 parent IDs in a single query.
     pub async fn gdrive_list_batch(
         &self,
+        ctx: &OperationContext,
         file_ids: &[String],
         page_size: i32,
         next_page_token: &str,
@@ -347,23 +365,25 @@ impl GdriveCore {
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     // Update with content and metadata
     pub async fn gdrive_patch_metadata_request(
         &self,
+        ctx: &OperationContext,
         source: &str,
         target: &str,
     ) -> Result<Response<Buffer>> {
-        let source_file_id = match self.resolve_path(source).await? {
+        let source_file_id = match self.resolve_path(ctx, source).await? {
             Some(id) => id,
             None => self
-                .resolve_path_after_refresh(source)
+                .resolve_path_after_refresh(ctx, source)
                 .await?
                 .ok_or(Error::new(
                     ErrorKind::NotFound,
@@ -371,15 +391,15 @@ impl GdriveCore {
                 ))?,
         };
         let source_parent = get_parent(source);
-        let source_parent_id = match self.resolve_path(source_parent).await? {
+        let source_parent_id = match self.resolve_path(ctx, source_parent).await? {
             Some(id) => id,
             None => self
-                .resolve_path_after_refresh(source_parent)
+                .resolve_path_after_refresh(ctx, source_parent)
                 .await?
                 .expect("old parent must exist"),
         };
 
-        let target_parent_id = self.path_index.ensure_dir(get_parent(target)).await?;
+        let target_parent_id = self.ensure_dir(ctx, get_parent(target)).await?;
         let target_file_name = get_basename(target);
 
         let metadata = &json!({
@@ -391,15 +411,20 @@ impl GdriveCore {
         let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveFile"))
             .body(Buffer::from(Bytes::from(metadata.to_string())))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<Buffer>> {
+    pub async fn gdrive_trash(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<Response<Buffer>> {
         let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}");
 
         let body = serde_json::to_vec(&json!({
@@ -409,22 +434,24 @@ impl GdriveCore {
 
         let mut req = Request::patch(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("TrashFile"))
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Create a file with the content.
     pub async fn gdrive_upload_simple_request(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self.path_index.ensure_dir(get_parent(path)).await?;
+        let parent = self.ensure_dir(ctx, get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -438,7 +465,8 @@ impl GdriveCore {
 
         let req = Request::post(url)
             .header("X-Upload-Content-Length", size)
-            .extension(Operation::Write);
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         let multipart = Multipart::new()
             .part(
@@ -460,9 +488,9 @@ impl GdriveCore {
 
         let mut req = multipart.apply(req)?;
 
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Overwrite the file with the content.
@@ -472,6 +500,7 @@ impl GdriveCore {
     /// - The file id is required. Do not use this method to create a file.
     pub async fn gdrive_upload_overwrite_simple_request(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         size: u64,
         body: Buffer,
@@ -484,25 +513,31 @@ impl GdriveCore {
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
-        signer.sign(req).await
+        signer.sign(ctx, req).await
     }
 
-    pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn gdrive_copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let from_file_id = match self.resolve_path(&from).await? {
+        let from_file_id = match self.resolve_path(ctx, &from).await? {
             Some(id) => id,
-            None => match self.resolve_path_after_refresh(&from).await? {
+            None => match self.resolve_path_after_refresh(ctx, &from).await? {
                 Some(id) => id,
                 None => {
                     return Err(Error::new(
@@ -515,9 +550,9 @@ impl GdriveCore {
 
         let to_name = get_basename(to);
         let to_path = build_abs_path(&self.root, to);
-        let to_parent_id = self.path_index.ensure_dir(get_parent(&to_path)).await?;
+        let to_parent_id = self.ensure_dir(ctx, get_parent(&to_path)).await?;
 
-        self.trash_path_if_exists(&to_path).await?;
+        self.trash_path_if_exists(ctx, &to_path).await?;
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
 
@@ -529,11 +564,12 @@ impl GdriveCore {
 
         let mut req = Request::post(&url)
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"))
             .body(body)
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        self.sign(ctx, &mut req).await?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 }
 
@@ -673,8 +709,6 @@ fn recent_entry_in_scope(scope_path: &str, path: &str, mode: EntryMode, recursiv
 
 #[derive(Clone)]
 pub struct GdriveSigner {
-    pub info: Arc<AccessorInfo>,
-
     pub client_id: String,
     pub client_secret: String,
     pub refresh_token: String,
@@ -685,10 +719,8 @@ pub struct GdriveSigner {
 
 impl GdriveSigner {
     /// Create a new signer.
-    pub fn new(info: Arc<AccessorInfo>) -> Self {
+    pub fn new() -> Self {
         GdriveSigner {
-            info,
-
             client_id: "".to_string(),
             client_secret: "".to_string(),
             refresh_token: "".to_string(),
@@ -698,7 +730,7 @@ impl GdriveSigner {
     }
 
     /// Sign a request.
-    pub async fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
+    pub async fn sign<T>(&mut self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         if !self.access_token.is_empty() && self.expires_in > Timestamp::now() {
             let value = format!("Bearer {}", self.access_token)
                 .parse()
@@ -719,7 +751,7 @@ impl GdriveSigner {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.info.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -746,22 +778,26 @@ impl GdriveSigner {
 }
 
 pub struct GdrivePathQuery {
-    pub info: Arc<AccessorInfo>,
     pub signer: Arc<Mutex<GdriveSigner>>,
 }
 
 impl GdrivePathQuery {
-    pub fn new(info: Arc<AccessorInfo>, signer: Arc<Mutex<GdriveSigner>>) -> Self {
-        GdrivePathQuery { info, signer }
+    pub fn new(signer: Arc<Mutex<GdriveSigner>>) -> Self {
+        GdrivePathQuery { signer }
     }
 }
 
-impl PathQuery for GdrivePathQuery {
-    async fn root(&self) -> Result<String> {
+impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
+    async fn root(&self, _: &OperationContext) -> Result<String> {
         Ok("root".to_string())
     }
 
-    async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
+    async fn query(
+        &self,
+        ctx: &OperationContext,
+        parent_id: &str,
+        name: &str,
+    ) -> Result<Option<String>> {
         let mut queries = vec![
             // Make sure name has been replaced with escaped name.
             //
@@ -787,12 +823,13 @@ impl PathQuery for GdrivePathQuery {
 
         let mut req = Request::get(&url)
             .extension(Operation::Stat)
+            .extension(ServiceOperation("ListFiles"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.signer.lock().await.sign(&mut req).await?;
+        self.signer.lock().await.sign(ctx, &mut req).await?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -811,7 +848,12 @@ impl PathQuery for GdrivePathQuery {
         }
     }
 
-    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        parent_id: &str,
+        name: &str,
+    ) -> Result<String> {
         let url = "https://www.googleapis.com/drive/v3/files";
 
         let content = serde_json::to_vec(&json!({
@@ -824,13 +866,14 @@ impl PathQuery for GdrivePathQuery {
 
         let mut req = Request::post(url)
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.signer.lock().await.sign(&mut req).await?;
+        self.signer.lock().await.sign(ctx, &mut req).await?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -883,14 +926,15 @@ mod tests {
     use super::*;
 
     fn mock_gdrive_core() -> GdriveCore {
-        let info = Arc::new(AccessorInfo::default());
-        let signer = Arc::new(Mutex::new(GdriveSigner::new(info.clone())));
+        let info = ServiceInfo::new("gdrive", "", "");
+        let signer = Arc::new(Mutex::new(GdriveSigner::new()));
 
         GdriveCore {
             info: info.clone(),
+            capability: Capability::default(),
             root: "/".to_string(),
             signer: signer.clone(),
-            path_index: GdrivePathIndex::new(GdrivePathQuery::new(info, signer)),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
             recent_entries: Mutex::new(GdriveRecentState::default()),
         }
     }
@@ -1033,3 +1077,71 @@ mod tests {
         );
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    #[derive(Default, Debug, Deserialize)]
+    struct GdriveError {
+        error: GdriveInnerError,
+    }
+
+    #[derive(Default, Debug, Deserialize)]
+    struct GdriveInnerError {
+        message: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT
+        // Gdrive sometimes return METHOD_NOT_ALLOWED for our requests for abuse detection.
+        | StatusCode::METHOD_NOT_ALLOWED => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+        let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
+            .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
+            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        if let Some(gdrive_err) = gdrive_err {
+            (kind, retryable) = parse_gdrive_error_code(gdrive_err.error.message.as_str())
+                .unwrap_or((kind, retryable));
+        }
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
+        match message {
+            // > Please reduce your request rate.
+            //
+            // It's Ok to retry since later on the request rate may get reduced.
+            "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
+            _ => None,
+        }
+    }
+}
+
+pub(super) use error::*;

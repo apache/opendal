@@ -21,6 +21,7 @@
 #![deny(missing_docs)]
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::vec::IntoIter;
 
 use opendal_core::raw::*;
@@ -48,12 +49,11 @@ use opendal_core::*;
 /// }
 ///
 /// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
-///     .layer(iil)
-///     .finish();
+///     .layer(iil);
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ImmutableIndexLayer {
     vec: Vec<String>,
 }
@@ -80,32 +80,29 @@ impl ImmutableIndexLayer {
     }
 }
 
-impl<A: Access> Layer<A> for ImmutableIndexLayer {
-    type LayeredAccess = ImmutableIndexAccessor<A>;
+impl Layer for ImmutableIndexLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-        info.update_full_capability(|mut cap| {
-            cap.list = true;
-            cap.list_with_recursive = true;
-            cap
-        });
-
-        ImmutableIndexAccessor {
-            vec: self.vec.clone(),
+impl ImmutableIndexLayer {
+    fn layer(&self, inner: Servicer) -> ImmutableIndexService {
+        ImmutableIndexService {
             inner,
+            vec: self.vec.clone(),
         }
     }
 }
 
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct ImmutableIndexAccessor<A: Access> {
-    inner: A,
+pub struct ImmutableIndexService {
+    inner: Servicer,
     vec: Vec<String>,
 }
 
-impl<A: Access> ImmutableIndexAccessor<A> {
+impl ImmutableIndexService {
     fn children_flat(&self, path: &str) -> Vec<String> {
         self.vec
             .iter()
@@ -153,37 +150,57 @@ impl<A: Access> ImmutableIndexAccessor<A> {
     }
 }
 
-impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
-    type Inner = A;
-    type Reader = A::Reader;
-    type Writer = A::Writer;
+impl Service for ImmutableIndexService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
     type Lister = ImmutableDir;
-    type Deleter = A::Deleter;
-    type Copier = A::Copier;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner.read(path, args).await
+    fn capability(&self) -> Capability {
+        let mut capability = self.inner.capability();
+        capability.list = true;
+        capability.list_with_recursive = true;
+        capability
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
-    }
-
-    async fn copy(
+    async fn create_dir(
         &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        self.inner.copy(from, to, args, opts).await
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args, opts)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let mut path = path;
         if path == "/" {
             path = ""
@@ -195,11 +212,30 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
             self.children_hierarchy(path)
         };
 
-        Ok((RpList::default(), ImmutableDir::new(idx)))
+        Ok(ImmutableDir::new(idx))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
     }
 }
 
@@ -249,22 +285,109 @@ mod tests {
     #[derive(Debug)]
     struct MockService;
 
-    impl Access for MockService {
-        type Reader = oio::Reader;
-        type Writer = oio::Writer;
-        type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
-        type Copier = oio::Copier;
+    impl Service for MockService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
 
-        fn info(&self) -> Arc<AccessorInfo> {
-            let info = AccessorInfo::default();
-            info.set_scheme("mock");
-            info.into()
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                list: true,
+                list_with_recursive: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn copy(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
         }
     }
 
     fn build_operator(layer: ImmutableIndexLayer) -> Operator {
-        Operator::from_inner(Arc::new(MockService)).layer(layer)
+        Operator::from_parts(OperationContext::default(), Arc::new(MockService)).layer(layer)
     }
 
     fn setup() {

@@ -32,7 +32,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testIfNotExists() {
-        assumeTrue(asyncOp().info.fullCapability.writeWithIfNotExists);
+        assumeTrue(asyncOp().info.capability.writeWithIfNotExists);
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
         WriteOptions options = WriteOptions.builder().ifNotExists(true).build();
@@ -44,7 +44,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithChunk() {
-        assumeTrue(asyncOp().info.fullCapability.writeCanMulti);
+        assumeTrue(asyncOp().info.capability.writeCanMulti);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes(5 * 1024 * 1024);
@@ -59,7 +59,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithConcurrentChunk() {
-        assumeTrue(asyncOp().info.fullCapability.writeCanMulti);
+        assumeTrue(asyncOp().info.capability.writeCanMulti);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes(5 * 1024 * 1024);
@@ -75,7 +75,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithCacheControl() {
-        assumeTrue(asyncOp().info.fullCapability.writeWithCacheControl);
+        assumeTrue(asyncOp().info.capability.writeWithCacheControl);
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
         final String cacheControl = "max-age=3600";
@@ -90,7 +90,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithIfNoneMatch() {
-        assumeTrue(asyncOp().info.fullCapability.writeWithIfNoneMatch);
+        assumeTrue(asyncOp().info.capability.writeWithIfNoneMatch);
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
 
@@ -105,7 +105,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithIfMatch() {
-        assumeTrue(asyncOp().info.fullCapability.writeWithIfMatch);
+        assumeTrue(asyncOp().info.capability.writeWithIfMatch);
 
         final String pathA = UUID.randomUUID().toString();
         final String pathB = UUID.randomUUID().toString();
@@ -130,7 +130,7 @@ public class AsyncWriteOptionsTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithAppend() {
-        assumeTrue(asyncOp().info.fullCapability.writeCanAppend);
+        assumeTrue(asyncOp().info.capability.writeCanAppend);
 
         final String path = UUID.randomUUID().toString();
         final byte[] contentOne = "Test".getBytes();

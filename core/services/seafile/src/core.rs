@@ -27,14 +27,14 @@ use http::header;
 use mea::rwlock::RwLock;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// Core of [seafile](https://www.seafile.com) services support.
 #[derive(Clone)]
 pub struct SeafileCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -63,12 +63,16 @@ impl Debug for SeafileCore {
 
 impl SeafileCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 
     /// get auth info
-    pub async fn get_auth_info(&self) -> Result<AuthInfo> {
+    pub async fn get_auth_info(&self, ctx: &OperationContext) -> Result<AuthInfo> {
         {
             let signer = self.signer.read().await;
 
@@ -90,7 +94,7 @@ impl SeafileCore {
                 .body(Buffer::from(Bytes::from(body)))
                 .map_err(new_request_build_error)?;
 
-            let resp = self.info.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -119,7 +123,7 @@ impl SeafileCore {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.info.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
 
             let status = resp.status();
 
@@ -156,8 +160,8 @@ impl SeafileCore {
 
 impl SeafileCore {
     /// get upload url
-    async fn get_upload_url(&self) -> Result<String> {
-        let auth_info = self.get_auth_info().await?;
+    async fn get_upload_url(&self, ctx: &OperationContext) -> Result<String> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let req = Request::get(format!(
             "{}/api2/repos/{}/upload-link/",
@@ -167,10 +171,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadLink"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
 
         match status {
@@ -184,10 +189,17 @@ impl SeafileCore {
         }
     }
 
-    pub async fn upload_file(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
-        let upload_url = self.get_upload_url().await?;
+    pub async fn upload_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url(ctx).await?;
 
-        let req = Request::post(upload_url).extension(Operation::Write);
+        let req = Request::post(upload_url)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         let (filename, relative_path) = if path.ends_with('/') {
             ("", build_abs_path(&self.root, path))
@@ -213,10 +225,10 @@ impl SeafileCore {
 
         let req = multipart.apply(req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<()> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         if path == "/" {
             return Ok(());
         }
@@ -224,7 +236,7 @@ impl SeafileCore {
         let path = build_rooted_abs_path(&self.root, path);
         let path = percent_encode_path(path.trim_end_matches('/'));
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
         let body = Buffer::from(Bytes::from_static(b"operation=mkdir&create_parents=true"));
 
         let req = Request::post(format!(
@@ -236,10 +248,11 @@ impl SeafileCore {
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkdir"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::CREATED => Ok(()),
@@ -248,11 +261,11 @@ impl SeafileCore {
     }
 
     /// get download
-    async fn get_download_url(&self, path: &str) -> Result<String> {
+    async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
         let path = percent_encode_path(&path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let req = Request::get(format!(
             "{}/api2/repos/{}/file/?p={}",
@@ -262,10 +275,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetDownloadLink"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
 
         match status {
@@ -281,26 +295,32 @@ impl SeafileCore {
     }
 
     /// download file
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let download_url = self.get_download_url(path).await?;
+    pub async fn download_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(ctx, path).await?;
 
         let req = Request::get(download_url);
 
         let req = req
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     /// file detail
-    pub async fn file_detail(&self, path: &str) -> Result<FileDetail> {
+    pub async fn file_detail(&self, ctx: &OperationContext, path: &str) -> Result<FileDetail> {
         let path = build_abs_path(&self.root, path);
         let path = percent_encode_path(&path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let req = Request::get(format!(
             "{}/api2/repos/{}/file/detail/?p={}",
@@ -310,10 +330,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileDetail"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
 
         match status {
@@ -328,11 +349,11 @@ impl SeafileCore {
     }
 
     /// dir detail
-    pub async fn dir_detail(&self, path: &str) -> Result<DirDetail> {
+    pub async fn dir_detail(&self, ctx: &OperationContext, path: &str) -> Result<DirDetail> {
         let path = build_abs_path(&self.root, path);
         let path = percent_encode_path(&path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let req = Request::get(format!(
             "{}/api/v2.1/repos/{}/dir/detail/?path={}",
@@ -342,10 +363,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetDirDetail"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
 
         match status {
@@ -360,11 +382,11 @@ impl SeafileCore {
     }
 
     /// delete file or dir
-    pub async fn delete(&self, path: &str) -> Result<()> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
         let path = percent_encode_path(&path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = if path.ends_with('/') {
             format!(
@@ -383,10 +405,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -396,10 +419,10 @@ impl SeafileCore {
         }
     }
 
-    pub async fn list(&self, path: &str) -> Result<ListResponse> {
+    pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
         let rooted_abs_path = build_rooted_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!(
             "{}/api2/repos/{}/dir/?p={}",
@@ -413,10 +436,11 @@ impl SeafileCore {
         let req = req
             .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
             .extension(Operation::List)
+            .extension(ServiceOperation("ListDir"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -503,3 +527,78 @@ pub struct ListResponse {
     pub infos: Option<Vec<Info>>,
     pub rooted_abs_path: String,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// the error response of seafile
+    #[derive(Default, Debug, Deserialize)]
+    #[allow(dead_code)]
+    struct SeafileError {
+        error_msg: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, _retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            520 => (ErrorKind::Unexpected, false),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, _seafile_err) =
+            serde_json::from_reader::<_, SeafileError>(bs.clone().reader())
+                .map(|seafile_err| (format!("{seafile_err:?}"), Some(seafile_err)))
+                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![
+                (
+                    r#"{"error_msg": "Permission denied"}"#,
+                    ErrorKind::PermissionDenied,
+                    StatusCode::FORBIDDEN,
+                ),
+                (
+                    r#"{"error_msg": "Folder /e982e75a-fead-487c-9f41-63094d9bf0de/a9d867b9-778d-4612-b674-47e674c14c28/ not found."}"#,
+                    ErrorKind::NotFound,
+                    StatusCode::NOT_FOUND,
+                ),
+            ];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

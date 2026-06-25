@@ -28,8 +28,8 @@ mod config;
 mod copier;
 pub mod core;
 mod deleter;
-mod error;
 mod lister;
+mod reader;
 pub mod writer;
 
 pub use backend::AzblobBuilder as Azblob;

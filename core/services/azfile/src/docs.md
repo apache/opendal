@@ -54,8 +54,8 @@ async fn main() -> Result<()> {
       .account_name("account_name")
       .account_key("account_key");
 
-  // `Accessor` provides the low level APIs, we will use `Operator` normally.
-  let op: Operator = Operator::new(builder)?.finish();
+  // `Service` provides the low level APIs, we will use `Operator` normally.
+  let op: Operator = Operator::new(builder)?;
 
   Ok(())
 }

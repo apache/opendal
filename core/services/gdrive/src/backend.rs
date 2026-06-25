@@ -19,20 +19,187 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveRecentPathState;
 use super::core::normalize_dir_path;
+use super::core::parse_error;
 use super::deleter::GdriveDeleter;
-use super::error::parse_error;
 use super::lister::GdriveFlatLister;
 use super::lister::GdriveLister;
+use super::reader::*;
 use super::writer::GdriveWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+use log::debug;
+use mea::mutex::Mutex;
+
+use super::GDRIVE_SCHEME;
+use super::config::GdriveConfig;
+use super::core::GdrivePathQuery;
+use super::core::GdriveSigner;
+use super::path_index::GdrivePathIndex;
+
+/// [GoogleDrive](https://drive.google.com/) backend support.
+#[derive(Default)]
+#[doc = include_str!("docs.md")]
+pub struct GdriveBuilder {
+    pub(super) config: GdriveConfig,
+}
+
+impl Debug for GdriveBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl GdriveBuilder {
+    /// Set root path of GoogleDrive folder.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Access token is used for temporary access to the GoogleDrive API.
+    ///
+    /// You can get the access token from [GoogleDrive App Console](https://console.cloud.google.com/apis/credentials)
+    /// or [GoogleDrive OAuth2 Playground](https://developers.google.com/oauthplayground/)
+    ///
+    /// # Note
+    ///
+    /// - An access token is valid for 1 hour.
+    /// - If you want to use the access token for a long time,
+    ///   you can use the refresh token to get a new access token.
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
+        self
+    }
+
+    /// Refresh token is used for long term access to the GoogleDrive API.
+    ///
+    /// You can get the refresh token via OAuth 2.0 Flow of GoogleDrive API.
+    ///
+    /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
+        self.config.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client id for GoogleDrive.
+    ///
+    /// This is required for OAuth 2.0 Flow to refresh the access token.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        self.config.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client secret for GoogleDrive.
+    ///
+    /// This is required for OAuth 2.0 Flow with refresh the access token.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+}
+
+impl Builder for GdriveBuilder {
+    type Config = GdriveConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        debug!("backend use root {root}");
+
+        let info = ServiceInfo::new(GDRIVE_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            list: true,
+            list_with_recursive: true,
+
+            write: true,
+
+            create_dir: true,
+            delete: true,
+            delete_with_recursive: true,
+            rename: true,
+            copy: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
+        let accessor_info = info;
+        let mut signer = GdriveSigner::new();
+        match (self.config.access_token, self.config.refresh_token) {
+            (Some(access_token), None) => {
+                signer.access_token = access_token;
+                // We will never expire user specified access token.
+                signer.expires_in = Timestamp::MAX;
+            }
+            (None, Some(refresh_token)) => {
+                let client_id = self.config.client_id.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", GDRIVE_SCHEME)
+                })?;
+                let client_secret = self.config.client_secret.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_secret must be set when refresh_token is set",
+                    )
+                    .with_context("service", GDRIVE_SCHEME)
+                })?;
+
+                signer.refresh_token = refresh_token;
+                signer.client_id = client_id;
+                signer.client_secret = client_secret;
+            }
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token and refresh_token cannot be set at the same time",
+                )
+                .with_context("service", GDRIVE_SCHEME));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", GDRIVE_SCHEME));
+            }
+        };
+
+        let signer = Arc::new(Mutex::new(signer));
+
+        Ok(GdriveBackend {
+            core: Arc::new(GdriveCore {
+                info: accessor_info.clone(),
+                capability,
+                root,
+                signer: signer.clone(),
+                path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
+                recent_entries: Mutex::default(),
+            }),
+        })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
@@ -42,82 +209,29 @@ pub struct GdriveBackend {
 /// Lister type that supports both recursive and non-recursive listing
 pub type GdriveListers = TwoWays<oio::PageLister<GdriveLister>, GdriveFlatLister>;
 
-/// Reader returned by this backend.
-pub struct GdriveReader {
-    backend: GdriveBackend,
-    path: String,
-}
-
-impl GdriveReader {
-    fn new(backend: GdriveBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GdriveReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.core.root, path);
-        let resp = match backend.core.gdrive_get(path, range).await {
-            Ok(resp) => resp,
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                backend.core.refresh_path(&abs_path).await;
-                backend.core.gdrive_get(path, range).await?
-            }
-            Err(err) => return Err(err),
-        };
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            StatusCode::NOT_FOUND => {
-                backend.core.refresh_path(&abs_path).await;
-                let resp = backend.core.gdrive_get(path, range).await?;
-                let status = resp.status();
-                match status {
-                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                        RpRead::new(parse_into_metadata(path, resp.headers())?),
-                        resp.into_body(),
-                    ),
-                    _ => {
-                        let (part, mut body) = resp.into_parts();
-                        let buf = body.to_buffer().await?;
-                        return Err(parse_error(Response::from_parts(part, buf)));
-                    }
-                }
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for GdriveBackend {
+impl Service for GdriveBackend {
     type Reader = oio::StreamReader<GdriveReader>;
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.root, path);
-        let dir_id = self.core.ensure_dir(&path).await?;
+        let dir_id = self.core.ensure_dir(ctx, &path).await?;
         let metadata = Metadata::new(EntryMode::DIR);
 
         self.core.cache_dir_id(&path, &dir_id).await;
@@ -126,7 +240,7 @@ impl Access for GdriveBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let path = build_abs_path(&self.core.root, path);
 
         match self.core.recent_entry_for_path(&path).await {
@@ -144,9 +258,9 @@ impl Access for GdriveBackend {
             GdriveRecentPathState::Missing => {}
         }
 
-        let mut file_id = match self.core.resolve_path(&path).await? {
+        let mut file_id = match self.core.resolve_path(ctx, &path).await? {
             Some(id) => id,
-            None => match self.core.resolve_path_after_refresh(&path).await? {
+            None => match self.core.resolve_path_after_refresh(ctx, &path).await? {
                 Some(id) => id,
                 None => {
                     return Err(Error::new(
@@ -156,18 +270,18 @@ impl Access for GdriveBackend {
                 }
             },
         };
-        let mut resp = self.core.gdrive_stat_by_id(&file_id).await?;
+        let mut resp = self.core.gdrive_stat_by_id(ctx, &file_id).await?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             file_id = self
                 .core
-                .resolve_path_after_refresh(&path)
+                .resolve_path_after_refresh(ctx, &path)
                 .await?
                 .ok_or(Error::new(
                     ErrorKind::NotFound,
                     format!("path not found: {path}"),
                 ))?;
-            resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            resp = self.core.gdrive_stat_by_id(ctx, &file_id).await?;
         }
 
         if resp.status() != StatusCode::OK {
@@ -196,139 +310,169 @@ impl Access for GdriveBackend {
         }
         Ok(RpStat::new(meta))
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(GdriveReader::new(self.clone(), path, args)),
-        ))
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GdriveReader> = {
+            Ok(oio::StreamReader::new(GdriveReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let path = build_abs_path(&self.core.root, path);
+    fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+        let output: oio::OneShotWriter<GdriveWriter> = {
+            let path = build_abs_path(&self.core.root, path);
 
-        // As Google Drive allows files have the same name, we need to check if the file exists.
-        // If the file exists, we will keep its ID and update it.
-        let file_id = match self.core.resolve_path(&path).await? {
-            Some(id) => Some(id),
-            None => self.core.resolve_path_after_refresh(&path).await?,
-        };
+            Ok(oio::OneShotWriter::new(GdriveWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                None,
+            )))
+        }?;
 
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(GdriveWriter::new(self.core.clone(), path, file_id)),
-        ))
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(GdriveDeleter::new(self.core.clone())),
-        ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<GdriveDeleter> = {
+            Ok(oio::OneShotDeleter::new(GdriveDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let path = build_abs_path(&self.core.root, path);
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: GdriveListers = {
+            let path = build_abs_path(&self.core.root, path);
 
-        if args.recursive() {
-            // Use optimized batch-query recursive lister
-            let l = GdriveFlatLister::new(path, self.core.clone());
-            Ok((RpList::default(), TwoWays::Two(l)))
-        } else {
-            // Use standard page-based lister for non-recursive
-            let l = GdriveLister::new(path, self.core.clone());
-            Ok((RpList::default(), TwoWays::One(oio::PageLister::new(l))))
-        }
+            if args.recursive() {
+                // Use optimized batch-query recursive lister
+                let l = GdriveFlatLister::new(path, self.core.clone(), ctx.clone());
+                Ok(TwoWays::Two(l))
+            } else {
+                // Use standard page-based lister for non-recursive
+                let l = GdriveLister::new(path, self.core.clone(), ctx.clone());
+                Ok(TwoWays::One(oio::PageLister::new(l)))
+            }
+        }?;
+
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         _args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let source = build_abs_path(&self.core.root, from);
-        let target = build_abs_path(&self.core.root, to);
-        let resp = self.core.gdrive_copy(from, to).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
-        match resp.status() {
-            StatusCode::OK => {
-                let body = resp.into_body();
-                let meta: GdriveFile =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        Ok(oio::OneShotCopier::new(async move {
+            let source = build_abs_path(&core.root, &from);
+            let target = build_abs_path(&core.root, &to);
+            let resp = core.gdrive_copy(&ctx, &from, &to).await?;
 
-                let to_path = build_abs_path(&self.core.root, to);
-                let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
-                    Metadata::new(EntryMode::DIR)
-                } else {
-                    Metadata::new(EntryMode::FILE)
-                };
-                if let Some(size) = meta.size {
-                    metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                    })?);
-                }
+            match resp.status() {
+                StatusCode::OK => {
+                    let body = resp.into_body();
+                    let meta: GdriveFile = serde_json::from_reader(body.reader())
+                        .map_err(new_json_deserialize_error)?;
 
-                if metadata.mode().is_dir() {
-                    self.core.cache_dir_id(&to_path, &meta.id).await;
-                } else {
-                    self.core.cache_file_id(&to_path, &meta.id).await;
-                }
-                self.core.record_recent_upsert(&to_path, metadata).await;
-
-                Ok((RpCopy::default(), ()))
-            }
-            StatusCode::NOT_FOUND => {
-                self.core.refresh_path(&source).await;
-                self.core.refresh_path(&target).await;
-                let resp = self.core.gdrive_copy(from, to).await?;
-                match resp.status() {
-                    StatusCode::OK => {
-                        let body = resp.into_body();
-                        let meta: GdriveFile = serde_json::from_reader(body.reader())
-                            .map_err(new_json_deserialize_error)?;
-
-                        let to_path = build_abs_path(&self.core.root, to);
-                        let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder"
-                        {
-                            Metadata::new(EntryMode::DIR)
-                        } else {
-                            Metadata::new(EntryMode::FILE)
-                        };
-                        if let Some(size) = meta.size {
-                            metadata =
-                                metadata.with_content_length(size.parse::<u64>().map_err(|e| {
-                                    Error::new(ErrorKind::Unexpected, "parse content length")
-                                        .set_source(e)
-                                })?);
-                        }
-
-                        if metadata.mode().is_dir() {
-                            self.core.cache_dir_id(&to_path, &meta.id).await;
-                        } else {
-                            self.core.cache_file_id(&to_path, &meta.id).await;
-                        }
-                        self.core.record_recent_upsert(&to_path, metadata).await;
-
-                        Ok((RpCopy::default(), ()))
+                    let to_path = build_abs_path(&core.root, &to);
+                    let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
+                        Metadata::new(EntryMode::DIR)
+                    } else {
+                        Metadata::new(EntryMode::FILE)
+                    };
+                    if let Some(size) = meta.size {
+                        metadata =
+                            metadata.with_content_length(size.parse::<u64>().map_err(|e| {
+                                Error::new(ErrorKind::Unexpected, "parse content length")
+                                    .set_source(e)
+                            })?);
                     }
-                    _ => Err(parse_error(resp)),
+
+                    if metadata.mode().is_dir() {
+                        core.cache_dir_id(&to_path, &meta.id).await;
+                    } else {
+                        core.cache_file_id(&to_path, &meta.id).await;
+                    }
+                    core.record_recent_upsert(&to_path, metadata).await;
+
+                    Ok(Metadata::default())
                 }
+                StatusCode::NOT_FOUND => {
+                    core.refresh_path(&source).await;
+                    core.refresh_path(&target).await;
+                    let resp = core.gdrive_copy(&ctx, &from, &to).await?;
+                    match resp.status() {
+                        StatusCode::OK => {
+                            let body = resp.into_body();
+                            let meta: GdriveFile = serde_json::from_reader(body.reader())
+                                .map_err(new_json_deserialize_error)?;
+
+                            let to_path = build_abs_path(&core.root, &to);
+                            let mut metadata =
+                                if meta.mime_type == "application/vnd.google-apps.folder" {
+                                    Metadata::new(EntryMode::DIR)
+                                } else {
+                                    Metadata::new(EntryMode::FILE)
+                                };
+                            if let Some(size) = meta.size {
+                                metadata = metadata.with_content_length(
+                                    size.parse::<u64>().map_err(|e| {
+                                        Error::new(ErrorKind::Unexpected, "parse content length")
+                                            .set_source(e)
+                                    })?,
+                                );
+                            }
+
+                            if metadata.mode().is_dir() {
+                                core.cache_dir_id(&to_path, &meta.id).await;
+                            } else {
+                                core.cache_file_id(&to_path, &meta.id).await;
+                            }
+                            core.record_recent_upsert(&to_path, metadata).await;
+
+                            Ok(Metadata::default())
+                        }
+                        _ => Err(parse_error(resp)),
+                    }
+                }
+                _ => Err(parse_error(resp)),
             }
-            _ => Err(parse_error(resp)),
-        }
+        }))
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
         let source = build_abs_path(&self.core.root, from);
         let target = build_abs_path(&self.core.root, to);
 
         // rename will overwrite `to`, delete it if exist
-        self.core.trash_path_if_exists(&target).await?;
+        self.core.trash_path_if_exists(ctx, &target).await?;
 
         let resp = self
             .core
-            .gdrive_patch_metadata_request(&source, &target)
+            .gdrive_patch_metadata_request(ctx, &source, &target)
             .await?;
 
         let status = resp.status();
@@ -380,7 +524,7 @@ impl Access for GdriveBackend {
 
                 let resp = self
                     .core
-                    .gdrive_patch_metadata_request(&source, &target)
+                    .gdrive_patch_metadata_request(ctx, &source, &target)
                     .await?;
 
                 if resp.status() != StatusCode::OK {
@@ -428,5 +572,17 @@ impl Access for GdriveBackend {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

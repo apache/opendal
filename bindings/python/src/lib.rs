@@ -39,7 +39,6 @@ pub use errors::*;
 mod options;
 pub use options::*;
 mod services;
-use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 pub use services::*;
 
 // The `opendal` Python package is a mixed Python/native layout: the public
@@ -73,7 +72,7 @@ mod _opendal {
     #[pymodule]
     mod services {
         #[pymodule_export]
-        use crate::PyScheme;
+        use crate::Scheme;
     }
 
     #[pymodule]
@@ -139,5 +138,3 @@ mod _opendal {
         crate::register_submodules(m, "opendal")
     }
 }
-
-define_stub_info_gatherer!(stub_info);

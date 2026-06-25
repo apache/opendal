@@ -25,7 +25,6 @@ use pyo3::prelude::*;
 /// - Basic operations support (read, write, delete, etc.)
 /// - Advanced operation variants (conditional operations, metadata handling)
 /// - Operational constraints (size limits, batch limitations)
-#[crate::gen_stub_pyclass]
 #[pyclass(get_all, module = "opendal.capability")]
 pub struct Capability {
     /// If operator supports stat.

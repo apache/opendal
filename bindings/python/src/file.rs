@@ -669,6 +669,10 @@ impl AsyncFile {
         })
     }
 
+    // `typing_extensions.Self` (not `typing.Self`) because the binding's
+    // `requires-python` floor is 3.10, where `typing.Self` (3.11+) is absent;
+    // `typing_extensions` back-ports it. Switch to `typing.Self` once the floor
+    // reaches 3.11.
     #[pyo3(signature = () -> "typing_extensions.Self")]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;

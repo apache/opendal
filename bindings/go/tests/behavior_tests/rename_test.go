@@ -45,13 +45,14 @@ func testsRename(cap *opendal.Capability) []behaviorTest {
 func testRenameFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(sourcePath, sourceContent), "write must succeed")
+	_, err := op.Write(sourcePath, sourceContent)
+	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.NewFilePath()
 
 	assert.Nil(op.Rename(sourcePath, targetPath))
 
-	_, err := op.Stat(sourcePath)
+	_, err = op.Stat(sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
@@ -91,12 +92,13 @@ func testRenameTargetDir(assert *require.Assertions, op *opendal.Operator, fixtu
 
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(sourcePath, sourceContent), "write must succeed")
+	_, err := op.Write(sourcePath, sourceContent)
+	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.NewDirPath()
 	assert.Nil(op.CreateDir(targetPath))
 
-	err := op.Rename(sourcePath, targetPath)
+	err = op.Rename(sourcePath, targetPath)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
@@ -104,9 +106,10 @@ func testRenameTargetDir(assert *require.Assertions, op *opendal.Operator, fixtu
 func testRenameSelf(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(sourcePath, sourceContent), "write must succeed")
+	_, err := op.Write(sourcePath, sourceContent)
+	assert.Nil(err, "write must succeed")
 
-	err := op.Rename(sourcePath, sourcePath)
+	err = op.Rename(sourcePath, sourcePath)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsSameFile, assertErrorCode(err))
 }
@@ -114,7 +117,8 @@ func testRenameSelf(assert *require.Assertions, op *opendal.Operator, fixture *f
 func testRenameNested(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(sourcePath, sourceContent), "write must succeed")
+	_, err := op.Write(sourcePath, sourceContent)
+	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.PushPath(fmt.Sprintf(
 		"%s/%s/%s",
@@ -125,7 +129,7 @@ func testRenameNested(assert *require.Assertions, op *opendal.Operator, fixture 
 
 	assert.Nil(op.Rename(sourcePath, targetPath))
 
-	_, err := op.Stat(sourcePath)
+	_, err = op.Stat(sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
@@ -137,16 +141,18 @@ func testRenameNested(assert *require.Assertions, op *opendal.Operator, fixture 
 func testRenameOverwrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(sourcePath, sourceContent), "write must succeed")
+	_, err := op.Write(sourcePath, sourceContent)
+	assert.Nil(err, "write must succeed")
 
 	targetPath, targetContent, _ := fixture.NewFile()
 	assert.NotEqual(sourceContent, targetContent)
 
-	assert.Nil(op.Write(targetPath, targetContent), "write must succeed")
+	_, err = op.Write(targetPath, targetContent)
+	assert.Nil(err, "write must succeed")
 
 	assert.Nil(op.Rename(sourcePath, targetPath))
 
-	_, err := op.Stat(sourcePath)
+	_, err = op.Stat(sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 

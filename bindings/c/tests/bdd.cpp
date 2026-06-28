@@ -155,6 +155,7 @@ TEST_F(OpendalBddTest, WriteEmptyNullBytes)
     EXPECT_EQ(read.data.len, 0);
     opendal_bytes_free(&read.data);
 
+    // Cover the separate write_with entry point that shares this validation.
     error = opendal_operator_write_with(this->p, "empty-with-options", &empty, nullptr);
     EXPECT_EQ(error, nullptr);
 

@@ -21,6 +21,11 @@ pub use mode::EntryMode;
 mod buffer;
 pub use buffer::Buffer;
 
+mod http_transport;
+pub use http_transport::HttpBody;
+pub use http_transport::HttpTransport;
+pub use http_transport::HttpTransporter;
+
 mod entry;
 pub use entry::Entry;
 
@@ -48,7 +53,6 @@ pub use execute::*;
 mod operator;
 pub use operator::IntoOperatorUri;
 pub use operator::Operator;
-pub use operator::OperatorBuilder;
 pub use operator::OperatorFactory;
 pub use operator::OperatorInfo;
 pub use operator::OperatorRegistry;
@@ -67,7 +71,11 @@ pub use error::Result;
 mod capability;
 pub use capability::Capability;
 
+mod bytes_range;
+pub use bytes_range::BytesRange;
+
 pub mod options;
 
 mod context;
+pub use context::OperationContext;
 pub(crate) use context::*;

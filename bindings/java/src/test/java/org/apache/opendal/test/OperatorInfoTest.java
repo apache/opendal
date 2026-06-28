@@ -43,15 +43,13 @@ public class OperatorInfoTest {
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("fs");
 
-            assertThat(info.fullCapability).isNotNull();
-            assertThat(info.fullCapability.read).isTrue();
-            assertThat(info.fullCapability.write).isTrue();
-            assertThat(info.fullCapability.delete).isTrue();
-            assertThat(info.fullCapability.writeCanAppend).isTrue();
-            assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
-            assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
-
-            assertThat(info.nativeCapability).isNotNull();
+            assertThat(info.capability).isNotNull();
+            assertThat(info.capability.read).isTrue();
+            assertThat(info.capability.write).isTrue();
+            assertThat(info.capability.delete).isTrue();
+            assertThat(info.capability.writeCanAppend).isTrue();
+            assertThat(info.capability.writeMultiMaxSize).isEqualTo(-1);
+            assertThat(info.capability.writeMultiMinSize).isEqualTo(-1);
         }
     }
 
@@ -64,15 +62,13 @@ public class OperatorInfoTest {
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("memory");
 
-            assertThat(info.fullCapability).isNotNull();
-            assertThat(info.fullCapability.read).isTrue();
-            assertThat(info.fullCapability.write).isTrue();
-            assertThat(info.fullCapability.delete).isTrue();
-            assertThat(info.fullCapability.writeCanAppend).isFalse();
-            assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
-            assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
-
-            assertThat(info.nativeCapability).isNotNull();
+            assertThat(info.capability).isNotNull();
+            assertThat(info.capability.read).isTrue();
+            assertThat(info.capability.write).isTrue();
+            assertThat(info.capability.delete).isTrue();
+            assertThat(info.capability.writeCanAppend).isFalse();
+            assertThat(info.capability.writeMultiMaxSize).isEqualTo(-1);
+            assertThat(info.capability.writeMultiMinSize).isEqualTo(-1);
         }
     }
 }

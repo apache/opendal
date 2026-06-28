@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -32,12 +31,13 @@ use reqsign_tencent_cos::StaticCredentialProvider;
 
 use super::COS_SCHEME;
 use super::config::CosConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::CosDeleter;
-use super::error::parse_error;
 use super::lister::CosLister;
 use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
+use super::reader::*;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
 use opendal_core::raw::*;
@@ -166,7 +166,7 @@ impl CosBuilder {
 impl Builder for CosBuilder {
     type Config = CosConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -201,12 +201,9 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
-        let info = Arc::new(AccessorInfo::default());
-
         let os_env = OsEnv;
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(os_env);
 
         let mut credential = if self.config.disable_config_load {
@@ -233,70 +230,68 @@ impl Builder for CosBuilder {
 
         let signer = Signer::new(ctx, credential, RequestSigner::new());
 
+        let info = ServiceInfo::new(COS_SCHEME, &root, &bucket);
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_version: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+            read_with_version: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_append: true,
+            write_can_multi: true,
+            write_with_content_type: true,
+            write_with_cache_control: true,
+            write_with_content_disposition: true,
+            write_with_if_not_exists: true,
+            copy_with_if_not_exists: true,
+            // The min multipart size of COS is 1 MiB.
+            //
+            // ref: <https://www.tencentcloud.com/document/product/436/14112>
+            write_multi_min_size: Some(1024 * 1024),
+            // The max multipart size of COS is 5 GiB.
+            //
+            // ref: <https://www.tencentcloud.com/document/product/436/14112>
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+            write_with_user_metadata: true,
+
+            delete: true,
+            delete_with_version: true,
+            copy: true,
+
+            list: true,
+            list_with_recursive: true,
+            list_with_versions: true,
+            list_with_deleted: true,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(CosBackend {
             core: Arc::new(CosCore {
-                info: {
-                    info.set_scheme(COS_SCHEME)
-                        .set_root(&root)
-                        .set_name(&bucket)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-                            stat_with_version: true,
-
-                            read: true,
-
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
-                            read_with_version: true,
-
-                            write: true,
-                            write_can_empty: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_content_type: true,
-                            write_with_cache_control: true,
-                            write_with_content_disposition: true,
-                            write_with_if_not_exists: true,
-                            copy_with_if_not_exists: true,
-                            // The min multipart size of COS is 1 MiB.
-                            //
-                            // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                            write_multi_min_size: Some(1024 * 1024),
-                            // The max multipart size of COS is 5 GiB.
-                            //
-                            // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            write_with_user_metadata: true,
-
-                            delete: true,
-                            delete_with_version: true,
-                            copy: true,
-
-                            list: true,
-                            list_with_recursive: true,
-                            list_with_versions: true,
-                            list_with_deleted: true,
-
-                            presign: true,
-                            presign_stat: true,
-                            presign_read: true,
-                            presign_write: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 bucket: bucket.clone(),
                 root,
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
@@ -309,64 +304,38 @@ impl Builder for CosBuilder {
 /// Backend for Tencent-Cloud COS services.
 #[derive(Debug, Clone)]
 pub struct CosBackend {
-    core: Arc<CosCore>,
+    pub(crate) core: Arc<CosCore>,
 }
 
-/// Reader returned by this backend.
-pub struct CosReader {
-    backend: CosBackend,
-    path: String,
-    args: OpRead,
-}
-
-impl CosReader {
-    fn new(backend: CosBackend, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for CosReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend.core.cos_get_object(path, range, &args).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-impl Access for CosBackend {
+impl Service for CosBackend {
     type Reader = oio::StreamReader<CosReader>;
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.cos_head_object(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.cos_head_object(ctx, path, &args).await?;
 
         let status = resp.status();
 
@@ -391,73 +360,118 @@ impl Access for CosBackend {
             _ => Err(parse_error(resp)),
         }
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        Ok((
-            RpRead::default(),
-            oio::StreamReader::new(CosReader::new(self.clone(), path, args)),
-        ))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = CosWriter::new(self.core.clone(), path, args.clone());
-
-        let w = if args.append() {
-            CosWriters::Two(oio::AppendWriter::new(writer))
-        } else {
-            CosWriters::One(oio::MultipartWriter::new(
-                self.core.info.clone(),
-                writer,
-                args.concurrent(),
-            ))
-        };
-
-        Ok((RpWrite::default(), w))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(CosDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = if args.versions() || args.deleted() {
-            TwoWays::Two(oio::PageLister::new(CosObjectVersionsLister::new(
-                self.core.clone(),
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<CosReader> = {
+            Ok(oio::StreamReader::new(CosReader::new(
+                self.clone(),
+                ctx.clone(),
                 path,
                 args,
             )))
-        } else {
-            TwoWays::One(oio::PageLister::new(CosLister::new(
-                self.core.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-            )))
-        };
+        }?;
 
-        Ok((RpList::default(), l))
+        Ok(output)
     }
 
-    async fn copy(
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: CosWriters = {
+            let writer = CosWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
+
+            let w = if args.append() {
+                CosWriters::Two(oio::AppendWriter::new(writer))
+            } else {
+                CosWriters::One(oio::MultipartWriter::new(
+                    ctx.executor().clone(),
+                    writer,
+                    args.concurrent(),
+                ))
+            };
+
+            Ok(w)
+        }?;
+
+        Ok(output)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<CosDeleter> = {
+            Ok(oio::OneShotDeleter::new(CosDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: CosListers = {
+            let l = if args.versions() || args.deleted() {
+                TwoWays::Two(oio::PageLister::new(CosObjectVersionsLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else {
+                TwoWays::One(oio::PageLister::new(CosLister::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args.recursive(),
+                    args.limit(),
+                )))
+            };
+
+            Ok(l)
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.cos_copy_object(from, to, &args).await?;
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            let resp = core.cos_copy_object(&ctx, &from, &to, &args).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+            match status {
+                StatusCode::OK => Ok(Metadata::default()),
+                _ => Err(parse_error(resp)),
+            }
+        }))
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v),
             PresignOperation::Read(range, v) => self.core.cos_get_object_request(path, *range, v),
@@ -475,7 +489,7 @@ impl Access for CosBackend {
             )),
         };
         let req = req?;
-        let req = self.core.sign_query(req, args.expire()).await?;
+        let req = self.core.sign_query(ctx, req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

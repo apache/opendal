@@ -21,16 +21,17 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 
 pub struct LakefsDeleter {
     core: Arc<LakefsCore>,
+    ctx: OperationContext,
 }
 
 impl LakefsDeleter {
-    pub fn new(core: Arc<LakefsCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<LakefsCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
@@ -41,7 +42,7 @@ impl oio::OneShotDelete for LakefsDeleter {
             return Ok(());
         }
 
-        let resp = self.core.delete_object(&path, &args).await?;
+        let resp = self.core.delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 

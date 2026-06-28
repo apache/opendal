@@ -33,11 +33,11 @@ use prometheus::register_histogram_vec_with_registry;
 use prometheus::register_int_counter_vec_with_registry;
 use prometheus::register_int_gauge_vec_with_registry;
 
-/// Add [prometheus](https://docs.rs/prometheus) for every operation.
+/// Add [prometheus](https://docs.rs/prometheus) metrics for OpenDAL operations and HTTP fetches.
 ///
 /// # Prometheus Metrics
 ///
-/// We provide several metrics, please see the documentation of [`observe`] module.
+/// This layer registers operation metrics and HTTP fetch metrics. Please see the documentation of [`observe`] module for metric details.
 /// For a more detailed explanation of these metrics and how they are used, please refer to the [Prometheus documentation](https://prometheus.io/docs/introduction/overview/).
 ///
 /// # Examples
@@ -61,8 +61,7 @@ use prometheus::register_int_gauge_vec_with_registry;
 ///         PrometheusLayer::builder()
 ///             .register(registry)
 ///             .expect("register metrics successfully"),
-///     )
-///     .finish();
+///     );
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
@@ -116,8 +115,7 @@ use prometheus::register_int_gauge_vec_with_registry;
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(global_prometheus_layer().clone())
-///     .finish();
+///     .layer(global_prometheus_layer().clone());
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
@@ -139,7 +137,7 @@ use prometheus::register_int_gauge_vec_with_registry;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PrometheusLayer {
     interceptor: PrometheusInterceptor,
 }
@@ -170,8 +168,7 @@ impl PrometheusLayer {
     ///             .bytes_buckets(bytes_buckets)
     ///             .register(registry)
     ///             .expect("register metrics successfully"),
-    ///     )
-    ///     .finish();
+    ///     );
     /// # Ok(())
     /// # }
     /// ```
@@ -180,11 +177,14 @@ impl PrometheusLayer {
     }
 }
 
-impl<A: Access> Layer<A> for PrometheusLayer {
-    type LayeredAccess = observe::MetricsAccessor<A, PrometheusInterceptor>;
+impl Layer for PrometheusLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_service(inner)
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        observe::MetricsLayer::new(self.interceptor.clone()).layer(inner)
+    // Reuse the same interceptor because this layer registers both operation and HTTP metrics.
+    fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext {
+        observe::MetricsLayer::new(self.interceptor.clone()).apply_context(srv, inner)
     }
 }
 
@@ -279,8 +279,7 @@ impl PrometheusLayerBuilder {
     ///         PrometheusLayer::builder()
     ///             .register(prometheus::default_registry())
     ///             .expect("register metrics successfully"),
-    ///     )
-    ///     .finish();
+    ///     );
     /// # Ok(())
     /// # }
     /// ```
@@ -520,8 +519,7 @@ impl PrometheusLayerBuilder {
     ///         PrometheusLayer::builder()
     ///             .register_default()
     ///             .expect("register metrics successfully"),
-    ///     )
-    ///     .finish();
+    ///     );
     /// # Ok(())
     /// # }
     /// ```

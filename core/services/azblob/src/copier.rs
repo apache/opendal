@@ -24,7 +24,7 @@ use super::core::AzblobCore;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_VERSION_ID;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::writer::AzblobWriter;
 use opendal_core::raw::oio::BlockCopy;
 use opendal_core::raw::*;
@@ -34,14 +34,15 @@ pub type AzblobCopiers = TwoWays<oio::OneShotCopier, oio::BlockCopier<AzblobCopi
 
 pub fn new_azblob_copier(
     core: Arc<AzblobCore>,
+    ctx: &OperationContext,
     from: &str,
     to: &str,
     args: OpCopy,
     opts: OpCopier,
 ) -> Result<AzblobCopiers> {
-    let info = core.info.clone();
     let copier = AzblobCopier {
         core,
+        ctx: ctx.clone(),
         from: from.to_string(),
         to: to.to_string(),
         args,
@@ -56,7 +57,7 @@ pub fn new_azblob_copier(
     let block_size = chunk.clamp(AZBLOB_COPY_MIN_BLOCK_SIZE, AZBLOB_COPY_MAX_BLOCK_SIZE) as u64;
 
     Ok(TwoWays::Two(oio::BlockCopier::new(
-        info,
+        ctx.executor().clone(),
         copier,
         opts.source_content_length_hint(),
         block_size.saturating_sub(1),
@@ -67,6 +68,7 @@ pub fn new_azblob_copier(
 
 pub struct AzblobCopier {
     core: Arc<AzblobCore>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -81,7 +83,7 @@ impl oio::BlockCopy for AzblobCopier {
 
         let resp = self
             .core
-            .azblob_get_blob_properties(&self.from, &args)
+            .azblob_get_blob_properties(&self.ctx, &self.from, &args)
             .await?;
 
         match resp.status() {
@@ -100,7 +102,7 @@ impl oio::BlockCopy for AzblobCopier {
     async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_copy_blob(&self.from, &self.to, self.args.clone())
+            .azblob_copy_blob(&self.ctx, &self.from, &self.to, self.args.clone())
             .await?;
 
         match resp.status() {
@@ -113,6 +115,7 @@ impl oio::BlockCopy for AzblobCopier {
         let resp = self
             .core
             .azblob_put_block_from_url(
+                &self.ctx,
                 &self.from,
                 &self.to,
                 self.args.source_version(),
@@ -130,7 +133,7 @@ impl oio::BlockCopy for AzblobCopier {
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_complete_copy_block_list(&self.to, block_ids, &self.args)
+            .azblob_complete_copy_block_list(&self.ctx, &self.to, block_ids, &self.args)
             .await?;
 
         let meta = AzblobWriter::parse_metadata(resp.headers())?;

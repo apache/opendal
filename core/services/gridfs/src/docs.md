@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         // The chunk size in bytes used to break the user file into chunks.
         .chunk_size(255);
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     Ok(())
 }
 ```

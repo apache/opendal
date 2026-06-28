@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use bytes::Buf;
 use http::Request;
@@ -26,13 +25,13 @@ use http::header;
 use http::request;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// Yandex Disk oauth access_token.
@@ -49,8 +48,12 @@ impl Debug for YandexDiskCore {
 
 impl YandexDiskCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 
     #[inline]
@@ -64,7 +67,7 @@ impl YandexDiskCore {
 
 impl YandexDiskCore {
     /// Get upload url.
-    async fn get_upload_url(&self, path: &str) -> Result<String> {
+    async fn get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -74,14 +77,16 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadUrl"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -98,17 +103,23 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn upload(&self, path: &str, body: Buffer) -> Result<Response<Buffer>> {
-        let upload_url = self.get_upload_url(path).await?;
+    pub async fn upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let upload_url = self.get_upload_url(ctx, path).await?;
         let req = Request::put(upload_url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("Upload"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    async fn get_download_url(&self, path: &str) -> Result<String> {
+    async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -118,14 +129,16 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetDownloadUrl"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
 
@@ -142,25 +155,31 @@ impl YandexDiskCore {
         }
     }
 
-    pub async fn download(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let download_url = self.get_download_url(path).await?;
+    pub async fn download(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let download_url = self.get_download_url(ctx, path).await?;
         let req = Request::get(download_url)
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("Download"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub async fn ensure_dir_exists(&self, path: &str) -> Result<()> {
+    pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_abs_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
         for i in 0..paths.len() - 1 {
             let path = paths[..i + 1].join("/");
-            let resp = self.create_dir(&path).await?;
+            let resp = self.create_dir(ctx, &path).await?;
 
             let status = resp.status();
 
@@ -172,7 +191,7 @@ impl YandexDiskCore {
         Ok(())
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path=/{}",
             percent_encode_path(path),
@@ -180,17 +199,24 @@ impl YandexDiskCore {
 
         let req = Request::put(url);
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateResource"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -202,17 +228,24 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyResource"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn move_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = build_rooted_abs_path(&self.root, from);
         let to = build_rooted_abs_path(&self.root, to);
 
@@ -224,17 +257,19 @@ impl YandexDiskCore {
 
         let req = Request::post(url);
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveResource"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -244,18 +279,21 @@ impl YandexDiskCore {
 
         let req = Request::delete(url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteResource"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn metainformation(
         &self,
+        ctx: &OperationContext,
         path: &str,
         limit: Option<usize>,
         offset: Option<String>,
@@ -277,14 +315,16 @@ impl YandexDiskCore {
 
         let req = Request::get(url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetMetainformation"));
 
         let req = self.sign(req);
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 
@@ -337,3 +377,96 @@ pub struct Embedded {
     pub total: usize,
     pub items: Vec<MetainformationResponse>,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// YandexDiskError is the error returned by YandexDisk service.
+    #[derive(Default, Debug, Deserialize)]
+    #[allow(unused)]
+    struct YandexDiskError {
+        message: String,
+        description: String,
+        error: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status.as_u16() {
+            410 | 403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            // We should retry it when we get 423 error.
+            423 => (ErrorKind::RateLimited, true),
+            499 => (ErrorKind::Unexpected, true),
+            503 | 507 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, _yandex_disk_err) =
+            de::from_reader::<_, YandexDiskError>(bs.clone().reader())
+                .map(|yandex_disk_err| (format!("{yandex_disk_err:?}"), Some(yandex_disk_err)))
+                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![
+                (
+                    r#"{
+                    "message": "Не удалось найти запрошенный ресурс.",
+                    "description": "Resource not found.",
+                    "error": "DiskNotFoundError"
+                }"#,
+                    ErrorKind::NotFound,
+                    StatusCode::NOT_FOUND,
+                ),
+                (
+                    r#"{
+                    "message": "Не авторизован.",
+                    "description": "Unauthorized",
+                    "error": "UnauthorizedError"
+                }"#,
+                    ErrorKind::PermissionDenied,
+                    StatusCode::FORBIDDEN,
+                ),
+            ];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

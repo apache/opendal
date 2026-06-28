@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
         // set atomic_write_dir for builder
         .atomic_write_dir(".opendal_tmp/");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

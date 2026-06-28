@@ -45,7 +45,11 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let tmpl = env.get_template("python")?;
 
     let output = workspace_dir.join("bindings/python/src/services.rs");
-    fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
+    let mut rendered = tmpl.render(context! { srvs => srvs })?;
+    if !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+    fs::write(output, rendered)?;
     Ok(())
 }
 

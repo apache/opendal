@@ -77,19 +77,26 @@ pub fn parse_op_read(args: &OpRead, range: BytesRange) -> Result<GetOptions> {
         options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
-    if !range.is_full() {
-        match range.size() {
+    match range {
+        BytesRange::Range {
+            offset: 0,
+            size: None,
+        } => {}
+        BytesRange::Range { offset, size } => match size {
             Some(size) => {
-                let end = range.offset().checked_add(size).ok_or_else(|| {
+                let end = offset.checked_add(size).ok_or_else(|| {
                     Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                        .with_context("offset", range.offset())
+                        .with_context("offset", offset)
                         .with_context("size", size)
                 })?;
-                options.range = Some(GetRange::Bounded(range.offset()..end));
+                options.range = Some(GetRange::Bounded(offset..end));
             }
             None => {
-                options.range = Some(GetRange::Offset(range.offset()));
+                options.range = Some(GetRange::Offset(offset));
             }
+        },
+        BytesRange::Suffix { size } => {
+            options.range = Some(GetRange::Suffix(size));
         }
     }
 
@@ -166,4 +173,17 @@ pub fn format_metadata(meta: &ObjectMeta) -> Metadata {
         metadata.set_version(version);
     }
     metadata
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_op_read_suffix_range() -> Result<()> {
+        let opts = parse_op_read(&OpRead::new(), BytesRange::suffix(8))?;
+
+        assert_eq!(opts.range, Some(GetRange::Suffix(8)));
+        Ok(())
+    }
 }

@@ -31,10 +31,8 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-bincode = "1"
-foyer = { version = "0.22.3", features = ["serde"] }
+foyer = { version = "0.22.3" }
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
-serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.57.0", features = [

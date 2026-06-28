@@ -26,7 +26,7 @@ pub fn register_ghac_service(registry: &opendal_core::OperatorRegistry) {
 mod backend;
 mod config;
 mod core;
-mod error;
+mod reader;
 mod writer;
 
 pub use backend::GhacBuilder as Ghac;

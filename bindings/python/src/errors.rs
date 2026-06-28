@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::exceptions::PyIOError;
-use pyo3_stub_gen::create_exception;
 
 use crate::*;
 

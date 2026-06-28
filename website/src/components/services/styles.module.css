@@ -1,0 +1,251 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2.5rem 1rem 4rem;
+}
+
+.breadcrumb {
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-600);
+  margin-bottom: 1rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-family: var(--ifm-font-family-monospace);
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+
+.subtitle {
+  color: var(--ifm-color-emphasis-700);
+  margin: 0;
+}
+
+.search {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font-size: 1rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-color);
+  color: var(--ifm-font-color-base);
+  margin-bottom: 2rem;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--ifm-color-primary);
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 100%;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-card-background-color, var(--ifm-background-surface-color));
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.card:hover {
+  text-decoration: none;
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--ifm-global-shadow-lw);
+}
+
+.cardName {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ifm-heading-color);
+  word-break: break-word;
+}
+
+.cardMeta {
+  font-size: 0.85rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
+.section {
+  margin-top: 2.5rem;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ifm-color-emphasis-600);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ifm-color-primary);
+}
+
+.tabActive {
+  color: var(--ifm-color-primary);
+  border-bottom-color: var(--ifm-color-primary);
+}
+
+.details {
+  margin-top: 0.5rem;
+}
+
+.details > summary {
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.hint {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
+.group {
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-global-radius);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.groupSummary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.7rem 1rem;
+  background: var(--ifm-color-emphasis-100);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.groupCount {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ifm-color-emphasis-600);
+  background: var(--ifm-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+}
+
+.chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.72rem;
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-emphasis-700);
+  white-space: nowrap;
+}
+
+.chip code {
+  font-size: 0.72rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  display: table;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ifm-color-emphasis-600);
+}
+
+.desc {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.deprecatedRow code {
+  text-decoration: line-through;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.7rem;
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-color-warning-contrast-background);
+  color: var(--ifm-color-warning-darkest);
+}
+
+.deprecatedNote {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--ifm-color-warning-darkest);
+}

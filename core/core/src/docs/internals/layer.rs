@@ -17,26 +17,78 @@
 
 //! The internal implementation details of [`Layer`].
 //!
-//! [`Layer`] itself is quite simple:
+//! OpenDAL has one layer composition surface:
+//!
+//! - [`Layer`] receives an already erased [`ServiceDyn`] stack and can wrap the
+//!   service or its [`OperationContext`].
+//! - Layer wrappers still implement typed [`Service`], so their own reader,
+//!   writer, lister, deleter, and copier bodies stay concrete.
+//! - The composition boundary is [`Servicer`]. Boxing operation
+//!   bodies remains centralized in the blanket [`ServiceDyn`] implementation
+//!   for typed [`Service`] values.
+//!
+//! [`Layer`] itself is the runtime hook surface. Every hook returns `inner` by
+//! default, so a layer only implements the plane it needs:
 //!
 //! ```ignore
-//! pub trait Layer<A: Access> {
-//!     type LayeredAccess: Access;
-//!
-//!     fn layer(&self, inner: A) -> Self::LayeredAccess;
+//! pub trait Layer: Send + Sync + Debug + Unpin + 'static {
+//!     fn apply_service(&self, srv: Servicer) -> Servicer;
+//!     fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext;
 //! }
 //! ```
 //!
-//! `XxxLayer` will wrap input [`Access`] as inner and return a new [`Access`]. So normally the implementation of [`Layer`] will be split into two parts:
+//! [`Operator`] replays the same ordered layer list over the base service and
+//! base [`OperationContext`]. It first composes the operation service stack.
+//! Then context hooks receive the final [`Servicer`] and compose runtime
+//! resources such as HTTP transport and executor. The composed context is passed
+//! to service operations.
 //!
-//! - `XxxLayer` will implement [`Layer`] and return `XxxAccessor` as `Self::LayeredAccess`.
-//! - `XxxAccess` will implement [`Access`] and be built by `XxxLayer`.
+//! An operation layer normally has two parts:
 //!
-//! Most layer only implements part of [`Access`], so we provide
-//! [`LayeredAccess`] which will forward all unimplemented methods to
-//! `inner`. It's highly recommend to implement [`LayeredAccess`] trait
-//! instead.
+//! - `XxxLayer` implements [`Layer`] and returns a typed service wrapper from
+//!   `apply_service`.
+//! - `XxxService` stores the inner [`Servicer`] and implements [`Service`].
+//!
+//! ```ignore
+//! pub struct XxxLayer;
+//!
+//! impl Layer for XxxLayer {
+//!     fn apply_service(&self, inner: Servicer) -> Servicer {
+//!         Arc::new(XxxService { inner })
+//!     }
+//! }
+//! ```
+//!
+//! Most operation layers only override the operations they need and forward the
+//! rest to `inner`. This works because [`Servicer`] implements [`Service`] by
+//! forwarding calls to [`ServiceDyn`], while the wrapper keeps concrete
+//! operation body types until it is returned as a [`Servicer`].
+//!
+//! Resource-only layers can implement only `apply_context`. If they do not need
+//! the final service stack, they should name that parameter `_srv`.
+//!
+//! ```ignore
+//! pub struct TransportLayer {
+//!     transport: HttpTransporter,
+//! }
+//!
+//! impl Layer for TransportLayer {
+//!     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
+//!         inner.with_http_transport(self.transport.clone())
+//!     }
+//! }
+//! ```
+//!
+//! Layers that need consistent policy across planes can implement both hooks,
+//! for example operation and I/O timeout handling. Resource wrappers that
+//! replace HTTP transport or executor must forward to the previous value when
+//! they want lower layers to remain effective.
 //!
 //! [`Layer`]: crate::raw::Layer
-//! [`Access`]: crate::raw::Access
-//! [`LayeredAccess`]: crate::raw::LayeredAccess
+//! [`Service`]: crate::raw::Service
+//! [`ServiceDyn`]: crate::raw::ServiceDyn
+//! [`Servicer`]: crate::raw::Servicer
+//! [`HttpTransporter`]: crate::HttpTransporter
+//! [`Executor`]: crate::Executor
+//! [`OperationContext`]: crate::raw::OperationContext
+//! [`Operator`]: crate::Operator

@@ -20,11 +20,12 @@ use std::sync::Arc;
 use bytes::Buf;
 use quick_xml::de;
 
+use crate::core::parse_error;
 use crate::core::*;
-use crate::error::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::Metadata;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::PageContext;
 use opendal_core::raw::*;
@@ -38,6 +39,7 @@ pub type S3Listers = ThreeWays<
 /// S3ListerV1 implements ListObjectV1 for s3 backend.
 pub struct S3ListerV1 {
     core: Arc<S3Core>,
+    ctx: OperationContext,
 
     path: String,
     args: OpList,
@@ -50,7 +52,7 @@ pub struct S3ListerV1 {
 }
 
 impl S3ListerV1 {
-    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let first_marker = args
             .start_after()
@@ -59,6 +61,7 @@ impl S3ListerV1 {
 
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             args,
@@ -73,6 +76,7 @@ impl oio::PageList for S3ListerV1 {
         let resp = self
             .core
             .s3_list_objects_v1(
+                &self.ctx,
                 &self.path,
                 // `marker` is used as `start-after` for the first page.
                 if !ctx.token.is_empty() {
@@ -160,6 +164,7 @@ impl oio::PageList for S3ListerV1 {
 /// S3ListerV2 implements ListObjectV2 for s3 backend.
 pub struct S3ListerV2 {
     core: Arc<S3Core>,
+    ctx: OperationContext,
 
     path: String,
     args: OpList,
@@ -169,7 +174,7 @@ pub struct S3ListerV2 {
 }
 
 impl S3ListerV2 {
-    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
@@ -177,6 +182,7 @@ impl S3ListerV2 {
 
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             args,
@@ -191,6 +197,7 @@ impl oio::PageList for S3ListerV2 {
         let resp = self
             .core
             .s3_list_objects_v2(
+                &self.ctx,
                 &self.path,
                 &ctx.token,
                 self.delimiter,
@@ -269,6 +276,7 @@ impl oio::PageList for S3ListerV2 {
 /// refer: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectVersions.html
 pub struct S3ObjectVersionsLister {
     core: Arc<S3Core>,
+    ctx: OperationContext,
 
     prefix: String,
     args: OpList,
@@ -278,7 +286,7 @@ pub struct S3ObjectVersionsLister {
 }
 
 impl S3ObjectVersionsLister {
-    pub fn new(core: Arc<S3Core>, path: &str, args: OpList) -> Self {
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
@@ -286,6 +294,7 @@ impl S3ObjectVersionsLister {
 
         Self {
             core,
+            ctx,
             prefix: path.to_string(),
             args,
             delimiter,
@@ -308,6 +317,7 @@ impl oio::PageList for S3ObjectVersionsLister {
         let resp = self
             .core
             .s3_list_object_versions(
+                &self.ctx,
                 &self.prefix,
                 self.delimiter,
                 self.args.limit(),

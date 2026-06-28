@@ -23,8 +23,8 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod model;
+mod reader;
 mod writer;
 
 pub use backend::D1Builder as D1;

@@ -49,8 +49,7 @@ use opendal_core::*;
 ///     .build();
 ///
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(layer)
-///     .finish();
+///     .layer(layer);
 /// # Ok(())
 /// # }
 /// ```
@@ -194,12 +193,10 @@ impl TailCutLayerBuilder {
     ///
     /// // Share the layer across operators
     /// let op1 = Operator::new(services::Memory::default())?
-    ///     .layer(layer.clone())
-    ///     .finish();
+    ///     .layer(layer.clone());
     ///
     /// let op2 = Operator::new(services::Memory::default())?
-    ///     .layer(layer.clone())
-    ///     .finish();
+    ///     .layer(layer.clone());
     /// // op1 and op2 share the same statistics
     /// # Ok(())
     /// # }
@@ -256,8 +253,7 @@ struct TailCutConfig {
 ///     .build();
 ///
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(layer)
-///     .finish();
+///     .layer(layer);
 /// # Ok(())
 /// # }
 /// ```
@@ -265,6 +261,14 @@ struct TailCutConfig {
 pub struct TailCutLayer {
     config: Arc<TailCutConfig>,
     stats: Arc<TailCutStats>,
+}
+
+impl Debug for TailCutLayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TailCutLayer")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for TailCutLayer {
@@ -287,11 +291,15 @@ impl TailCutLayer {
     }
 }
 
-impl<A: Access> Layer<A> for TailCutLayer {
-    type LayeredAccess = TailCutAccessor<A>;
+impl Layer for TailCutLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        TailCutAccessor {
+impl TailCutLayer {
+    fn layer(&self, inner: Servicer) -> TailCutService {
+        TailCutService {
             inner,
             config: self.config.clone(),
             stats: self.stats.clone(),
@@ -300,21 +308,22 @@ impl<A: Access> Layer<A> for TailCutLayer {
 }
 
 #[doc(hidden)]
-pub struct TailCutAccessor<A: Access> {
-    inner: A,
+/// Service wrapper that applies tail-cut deadlines to operation calls.
+pub struct TailCutService {
+    inner: Servicer,
     config: Arc<TailCutConfig>,
     stats: Arc<TailCutStats>,
 }
 
-impl<A: Access> Debug for TailCutAccessor<A> {
+impl Debug for TailCutService {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TailCutAccessor")
+        f.debug_struct("TailCutService")
             .field("config", &self.config)
             .finish_non_exhaustive()
     }
 }
 
-impl<A: Access> TailCutAccessor<A> {
+impl TailCutService {
     /// Calculate the deadline for a given operation and size.
     fn calculate_deadline(&self, op: Operation, size: Option<u64>) -> Option<Duration> {
         let op_stats = self.stats.stats_for(op);
@@ -358,109 +367,109 @@ impl<A: Access> TailCutAccessor<A> {
     }
 }
 
-impl<A: Access> LayeredAccess for TailCutAccessor<A> {
-    type Inner = A;
-    type Reader = TailCutWrapper<A::Reader>;
-    type Writer = TailCutWrapper<A::Writer>;
-    type Lister = TailCutWrapper<A::Lister>;
-    type Deleter = TailCutWrapper<A::Deleter>;
-    type Copier = TailCutWrapper<A::Copier>;
+impl Service for TailCutService {
+    type Reader = TailCutWrapper<oio::Reader>;
+    type Writer = TailCutWrapper<oio::Writer>;
+    type Lister = TailCutWrapper<oio::Lister>;
+    type Deleter = TailCutWrapper<oio::Deleter>;
+    type Copier = TailCutWrapper<oio::Copier>;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         self.with_deadline(
             Operation::CreateDir,
             None,
-            self.inner.create_dir(path, args),
+            self.inner.create_dir(ctx, path, args),
         )
         .await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.with_deadline(Operation::Read, None, self.inner.read(path, args))
-            .await
-            .map(|(rp, r)| {
-                (
-                    rp,
-                    TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner
+            .read(ctx, path, args)
+            .map(|r| TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.with_deadline(Operation::Write, None, self.inner.write(path, args))
-            .await
-            .map(|(rp, w)| {
-                (
-                    rp,
-                    TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner
+            .write(ctx, path, args)
+            .map(|w| TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
         opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
+        self.inner
+            .copy(ctx, from, to, args, opts)
+            .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
         self.with_deadline(
-            Operation::Copy,
+            Operation::Rename,
             None,
-            self.inner.copy(from, to, args, opts.clone()),
+            self.inner.rename(ctx, from, to, args),
         )
         .await
-        .map(|(rp, c)| {
-            (
-                rp,
-                TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()),
-            )
-        })
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.with_deadline(Operation::Rename, None, self.inner.rename(from, to, args))
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.with_deadline(Operation::Stat, None, self.inner.stat(ctx, path, args))
             .await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.with_deadline(Operation::Stat, None, self.inner.stat(path, args))
-            .await
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner
+            .delete(ctx)
+            .map(|d| TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.with_deadline(Operation::Delete, None, self.inner.delete())
-            .await
-            .map(|(rp, d)| {
-                (
-                    rp,
-                    TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()),
-                )
-            })
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner
+            .list(ctx, path, args)
+            .map(|l| TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.with_deadline(Operation::List, None, self.inner.list(path, args))
-            .await
-            .map(|(rp, l)| {
-                (
-                    rp,
-                    TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()),
-                )
-            })
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.with_deadline(Operation::Presign, None, self.inner.presign(path, args))
-            .await
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.with_deadline(
+            Operation::Presign,
+            None,
+            self.inner.presign(ctx, path, args),
+        )
+        .await
     }
 }
 
 #[doc(hidden)]
+/// Body wrapper that applies tail-cut deadlines to streaming I/O calls.
 pub struct TailCutWrapper<R> {
     inner: R,
     size: Option<u64>,

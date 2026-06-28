@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
         .username("xxx")
         .password("xxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

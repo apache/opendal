@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         // set the auth token for builder
         .token("token");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

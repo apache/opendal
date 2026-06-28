@@ -21,19 +21,25 @@ use http::StatusCode;
 
 use super::core::SloManifestEntry;
 use super::core::SwiftCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct SwiftWriter {
     core: Arc<SwiftCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl SwiftWriter {
-    pub fn new(core: Arc<SwiftCore>, op: OpWrite, path: String) -> Self {
-        SwiftWriter { core, op, path }
+    pub fn new(core: Arc<SwiftCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        SwiftWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -55,7 +61,7 @@ impl oio::MultipartWrite for SwiftWriter {
     async fn write_once(&self, _size: u64, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
+            .swift_create_object(&self.ctx, &self.path, bs.len() as u64, &self.op, bs)
             .await?;
 
         let status = resp.status();
@@ -84,7 +90,7 @@ impl oio::MultipartWrite for SwiftWriter {
     ) -> Result<oio::MultipartPart> {
         let resp = self
             .core
-            .swift_put_segment(&self.path, upload_id, part_number, size, body)
+            .swift_put_segment(&self.ctx, &self.path, upload_id, part_number, size, body)
             .await?;
 
         let status = resp.status();
@@ -132,7 +138,7 @@ impl oio::MultipartWrite for SwiftWriter {
 
         let resp = self
             .core
-            .swift_put_slo_manifest(&self.path, &manifest, &self.op)
+            .swift_put_slo_manifest(&self.ctx, &self.path, &manifest, &self.op)
             .await?;
 
         let status = resp.status();
@@ -147,6 +153,8 @@ impl oio::MultipartWrite for SwiftWriter {
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        self.core.swift_delete_slo(&self.path, upload_id).await
+        self.core
+            .swift_delete_slo(&self.ctx, &self.path, upload_id)
+            .await
     }
 }

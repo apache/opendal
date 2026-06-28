@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use base64::Engine;
 use hmac::Hmac;
@@ -56,7 +55,8 @@ pub(super) mod constants {
 
 #[derive(Clone)]
 pub struct UpyunCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// The root of this core.
     pub root: String,
     /// The endpoint of this backend.
@@ -80,8 +80,12 @@ impl Debug for UpyunCore {
 
 impl UpyunCore {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
@@ -100,7 +104,12 @@ impl UpyunCore {
 }
 
 impl UpyunCore {
-    pub async fn download_file(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn download_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -114,15 +123,16 @@ impl UpyunCore {
         let mut req = req
             .header(header::RANGE, range.to_header())
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub async fn info(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -135,12 +145,13 @@ impl UpyunCore {
 
         let mut req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileInfo"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn upload(
@@ -176,7 +187,9 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
@@ -186,7 +199,7 @@ impl UpyunCore {
         Ok(req)
     }
 
-    pub async fn delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -197,16 +210,23 @@ impl UpyunCore {
 
         let req = Request::delete(url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -224,17 +244,24 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn move_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn move_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
         let to = build_abs_path(&self.root, to);
 
@@ -252,17 +279,19 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("MoveFile"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let path = path[..path.len() - 1].to_string();
 
@@ -278,17 +307,20 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_FOLDER, "true");
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateFolder"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -318,13 +350,15 @@ impl UpyunCore {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub fn upload_part(
@@ -353,7 +387,9 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_PART_ID, part_number);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
@@ -365,6 +401,7 @@ impl UpyunCore {
 
     pub async fn complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -382,17 +419,20 @@ impl UpyunCore {
 
         req = req.header(X_UPYUN_MULTI_UUID, upload_id);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn list_objects(
         &self,
+        ctx: &OperationContext,
         path: &str,
         iter: &str,
         limit: Option<usize>,
@@ -420,14 +460,16 @@ impl UpyunCore {
             req = req.header(X_UPYUN_LIST_LIMIT, limit);
         }
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"));
 
         // Set body
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.sign(&mut req)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 
@@ -528,3 +570,87 @@ pub(super) struct ListObjectsResponse {
     pub iter: String,
     pub files: Vec<File>,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use opendal_core::raw::*;
+    use opendal_core::*;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    /// UpyunError is the error returned by upyun service.
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default, rename_all = "PascalCase")]
+    struct UpyunError {
+        code: i64,
+        msg: String,
+        id: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            304 | 412 => (ErrorKind::ConditionNotMatch, false),
+            // Service like Upyun could return 499 error with a message like:
+            // Client Disconnect, we should retry it.
+            499 => (ErrorKind::Unexpected, true),
+            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, _upyun_err) = de::from_reader::<_, UpyunError>(bs.clone().reader())
+            .map(|upyun_err| (format!("{upyun_err:?}"), Some(upyun_err)))
+            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![
+                (
+                    r#"{"code": 40100016, "msg": "invalid date value in header", "id": "f5b30c720ddcecc70abd2f5c1c64bde8"}"#,
+                    ErrorKind::Unexpected,
+                    StatusCode::UNAUTHORIZED,
+                ),
+                (
+                    r#"{"code": 40300010, "msg": "file type error", "id": "f5b30c720ddcecc70abd2f5c1c64bde7"}"#,
+                    ErrorKind::PermissionDenied,
+                    StatusCode::FORBIDDEN,
+                ),
+            ];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

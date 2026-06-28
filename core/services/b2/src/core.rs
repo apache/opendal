@@ -30,8 +30,7 @@ use serde::Serialize;
 
 use self::constants::X_BZ_CONTENT_SHA1;
 use self::constants::X_BZ_FILE_NAME;
-use super::core::constants::X_BZ_PART_NUMBER;
-use super::error::parse_error;
+use constants::X_BZ_PART_NUMBER;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -45,7 +44,8 @@ pub(super) mod constants {
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
 #[derive(Clone)]
 pub struct B2Core {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub signer: Arc<RwLock<B2Signer>>,
 
     /// The root of this core.
@@ -68,12 +68,16 @@ impl Debug for B2Core {
 
 impl B2Core {
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 
     /// [b2_authorize_account](https://www.backblaze.com/apidocs/b2-authorize-account)
-    pub async fn get_auth_info(&self) -> Result<AuthInfo> {
+    pub async fn get_auth_info(&self, ctx: &OperationContext) -> Result<AuthInfo> {
         {
             let signer = self.signer.read().await;
 
@@ -98,7 +102,7 @@ impl B2Core {
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            let resp = self.info.http_client().send(req).await?;
+            let resp = ctx.http_transport().send(req).await?;
             let status = resp.status();
 
             match status {
@@ -127,13 +131,14 @@ impl B2Core {
 impl B2Core {
     pub async fn download_file_by_name(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         // Construct headers to add to the request
         let url = format!(
@@ -151,15 +156,20 @@ impl B2Core {
             req = req.header(header::RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFileByName"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub(super) async fn get_upload_url(&self) -> Result<GetUploadUrlResponse> {
-        let auth_info = self.get_auth_info().await?;
+    pub(super) async fn get_upload_url(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<GetUploadUrlResponse> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!(
             "{}/b2api/v2/b2_get_upload_url?bucketId={}",
@@ -170,12 +180,14 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadUrl"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
@@ -190,12 +202,13 @@ impl B2Core {
 
     pub async fn get_download_authorization(
         &self,
+        ctx: &OperationContext,
         path: &str,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         // Construct headers to add to the request
         let url = format!(
@@ -218,7 +231,7 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
         match status {
@@ -234,12 +247,13 @@ impl B2Core {
 
     pub async fn upload_file(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let resp = self.get_upload_url().await?;
+        let resp = self.get_upload_url(ctx).await?;
 
         let p = build_abs_path(&self.root, path);
 
@@ -276,18 +290,25 @@ impl B2Core {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadFile"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn start_large_file(&self, path: &str, args: &OpWrite) -> Result<Response<Buffer>> {
+    pub async fn start_large_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_start_large_file", auth_info.api_url);
 
@@ -316,7 +337,9 @@ impl B2Core {
             start_large_file_request.file_info = Some(file_info);
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("StartLargeFile"));
 
         let body =
             serde_json::to_vec(&start_large_file_request).map_err(new_json_serialize_error)?;
@@ -326,11 +349,15 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get_upload_part_url(&self, file_id: &str) -> Result<GetUploadPartUrlResponse> {
-        let auth_info = self.get_auth_info().await?;
+    pub async fn get_upload_part_url(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<GetUploadPartUrlResponse> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!(
             "{}/b2api/v2/b2_get_upload_part_url?fileId={}",
@@ -341,12 +368,14 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("GetUploadPartUrl"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        let resp = self.send(req).await?;
+        let resp = self.send(ctx, req).await?;
 
         let status = resp.status();
         match status {
@@ -362,12 +391,13 @@ impl B2Core {
 
     pub async fn upload_part(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         part_number: usize,
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let resp = self.get_upload_part_url(file_id).await?;
+        let resp = self.get_upload_part_url(ctx, file_id).await?;
 
         let mut req = Request::post(resp.upload_url);
 
@@ -379,20 +409,23 @@ impl B2Core {
 
         req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
     pub async fn finish_large_file(
         &self,
+        ctx: &OperationContext,
         file_id: &str,
         part_sha1_array: Vec<String>,
     ) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_finish_large_file", auth_info.api_url);
 
@@ -400,7 +433,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("FinishLargeFile"));
 
         let body = serde_json::to_vec(&FinishLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -414,11 +449,15 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn cancel_large_file(&self, file_id: &str) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+    pub async fn cancel_large_file(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_cancel_large_file", auth_info.api_url);
 
@@ -426,7 +465,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelLargeFile"));
 
         let body = serde_json::to_vec(&CancelLargeFileRequest {
             file_id: file_id.to_owned(),
@@ -439,12 +480,17 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn get_file_info(&self, path: &str, delimiter: Option<&str>) -> Result<File> {
+    pub async fn get_file_info(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        delimiter: Option<&str>,
+    ) -> Result<File> {
         let resp = self
-            .list_file_names_raw(Some(path), delimiter, None, None, Operation::Stat)
+            .list_file_names_raw(ctx, Some(path), delimiter, None, None, Operation::Stat)
             .await?;
 
         let status = resp.status();
@@ -465,24 +511,26 @@ impl B2Core {
 
     pub async fn list_file_names(
         &self,
+        ctx: &OperationContext,
         prefix: Option<&str>,
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        self.list_file_names_raw(prefix, delimiter, limit, start_after, Operation::List)
+        self.list_file_names_raw(ctx, prefix, delimiter, limit, start_after, Operation::List)
             .await
     }
 
     async fn list_file_names_raw(
         &self,
+        ctx: &OperationContext,
         prefix: Option<&str>,
         delimiter: Option<&str>,
         limit: Option<usize>,
         start_after: Option<String>,
         operation: Operation,
     ) -> Result<Response<Buffer>> {
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_list_file_names", auth_info.api_url);
 
@@ -512,18 +560,25 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        req = req.extension(operation);
+        req = req
+            .extension(operation)
+            .extension(ServiceOperation("ListFileNames"));
 
         // Set body
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn copy_file(&self, source_file_id: String, to: &str) -> Result<Response<Buffer>> {
+    pub async fn copy_file(
+        &self,
+        ctx: &OperationContext,
+        source_file_id: String,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         let to = build_abs_path(&self.root, to);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_copy_file", auth_info.api_url);
 
@@ -531,7 +586,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyFile"));
 
         let body = CopyFileRequest {
             source_file_id,
@@ -546,13 +603,13 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 
-    pub async fn hide_file(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
-        let auth_info = self.get_auth_info().await?;
+        let auth_info = self.get_auth_info(ctx).await?;
 
         let url = format!("{}/b2api/v2/b2_hide_file", auth_info.api_url);
 
@@ -560,7 +617,9 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("HideFile"));
 
         let body = HideFileRequest {
             bucket_id: self.bucket_id.clone(),
@@ -575,7 +634,7 @@ impl B2Core {
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req).await
     }
 }
 
@@ -783,3 +842,124 @@ pub struct GetDownloadAuthorizationRequest {
 pub struct GetDownloadAuthorizationResponse {
     pub authorization_token: String,
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// the error response of b2
+    #[derive(Default, Debug, Deserialize)]
+    #[allow(dead_code)]
+    struct B2Error {
+        status: u32,
+        code: String,
+        message: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (mut kind, mut retryable) = match parts.status.as_u16() {
+            403 => (ErrorKind::PermissionDenied, false),
+            404 => (ErrorKind::NotFound, false),
+            304 | 412 => (ErrorKind::ConditionNotMatch, false),
+            // Service b2 could return 403, show the authorization error
+            401 => (ErrorKind::PermissionDenied, true),
+            429 => (ErrorKind::RateLimited, true),
+            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let (message, b2_err) = serde_json::from_reader::<_, B2Error>(bs.clone().reader())
+            .map(|b2_err| (format!("{b2_err:?}"), Some(b2_err)))
+            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+        if let Some(b2_err) = b2_err {
+            (kind, retryable) =
+                parse_b2_error_code(b2_err.code.as_str()).unwrap_or((kind, retryable));
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    /// Returns the `Error kind` of this code and whether the error is retryable.
+    pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+        match code {
+            "already_hidden" => Some((ErrorKind::AlreadyExists, false)),
+            "no_such_file" => Some((ErrorKind::NotFound, false)),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use http::StatusCode;
+
+        use super::*;
+
+        #[test]
+        fn test_parse_b2_error_code() {
+            let code = "already_hidden";
+            assert_eq!(
+                parse_b2_error_code(code),
+                Some((opendal_core::ErrorKind::AlreadyExists, false))
+            );
+
+            let code = "no_such_file";
+            assert_eq!(
+                parse_b2_error_code(code),
+                Some((opendal_core::ErrorKind::NotFound, false))
+            );
+
+            let code = "not_found";
+            assert_eq!(parse_b2_error_code(code), None);
+        }
+
+        #[tokio::test]
+        async fn test_parse_error() {
+            let err_res = vec![
+                (
+                    r#"{"status": 403, "code": "access_denied", "message":"The provided customer-managed encryption key is wrong."}"#,
+                    ErrorKind::PermissionDenied,
+                    StatusCode::FORBIDDEN,
+                ),
+                (
+                    r#"{"status": 404, "code": "not_found", "message":"File is not in B2 Cloud Storage."}"#,
+                    ErrorKind::NotFound,
+                    StatusCode::NOT_FOUND,
+                ),
+                (
+                    r#"{"status": 401, "code": "bad_auth_token", "message":"The auth token used is not valid. Call b2_authorize_account again to either get a new one, or an error message describing the problem."}"#,
+                    ErrorKind::PermissionDenied,
+                    StatusCode::UNAUTHORIZED,
+                ),
+            ];
+
+            for res in err_res {
+                let bs = bytes::Bytes::from(res.0);
+                let body = Buffer::from(bs);
+                let resp = Response::builder().status(res.2).body(body).unwrap();
+
+                let err = parse_error(resp);
+
+                assert_eq!(err.kind(), res.1);
+            }
+        }
+    }
+}
+
+pub(super) use error::*;

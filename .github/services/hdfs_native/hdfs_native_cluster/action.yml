@@ -24,7 +24,7 @@ runs:
     - name: Setup HDFS Native cluster
       shell: bash
       working-directory: fixtures/hdfs
-      run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
+      run: docker compose --file docker-compose-hdfs-cluster.yml up --quiet-pull --detach --wait
     - name: Setup opendal env
       shell: bash
       run: |

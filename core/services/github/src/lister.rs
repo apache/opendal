@@ -24,15 +24,17 @@ use opendal_core::*;
 
 pub struct GithubLister {
     core: Arc<GithubCore>,
+    ctx: OperationContext,
 
     path: String,
     recursive: bool,
 }
 
 impl GithubLister {
-    pub fn new(core: Arc<GithubCore>, path: &str, recursive: bool) -> Self {
+    pub fn new(core: Arc<GithubCore>, ctx: OperationContext, path: &str, recursive: bool) -> Self {
         Self {
             core,
+            ctx,
 
             path: path.to_string(),
             recursive,
@@ -42,7 +44,7 @@ impl GithubLister {
 
 impl oio::PageList for GithubLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let resp = self.core.list(&self.path).await?;
+        let resp = self.core.list(&self.ctx, &self.path).await?;
 
         // Record whether there is a dir in the list so that we need recursive later.
         let has_dir = resp.entries.iter().any(|e| e.type_field == "dir");
@@ -77,7 +79,10 @@ impl oio::PageList for GithubLister {
 
         // if recursive is true and there is a dir in the list, we need to list it recursively.
 
-        let tree = self.core.list_with_recursive(&resp.git_url).await?;
+        let tree = self
+            .core
+            .list_with_recursive(&self.ctx, &resp.git_url)
+            .await?;
         for t in tree {
             let path = if self.path == "/" {
                 t.path

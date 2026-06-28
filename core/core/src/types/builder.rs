@@ -44,7 +44,7 @@ use crate::*;
 ///     let builder = Memory::default();
 ///
 ///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::new(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?;
 ///
 ///     Ok(())
 /// }
@@ -53,15 +53,15 @@ pub trait Builder: Default + 'static {
     /// Associated configuration for this builder.
     type Config: Configurator;
 
-    /// Consume the accessor builder to build a service.
-    fn build(self) -> Result<impl Access>;
+    /// Consume the builder to build a service.
+    fn build(self) -> Result<impl Service>;
 }
 
 /// Dummy implementation of builder
 impl Builder for () {
     type Config = ();
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         Ok(())
     }
 }
@@ -88,7 +88,7 @@ impl Builder for () {
 ///     cfg.root = Some("/".to_string());
 ///
 ///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::from_config(cfg)?.finish();
+///     let op: Operator = Operator::from_config(cfg)?;
 ///
 ///     Ok(())
 /// }

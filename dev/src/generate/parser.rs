@@ -67,6 +67,14 @@ pub struct Config {
     ///
     /// All white spaces and extra new lines will be trimmed.
     pub comments: String,
+    /// The group this config belongs to, parsed from a `@group <name>` doc
+    /// marker. Used to organize the configuration reference by topic instead of
+    /// a flat list. `None` means the field is ungrouped.
+    pub group: Option<String>,
+    /// The default value, parsed from a `@default <value>` doc marker.
+    pub default_value: Option<String>,
+    /// An example value, parsed from a `@example <value>` doc marker.
+    pub example: Option<String>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -149,6 +157,15 @@ pub struct AttrDeprecated {
     pub since: String,
     /// The `note` for this deprecated field.
     pub note: String,
+}
+
+/// Structured markers extracted from a field's doc comment, e.g. `@group`,
+/// `@default` and `@example`.
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+struct DocMarkers {
+    group: Option<String>,
+    default_value: Option<String>,
+    example: Option<String>,
 }
 
 /// List and parse given path to a `Services` struct.
@@ -275,6 +292,7 @@ impl ServiceParser {
 
         let deprecated = Self::parse_attr_deprecated(&field)?;
         let comments = Self::parse_attr_comments(&field)?;
+        let markers = Self::parse_attr_markers(&field);
 
         let (cfg_type, optional) = match &field.ty {
             Type::Path(TypePath { path, .. }) => {
@@ -323,14 +341,15 @@ impl ServiceParser {
             optional,
             deprecated,
             comments,
+            group: markers.group,
+            default_value: markers.default_value,
+            example: markers.example,
         })
     }
 
-    /// Parse the comments attr from the field.
-    ///
-    /// This comment may have multiple lines.
-    fn parse_attr_comments(field: &Field) -> Result<String> {
-        Ok(field
+    /// Collect the doc comment of a field as a list of trimmed lines.
+    fn doc_lines(field: &Field) -> Vec<String> {
+        field
             .attrs
             .iter()
             .filter(|attr| attr.path().is_ident("doc"))
@@ -346,8 +365,66 @@ impl ServiceParser {
 
                 None
             })
-            .collect::<Vec<_>>()
-            .join("\n"))
+            .collect()
+    }
+
+    /// Recognize a structured doc marker line such as `@group Credentials` or
+    /// `@default /`. Returns `(key, value)` only for keys we understand, so any
+    /// other `@`-prefixed line stays part of the human-facing comment.
+    ///
+    /// Markers may be wrapped in an HTML comment — `<!-- @group Credentials -->`
+    /// — so they stay machine-readable here while rendering invisibly in
+    /// rustdoc (CommonMark passes HTML comments through undisplayed).
+    fn parse_marker(line: &str) -> Option<(&'static str, String)> {
+        let line = line.trim();
+        let inner = line
+            .strip_prefix("<!--")
+            .and_then(|l| l.strip_suffix("-->"))
+            .map(str::trim)
+            .unwrap_or(line);
+        let rest = inner.strip_prefix('@')?;
+        let (key, value) = rest.split_once(char::is_whitespace)?;
+        let value = value.trim().to_string();
+        match key {
+            "group" => Some(("group", value)),
+            "default" => Some(("default", value)),
+            "example" => Some(("example", value)),
+            _ => None,
+        }
+    }
+
+    /// Parse the comments attr from the field, with structured `@`-markers
+    /// stripped out so they don't leak into the human-facing description.
+    ///
+    /// This comment may have multiple lines.
+    fn parse_attr_comments(field: &Field) -> Result<String> {
+        let mut lines: Vec<String> = Self::doc_lines(field)
+            .into_iter()
+            .filter(|line| Self::parse_marker(line).is_none())
+            .collect();
+
+        // Drop blank lines left dangling at the end once markers are removed.
+        while lines.last().is_some_and(|l| l.is_empty()) {
+            lines.pop();
+        }
+
+        Ok(lines.join("\n").trim().to_string())
+    }
+
+    /// Parse the structured `@`-markers from a field's doc comment.
+    fn parse_attr_markers(field: &Field) -> DocMarkers {
+        let mut markers = DocMarkers::default();
+        for line in Self::doc_lines(field) {
+            if let Some((key, value)) = Self::parse_marker(&line) {
+                match key {
+                    "group" => markers.group = Some(value),
+                    "default" => markers.default_value = Some(value),
+                    "example" => markers.example = Some(value),
+                    _ => {}
+                }
+            }
+        }
+        markers
     }
 
     /// Parse the deprecated attr from the field.
@@ -420,6 +497,9 @@ mod tests {
                     optional: true,
                     deprecated: None,
                     comments: "".to_string(),
+                    group: None,
+                    default_value: None,
+                    example: None,
                 },
             ),
             (
@@ -430,6 +510,9 @@ mod tests {
                     optional: false,
                     deprecated: None,
                     comments: "".to_string(),
+                    group: None,
+                    default_value: None,
+                    example: None,
                 },
             ),
         ];
@@ -437,9 +520,11 @@ mod tests {
         for (input, expected) in cases {
             let input = format!("struct Test {{ {input} }}");
             let x: ItemStruct = syn::parse_str(&input).unwrap();
-            let actual =
-                ServiceParser::parse_field(x.fields.iter().next().unwrap().clone(), &HashSet::new())
-                    .unwrap();
+            let actual = ServiceParser::parse_field(
+                x.fields.iter().next().unwrap().clone(),
+                &HashSet::new(),
+            )
+            .unwrap();
             assert_eq!(actual, expected);
         }
     }
@@ -706,6 +791,9 @@ For example, R2 could return `Internal Error` while batch delete 1000 files.
 
 Please tune this value based on services' document."
                     .to_string(),
+                group: None,
+                default_value: None,
+                example: None,
             },
         );
         assert_eq!(
@@ -718,8 +806,37 @@ Please tune this value based on services' document."
                 comments: r"Disable write with if match so that opendal will not send write request with if match headers.
 
 For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
+                group: None,
+                default_value: None,
+                example: None,
             },
         );
+    }
+
+    #[test]
+    fn test_parse_field_markers() {
+        let input = r#"
+            struct Test {
+                /// bucket name of this backend.
+                ///
+                /// required.
+                ///
+                /// <!-- @group General -->
+                /// <!-- @default my-bucket -->
+                /// @example example-bucket
+                pub bucket: String
+            }
+        "#;
+        let x: ItemStruct = syn::parse_str(input).unwrap();
+        let actual =
+            ServiceParser::parse_field(x.fields.iter().next().unwrap().clone(), &HashSet::new())
+                .unwrap();
+
+        // Markers are extracted as structured fields and stripped from comments.
+        assert_eq!(actual.group.as_deref(), Some("General"));
+        assert_eq!(actual.default_value.as_deref(), Some("my-bucket"));
+        assert_eq!(actual.example.as_deref(), Some("example-bucket"));
+        assert_eq!(actual.comments, "bucket name of this backend.\n\nrequired.");
     }
 
     #[test]

@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let mut builder = Foundationdb::default()
         .config_path("/etc/foundationdb/foundationdb.conf");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

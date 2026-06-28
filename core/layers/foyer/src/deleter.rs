@@ -18,21 +18,20 @@
 use std::sync::Arc;
 
 use opendal_core::Result;
-use opendal_core::raw::Access;
 use opendal_core::raw::OpDelete;
 use opendal_core::raw::oio;
 
 use crate::FoyerKey;
 use crate::Inner;
 
-pub struct Deleter<A: Access> {
-    pub(crate) deleter: A::Deleter,
+pub struct Deleter<D> {
+    pub(crate) deleter: D,
     pub(crate) keys: Vec<FoyerKey>,
-    pub(crate) inner: Arc<Inner<A>>,
+    pub(crate) inner: Arc<Inner>,
 }
 
-impl<A: Access> Deleter<A> {
-    pub(crate) fn new(deleter: A::Deleter, inner: Arc<Inner<A>>) -> Self {
+impl<D> Deleter<D> {
+    pub(crate) fn new(deleter: D, inner: Arc<Inner>) -> Self {
         Self {
             deleter,
             keys: vec![],
@@ -41,7 +40,7 @@ impl<A: Access> Deleter<A> {
     }
 }
 
-impl<A: Access> oio::Delete for Deleter<A> {
+impl<D: oio::Delete> oio::Delete for Deleter<D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.deleter.delete(path, args.clone()).await?;
         self.keys.push(FoyerKey {

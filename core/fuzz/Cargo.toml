@@ -85,8 +85,18 @@ arbitrary = { version = "1.4.2", features = ["derive"] }
 libfuzzer-sys = "0.4"
 log = { workspace = true }
 logforth = { workspace = true }
-opendal = { path = "..", features = ["tests"] }
+opendal = { path = "..", features = ["tests", "services-fs"] }
 uuid = { workspace = true, features = ["v4"] }
+
+[[bin]]
+name = "fuzz_from_uri"
+path = "fuzz_from_uri.rs"
+test = false
+
+[[bin]]
+name = "fuzz_path"
+path = "fuzz_path.rs"
+test = false
 
 [[bin]]
 name = "fuzz_reader"

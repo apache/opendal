@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         // value field type in the table should be compatible with Rust's Vec<u8> like bytea
         .value_field("value");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     Ok(())
 }
 ```

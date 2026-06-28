@@ -173,5 +173,5 @@ pub fn operator_info(operator: &mut Operator) -> ocaml::Pointer<OperatorInfo> {
 #[ocaml::func]
 #[ocaml::sig("operator_info -> capability ")]
 pub fn operator_info_capability(info: &mut OperatorInfo) -> ocaml::Pointer<Capability> {
-    Capability(info.0.full_capability()).into()
+    Capability(info.0.capability()).into()
 }

@@ -23,13 +23,13 @@
     "docusaurus-plugin-image-zoom": "^3.0.1",
     "lunr": "^2.3.9",
     "prism-react-renderer": "^2.4.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "semver": "^7.7.3"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "semver": "^7.8.2"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "^3.9.2",
-    "@docusaurus/types": "^3.9.2",
+    "@docusaurus/module-type-aliases": "^3.10.1",
+    "@docusaurus/types": "^3.10.1",
     "crates-llms-txt": "^0.1.1",
     "docusaurus-plugin-llms-builder": "^0.1.13"
   },

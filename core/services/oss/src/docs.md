@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         .access_key_id("access_key_id")
         .access_key_secret("access_key_secret");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
         // set the bucket_id for OpenDAL
         .bucket_id("xxxxxxxxxxxxx");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }

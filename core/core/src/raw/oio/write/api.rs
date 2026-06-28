@@ -21,17 +21,15 @@ use std::ops::DerefMut;
 use crate::raw::*;
 use crate::*;
 
-/// Writer is a type erased [`Write`]
+/// Writer is a type-erased [`Write`].
 pub type Writer = Box<dyn WriteDyn>;
 
-/// Write is the trait that OpenDAL returns to callers.
+/// Write is the async sink used by services and layers.
 pub trait Write: Unpin + Send + Sync {
-    /// Write given bytes into writer.
+    /// Write the entire buffer into the writer.
     ///
-    /// # Behavior
-    ///
-    /// - `Ok(())` means all bytes has been written successfully.
-    /// - `Err(err)` means error happens and no bytes has been written.
+    /// `Ok(())` means all bytes from `bs` have been accepted. Implementations
+    /// must return an error instead of treating a partial write as success.
     fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Close the writer and make sure all data has been flushed.
@@ -61,8 +59,7 @@ impl Write for () {
     }
 }
 
-/// WriteDyn is the dyn version of [`Write`] make it possible to use as
-/// `Box<dyn WriteDyn>`.
+/// WriteDyn is the object-safe version of [`Write`] used by [`Writer`].
 pub trait WriteDyn: Unpin + Send + Sync {
     /// The dyn version of [`Write::write`].
     fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<'_, Result<()>>;

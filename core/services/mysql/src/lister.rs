@@ -51,3 +51,37 @@ impl List for MysqlLister {
         Ok(Some(Entry::new(&path, meta)))
     }
 }
+
+pub struct MysqlLazyLister {
+    core: Arc<MysqlCore>,
+    root: String,
+    path: String,
+    inner: Option<MysqlLister>,
+}
+
+impl MysqlLazyLister {
+    pub fn new(core: Arc<MysqlCore>, root: String, path: String) -> Self {
+        Self {
+            core,
+            root,
+            path,
+            inner: None,
+        }
+    }
+}
+
+impl List for MysqlLazyLister {
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        if self.inner.is_none() {
+            self.inner = Some(
+                MysqlLister::new(self.core.clone(), self.root.clone(), self.path.clone()).await?,
+            );
+        }
+
+        self.inner
+            .as_mut()
+            .expect("lister must be initialized")
+            .next()
+            .await
+    }
+}

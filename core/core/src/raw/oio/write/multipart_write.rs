@@ -34,7 +34,7 @@ use crate::*;
 ///
 /// - Services impl `MultipartWrite`
 /// - `MultipartWriter` impl `Write`
-/// - Expose `MultipartWriter` as `Accessor::Writer`
+/// - Expose `MultipartWriter` as `Service::Writer`
 ///
 /// # Notes
 ///
@@ -149,9 +149,9 @@ pub struct MultipartWriter<W: MultipartWrite> {
 /// wasm32 is a special target that we only have one event-loop for this state.
 impl<W: MultipartWrite> MultipartWriter<W> {
     /// Create a new MultipartWriter.
-    pub fn new(info: Arc<AccessorInfo>, inner: W, concurrent: usize) -> Self {
+    pub fn new(executor: impl Into<Executor>, inner: W, concurrent: usize) -> Self {
+        let executor = executor.into();
         let w = Arc::new(inner);
-        let executor = info.executor();
         Self {
             w,
             executor: executor.clone(),
@@ -442,10 +442,9 @@ mod tests {
     async fn test_multipart_upload_writer_with_concurrent_errors() {
         let mut rng = rng();
 
-        let info = Arc::new(AccessorInfo::default());
-        info.update_executor(|_| Executor::with(TimeoutExecutor::new()));
+        let executor = Executor::with(TimeoutExecutor::new());
 
-        let mut w = MultipartWriter::new(info, TestWrite::new(), 200);
+        let mut w = MultipartWriter::new(executor, TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -489,7 +488,7 @@ mod tests {
         let mut rng = rng();
 
         for _ in 0..100 {
-            let mut w = MultipartWriter::new(Arc::default(), TestWrite::new(), 200);
+            let mut w = MultipartWriter::new(Executor::default(), TestWrite::new(), 200);
             let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];
             rng.fill_bytes(&mut bs);

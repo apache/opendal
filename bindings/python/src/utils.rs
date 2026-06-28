@@ -36,7 +36,10 @@ impl Buffer {
     pub fn into_bytes(self, py: Python) -> PyResult<Py<PyAny>> {
         let buffer = self.into_py_any(py)?;
 
-        unsafe { Py::<PyAny>::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr())) }
+        unsafe {
+            Bound::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr()))
+                .map(Bound::unbind)
+        }
     }
 
     /// Consume self to build a bytes
@@ -74,44 +77,37 @@ impl Buffer {
     }
 }
 
-/// Macro to create and register a PyO3 submodule with multiple classes.
+/// Recursively insert a module's nested `#[pymodule]` submodules into
+/// `sys.modules` under `parent_name` and qualify their `__name__`, so
+/// `from opendal.operator import ...` resolves.
 ///
-/// Example:
-/// ```rust
-/// add_pymodule!(py, m, "services", [PyScheme, PyOtherClass]);
-/// ```
-#[macro_export]
-macro_rules! add_pymodule {
-    ($py:expr, $parent:expr, $name:expr, [$($cls:ty),* $(,)?]) => {{
-        let sub_module = pyo3::types::PyModule::new($py, $name)?;
-        $(
-            sub_module.add_class::<$cls>()?;
-        )*
-        $parent.add_submodule(&sub_module)?;
-        $py.import("sys")?
-            .getattr("modules")?
-            .set_item(format!("opendal.{}", $name), &sub_module)?;
-        Ok::<_, pyo3::PyErr>(())
-    }};
+/// PyO3 attaches submodules as attributes but skips `sys.modules` (PyO3 #759);
+/// `parent_name` lets us use the public `opendal` name, not the `_opendal` lib.
+pub fn register_submodules(module: &Bound<'_, PyModule>, parent_name: &str) -> PyResult<()> {
+    let sys_modules = module.py().import("sys")?.getattr("modules")?;
+    for attr_name in module.index()? {
+        let attr_name: String = attr_name.extract()?;
+        let attr = module.getattr(&attr_name)?;
+        if let Ok(submodule) = attr.cast::<PyModule>() {
+            let qualified_name = format!("{parent_name}.{attr_name}");
+            submodule.setattr("__name__", &qualified_name)?;
+            sys_modules.set_item(&qualified_name, submodule)?;
+            register_submodules(submodule, &qualified_name)?;
+        }
+    }
+    Ok(())
 }
 
-/// Macro to create and register a PyO3 submodule containing exception types.
+/// Add exception types to a module by their Rust identifier.
 ///
-/// Example:
-/// ```rust
-/// add_pyexceptions!(py, m, "exceptions", [Error, Unexpected]);
-/// ```
+/// `create_exception!` types are `PyErr` subtypes, not `#[pyclass]`es, so they
+/// cannot be listed with `#[pymodule_export]`.
 #[macro_export]
-macro_rules! add_pyexceptions {
-    ($py:expr, $parent:expr, $name:expr, [$($exc:ty),* $(,)?]) => {{
-        let sub_module = pyo3::types::PyModule::new($py, $name)?;
+macro_rules! add_exceptions {
+    ($module:expr, [$($exc:ty),* $(,)?]) => {{
         $(
-            sub_module.add(stringify!($exc), $py.get_type::<$exc>())?;
+            $module.add(stringify!($exc), $module.py().get_type::<$exc>())?;
         )*
-        $parent.add_submodule(&sub_module)?;
-        $py.import("sys")?
-            .getattr("modules")?
-            .set_item(format!("opendal.{}", $name), &sub_module)?;
         Ok::<_, pyo3::PyErr>(())
     }};
 }

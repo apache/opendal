@@ -16,17 +16,15 @@
 // under the License.
 
 use std::ops::Range;
-use std::ops::RangeBounds;
 use std::sync::Arc;
 
 use bytes::BufMut;
 use futures::TryStreamExt;
 
-use crate::raw::Access as _;
-use crate::raw::BytesRange;
 use crate::raw::ConcurrentTasks;
 use crate::raw::RpRead;
 use crate::raw::oio::Read as _;
+use crate::types::BytesRange;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -135,7 +133,7 @@ impl Reader {
     ///
     /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
-    pub async fn read(&self, range: impl RangeBounds<u64>) -> Result<Buffer> {
+    pub async fn read(&self, range: impl Into<BytesRange>) -> Result<Buffer> {
         let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;
         Ok(bufs.into_iter().flatten().collect())
     }
@@ -147,7 +145,7 @@ impl Reader {
     pub async fn read_into(
         &self,
         buf: &mut impl BufMut,
-        range: impl RangeBounds<u64>,
+        range: impl Into<BytesRange>,
     ) -> Result<usize> {
         let mut stream = self.clone().into_stream(range).await?;
 
@@ -205,7 +203,7 @@ impl Reader {
             .map(|_| Vec::new())
             .collect::<Vec<Vec<(u64, Buffer)>>>();
         let mut tasks = ConcurrentTasks::new(
-            self.ctx.accessor().info().executor(),
+            self.ctx.context().executor().clone(),
             self.ctx.options().concurrent(),
             self.ctx.options().prefetch(),
             |input: FetchReadInput| {
@@ -401,7 +399,7 @@ impl Reader {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn into_stream(self, range: impl RangeBounds<u64>) -> Result<BufferStream> {
+    pub async fn into_stream(self, range: impl Into<BytesRange>) -> Result<BufferStream> {
         BufferStream::create(self.ctx, range).await
     }
 
@@ -469,7 +467,7 @@ impl Reader {
     #[inline]
     pub async fn into_futures_async_read(
         self,
-        range: impl RangeBounds<u64>,
+        range: impl Into<BytesRange>,
     ) -> Result<FuturesAsyncReader> {
         let range = self.ctx.parse_into_range(range).await?;
         Ok(FuturesAsyncReader::new(self.ctx, range))
@@ -533,7 +531,7 @@ impl Reader {
     #[inline]
     pub async fn into_bytes_stream(
         self,
-        range: impl RangeBounds<u64>,
+        range: impl Into<BytesRange>,
     ) -> Result<FuturesBytesStream> {
         FuturesBytesStream::new(self.ctx, range).await
     }
@@ -552,16 +550,19 @@ mod tests {
     use crate::Operator;
     use crate::raw::*;
     use crate::services;
+    use crate::*;
 
-    async fn new_read_context(
-        acc: crate::raw::Accessor,
+    fn new_read_context(
+        ctx: OperationContext,
+        srv: Servicer,
         path: &str,
         options: crate::raw::OpReader,
     ) -> crate::Result<ReadContext> {
         let args = crate::raw::OpRead::new();
-        let (_, reader) = acc.read(path, args.clone()).await?;
+        let reader = srv.read(&ctx, path, args.clone())?;
         Ok(ReadContext::new(
-            acc,
+            ctx,
+            srv,
             path.to_string(),
             args,
             options,
@@ -611,7 +612,9 @@ mod tests {
             }
 
             Ok((
-                RpRead::default(),
+                RpRead::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
+                ),
                 Buffer::from(self.content.slice(start..end)),
             ))
         }
@@ -622,9 +625,10 @@ mod tests {
         options: crate::raw::OpReader,
         ranges: Arc<Mutex<Vec<BytesRange>>>,
     ) -> Reader {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         Reader::new(ReadContext::new(
-            op.into_inner(),
+            op.context().clone(),
+            op.service().clone(),
             "test_file".to_string(),
             OpRead::new(),
             options,
@@ -641,8 +645,9 @@ mod tests {
         )
         .await?;
 
-        let acc = op.into_inner();
-        let ctx = new_read_context(acc, "test", OpReader::new()).await?;
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = new_read_context(ctx, srv, "test", OpReader::new())?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(Reader::new(ctx));
 
@@ -781,6 +786,93 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_reader_read_suffix() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        let content = Bytes::from_static(b"HelloWorld");
+        op.write(path, Buffer::from(content.clone())).await?;
+
+        let reader = op.reader(path).await?;
+        let buf = reader.read(BytesRange::suffix(4)).await?;
+
+        assert_eq!(buf.to_bytes(), b"orld".as_slice());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_suffix_larger_than_content() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        let content = Bytes::from_static(b"HelloWorld");
+        op.write(path, Buffer::from(content.clone())).await?;
+
+        let reader = op.reader(path).await?;
+        let buf = reader.read(BytesRange::suffix(20)).await?;
+
+        assert_eq!(buf.to_bytes(), content);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_suffix_zero() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        op.write(path, Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader(path).await?;
+        let buf = reader.read(BytesRange::suffix(0)).await?;
+
+        assert!(buf.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_suffix_empty_content() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        op.write(path, Buffer::new()).await?;
+
+        let reader = op.reader(path).await?;
+        let buf = reader.read(BytesRange::suffix(4)).await?;
+
+        assert!(buf.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_suffix_with_chunk_and_concurrent() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        op.write(path, Buffer::from("HelloWorld")).await?;
+
+        let reader = op.reader_with(path).chunk(2).concurrent(2).await.unwrap();
+        let buf = reader.read(BytesRange::suffix(5)).await?;
+
+        assert_eq!(buf.to_bytes(), b"World".as_slice());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_into_futures_async_read_suffix() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let path = "test_file";
+        op.write(path, Buffer::from("HelloWorld")).await?;
+
+        let mut reader = op
+            .reader(path)
+            .await?
+            .into_futures_async_read(BytesRange::suffix(5))
+            .await?;
+        let mut buf = Vec::new();
+        futures::AsyncReadExt::read_to_end(&mut reader, &mut buf)
+            .await
+            .unwrap();
+
+        assert_eq!(buf, b"World".as_slice());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_reader_read_into() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";
@@ -803,7 +895,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_ranges() -> Result<()> {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -821,7 +913,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch() -> Result<()> {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_fixed_bytes(1024);
@@ -857,7 +949,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_empty_ranges() -> Result<()> {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_fixed_bytes(1024);

@@ -26,12 +26,59 @@ use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload, XetUploadComm
 /// Writer that always uses the XET protocol for uploads.
 pub struct HfWriter {
     core: Arc<HfCore>,
+    ctx: OperationContext,
     path: String,
     xet_commit: XetUploadCommit,
     xet_stream: XetStreamUpload,
     // RetryLayer can replay Writer::close after a temporary commit failure,
     // so writer finalization must be re-entrant and reuse the first finish result.
     finished_info: Option<XetFileInfo>,
+}
+
+/// Lazily creates [`HfWriter`] so `Service::write` can stay synchronous.
+pub struct HfLazyWriter {
+    core: Arc<HfCore>,
+    ctx: OperationContext,
+    path: String,
+    inner: Option<HfWriter>,
+}
+
+impl HfLazyWriter {
+    pub fn new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Self {
+        Self {
+            core,
+            ctx,
+            path,
+            inner: None,
+        }
+    }
+
+    async fn inner(&mut self) -> Result<&mut HfWriter> {
+        if self.inner.is_none() {
+            let writer =
+                HfWriter::try_new(self.core.clone(), self.ctx.clone(), self.path.clone()).await?;
+            self.inner = Some(writer);
+        }
+
+        Ok(self.inner.as_mut().expect("hf writer must be initialized"))
+    }
+}
+
+impl oio::Write for HfLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner().await?.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner().await?.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Ok(()),
+        }
+    }
 }
 
 impl HfWriter {
@@ -41,7 +88,7 @@ impl HfWriter {
     /// An XET upload commit and stream are created eagerly so that
     /// subsequent [`write`](oio::Write::write) calls can stream data
     /// directly into the XET CAS.
-    pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
+    pub async fn try_new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Result<Self> {
         let commit = core.xet_upload_commit().await?;
         let stream = commit
             .upload_stream(None, Sha256Policy::Compute)
@@ -52,6 +99,7 @@ impl HfWriter {
             })?;
         Ok(HfWriter {
             core,
+            ctx,
             path,
             xet_commit: commit,
             xet_stream: stream,
@@ -86,10 +134,13 @@ impl HfWriter {
         if self.core.repo.is_bucket() {
             let xet_hash = file_info.hash().to_string();
             self.core
-                .commit_bucket(vec![BucketOperation::AddFile {
-                    path: repo_path,
-                    xet_hash,
-                }])
+                .commit_bucket(
+                    &self.ctx,
+                    vec![BucketOperation::AddFile {
+                        path: repo_path,
+                        xet_hash,
+                    }],
+                )
                 .await?;
         } else {
             let sha256 = file_info.sha256().ok_or_else(|| {
@@ -102,7 +153,7 @@ impl HfWriter {
                 size: content_length,
             };
             self.core
-                .commit_git(vec![], vec![lfs_file], vec![], vec![])
+                .commit_git(&self.ctx, vec![], vec![lfs_file], vec![], vec![])
                 .await?;
         }
 

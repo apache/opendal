@@ -56,7 +56,7 @@ jobs:
           need-nextest: true
 
       - name: Configure Cache Env
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');

@@ -68,7 +68,7 @@ impl OperatorInfo {
     /// Returns the [`Full Capability`] of the operator.
     /// @return [Capability]
     pub fn capability(&self) -> Capability {
-        Capability::new(self.0.full_capability())
+        Capability::new(self.0.capability())
     }
 }
 

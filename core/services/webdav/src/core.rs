@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::io::Cursor;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -35,7 +34,6 @@ use quick_xml::events::BytesText;
 use quick_xml::events::Event;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -84,7 +82,8 @@ static HEADER_DESTINATION: &str = "Destination";
 static HEADER_OVERWRITE: &str = "Overwrite";
 
 pub struct WebdavCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub server_path: String,
     pub root: String,
@@ -110,13 +109,17 @@ impl Debug for WebdavCore {
 }
 
 impl WebdavCore {
-    pub async fn webdav_stat(&self, path: &str) -> Result<Metadata> {
+    pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
         let path = build_rooted_abs_path(&self.root, path);
-        self.webdav_stat_rooted_abs_path(&path).await
+        self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
     /// Input path must be `rooted_abs_path`.
-    async fn webdav_stat_rooted_abs_path(&self, rooted_abs_path: &str) -> Result<Metadata> {
+    async fn webdav_stat_rooted_abs_path(
+        &self,
+        ctx: &OperationContext,
+        rooted_abs_path: &str,
+    ) -> Result<Metadata> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(rooted_abs_path));
         let mut req = Request::builder().method("PROPFIND").uri(url);
 
@@ -131,10 +134,11 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("Propfind"))
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Err(parse_error(resp));
         }
@@ -151,7 +155,7 @@ impl WebdavCore {
             )
         })?;
 
-        let mut metadata = parse_propstat(&propfind_resp.propstat)?;
+        let mut metadata = parse_propstats(&propfind_resp.propstat)?;
 
         // Parse user metadata from the raw XML response using configured namespace
         let user_metadata = parse_user_metadata_from_xml(&xml_str, &self.user_metadata_uri);
@@ -164,14 +168,37 @@ impl WebdavCore {
 
     pub async fn webdav_get(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
-        _: &OpRead,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(header::IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(
+                header::IF_MODIFIED_SINCE,
+                if_modified_since.format_http_date(),
+            );
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(
+                header::IF_UNMODIFIED_SINCE,
+                if_unmodified_since.format_http_date(),
+            );
+        }
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
@@ -183,14 +210,16 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("Get"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn webdav_put(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
@@ -219,10 +248,11 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Put"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Set user-defined metadata using WebDAV PROPPATCH method.
@@ -235,6 +265,7 @@ impl WebdavCore {
     /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
     pub async fn webdav_proppatch(
         &self,
+        ctx: &OperationContext,
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
@@ -257,13 +288,18 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("Proppatch"))
             .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn webdav_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -275,17 +311,23 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("Delete"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         // Check if source file exists.
-        let _ = self.webdav_stat(from).await?;
+        let _ = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
-        self.webdav_mkcol(get_parent(to)).await?;
+        self.webdav_mkcol(ctx, get_parent(to)).await?;
 
         let source = build_rooted_abs_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
@@ -304,17 +346,23 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("Copy"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn webdav_move(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
         // Check if source file exists.
-        let _ = self.webdav_stat(from).await?;
+        let _ = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
-        self.webdav_mkcol(get_parent(to)).await?;
+        self.webdav_mkcol(ctx, get_parent(to)).await?;
 
         let source = build_rooted_abs_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
@@ -333,13 +381,19 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::Rename)
+            .extension(ServiceOperation("Move"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn webdav_list(&self, path: &str, args: &OpList) -> Result<Response<Buffer>> {
+    pub async fn webdav_list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpList,
+    ) -> Result<Response<Buffer>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
@@ -359,10 +413,11 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("Propfind"))
             .body(Buffer::from(Bytes::from(PROPFIND_REQUEST)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Create dir recursively for given path.
@@ -370,14 +425,14 @@ impl WebdavCore {
     /// # Notes
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
-    pub async fn webdav_mkcol(&self, path: &str) -> Result<()> {
+    pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
 
         loop {
-            match self.webdav_stat_rooted_abs_path(path).await {
+            match self.webdav_stat_rooted_abs_path(ctx, path).await {
                 // Dir exists, break the loop.
                 Ok(_) => {
                     break;
@@ -397,7 +452,7 @@ impl WebdavCore {
         }
 
         for dir in dirs {
-            self.webdav_mkcol_rooted_abs_path(dir).await?;
+            self.webdav_mkcol_rooted_abs_path(ctx, dir).await?;
         }
         Ok(())
     }
@@ -407,7 +462,11 @@ impl WebdavCore {
     /// Input path must be `rooted_abs_path`
     ///
     /// Reference: [RFC4918: 9.3.1.  MKCOL Status Codes](https://datatracker.ietf.org/doc/html/rfc4918#section-9.3.1)
-    async fn webdav_mkcol_rooted_abs_path(&self, rooted_abs_path: &str) -> Result<()> {
+    async fn webdav_mkcol_rooted_abs_path(
+        &self,
+        ctx: &OperationContext,
+        rooted_abs_path: &str,
+    ) -> Result<()> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(rooted_abs_path));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
@@ -418,10 +477,11 @@ impl WebdavCore {
 
         let req = req
             .extension(Operation::CreateDir)
+            .extension(ServiceOperation("Mkcol"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
 
         match status {
@@ -783,10 +843,34 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     }
 
     // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
+    let Some(getlastmodified) = getlastmodified else {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "propfind response missing getlastmodified",
+        ));
+    };
     m.set_last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
     Ok(m)
+}
+
+pub fn parse_propstats(propstats: &[Propstat]) -> Result<Metadata> {
+    let mut last_error = None;
+
+    for propstat in propstats {
+        match parse_propstat(propstat) {
+            Ok(metadata) => return Ok(metadata),
+            Err(err) => last_error = Some(err),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "propfind response does not contain propstat",
+        )
+    }))
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
@@ -798,7 +882,8 @@ pub struct Multistatus {
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct PropfindResponse {
     pub href: String,
-    pub propstat: Propstat,
+    #[serde(default)]
+    pub propstat: Vec<Propstat>,
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -809,14 +894,15 @@ pub struct Propstat {
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Prop {
-    pub getlastmodified: String,
+    pub getlastmodified: Option<String>,
     pub getetag: Option<String>,
     pub getcontentlength: Option<String>,
     pub getcontenttype: Option<String>,
+    #[serde(default)]
     pub resourcetype: ResourceTypeContainer,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct ResourceTypeContainer {
     #[serde(rename = "$value")]
     pub value: Option<ResourceType>,
@@ -838,7 +924,7 @@ mod tests {
         Propstat {
             status: status.to_string(),
             prop: Prop {
-                getlastmodified: "Tue, 01 May 2022 06:39:47 GMT".to_string(),
+                getlastmodified: Some("Sun, 01 May 2022 06:39:47 GMT".to_string()),
                 getetag: None,
                 getcontentlength: getcontentlength.map(str::to_string),
                 getcontenttype: None,
@@ -867,12 +953,12 @@ mod tests {
 
         let propstat = from_str::<Propstat>(xml).unwrap();
         assert_eq!(
-            propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
+            propstat.prop.getlastmodified.as_deref(),
+            Some("Tue, 01 May 2022 06:39:47 GMT")
         );
         assert_eq!(
-            propstat.prop.resourcetype.value.unwrap(),
-            ResourceType::Collection
+            propstat.prop.resourcetype.value,
+            Some(ResourceType::Collection)
         );
 
         assert_eq!(propstat.status, "HTTP/1.1 200 OK");
@@ -917,16 +1003,17 @@ mod tests {
 
         let response = from_str::<PropfindResponse>(xml).unwrap();
         assert_eq!(response.href, "/");
+        assert_eq!(response.propstat.len(), 1);
 
         assert_eq!(
-            response.propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
+            response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 01 May 2022 06:39:47 GMT")
         );
         assert_eq!(
-            response.propstat.prop.resourcetype.value.unwrap(),
-            ResourceType::Collection
+            response.propstat[0].prop.resourcetype.value,
+            Some(ResourceType::Collection)
         );
-        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
+        assert_eq!(response.propstat[0].status, "HTTP/1.1 200 OK");
     }
 
     #[test]
@@ -958,12 +1045,68 @@ mod tests {
         let response = from_str::<PropfindResponse>(xml).unwrap();
         assert_eq!(response.href, "/test_file");
         assert_eq!(
-            response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 05:52:22 GMT"
+            response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 07 May 2022 05:52:22 GMT")
         );
-        assert_eq!(response.propstat.prop.getcontentlength.unwrap(), "1");
-        assert_eq!(response.propstat.prop.resourcetype.value, None);
-        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
+        assert_eq!(
+            response.propstat[0].prop.getcontentlength.as_deref(),
+            Some("1")
+        );
+        assert_eq!(response.propstat[0].prop.resourcetype.value, None);
+        assert_eq!(response.propstat[0].status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn test_response_with_multiple_propstat() {
+        let xml = r#"<D:response>
+                    <D:href>/webdav/example/</D:href>
+                    <D:propstat>
+                        <D:prop>
+                            <D:resourcetype><D:collection/></D:resourcetype>
+                            <D:displayname>example-folder</D:displayname>
+                            <D:getlastmodified>Thu, 25 Jun 2026 06:23:30 GMT</D:getlastmodified>
+                            <D:getetag>"example-etag"</D:getetag>
+                        </D:prop>
+                        <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                    <D:propstat>
+                        <D:prop>
+                            <D:creationdate/>
+                            <D:getcontentlength/>
+                            <D:getcontenttype/>
+                            <D:getcontentlanguage/>
+                            <D:source/>
+                        </D:prop>
+                        <D:status>HTTP/1.1 404 Not Found</D:status>
+                    </D:propstat>
+                </D:response>"#;
+
+        let response = from_str::<PropfindResponse>(xml).unwrap();
+        assert_eq!(response.propstat.len(), 2);
+
+        let meta = parse_propstats(&response.propstat).unwrap();
+        assert!(meta.is_dir());
+        assert_eq!(meta.etag(), Some("\"example-etag\""));
+    }
+
+    #[test]
+    fn test_parse_propstats_skips_failed_propstat() {
+        let propstats = vec![
+            Propstat {
+                status: "HTTP/1.1 404 Not Found".to_string(),
+                prop: Prop {
+                    getlastmodified: None,
+                    getetag: None,
+                    getcontentlength: None,
+                    getcontenttype: None,
+                    resourcetype: ResourceTypeContainer::default(),
+                },
+            },
+            new_propstat("HTTP/1.1 200 OK", None),
+        ];
+
+        let meta = parse_propstats(&propstats).unwrap();
+        assert!(meta.is_file());
     }
 
     #[test]
@@ -1013,8 +1156,8 @@ mod tests {
         assert_eq!(response.len(), 2);
         assert_eq!(response[0].href, "/");
         assert_eq!(
-            response[0].propstat.prop.getlastmodified,
-            "Tue, 01 May 2022 06:39:47 GMT"
+            response[0].propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 01 May 2022 06:39:47 GMT")
         );
     }
 
@@ -1102,22 +1245,22 @@ mod tests {
         let first_response = &response[0];
         assert_eq!(first_response.href, "/");
         assert_eq!(
-            first_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 06:39:47 GMT"
+            first_response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 07 May 2022 06:39:47 GMT")
         );
 
         let second_response = &response[1];
         assert_eq!(second_response.href, "/testdir/");
         assert_eq!(
-            second_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 06:40:10 GMT"
+            second_response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 07 May 2022 06:40:10 GMT")
         );
 
         let third_response = &response[2];
         assert_eq!(third_response.href, "/test_file");
         assert_eq!(
-            third_response.propstat.prop.getlastmodified,
-            "Tue, 07 May 2022 05:52:22 GMT"
+            third_response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Tue, 07 May 2022 05:52:22 GMT")
         );
     }
 
@@ -1236,8 +1379,8 @@ mod tests {
         let first_response = &response[0];
         assert_eq!(first_response.href, "/");
         assert_eq!(
-            first_response.propstat.prop.getlastmodified,
-            "Fri, 17 Feb 2023 03:37:22 GMT"
+            first_response.propstat[0].prop.getlastmodified.as_deref(),
+            Some("Fri, 17 Feb 2023 03:37:22 GMT")
         );
     }
 
@@ -1482,3 +1625,51 @@ mod tests {
         assert!(check_proppatch_response(xml).is_ok());
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            // Some services (like owncloud) return 403 while file locked.
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+            // RFC 7232: 412 means an If-Match / If-Unmodified-Since
+            // precondition failed; 304 means an If-None-Match /
+            // If-Modified-Since precondition matched. Surface both as
+            // ConditionNotMatch so callers can branch on it.
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            // Allowing retry for resource locked.
+            StatusCode::LOCKED => (ErrorKind::Unexpected, true),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = String::from_utf8_lossy(&bs);
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

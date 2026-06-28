@@ -21,6 +21,22 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Rename If Not Exists
+#[doc = include_str!("7818_rename_if_not_exists.md")]
+pub mod rfc_7818_rename_if_not_exists {}
+
+/// HTTP Transporter
+#[doc = include_str!("7749_http_transporter.md")]
+pub mod rfc_7749_http_transporter {}
+
+/// Simplify Stateful Operation Factory
+#[doc = include_str!("7744_simplify_stateful_operation_factory.md")]
+pub mod rfc_7744_simplify_stateful_operation_factory {}
+
+/// Operator Composition
+#[doc = include_str!("7740_operator_composition.md")]
+pub mod rfc_7740_operator_composition {}
+
 /// Capability API
 #[doc = include_str!("7700_capability_api.md")]
 pub mod rfc_7700_capability_api {}

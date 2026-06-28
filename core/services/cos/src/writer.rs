@@ -22,12 +22,13 @@ use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
+use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
@@ -35,15 +36,17 @@ pub type CosWriters = TwoWays<oio::MultipartWriter<CosWriter>, oio::AppendWriter
 
 pub struct CosWriter {
     core: Arc<CosCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl CosWriter {
-    pub fn new(core: Arc<CosCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<CosCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         CosWriter {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
@@ -73,9 +76,9 @@ impl oio::MultipartWrite for CosWriter {
             .core
             .cos_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
 
@@ -90,7 +93,7 @@ impl oio::MultipartWrite for CosWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .cos_initiate_multipart_upload(&self.path, &self.op)
+            .cos_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -121,7 +124,7 @@ impl oio::MultipartWrite for CosWriter {
 
         let resp = self
             .core
-            .cos_upload_part_request(&self.path, upload_id, part_number, size, body)
+            .cos_upload_part_request(&self.ctx, &self.path, upload_id, part_number, size, body)
             .await?;
 
         let status = resp.status();
@@ -163,7 +166,7 @@ impl oio::MultipartWrite for CosWriter {
 
         let mut resp = self
             .core
-            .cos_complete_multipart_upload(&self.path, upload_id, parts)
+            .cos_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
         let mut meta = Self::parse_metadata(resp.headers())?;
@@ -184,7 +187,7 @@ impl oio::MultipartWrite for CosWriter {
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .cos_abort_multipart_upload(&self.path, upload_id)
+            .cos_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
         match resp.status() {
             // cos returns code 204 if abort succeeds.
@@ -199,7 +202,7 @@ impl oio::AppendWrite for CosWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .cos_head_object(&self.path, &OpStat::default())
+            .cos_head_object(&self.ctx, &self.path, &OpStat::default())
             .await?;
 
         let status = resp.status();
@@ -223,9 +226,9 @@ impl oio::AppendWrite for CosWriter {
             .core
             .cos_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
 

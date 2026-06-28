@@ -23,7 +23,6 @@ use fastpool::bounded;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::error::format_etcd_error;
 use opendal_core::raw::*;
 use opendal_core::{Buffer, Error, ErrorKind, Result};
 
@@ -148,3 +147,17 @@ impl EtcdCore {
         Ok(())
     }
 }
+
+mod error {
+    use etcd_client::Error as EtcdError;
+
+    use opendal_core::{Error, ErrorKind};
+
+    pub fn format_etcd_error(e: EtcdError) -> Error {
+        Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+            .set_source(e)
+            .set_temporary()
+    }
+}
+
+pub(super) use error::*;

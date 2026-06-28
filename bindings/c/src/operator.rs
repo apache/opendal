@@ -259,8 +259,8 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// It is **safe** under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
-/// * The `bytes` provided has valid byte in the `data` field and the `len` field is set
-///   correctly.
+/// * If `bytes.len` is greater than 0, `bytes.data` must point to at least
+///   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` must be NULL.
 ///
 /// # Panic
 ///
@@ -275,6 +275,10 @@ pub unsafe extern "C" fn opendal_operator_write(
     let path = std::ffi::CStr::from_ptr(path)
         .to_str()
         .expect("malformed path");
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
+    };
     match op.deref().write(path, bytes) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
@@ -297,6 +301,10 @@ pub unsafe extern "C" fn opendal_operator_write_with(
         core::options::WriteOptions::default()
     } else {
         (&*opts).into()
+    };
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
     };
     match op.deref().write_options(path, bytes, opts) {
         Ok(_) => std::ptr::null_mut(),
@@ -466,6 +474,68 @@ pub unsafe extern "C" fn opendal_operator_reader(
         .to_str()
         .expect("malformed path");
     let reader = match op.deref().reader(path) {
+        Ok(reader) => reader,
+        Err(err) => {
+            return opendal_result_operator_reader {
+                reader: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            };
+        }
+    };
+
+    match reader.into_std_read(..) {
+        Ok(reader) => opendal_result_operator_reader {
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_reader {
+            reader: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Blocking create a reader for the specified path with options.
+///
+/// This function prepares a reader, applying the conditional, version and
+/// concurrency options carried by `opts`. A NULL `opts` is treated as the
+/// default options, behaving like `opendal_operator_reader`.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path where the reader will be used
+/// @param opts The reader options, or NULL to use the defaults
+/// @see opendal_operator
+/// @see opendal_reader_options
+/// @see opendal_result_operator_reader
+/// @return Returns opendal_result_operator_reader, containing a reader and an opendal_error.
+/// If the operation succeeds, the `reader` field holds a valid reader and the `error` field
+/// is null. Otherwise, the `reader` will be null and the `error` will be set correspondingly.
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_reader_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_reader_options,
+) -> opendal_result_operator_reader {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::ReaderOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let reader = match op.deref().reader_options(path, opts) {
         Ok(reader) => reader,
         Err(err) => {
             return opendal_result_operator_reader {

@@ -24,6 +24,7 @@ members = [
   "edge/*",
   "examples/*",
   "fuzz",
+  "http-transports/*",
   "layers/*",
   "services/*",
   "testkit",
@@ -43,18 +44,18 @@ version = "0.57.0"
 [workspace.dependencies]
 base64 = "0.22"
 bytes = "1.10"
-ctor = "1.0.1"
+ctor = "1.0.7"
 futures = { version = "0.3", default-features = false }
-http = "1.1"
-log = { version = "0.4.29" }
+http = "1.4"
+log = { version = "0.4.32" }
 logforth = { version = "0.29.1", features = ["starter-log"] }
 mea = "0.6"
-quick-xml = { version = "0.39.3", default-features = false }
+quick-xml = { version = "0.40.1", default-features = false }
 rand = "0.10.1"
 serde = { version = "1", default-features = false }
 serde_json = "1"
 sha2 = "0.11.0"
-tokio = { version = "1.48", default-features = false }
+tokio = { version = "1.52", default-features = false }
 url = "2.5"
 uuid = { version = "1", default-features = false }
 
@@ -85,6 +86,7 @@ auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
+  "http-transport-reqwest",
   "reqwest-rustls-tls",
   "executors-tokio",
   "layers-concurrent-limit",
@@ -93,7 +95,7 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
-internal-path-cache = ["opendal-core/internal-path-cache"]
+http-transport-reqwest = ["dep:opendal-http-transport-reqwest"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
@@ -119,8 +121,14 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
-reqwest-rustls-no-provider-tls = ["opendal-core/reqwest-rustls-no-provider-tls"]
-reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
+reqwest-rustls-no-provider-tls = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls-no-provider",
+]
+reqwest-rustls-tls = [
+  "http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls",
+]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]
@@ -215,6 +223,7 @@ required-features = ["tests"]
 [dependencies]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.57.0", default-features = false }
+opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.57.0", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.57.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.57.0", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.57.0", optional = true, default-features = false }

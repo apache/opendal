@@ -260,7 +260,7 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
 /// * If `bytes.len` is greater than 0, `bytes.data` must point to at least
-///   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` may be NULL.
+///   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` must be NULL.
 ///
 /// # Panic
 ///

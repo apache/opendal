@@ -214,3 +214,34 @@ TEST_F(OpendalBddTest, RejectNonEmptyNullBytes)
     opendal_error_free(write.error);
     opendal_writer_free(writer.writer);
 }
+
+TEST_F(OpendalBddTest, RejectEmptyNonNullBytes)
+{
+    uint8_t sentinel = 0;
+    const opendal_bytes invalid = {
+        .data = &sentinel,
+        .len = 0,
+        .capacity = 0,
+    };
+
+    opendal_error* error = opendal_operator_write(this->p, "invalid-empty", &invalid);
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(error->code, OPENDAL_UNEXPECTED);
+    opendal_error_free(error);
+
+    error = opendal_operator_write_with(this->p, "invalid-empty-with-options", &invalid, nullptr);
+    ASSERT_NE(error, nullptr);
+    EXPECT_EQ(error->code, OPENDAL_UNEXPECTED);
+    opendal_error_free(error);
+
+    opendal_result_operator_writer writer = opendal_operator_writer(this->p, "invalid-empty-writer");
+    EXPECT_EQ(writer.error, nullptr);
+    ASSERT_NE(writer.writer, nullptr);
+
+    opendal_result_writer_write write = opendal_writer_write(writer.writer, &invalid);
+    EXPECT_EQ(write.size, 0);
+    ASSERT_NE(write.error, nullptr);
+    EXPECT_EQ(write.error->code, OPENDAL_UNEXPECTED);
+    opendal_error_free(write.error);
+    opendal_writer_free(writer.writer);
+}

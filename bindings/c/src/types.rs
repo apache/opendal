@@ -90,7 +90,14 @@ impl opendal_bytes {
 
     pub(crate) fn to_buffer(&self) -> opendal::Result<Buffer> {
         if self.len == 0 {
-            return Ok(Buffer::new());
+            if self.data.is_null() {
+                return Ok(Buffer::new());
+            }
+
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "empty opendal_bytes must have null data",
+            ));
         }
 
         if self.data.is_null() {

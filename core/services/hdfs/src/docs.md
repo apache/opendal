@@ -32,13 +32,6 @@ HDFS support needs to enable feature `services-hdfs`.
 
 Refer to [`HdfsBuilder`]'s public API docs for more information.
 
-### Rename Behavior
-
-HDFS rename follows OpenDAL's public rename contract and overwrites an existing
-target file. Use `Operator::rename_with(...).if_not_exists(true)` when the target
-file must not already exist. HDFS returns `ConditionNotMatch` in that case and
-leaves both source and target files unchanged.
-
 ## Environment
 
 HDFS needs some environment set correctly.

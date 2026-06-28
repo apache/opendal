@@ -1447,7 +1447,7 @@ impl Operator {
     /// use opendal_core::Operator;
     /// use opendal_core::Result;
     ///
-    /// async fn test(op: Operator) -> Result<()> {
+    /// async fn rename_with_test(op: Operator) -> Result<()> {
     ///     let mut opts = RenameOptions::default();
     ///     opts.if_not_exists = true;
     ///     op.rename_options("path/to/file", "path/to/file2", opts)

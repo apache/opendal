@@ -382,6 +382,8 @@ mod tests {
         stat_calls: AtomicUsize,
         open_calls: AtomicUsize,
         read_calls: AtomicUsize,
+        last_stat_args: Mutex<Option<OpStat>>,
+        last_read_args: Mutex<Option<OpRead>>,
     }
 
     impl MockReadState {
@@ -391,6 +393,8 @@ mod tests {
                 stat_calls: AtomicUsize::new(0),
                 open_calls: AtomicUsize::new(0),
                 read_calls: AtomicUsize::new(0),
+                last_stat_args: Mutex::new(None),
+                last_read_args: Mutex::new(None),
             }
         }
 
@@ -479,12 +483,14 @@ mod tests {
             ))
         }
 
-        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
             self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
+            *self.state.last_stat_args.lock().unwrap() = Some(args);
             Ok(RpStat::new(self.state.metadata()))
         }
 
-        fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        fn read(&self, _ctx: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
+            *self.state.last_read_args.lock().unwrap() = Some(args);
             Ok(MockReadReader {
                 state: self.state.clone(),
             })
@@ -597,6 +603,30 @@ mod tests {
         assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_cache_fill_preserves_read_args() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let args = OpRead::default().with_version("v1").with_if_match("etag-1");
+        let reader = service.read(&ctx, "test", args).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        stream.read_all().await.unwrap();
+
+        let stat_args = state.last_stat_args.lock().unwrap().clone().unwrap();
+        assert_eq!(stat_args.version(), Some("v1"));
+        assert_eq!(stat_args.if_match(), Some("etag-1"));
+
+        let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
+        assert_eq!(read_args.version(), Some("v1"));
+        assert_eq!(read_args.if_match(), Some("etag-1"));
     }
 
     #[tokio::test]

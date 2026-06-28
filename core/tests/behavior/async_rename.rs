@@ -39,6 +39,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(
             op,
             test_rename_with_if_not_exists,
+            test_rename_with_if_not_exists_nested,
             test_rename_with_if_not_exists_returns_condition_not_match
         ))
     }
@@ -223,6 +224,42 @@ pub async fn test_rename_with_if_not_exists(op: Operator) -> Result<()> {
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
+
+    op.rename_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await?;
+
+    let err = op.stat(&source_path).await.expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Rename to a nested path should succeed when if_not_exists is set.
+pub async fn test_rename_with_if_not_exists_nested(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = format!(
+        "{}/{}/{}",
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
 
     op.rename_with(&source_path, &target_path)
         .if_not_exists(true)

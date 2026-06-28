@@ -1425,13 +1425,16 @@ impl Operator {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
-        OperatorFuture::new(
+        FutureRename::new(OperatorFuture::new(
             self.context().clone(),
             self.service().clone(),
             from,
-            (options::RenameOptions::default(), to),
+            RenameArgs {
+                opts: options::RenameOptions::default(),
+                to,
+            },
             Self::rename_inner,
-        )
+        ))
     }
 
     /// Rename a file from `from` to `to` with additional options.
@@ -1469,7 +1472,7 @@ impl Operator {
             self.context().clone(),
             self.service().clone(),
             from,
-            (opts, to),
+            RenameArgs { opts, to },
         )
         .await
     }
@@ -1478,8 +1481,10 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         from: String,
-        (opts, to): (options::RenameOptions, String),
+        args: RenameArgs,
     ) -> Result<()> {
+        let RenameArgs { opts, to } = args;
+
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")

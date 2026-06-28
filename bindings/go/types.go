@@ -367,6 +367,8 @@ type opendalDeleteOptions struct{}
 
 type opendalReadOptions struct{}
 
+type opendalReaderOptions struct{}
+
 type opendalCopyOptions struct{}
 
 type opendalWriteOptions struct{}

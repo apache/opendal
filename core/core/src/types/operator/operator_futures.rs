@@ -1555,7 +1555,7 @@ impl<F: Future<Output = Result<()>>> FutureRename<F> {
     /// use opendal_core::Operator;
     /// use opendal_core::Result;
     ///
-    /// async fn test(op: Operator) -> Result<()> {
+    /// async fn rename_with_options(op: Operator) -> Result<()> {
     ///     op.rename_with("source/path", "target/path")
     ///         .if_not_exists(true)
     ///         .await?;

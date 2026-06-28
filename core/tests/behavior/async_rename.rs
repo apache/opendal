@@ -34,6 +34,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_rename_overwrite
         ))
     }
+
+    if cap.read && cap.write && cap.rename && cap.rename_with_if_not_exists {
+        tests.extend(async_trials!(
+            op,
+            test_rename_with_if_not_exists,
+            test_rename_with_if_not_exists_returns_condition_not_match
+        ))
+    }
 }
 
 /// Rename a file and test with stat.
@@ -200,6 +208,82 @@ pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
     assert_eq!(
         sha256_digest(target_content),
         sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Rename to a non-exist path should succeed when if_not_exists is set.
+pub async fn test_rename_with_if_not_exists(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    op.rename_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await?;
+
+    let err = op.stat(&source_path).await.expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Rename to an existing path should return ConditionNotMatch when if_not_exists is set.
+pub async fn test_rename_with_if_not_exists_returns_condition_not_match(
+    op: Operator,
+) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, target_content);
+    op.write(&target_path, target_content.clone()).await?;
+
+    let err = op
+        .rename_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await
+        .expect_err("rename must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let source_content_after = op
+        .read(&source_path)
+        .await
+        .expect("read source must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(source_content_after),
+        sha256_digest(&source_content),
+    );
+
+    let target_content_after = op
+        .read(&target_path)
+        .await
+        .expect("read target must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content_after),
+        sha256_digest(&target_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");

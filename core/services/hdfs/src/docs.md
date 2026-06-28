@@ -32,6 +32,13 @@ HDFS support needs to enable feature `services-hdfs`.
 
 Refer to [`HdfsBuilder`]'s public API docs for more information.
 
+### Rename Behavior
+
+HDFS rename follows OpenDAL's public rename contract and overwrites an existing
+target file. Use `Operator::rename_with(...).if_not_exists(true)` when the target
+file must not already exist. HDFS returns `ConditionNotMatch` in that case and
+leaves both source and target files unchanged.
+
 ## Environment
 
 HDFS needs some environment set correctly.
@@ -110,7 +117,7 @@ Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.s
 use opendal_core::Operator;
 use opendal_service_hdfs::Hdfs;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create fs backend builder.
     let builder = Hdfs::default()

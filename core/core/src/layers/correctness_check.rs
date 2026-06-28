@@ -248,6 +248,16 @@ impl Service for CorrectnessService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
+        if args.if_not_exists() && !capability.rename_with_if_not_exists {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Rename,
+                "if_not_exists",
+            ));
+        }
+
         self.inner.rename(ctx, from, to, args).await
     }
 
@@ -390,10 +400,7 @@ mod tests {
             _: &str,
             _: OpRename,
         ) -> Result<RpRename> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))
+            Ok(RpRename::default())
         }
 
         async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
@@ -561,5 +568,24 @@ mod tests {
         });
         let res = op.delete_with("path").version("version").await;
         assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_rename_with_if_not_exists() {
+        let op = new_test_operator(Capability {
+            rename: true,
+            ..Default::default()
+        });
+        let res = op.rename_with("from", "to").if_not_exists(true).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            rename: true,
+            rename_with_if_not_exists: true,
+            ..Default::default()
+        });
+        let res = op.rename_with("from", "to").if_not_exists(true).await;
+        assert!(res.is_ok());
     }
 }

@@ -22,6 +22,19 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+fn map_hdfs_rename_error(err: io::Error, if_not_exists: bool, to_path: &str) -> Error {
+    if if_not_exists && err.kind() == io::ErrorKind::AlreadyExists {
+        return Error::new(
+            ErrorKind::ConditionNotMatch,
+            "target path already exists while if_not_exists is set",
+        )
+        .with_context("to", to_path)
+        .set_source(err);
+    }
+
+    new_std_io_error(err)
+}
+
 /// HdfsCore contains code that directly interacts with HDFS.
 #[derive(Clone)]
 pub struct HdfsCore {
@@ -146,7 +159,7 @@ impl HdfsCore {
         }
     }
 
-    pub fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
+    pub fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
         let from_path = build_rooted_abs_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 
@@ -166,7 +179,7 @@ impl HdfsCore {
                             ErrorKind::Unexpected,
                             "path should have parent but not, it must be malformed",
                         )
-                        .with_context("input", &to_path)
+                        .with_context("to", &to_path)
                     })?
                     .to_path_buf();
 
@@ -176,20 +189,43 @@ impl HdfsCore {
             }
             Ok(metadata) => {
                 if metadata.is_file() {
+                    if args.if_not_exists() {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "target path already exists while if_not_exists is set",
+                        )
+                        .with_context("to", &to_path));
+                    }
                     self.client
                         .remove_file(&to_path)
                         .map_err(new_std_io_error)?;
                 } else {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
-                        .with_context("input", &to_path));
+                        .with_context("to", &to_path));
                 }
             }
         }
 
         self.client
             .rename_file(&from_path, &to_path)
-            .map_err(new_std_io_error)?;
+            .map_err(|err| map_hdfs_rename_error(err, args.if_not_exists(), &to_path))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_existing_target_error_to_condition_not_match() {
+        let err = map_hdfs_rename_error(
+            io::Error::new(io::ErrorKind::AlreadyExists, "target exists"),
+            true,
+            "/target",
+        );
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
     }
 }

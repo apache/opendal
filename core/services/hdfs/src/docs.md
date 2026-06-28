@@ -110,7 +110,7 @@ Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.s
 use opendal_core::Operator;
 use opendal_service_hdfs::Hdfs;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create fs backend builder.
     let builder = Hdfs::default()

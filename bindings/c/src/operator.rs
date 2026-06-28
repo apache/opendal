@@ -259,8 +259,8 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// It is **safe** under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
-/// * The `bytes` provided has valid byte in the `data` field and the `len` field is set
-///   correctly.
+/// * If `bytes.len` is greater than 0, `bytes.data` must point to at least
+///   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` must be NULL.
 ///
 /// # Panic
 ///
@@ -275,6 +275,10 @@ pub unsafe extern "C" fn opendal_operator_write(
     let path = std::ffi::CStr::from_ptr(path)
         .to_str()
         .expect("malformed path");
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
+    };
     match op.deref().write(path, bytes) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
@@ -297,6 +301,10 @@ pub unsafe extern "C" fn opendal_operator_write_with(
         core::options::WriteOptions::default()
     } else {
         (&*opts).into()
+    };
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
     };
     match op.deref().write_options(path, bytes, opts) {
         Ok(_) => std::ptr::null_mut(),

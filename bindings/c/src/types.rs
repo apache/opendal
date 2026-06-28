@@ -21,8 +21,8 @@ use std::os::raw::c_char;
 
 use opendal::options;
 use opendal::raw::Timestamp;
-use opendal::Buffer;
 use opendal::BytesRange;
+use opendal::{Buffer, Error, ErrorKind};
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///
@@ -36,9 +36,11 @@ pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
 
 /// \brief opendal_bytes carries raw-bytes with its length
 ///
-/// The opendal_bytes type is a C-compatible substitute for Vec type
-/// in Rust, it has to be manually freed. You have to call opendal_bytes_free()
-/// to free the heap memory to avoid memory leak.
+/// The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
+/// For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
+/// the heap memory and avoid memory leaks. For caller-owned input buffers
+/// passed to OpenDAL C APIs, the caller keeps ownership and must not call
+/// opendal_bytes_free() on them.
 ///
 /// @see opendal_bytes_free
 #[repr(C)]
@@ -84,6 +86,29 @@ impl opendal_bytes {
                 }
             }
         }
+    }
+
+    pub(crate) fn to_buffer(&self) -> opendal::Result<Buffer> {
+        if self.len == 0 {
+            if self.data.is_null() {
+                return Ok(Buffer::new());
+            }
+
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "empty opendal_bytes must have null data",
+            ));
+        }
+
+        if self.data.is_null() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "non-empty opendal_bytes has null data",
+            ));
+        }
+
+        let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
+        Ok(Buffer::from(bytes::Bytes::copy_from_slice(slice)))
     }
 }
 
@@ -1422,13 +1447,6 @@ impl Drop for opendal_bytes {
             // Safety: the pointer is always valid
             Self::opendal_bytes_free(self);
         }
-    }
-}
-
-impl From<&opendal_bytes> for Buffer {
-    fn from(v: &opendal_bytes) -> Self {
-        let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
-        Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }
 }
 

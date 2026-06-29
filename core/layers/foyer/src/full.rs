@@ -81,6 +81,28 @@ impl FullReader {
             .contains(key)
     }
 
+    /// Derive the `OpStat` used for cache fill from the reader's `OpRead`, so the
+    /// stat observes the same conditions (version, if-match, ...) as the request.
+    fn stat_args(&self) -> OpStat {
+        let mut op = OpStat::new();
+        if let Some(v) = self.args.version() {
+            op = op.with_version(v);
+        }
+        if let Some(v) = self.args.if_match() {
+            op = op.with_if_match(v);
+        }
+        if let Some(v) = self.args.if_none_match() {
+            op = op.with_if_none_match(v);
+        }
+        if let Some(v) = self.args.if_modified_since() {
+            op = op.with_if_modified_since(v);
+        }
+        if let Some(v) = self.args.if_unmodified_since() {
+            op = op.with_if_unmodified_since(v);
+        }
+        op
+    }
+
     async fn fallback_open(
         &self,
         range: BytesRange,
@@ -123,11 +145,13 @@ impl FullReader {
                 let inner = self.inner.clone();
                 let size_limit = self.size_limit.clone();
                 let path_clone = path_str.clone();
+                let stat_args = self.stat_args();
+                let read_args = self.args.clone();
                 async move {
                     // read the metadata first, if it's too large, do not cache
                     let metadata = inner
                         .srv
-                        .stat(&inner.ctx, &path_clone, OpStat::default())
+                        .stat(&inner.ctx, &path_clone, stat_args)
                         .await
                         .map_err(FetchError::from_error)?
                         .into_metadata();
@@ -140,7 +164,7 @@ impl FullReader {
                     // fetch the ENTIRE object from remote.
                     let reader = inner
                         .srv
-                        .read(&inner.ctx, &path_clone, OpRead::default())
+                        .read(&inner.ctx, &path_clone, read_args)
                         .map_err(FetchError::from_error)?;
                     let (_, mut stream) = reader
                         .open(BytesRange::new(0, None))

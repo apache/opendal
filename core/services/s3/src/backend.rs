@@ -404,7 +404,7 @@ impl S3Builder {
         self
     }
 
-    /// Disable list objects v2 so that opendal will not use the older
+    /// Disable list objects v2 so that opendal will fall back to the older
     /// List Objects V1 to list objects.
     ///
     /// By default, OpenDAL uses List Objects V2 to list objects. However,

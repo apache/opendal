@@ -21,8 +21,8 @@ use std::os::raw::c_char;
 
 use opendal::options;
 use opendal::raw::Timestamp;
-use opendal::Buffer;
 use opendal::BytesRange;
+use opendal::{Buffer, Error, ErrorKind};
 
 /// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
 ///
@@ -36,9 +36,11 @@ pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
 
 /// \brief opendal_bytes carries raw-bytes with its length
 ///
-/// The opendal_bytes type is a C-compatible substitute for Vec type
-/// in Rust, it has to be manually freed. You have to call opendal_bytes_free()
-/// to free the heap memory to avoid memory leak.
+/// The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
+/// For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
+/// the heap memory and avoid memory leaks. For caller-owned input buffers
+/// passed to OpenDAL C APIs, the caller keeps ownership and must not call
+/// opendal_bytes_free() on them.
 ///
 /// @see opendal_bytes_free
 #[repr(C)]
@@ -84,6 +86,29 @@ impl opendal_bytes {
                 }
             }
         }
+    }
+
+    pub(crate) fn to_buffer(&self) -> opendal::Result<Buffer> {
+        if self.len == 0 {
+            if self.data.is_null() {
+                return Ok(Buffer::new());
+            }
+
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "empty opendal_bytes must have null data",
+            ));
+        }
+
+        if self.data.is_null() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "non-empty opendal_bytes has null data",
+            ));
+        }
+
+        let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
+        Ok(Buffer::from(bytes::Bytes::copy_from_slice(slice)))
     }
 }
 
@@ -1057,6 +1082,227 @@ impl From<&opendal_read_options> for options::ReadOptions {
     }
 }
 
+/// \brief The options for creating a reader via `opendal_operator_reader_with`.
+///
+/// Use `opendal_reader_options_new()` to construct and
+/// `opendal_reader_options_free()` to free.
+#[repr(C)]
+pub struct opendal_reader_options {
+    /// The version of the object to read; NULL means unset.
+    pub version: *const c_char,
+    /// If-Match header value; NULL means unset.
+    pub if_match: *const c_char,
+    /// If-None-Match header value; NULL means unset.
+    pub if_none_match: *const c_char,
+    /// Whether `if_modified_since` has been set.
+    pub has_if_modified_since: bool,
+    /// If-Modified-Since condition, in Unix milliseconds.
+    pub if_modified_since: i64,
+    /// Whether `if_unmodified_since` has been set.
+    pub has_if_unmodified_since: bool,
+    /// If-Unmodified-Since condition, in Unix milliseconds.
+    pub if_unmodified_since: i64,
+    /// Whether `content_length_hint` has been set.
+    pub has_content_length_hint: bool,
+    /// Known content length of the object, used as an execution hint to avoid
+    /// extra metadata requests while planning reads.
+    pub content_length_hint: u64,
+    /// Concurrent read operations. `0` falls back to sequential reads.
+    pub concurrent: usize,
+    /// Whether `chunk` has been set.
+    pub has_chunk: bool,
+    /// Chunk size for each read request.
+    pub chunk: usize,
+    /// Whether `gap` has been set.
+    pub has_gap: bool,
+    /// Gap size for merging nearby range reads.
+    pub gap: usize,
+    /// Number of prefetched byte ranges buffered during concurrent reads.
+    pub prefetch: usize,
+}
+
+impl Default for opendal_reader_options {
+    fn default() -> Self {
+        Self {
+            version: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            has_if_modified_since: false,
+            if_modified_since: 0,
+            has_if_unmodified_since: false,
+            if_unmodified_since: 0,
+            has_content_length_hint: false,
+            content_length_hint: 0,
+            concurrent: 0,
+            has_chunk: false,
+            chunk: 0,
+            has_gap: false,
+            gap: 0,
+            prefetch: 0,
+        }
+    }
+}
+
+impl opendal_reader_options {
+    /// \brief Construct a heap-allocated opendal_reader_options with default values.
+    #[no_mangle]
+    pub extern "C" fn opendal_reader_options_new() -> *mut Self {
+        Box::into_raw(Box::new(Self::default()))
+    }
+
+    /// \brief Free the heap memory used by opendal_reader_options.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_free(opts: *mut opendal_reader_options) {
+        if !opts.is_null() {
+            drop(Box::from_raw(opts));
+        }
+    }
+
+    /// \brief Set the version of the object to read.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_version(
+        opts: *mut opendal_reader_options,
+        version: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).version = version;
+        }
+    }
+
+    /// \brief Set If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_if_match(
+        opts: *mut opendal_reader_options,
+        if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_if_none_match(
+        opts: *mut opendal_reader_options,
+        if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).if_none_match = if_none_match;
+        }
+    }
+
+    /// \brief Set If-Modified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_if_modified_since(
+        opts: *mut opendal_reader_options,
+        if_modified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_modified_since = true;
+            (*opts).if_modified_since = if_modified_since;
+        }
+    }
+
+    /// \brief Set If-Unmodified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_if_unmodified_since(
+        opts: *mut opendal_reader_options,
+        if_unmodified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_if_unmodified_since = true;
+            (*opts).if_unmodified_since = if_unmodified_since;
+        }
+    }
+
+    /// \brief Set the known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_content_length_hint(
+        opts: *mut opendal_reader_options,
+        content_length_hint: u64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_content_length_hint = true;
+            (*opts).content_length_hint = content_length_hint;
+        }
+    }
+
+    /// \brief Set concurrent read operations.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_concurrent(
+        opts: *mut opendal_reader_options,
+        concurrent: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).concurrent = concurrent;
+        }
+    }
+
+    /// \brief Set chunk size.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_chunk(
+        opts: *mut opendal_reader_options,
+        chunk: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_chunk = true;
+            (*opts).chunk = chunk;
+        }
+    }
+
+    /// \brief Set gap size.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_gap(
+        opts: *mut opendal_reader_options,
+        gap: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_gap = true;
+            (*opts).gap = gap;
+        }
+    }
+
+    /// \brief Set the number of prefetched byte ranges buffered during concurrent reads.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_options_set_prefetch(
+        opts: *mut opendal_reader_options,
+        prefetch: usize,
+    ) {
+        if !opts.is_null() {
+            (*opts).prefetch = prefetch;
+        }
+    }
+}
+
+impl From<&opendal_reader_options> for options::ReaderOptions {
+    fn from(value: &opendal_reader_options) -> Self {
+        Self {
+            version: unsafe { optional_cstr(value.version) },
+            if_match: unsafe { optional_cstr(value.if_match) },
+            if_none_match: unsafe { optional_cstr(value.if_none_match) },
+            if_modified_since: value
+                .has_if_modified_since
+                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
+                .flatten(),
+            if_unmodified_since: value
+                .has_if_unmodified_since
+                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
+                .flatten(),
+            content_length_hint: value
+                .has_content_length_hint
+                .then_some(value.content_length_hint),
+            concurrent: value.concurrent,
+            chunk: value.has_chunk.then_some(value.chunk),
+            gap: value.has_gap.then_some(value.gap),
+            prefetch: value.prefetch,
+        }
+    }
+}
+
 /// \brief The options for copy operations.
 ///
 /// Use `opendal_copy_options_new()` to construct and
@@ -1201,13 +1447,6 @@ impl Drop for opendal_bytes {
             // Safety: the pointer is always valid
             Self::opendal_bytes_free(self);
         }
-    }
-}
-
-impl From<&opendal_bytes> for Buffer {
-    fn from(v: &opendal_bytes) -> Self {
-        let slice = unsafe { std::slice::from_raw_parts(v.data, v.len) };
-        Buffer::from(bytes::Bytes::copy_from_slice(slice))
     }
 }
 

@@ -15,22 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: nginx_with_empty_password
-description: "Behavior test for nginx_with_empty_password in nginx"
+from typing import Final, final
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup webdav in nginx_with_empty_password
-      shell: bash
-      working-directory: fixtures/webdav
-      run: docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d --wait
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_WEBDAV_ENDPOINT=http://127.0.0.1:8080
-        OPENDAL_WEBDAV_USERNAME=foo
-        OPENDAL_WEBDAV_ENABLE_CONDITIONAL_READ=false
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_with_user_metadata=false
-        EOF
+from _typeshed import Incomplete
+
+__version__: Final[str]
+
+@final
+class DeleteOptions: ...
+
+@final
+class ListOptions: ...
+
+@final
+class ReadOptions: ...
+
+@final
+class StatOptions: ...
+
+@final
+class WriteOptions: ...
+
+def __getattr__(name: str) -> Incomplete: ...

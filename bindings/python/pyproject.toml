@@ -60,13 +60,9 @@ test = [
 features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
-strip = true
 
 [tool.ty.src]
 include = ["python/opendal"]
-# Generated stubs target the abi3 floor (cp311); skip them so the `>=3.10`
-# `requires-python` does not flag `typing.Self` and other newer stdlib symbols.
-exclude = ["python/opendal/*.pyi"]
 
 [tool.uv]
 cache-keys = [

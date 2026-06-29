@@ -12,6 +12,12 @@ This service can be used to:
 - [ ] ~~rename~~
 - [ ] ~~presign~~
 
+## Limitations
+
+Vercel Remote Cache is a Content-Addressable Storage (CAS) designed for caching build artifacts. Because of this, it has the following limitations:
+- **Folder Operations**: It does not support creating directories (`create_dir`) or listing files (`list`).
+- **Resource Deletion**: It does not support deleting individual remote cache artifacts (`delete`). Standard cache invalidation is managed automatically by Vercel or triggered locally via cache misses (by changing task hashes).
+
 ## Configuration
 
 - `access_token`: set the access_token for Rest API

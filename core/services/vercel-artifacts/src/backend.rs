@@ -105,6 +105,7 @@ impl Service for VercelArtifactsBackend {
         _path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
+        // Vercel Remote Cache is content-addressable storage (CAS) and does not support folder operations.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -156,6 +157,7 @@ impl Service for VercelArtifactsBackend {
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        // Vercel Remote Cache is content-addressable storage (CAS) and does not support resource deletion.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

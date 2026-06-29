@@ -27,7 +27,6 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
-mod err;
 mod lister;
 mod reader;
 mod writer;

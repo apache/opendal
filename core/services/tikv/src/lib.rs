@@ -27,6 +27,7 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
+mod reader;
 mod writer;
 
 pub use backend::TikvBuilder as Tikv;

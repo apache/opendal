@@ -30,11 +30,9 @@ use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
 use super::core::Manager;
+use super::core::format_ftp_error;
 use super::deleter::FtpDeleter;
-use super::err::format_ftp_error;
-use super::lister::FtpLister;
-use super::reader::FtpReadStream;
-use super::writer::FtpWriter;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -177,159 +175,12 @@ impl Builder for FtpBuilder {
 
 #[derive(Clone)]
 pub struct FtpBackend {
-    core: Arc<FtpCore>,
+    pub(crate) core: Arc<FtpCore>,
 }
 
 impl Debug for FtpBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FtpBackend").finish()
-    }
-}
-
-/// Reader returned by this backend.
-pub struct FtpReader {
-    backend: FtpBackend,
-    path: String,
-}
-
-impl FtpReader {
-    fn new(backend: FtpBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-pub struct FtpLazyWriter {
-    core: Arc<FtpCore>,
-    path: String,
-    append: bool,
-    inner: Option<FtpWriter>,
-}
-
-impl FtpLazyWriter {
-    fn new(core: Arc<FtpCore>, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            append: op.append(),
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut FtpWriter> {
-        if self.inner.is_none() {
-            let parent = get_parent(&self.path);
-            let paths: Vec<&str> = parent.split('/').collect();
-
-            // TODO: we can optimize this by checking dir existence first.
-            let mut ftp_stream = self.core.ftp_connect(Operation::Write).await?;
-            let mut curr_path = String::new();
-
-            for path in paths {
-                if path.is_empty() {
-                    continue;
-                }
-                curr_path.push_str(path);
-                curr_path.push('/');
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(format_ftp_error(e));
-                    }
-                }
-            }
-
-            let tmp_path = (!self.append).then_some(build_tmp_path_of(&self.path));
-            let w = FtpWriter::new(ftp_stream, self.path.clone(), tmp_path);
-            self.inner = Some(w);
-        }
-
-        Ok(self.inner.as_mut().expect("ftp writer must be initialized"))
-    }
-}
-
-impl oio::Write for FtpLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        match &mut self.inner {
-            Some(w) => w.close().await,
-            None => Ok(Metadata::default()),
-        }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        match &mut self.inner {
-            Some(w) => w.abort().await,
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "FtpWriter doesn't support abort",
-            )),
-        }
-    }
-}
-
-pub struct FtpLazyLister {
-    core: Arc<FtpCore>,
-    path: String,
-    inner: Option<FtpLister>,
-}
-
-impl FtpLazyLister {
-    fn new(core: Arc<FtpCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut FtpLister> {
-        if self.inner.is_none() {
-            let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
-
-            let pathname = if self.path == "/" {
-                None
-            } else {
-                Some(self.path.as_str())
-            };
-            let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
-
-            self.inner = Some(FtpLister::new(
-                if self.path == "/" { "" } else { &self.path },
-                files,
-            ));
-        }
-
-        Ok(self.inner.as_mut().expect("ftp lister must be initialized"))
-    }
-}
-
-impl oio::List for FtpLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.inner().await?.next().await
-    }
-}
-
-impl oio::StreamRead for FtpReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-
-        let ftp_stream = backend.core.ftp_connect(Operation::Read).await?;
-        let rp = RpRead::default();
-        let stream = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

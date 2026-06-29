@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -32,12 +31,13 @@ use reqsign_tencent_cos::StaticCredentialProvider;
 
 use super::COS_SCHEME;
 use super::config::CosConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::CosDeleter;
-use super::error::parse_error;
 use super::lister::CosLister;
 use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
+use super::reader::*;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
 use opendal_core::raw::*;
@@ -304,54 +304,7 @@ impl Builder for CosBuilder {
 /// Backend for Tencent-Cloud COS services.
 #[derive(Debug, Clone)]
 pub struct CosBackend {
-    core: Arc<CosCore>,
-}
-
-/// Reader returned by this backend.
-pub struct CosReader {
-    backend: CosBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl CosReader {
-    fn new(backend: CosBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for CosReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .cos_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<CosCore>,
 }
 
 impl Service for CosBackend {

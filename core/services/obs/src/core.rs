@@ -25,7 +25,9 @@ use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
+use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
+use http::header::IF_UNMODIFIED_SINCE;
 use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::{Context, Signer};
@@ -142,6 +144,14 @@ impl ObsCore {
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req
@@ -636,3 +646,97 @@ mod tests {
         )
     }
 }
+
+mod error {
+    use bytes::Buf;
+    use http::Response;
+    use http::StatusCode;
+    use quick_xml::de;
+    use serde::Deserialize;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    /// ObsError is the error returned by obs service.
+    #[derive(Default, Debug, Deserialize)]
+    #[serde(default, rename_all = "PascalCase")]
+    struct ObsError {
+        code: String,
+        message: String,
+        resource: String,
+        request_id: String,
+        host_id: String,
+    }
+
+    /// Parse error response into Error.
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+                (ErrorKind::ConditionNotMatch, false)
+            }
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            // OBS could return `520 Origin Error` errors which should be retried.
+            v if v.as_u16() == 520 => (ErrorKind::Unexpected, true),
+
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = match de::from_reader::<_, ObsError>(bs.clone().reader()) {
+            Ok(obs_error) => format!("{obs_error:?}"),
+            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_parse_error() {
+            let bs = bytes::Bytes::from(
+                r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+<Code>NoSuchKey</Code>
+<Message>The resource you requested does not exist</Message>
+<Resource>/example-bucket/object</Resource>
+<RequestId>001B21A61C6C0000013402C4616D5285</RequestId>
+<HostId>RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD</HostId>
+</Error>
+"#,
+            );
+
+            let out: ObsError = de::from_reader(bs.reader()).expect("must success");
+            println!("{out:?}");
+
+            assert_eq!(out.code, "NoSuchKey");
+            assert_eq!(out.message, "The resource you requested does not exist");
+            assert_eq!(out.resource, "/example-bucket/object");
+            assert_eq!(out.request_id, "001B21A61C6C0000013402C4616D5285");
+            assert_eq!(
+                out.host_id,
+                "RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD"
+            );
+        }
+    }
+}
+
+pub(super) use error::*;

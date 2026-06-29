@@ -24,13 +24,12 @@ pub fn register_ipmfs_service(registry: &opendal_core::OperatorRegistry) {
 }
 
 mod backend;
-mod builder;
 mod config;
 mod core;
 mod deleter;
-mod error;
 mod lister;
+mod reader;
 mod writer;
 
-pub use builder::IpmfsBuilder as Ipmfs;
+pub use backend::IpmfsBuilder as Ipmfs;
 pub use config::IpmfsConfig;

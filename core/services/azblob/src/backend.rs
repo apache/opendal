@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign_azure_storage::DefaultCredentialProvider;
@@ -42,9 +41,10 @@ use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
+use super::core::parse_error;
 use super::deleter::AzblobDeleter;
-use super::error::parse_error;
 use super::lister::AzblobLister;
+use super::reader::*;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
 use opendal_core::raw::*;
@@ -453,53 +453,7 @@ impl Builder for AzblobBuilder {
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
-    core: Arc<AzblobCore>,
-}
-
-/// Reader returned by this backend.
-pub struct AzblobReader {
-    backend: AzblobBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl AzblobReader {
-    fn new(backend: AzblobBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for AzblobReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .azblob_get_blob(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<AzblobCore>,
 }
 
 impl Service for AzblobBackend {

@@ -22,8 +22,8 @@ use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;

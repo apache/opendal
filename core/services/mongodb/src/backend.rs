@@ -23,6 +23,7 @@ use super::MONGODB_SCHEME;
 use super::config::MongodbConfig;
 use super::core::*;
 use super::deleter::MongodbDeleter;
+use super::reader::*;
 use super::writer::MongodbWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -169,10 +170,10 @@ impl Builder for MongodbBuilder {
 /// Backend for Mongodb services.
 #[derive(Clone, Debug)]
 pub struct MongodbBackend {
-    core: Arc<MongodbCore>,
-    root: String,
-    info: ServiceInfo,
-    capability: Capability,
+    pub(crate) core: Arc<MongodbCore>,
+    pub(crate) root: String,
+    pub(crate) info: ServiceInfo,
+    pub(crate) capability: Capability,
 }
 
 impl MongodbBackend {
@@ -204,41 +205,6 @@ impl MongodbBackend {
         self.info = self.info.with_root(&root);
         self.root = root;
         self
-    }
-}
-
-/// Reader returned by this backend.
-pub struct MongodbReader {
-    backend: MongodbBackend,
-    path: String,
-}
-
-impl MongodbReader {
-    fn new(backend: MongodbBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for MongodbReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-        let bs = match backend.core.get(&p).await? {
-            Some(bs) => bs,
-            None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in mongodb"));
-            }
-        };
-        let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
-        Ok((
-            RpRead::new(metadata),
-            Box::new(content) as Box<dyn oio::ReadStreamDyn>,
-        ))
     }
 }
 

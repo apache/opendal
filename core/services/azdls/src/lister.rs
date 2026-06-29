@@ -22,7 +22,7 @@ use serde::Deserialize;
 use serde_json::de;
 
 use super::core::AzdlsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

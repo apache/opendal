@@ -20,7 +20,7 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::VercelArtifactsCore;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

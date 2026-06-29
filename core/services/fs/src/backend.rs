@@ -25,9 +25,7 @@ use super::FS_SCHEME;
 use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
-use super::lister::FsLister;
-use super::writer::FsWriter;
-use super::writer::FsWriters;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -174,176 +172,11 @@ impl Builder for FsBuilder {
 /// FsBackend implements [`Service`] for POSIX-like file systems.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
-    core: Arc<FsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct FsReader {
-    core: Arc<FsCore>,
-    file: Arc<File>,
-}
-
-impl FsReader {
-    fn new(core: Arc<FsCore>, file: File) -> Self {
-        Self {
-            core,
-            file: file.into(),
-        }
-    }
-}
-
-impl oio::PositionRead for FsReader {
-    async fn read_at(&self, offset: u64, size: usize) -> Result<Buffer> {
-        if size == 0 {
-            return Ok(Buffer::new());
-        }
-
-        let mut bs = self.core.buf_pool.get();
-        bs.resize(size, 0);
-
-        let f = self.file.clone();
-        let (n, mut bs) = tokio::task::spawn_blocking(move || {
-            let n = read_at(&f, &mut bs, offset)?;
-            Ok::<_, Error>((n, bs))
-        })
-        .await
-        .map_err(new_task_join_error)??;
-
-        let frozen = bs.split_to(n).freeze();
-        self.core.buf_pool.put(bs);
-
-        Ok(Buffer::from(frozen))
-    }
-}
-
-pub struct FsLazyReader {
-    core: Arc<FsCore>,
-    path: String,
-    // Open the file once and reuse the same handle across every read operation
-    reader: tokio::sync::OnceCell<oio::PositionReader<FsReader>>,
-}
-
-impl FsLazyReader {
-    fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            reader: tokio::sync::OnceCell::new(),
-        }
-    }
-
-    async fn reader(&self) -> Result<&oio::PositionReader<FsReader>> {
-        self.reader
-            .get_or_try_init(|| async {
-                let file = self.core.fs_open(&self.path).await?;
-                Ok(oio::PositionReader::new(FsReader::new(
-                    self.core.clone(),
-                    file,
-                )))
-            })
-            .await
-    }
-}
-
-impl oio::Read for FsLazyReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.reader().await?.open(range).await
-    }
-
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.reader().await?.read(range).await
-    }
-}
-
-pub struct FsLazyWriter {
-    core: Arc<FsCore>,
-    executor: Executor,
-    path: String,
-    op: OpWrite,
-    inner: Option<FsWriters>,
-}
-
-impl FsLazyWriter {
-    fn new(core: Arc<FsCore>, executor: Executor, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            executor,
-            path: path.to_string(),
-            op,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut FsWriters> {
-        if self.inner.is_none() {
-            let is_append = self.op.append();
-            let concurrent = self.op.concurrent();
-            let writer = FsWriter::create(self.core.clone(), &self.path, self.op.clone()).await?;
-            let writer = if is_append {
-                FsWriters::One(writer)
-            } else {
-                FsWriters::Two(oio::PositionWriter::new(
-                    self.executor.clone(),
-                    writer,
-                    concurrent,
-                ))
-            };
-
-            self.inner = Some(writer);
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for FsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
-    }
-}
-
-pub struct FsLazyLister {
-    core: Arc<FsCore>,
-    path: String,
-    inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
-}
-
-impl FsLazyLister {
-    fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-}
-
-impl oio::List for FsLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if self.inner.is_none() {
-            self.inner = Some(match self.core.fs_list(&self.path).await? {
-                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
-                None => None,
-            });
-        }
-
-        match self.inner.as_mut().expect("lister must be initialized") {
-            Some(lister) => lister.next().await,
-            None => Ok(None),
-        }
-    }
+    pub(crate) core: Arc<FsCore>,
 }
 
 impl Service for FsBackend {
-    type Reader = FsLazyReader;
+    type Reader = oio::PositionReader<FsReader>;
     type Writer = FsLazyWriter;
     type Lister = FsLazyLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
@@ -373,7 +206,10 @@ impl Service for FsBackend {
     }
 
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(FsLazyReader::new(self.core.clone(), path))
+        Ok(oio::PositionReader::new(FsReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
@@ -435,13 +271,13 @@ impl Service for FsBackend {
 }
 
 #[cfg(windows)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::windows::fs::FileExt;
     f.seek_read(buf, offset).map_err(new_std_io_error)
 }
 
 #[cfg(unix)]
-fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
+pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.read_at(buf, offset).map_err(new_std_io_error)
 }

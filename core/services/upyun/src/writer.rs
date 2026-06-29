@@ -23,7 +23,7 @@ use opendal_core::*;
 
 use super::core::UpyunCore;
 use super::core::constants::X_UPYUN_MULTI_UUID;
-use super::error::parse_error;
+use super::core::parse_error;
 
 pub type UpyunWriters = oio::MultipartWriter<UpyunWriter>;
 

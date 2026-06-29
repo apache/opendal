@@ -24,9 +24,8 @@ mod config;
 mod copier;
 mod core;
 mod deleter;
-mod error;
 mod lister;
-mod uri;
+mod reader;
 mod writer;
 
 pub use backend::GcsBuilder as Gcs;

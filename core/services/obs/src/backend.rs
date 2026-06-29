@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -38,9 +37,10 @@ use super::OBS_SCHEME;
 use super::config::ObsConfig;
 use super::core::ObsCore;
 use super::core::constants;
+use super::core::parse_error;
 use super::deleter::ObsDeleter;
-use super::error::parse_error;
 use super::lister::ObsLister;
+use super::reader::*;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
 
@@ -206,6 +206,8 @@ impl Builder for ObsBuilder {
 
             read_with_if_match: true,
             read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
 
             write: true,
             write_can_empty: true,
@@ -260,54 +262,7 @@ impl Builder for ObsBuilder {
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
 pub struct ObsBackend {
-    core: Arc<ObsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct ObsReader {
-    backend: ObsBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl ObsReader {
-    fn new(backend: ObsBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for ObsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .obs_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<ObsCore>,
 }
 
 impl Service for ObsBackend {

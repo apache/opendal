@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use mea::once::OnceCell;
@@ -27,12 +26,13 @@ use mea::once::OnceCell;
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;
 use super::core::WebhdfsCore;
+use super::core::parse_error;
 use super::deleter::WebhdfsDeleter;
-use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
+use super::reader::*;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use opendal_core::raw::oio;
@@ -205,7 +205,7 @@ impl Builder for WebhdfsBuilder {
 /// Backend for WebHDFS service
 #[derive(Debug, Clone)]
 pub struct WebhdfsBackend {
-    core: Arc<WebhdfsCore>,
+    pub(crate) core: Arc<WebhdfsCore>,
 }
 
 impl WebhdfsBackend {
@@ -232,46 +232,6 @@ impl WebhdfsBackend {
             _ => return Err(parse_error(resp)),
         }
         Ok(())
-    }
-}
-
-/// Reader returned by this backend.
-pub struct WebhdfsReader {
-    backend: WebhdfsBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl WebhdfsReader {
-    fn new(backend: WebhdfsBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for WebhdfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend
-            .core
-            .webhdfs_read_file(&self.ctx, path, range)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (RpRead::default(), resp.into_body()),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }
 

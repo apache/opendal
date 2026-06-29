@@ -19,20 +19,187 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveRecentPathState;
 use super::core::normalize_dir_path;
+use super::core::parse_error;
 use super::deleter::GdriveDeleter;
-use super::error::parse_error;
 use super::lister::GdriveFlatLister;
 use super::lister::GdriveLister;
+use super::reader::*;
 use super::writer::GdriveWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+use log::debug;
+use mea::mutex::Mutex;
+
+use super::GDRIVE_SCHEME;
+use super::config::GdriveConfig;
+use super::core::GdrivePathQuery;
+use super::core::GdriveSigner;
+use super::path_index::GdrivePathIndex;
+
+/// [GoogleDrive](https://drive.google.com/) backend support.
+#[derive(Default)]
+#[doc = include_str!("docs.md")]
+pub struct GdriveBuilder {
+    pub(super) config: GdriveConfig,
+}
+
+impl Debug for GdriveBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl GdriveBuilder {
+    /// Set root path of GoogleDrive folder.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Access token is used for temporary access to the GoogleDrive API.
+    ///
+    /// You can get the access token from [GoogleDrive App Console](https://console.cloud.google.com/apis/credentials)
+    /// or [GoogleDrive OAuth2 Playground](https://developers.google.com/oauthplayground/)
+    ///
+    /// # Note
+    ///
+    /// - An access token is valid for 1 hour.
+    /// - If you want to use the access token for a long time,
+    ///   you can use the refresh token to get a new access token.
+    pub fn access_token(mut self, access_token: &str) -> Self {
+        self.config.access_token = Some(access_token.to_string());
+        self
+    }
+
+    /// Refresh token is used for long term access to the GoogleDrive API.
+    ///
+    /// You can get the refresh token via OAuth 2.0 Flow of GoogleDrive API.
+    ///
+    /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
+    pub fn refresh_token(mut self, refresh_token: &str) -> Self {
+        self.config.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client id for GoogleDrive.
+    ///
+    /// This is required for OAuth 2.0 Flow to refresh the access token.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        self.config.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client secret for GoogleDrive.
+    ///
+    /// This is required for OAuth 2.0 Flow with refresh the access token.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        self.config.client_secret = Some(client_secret.to_string());
+        self
+    }
+}
+
+impl Builder for GdriveBuilder {
+    type Config = GdriveConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        debug!("backend use root {root}");
+
+        let info = ServiceInfo::new(GDRIVE_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            list: true,
+            list_with_recursive: true,
+
+            write: true,
+
+            create_dir: true,
+            delete: true,
+            delete_with_recursive: true,
+            rename: true,
+            copy: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
+        let accessor_info = info;
+        let mut signer = GdriveSigner::new();
+        match (self.config.access_token, self.config.refresh_token) {
+            (Some(access_token), None) => {
+                signer.access_token = access_token;
+                // We will never expire user specified access token.
+                signer.expires_in = Timestamp::MAX;
+            }
+            (None, Some(refresh_token)) => {
+                let client_id = self.config.client_id.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", GDRIVE_SCHEME)
+                })?;
+                let client_secret = self.config.client_secret.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_secret must be set when refresh_token is set",
+                    )
+                    .with_context("service", GDRIVE_SCHEME)
+                })?;
+
+                signer.refresh_token = refresh_token;
+                signer.client_id = client_id;
+                signer.client_secret = client_secret;
+            }
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token and refresh_token cannot be set at the same time",
+                )
+                .with_context("service", GDRIVE_SCHEME));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", GDRIVE_SCHEME));
+            }
+        };
+
+        let signer = Arc::new(Mutex::new(signer));
+
+        Ok(GdriveBackend {
+            core: Arc::new(GdriveCore {
+                info: accessor_info.clone(),
+                capability,
+                root,
+                signer: signer.clone(),
+                path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
+                recent_entries: Mutex::default(),
+            }),
+        })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
@@ -41,70 +208,6 @@ pub struct GdriveBackend {
 
 /// Lister type that supports both recursive and non-recursive listing
 pub type GdriveListers = TwoWays<oio::PageLister<GdriveLister>, GdriveFlatLister>;
-
-/// Reader returned by this backend.
-pub struct GdriveReader {
-    backend: GdriveBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl GdriveReader {
-    fn new(backend: GdriveBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GdriveReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.core.root, path);
-        let resp = match backend.core.gdrive_get(&self.ctx, path, range).await {
-            Ok(resp) => resp,
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                backend.core.refresh_path(&abs_path).await;
-                backend.core.gdrive_get(&self.ctx, path, range).await?
-            }
-            Err(err) => return Err(err),
-        };
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            StatusCode::NOT_FOUND => {
-                backend.core.refresh_path(&abs_path).await;
-                let resp = backend.core.gdrive_get(&self.ctx, path, range).await?;
-                let status = resp.status();
-                match status {
-                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                        RpRead::new(parse_into_metadata(path, resp.headers())?),
-                        resp.into_body(),
-                    ),
-                    _ => {
-                        let (part, mut body) = resp.into_parts();
-                        let buf = body.to_buffer().await?;
-                        return Err(parse_error(Response::from_parts(part, buf)));
-                    }
-                }
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
 
 impl Service for GdriveBackend {
     type Reader = oio::StreamReader<GdriveReader>;

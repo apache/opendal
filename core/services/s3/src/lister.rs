@@ -20,8 +20,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use quick_xml::de;
 
+use crate::core::parse_error;
 use crate::core::*;
-use crate::error::parse_error;
 use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::Metadata;

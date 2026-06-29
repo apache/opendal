@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
@@ -27,9 +26,10 @@ use super::GITHUB_SCHEME;
 use super::config::GithubConfig;
 use super::core::Entry;
 use super::core::GithubCore;
+use super::core::parse_error;
 use super::deleter::GithubDeleter;
-use super::error::parse_error;
 use super::lister::GithubLister;
+use super::reader::*;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use opendal_core::raw::*;
@@ -152,48 +152,7 @@ impl Builder for GithubBuilder {
 /// Backend for Github services.
 #[derive(Debug, Clone)]
 pub struct GithubBackend {
-    core: Arc<GithubCore>,
-}
-
-/// Reader returned by this backend.
-pub struct GithubReader {
-    backend: GithubBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl GithubReader {
-    fn new(backend: GithubBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for GithubReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.get(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<GithubCore>,
 }
 
 impl Service for GithubBackend {

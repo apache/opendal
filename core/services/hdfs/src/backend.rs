@@ -25,8 +25,7 @@ use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
-use super::reader::HdfsReadStream;
-use super::writer::HdfsWriter;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -188,89 +187,11 @@ impl Builder for HdfsBuilder {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
-    core: Arc<HdfsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct HdfsReader {
-    backend: HdfsBackend,
-    path: String,
-}
-
-impl HdfsReader {
-    fn new(backend: HdfsBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for HdfsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-
-        let f = backend.core.hdfs_read(path, range).await?;
-        let rp = RpRead::default();
-        let stream = HdfsReadStream::new(f, range.size().unwrap_or(u64::MAX) as _);
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-pub struct HdfsLazyWriter {
-    core: Arc<HdfsCore>,
-    path: String,
-    op: OpWrite,
-    inner: Option<HdfsWriter<hdrs::AsyncFile>>,
-}
-
-impl HdfsLazyWriter {
-    fn new(core: Arc<HdfsCore>, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            op,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut HdfsWriter<hdrs::AsyncFile>> {
-        if self.inner.is_none() {
-            let (target_path, tmp_path, f, target_exists, initial_size) =
-                self.core.hdfs_write(&self.path, &self.op).await?;
-
-            self.inner = Some(HdfsWriter::new(
-                target_path,
-                tmp_path,
-                f,
-                Arc::clone(&self.core.client),
-                target_exists,
-                initial_size,
-            ));
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for HdfsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
-    }
+    pub(crate) core: Arc<HdfsCore>,
 }
 
 impl Service for HdfsBackend {
-    type Reader = oio::StreamReader<HdfsReader>;
+    type Reader = oio::PositionReader<HdfsReader>;
     type Writer = HdfsLazyWriter;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
@@ -298,16 +219,11 @@ impl Service for HdfsBackend {
         let m = self.core.hdfs_stat(path)?;
         Ok(RpStat::new(m))
     }
-    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let output: oio::StreamReader<HdfsReader> = {
-            Ok(oio::StreamReader::new(HdfsReader::new(
-                self.clone(),
-                path,
-                args,
-            )))
-        }?;
-
-        Ok(output)
+    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+        Ok(oio::PositionReader::new(HdfsReader::new(
+            self.core.clone(),
+            path,
+        )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {

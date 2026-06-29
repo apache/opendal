@@ -21,7 +21,7 @@ use opendal_core::{Configurator, OperatorUri, Result};
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::builder::OnedriveBuilder;
+use super::backend::OnedriveBuilder;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

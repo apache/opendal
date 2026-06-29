@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -38,12 +37,13 @@ use reqsign_file_read_tokio::TokioFileRead;
 
 use super::OSS_SCHEME;
 use super::config::OssConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::OssDeleter;
-use super::error::parse_error;
 use super::lister::OssLister;
 use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
+use super::reader::*;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
 use opendal_core::raw::*;
@@ -634,54 +634,7 @@ impl Builder for OssBuilder {
 #[derive(Debug, Clone)]
 /// Aliyun Object Storage Service backend
 pub struct OssBackend {
-    core: Arc<OssCore>,
-}
-
-/// Reader returned by this backend.
-pub struct OssReader {
-    backend: OssBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl OssReader {
-    fn new(backend: OssBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for OssReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .oss_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<OssCore>,
 }
 
 impl Service for OssBackend {

@@ -31,6 +31,7 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
+mod reader;
 mod writer;
 
 use std::ops::Deref;

@@ -22,9 +22,9 @@
 mod backend;
 mod config;
 mod core;
-mod error;
 mod ipld;
 
+mod reader;
 pub use backend::IpfsBuilder as Ipfs;
 pub use config::IpfsConfig;
 

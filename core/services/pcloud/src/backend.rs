@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use opendal_core::raw::*;
@@ -27,11 +26,12 @@ use opendal_core::*;
 
 use super::PCLOUD_SCHEME;
 use super::config::PcloudConfig;
+use super::core::PcloudError;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::PcloudDeleter;
-use super::error::PcloudError;
-use super::error::parse_error;
 use super::lister::PcloudLister;
+use super::reader::*;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 
@@ -170,50 +170,7 @@ impl Builder for PcloudBuilder {
 /// Backend for Pcloud services.
 #[derive(Debug, Clone)]
 pub struct PcloudBackend {
-    core: Arc<PcloudCore>,
-}
-
-/// Reader returned by this backend.
-pub struct PcloudReader {
-    backend: PcloudBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl PcloudReader {
-    fn new(backend: PcloudBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for PcloudReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let link = backend.core.get_file_link(&self.ctx, path).await?;
-
-        let resp = backend.core.download(&self.ctx, &link, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<PcloudCore>,
 }
 
 impl Service for PcloudBackend {

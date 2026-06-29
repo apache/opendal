@@ -18,8 +18,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azblob::core::AzblobCore;

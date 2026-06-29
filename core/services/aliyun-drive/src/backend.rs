@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
-use http::StatusCode;
 use log::debug;
 use mea::mutex::Mutex;
 
@@ -28,8 +26,8 @@ use super::ALIYUN_DRIVE_SCHEME;
 use super::config::AliyunDriveConfig;
 use super::core::*;
 use super::deleter::AliyunDriveDeleter;
-use super::error::parse_error;
 use super::lister::AliyunDriveLister;
+use super::reader::*;
 use super::writer::AliyunDriveLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -182,53 +180,7 @@ impl Builder for AliyunDriveBuilder {
 
 #[derive(Clone, Debug)]
 pub struct AliyunDriveBackend {
-    core: Arc<AliyunDriveCore>,
-}
-
-/// Reader returned by this backend.
-pub struct AliyunDriveReader {
-    backend: AliyunDriveBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl AliyunDriveReader {
-    fn new(backend: AliyunDriveBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for AliyunDriveReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let res = backend.core.get_by_path(&self.ctx, path).await?;
-        let file: AliyunDriveFile =
-            serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-        let resp = backend
-            .core
-            .download(&self.ctx, &file.file_id, range)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<AliyunDriveCore>,
 }
 
 impl Service for AliyunDriveBackend {

@@ -102,26 +102,29 @@ jobs:
 
   website-dependencies:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+
     steps:
       - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v6
         with:
-          version: 8
+          # Follow website/package.json packageManager field
+          version: 11.8.0
           run_install: false
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version-file: "website/.node-version"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
 
       - name: Install Dependencies
-        working-directory: website
         run: pnpm install --frozen-lockfile
 
       - name: Check dependencies
-        working-directory: website
         run: |
           npx license-checker --production --excludePrivatePackages --csv > DEPENDENCIES.node.csv
           git diff --exit-code

@@ -23,8 +23,8 @@ use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use crate::core::parse_tos_error_code;
 use crate::core::*;
-use crate::error::parse_tos_error_code;
 
 pub struct TosDeleter {
     core: Arc<TosCore>,
@@ -50,7 +50,7 @@ impl oio::BatchDelete for TosDeleter {
         match status {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(crate::error::parse_error(resp)),
+            _ => Err(crate::core::parse_error(resp)),
         }
     }
 
@@ -59,7 +59,7 @@ impl oio::BatchDelete for TosDeleter {
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(crate::error::parse_error(resp));
+            return Err(crate::core::parse_error(resp));
         }
 
         let bs = resp.into_body();

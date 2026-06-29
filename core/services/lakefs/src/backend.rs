@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use opendal_core::raw::*;
@@ -28,9 +27,10 @@ use super::LAKEFS_SCHEME;
 use super::config::LakefsConfig;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
+use super::core::parse_error;
 use super::deleter::LakefsDeleter;
-use super::error::parse_error;
 use super::lister::LakefsLister;
+use super::reader::*;
 use super::writer::LakefsWriter;
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
@@ -182,54 +182,7 @@ impl Builder for LakefsBuilder {
 /// Backend for Lakefs service
 #[derive(Debug, Clone)]
 pub struct LakefsBackend {
-    core: Arc<LakefsCore>,
-}
-
-/// Reader returned by this backend.
-pub struct LakefsReader {
-    backend: LakefsBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl LakefsReader {
-    fn new(backend: LakefsBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for LakefsReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .get_object_content(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<LakefsCore>,
 }
 
 impl Service for LakefsBackend {

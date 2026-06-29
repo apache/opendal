@@ -20,10 +20,10 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
+use crate::core::S3Error;
+use crate::core::from_s3_error;
+use crate::core::parse_error;
 use crate::core::*;
-use crate::error::S3Error;
-use crate::error::from_s3_error;
-use crate::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

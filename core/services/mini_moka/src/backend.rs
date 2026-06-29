@@ -26,6 +26,7 @@ use super::config::MiniMokaConfig;
 use super::core::*;
 use super::deleter::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
+use super::reader::*;
 use super::writer::MiniMokaWriter;
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
@@ -119,9 +120,9 @@ impl Builder for MiniMokaBuilder {
 }
 
 #[derive(Debug, Clone)]
-struct MiniMokaBackend {
-    core: Arc<MiniMokaCore>,
-    root: String,
+pub(crate) struct MiniMokaBackend {
+    pub(crate) core: Arc<MiniMokaCore>,
+    pub(crate) root: String,
     capability: Capability,
 }
 
@@ -142,45 +143,6 @@ impl MiniMokaBackend {
             core,
             root,
             capability,
-        }
-    }
-}
-
-/// Reader returned by this backend.
-pub struct MiniMokaReader {
-    backend: MiniMokaBackend,
-    path: String,
-}
-
-impl MiniMokaReader {
-    fn new(backend: MiniMokaBackend, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for MiniMokaReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
-
-        match backend.core.get(&p) {
-            Some(value) => {
-                let total_size = value.content.len() as u64;
-                let sliced_content = value
-                    .content
-                    .slice(range.to_content_range(value.content.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
-
-                Ok((
-                    RpRead::new(metadata),
-                    Box::new(sliced_content) as Box<dyn oio::ReadStreamDyn>,
-                ))
-            }
-            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }
     }
 }

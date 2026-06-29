@@ -22,10 +22,10 @@ use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 
+use crate::core::S3Error;
+use crate::core::from_s3_error;
+use crate::core::parse_error;
 use crate::core::*;
-use crate::error::S3Error;
-use crate::error::from_s3_error;
-use crate::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 

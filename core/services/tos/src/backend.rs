@@ -18,20 +18,19 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::reader::*;
 use crate::config::TosConfig;
 use crate::copier::TosCopiers;
 use crate::copier::new_tos_copier;
 use crate::core::constants::X_TOS_VERSION_ID;
 use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
+use crate::core::parse_error;
+use crate::core::tos_parse_into_metadata;
 use crate::core::*;
 use crate::deleter::TosDeleter;
-use crate::error::parse_error;
 use crate::lister::{TosLister, TosListers, TosObjectVersionsLister};
-use crate::utils::tos_parse_into_metadata;
 use crate::writer::TosWriter;
-use http::Response;
 use http::StatusCode;
-use opendal_core::BytesRange;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
@@ -256,53 +255,7 @@ impl Builder for TosBuilder {
 
 #[derive(Debug, Clone)]
 pub struct TosBackend {
-    core: Arc<TosCore>,
-}
-
-/// Reader returned by this backend.
-pub struct TosReader {
-    backend: TosBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl TosReader {
-    fn new(backend: TosBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for TosReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .tos_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<TosCore>,
 }
 
 impl Service for TosBackend {

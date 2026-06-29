@@ -18,16 +18,16 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::SWIFT_SCHEME;
 use super::SwiftConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::SwiftDeleter;
-use super::error::parse_error;
 use super::lister::SwiftLister;
+use super::reader::*;
 use super::writer::SwiftWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -205,6 +205,7 @@ impl Builder for SwiftBuilder {
 
                     list: true,
                     list_with_recursive: true,
+                    list_with_start_after: true,
 
                     presign: has_temp_url_key,
                     presign_stat: has_temp_url_key,
@@ -229,54 +230,7 @@ impl Builder for SwiftBuilder {
 /// Backend for Swift service
 #[derive(Debug, Clone)]
 pub struct SwiftBackend {
-    core: Arc<SwiftCore>,
-}
-
-/// Reader returned by this backend.
-pub struct SwiftReader {
-    backend: SwiftBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl SwiftReader {
-    fn new(backend: SwiftBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for SwiftReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .swift_read(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<SwiftCore>,
 }
 
 impl Service for SwiftBackend {
@@ -372,6 +326,7 @@ impl Service for SwiftBackend {
                 path.to_string(),
                 args.recursive(),
                 args.limit(),
+                args.start_after().map(String::from),
             );
 
             Ok(oio::PageLister::new(l))

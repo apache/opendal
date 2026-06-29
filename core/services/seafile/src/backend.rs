@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
-use http::StatusCode;
 use log::debug;
 use mea::rwlock::RwLock;
 
@@ -30,8 +28,8 @@ use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::deleter::SeafileDeleter;
-use super::error::parse_error;
 use super::lister::SeafileLister;
+use super::reader::*;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use opendal_core::raw::*;
@@ -189,48 +187,7 @@ impl Builder for SeafileBuilder {
 /// Backend for seafile services.
 #[derive(Debug, Clone)]
 pub struct SeafileBackend {
-    core: Arc<SeafileCore>,
-}
-
-/// Reader returned by this backend.
-pub struct SeafileReader {
-    backend: SeafileBackend,
-    ctx: OperationContext,
-    path: String,
-}
-
-impl SeafileReader {
-    fn new(backend: SeafileBackend, ctx: OperationContext, path: &str, _: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-        }
-    }
-}
-
-impl oio::StreamRead for SeafileReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let resp = backend.core.download_file(&self.ctx, path, range).await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<SeafileCore>,
 }
 
 impl Service for SeafileBackend {

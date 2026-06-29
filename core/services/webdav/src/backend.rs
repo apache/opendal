@@ -19,16 +19,16 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::WEBDAV_SCHEME;
 use super::config::WebdavConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::WebdavDeleter;
-use super::error::parse_error;
 use super::lister::WebdavLister;
+use super::reader::*;
 use super::writer::WebdavWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -153,6 +153,24 @@ impl WebdavBuilder {
         }
         self
     }
+
+    /// Enable conditional read support.
+    ///
+    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
+    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
+    /// `If-Unmodified-Since` to the server when callers provide them.
+    ///
+    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
+    /// in PROPFIND or don't honor these headers on GET. Setting this to
+    /// `false` drops the four `read_with_if_*` capabilities, so calls like
+    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
+    /// locally instead of being silently ignored by the server.
+    ///
+    /// Default: true
+    pub fn enable_conditional_read(mut self, enable: bool) -> Self {
+        self.config.enable_conditional_read = enable;
+        self
+    }
 }
 
 impl Builder for WebdavBuilder {
@@ -193,6 +211,8 @@ impl Builder for WebdavBuilder {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
+        let conditional_read = self.config.enable_conditional_read;
+
         let core = Arc::new(WebdavCore {
             info: ServiceInfo::new(WEBDAV_SCHEME, &root, ""),
             capability: Capability {
@@ -200,6 +220,10 @@ impl Builder for WebdavBuilder {
 
                 read: true,
                 read_with_suffix: true,
+                read_with_if_match: conditional_read,
+                read_with_if_none_match: conditional_read,
+                read_with_if_modified_since: conditional_read,
+                read_with_if_unmodified_since: conditional_read,
 
                 write: true,
                 write_can_empty: true,
@@ -240,54 +264,7 @@ impl Builder for WebdavBuilder {
 
 #[derive(Clone, Debug)]
 pub struct WebdavBackend {
-    core: Arc<WebdavCore>,
-}
-
-/// Reader returned by this backend.
-pub struct WebdavReader {
-    backend: WebdavBackend,
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl WebdavReader {
-    fn new(backend: WebdavBackend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for WebdavReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .webdav_get(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<WebdavCore>,
 }
 
 impl Service for WebdavBackend {

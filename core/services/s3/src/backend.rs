@@ -25,7 +25,6 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -47,13 +46,14 @@ use crate::S3_SCHEME;
 use crate::config::S3Config;
 use crate::copier::S3Copiers;
 use crate::copier::new_s3_copier;
+use crate::core::parse_error;
 use crate::core::*;
 use crate::deleter::S3Deleter;
-use crate::error::parse_error;
 use crate::lister::S3ListerV1;
 use crate::lister::S3ListerV2;
 use crate::lister::S3Listers;
 use crate::lister::S3ObjectVersionsLister;
+use crate::reader::*;
 use crate::writer::S3Writer;
 use crate::writer::S3Writers;
 use opendal_core::raw::*;
@@ -404,7 +404,7 @@ impl S3Builder {
         self
     }
 
-    /// Disable list objects v2 so that opendal will not use the older
+    /// Disable list objects v2 so that opendal will fall back to the older
     /// List Objects V1 to list objects.
     ///
     /// By default, OpenDAL uses List Objects V2 to list objects. However,
@@ -1034,55 +1034,7 @@ impl Builder for S3Builder {
 /// Backend for s3 services.
 #[derive(Debug, Clone)]
 pub struct S3Backend {
-    core: Arc<S3Core>,
-}
-
-/// Reader returned by this backend.
-pub struct S3Reader {
-    backend: S3Backend,
-    // StreamRead::open can run after Service::read returns, so keep the
-    // per-operation context with the reader.
-    ctx: OperationContext,
-    path: String,
-    args: OpRead,
-}
-
-impl S3Reader {
-    fn new(backend: S3Backend, ctx: OperationContext, path: &str, args: OpRead) -> Self {
-        Self {
-            backend,
-            ctx,
-            path: path.to_string(),
-            args,
-        }
-    }
-}
-
-impl oio::StreamRead for S3Reader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
-        let args = self.args.clone();
-        let resp = backend
-            .core
-            .s3_get_object(&self.ctx, path, range, &args)
-            .await?;
-
-        let status = resp.status();
-        let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
-            }
-        };
-
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
+    pub(crate) core: Arc<S3Core>,
 }
 
 impl Service for S3Backend {

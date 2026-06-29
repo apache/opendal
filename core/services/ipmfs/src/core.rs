@@ -169,3 +169,74 @@ impl IpmfsCore {
         ctx.http_transport().send(req).await
     }
 }
+
+mod error {
+    use http::Response;
+    use http::StatusCode;
+    use serde::Deserialize;
+    use serde_json::de;
+
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    #[derive(Deserialize, Default, Debug)]
+    #[serde(default)]
+    struct IpfsError {
+        #[serde(rename = "Message")]
+        message: String,
+        #[serde(rename = "Code")]
+        code: usize,
+        #[serde(rename = "Type")]
+        ty: String,
+    }
+
+    /// Parse error response into io::Error.
+    ///
+    /// > Status code 500 means that the function does exist, but IPFS was not
+    /// > able to fulfil the request because of an error.
+    /// > To know that reason, you have to look at the error message that is
+    /// > usually returned with the body of the response
+    /// > (if no error, check the daemon logs).
+    ///
+    /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
+    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let ipfs_error = de::from_slice::<IpfsError>(&bs).ok();
+
+        let (kind, retryable) = match parts.status {
+            StatusCode::INTERNAL_SERVER_ERROR => {
+                if let Some(ie) = &ipfs_error {
+                    match ie.message.as_str() {
+                        "file does not exist" => (ErrorKind::NotFound, false),
+                        _ => (ErrorKind::Unexpected, false),
+                    }
+                } else {
+                    (ErrorKind::Unexpected, false)
+                }
+            }
+            StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let message = match ipfs_error {
+            Some(ipfs_error) => format!("{ipfs_error:?}"),
+            None => String::from_utf8_lossy(&bs).into_owned(),
+        };
+
+        let mut err = Error::new(kind, message);
+
+        err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use error::*;

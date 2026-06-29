@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
-version = "0.1.7-rc.1"
+version = "0.1.7-rc.2"
 
 [lib]
 crate-type = ["cdylib"]
@@ -65,4 +65,4 @@ bytes = "1.6"
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-rb-sys-env = "0.1.2"
+rb-sys-env = "0.2.3"

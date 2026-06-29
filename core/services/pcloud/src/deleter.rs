@@ -22,9 +22,9 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use super::core::PcloudError;
+use super::core::parse_error;
 use super::core::*;
-use super::error::PcloudError;
-use super::error::parse_error;
 
 pub struct PcloudDeleter {
     core: Arc<PcloudCore>,

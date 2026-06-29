@@ -43,14 +43,11 @@ option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
 set(OPENDAL_FEATURES "" CACHE STRING "opendal features")
 
 if(OPENDAL_ENABLE_ASYNC)
-    set(CMAKE_CXX_STANDARD 20)
-
     if (NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
         message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
     endif()
-else()
-    set(CMAKE_CXX_STANDARD 17)
 endif()
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (OPENDAL_DEV)
@@ -84,7 +81,9 @@ endif()
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
     OUTPUT_VARIABLE CARGO_TARGET_DIR
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-string(REGEX REPLACE "/Cargo.toml\n$" "/target" CARGO_TARGET_DIR "${CARGO_TARGET_DIR}")
+cmake_path(GET CARGO_TARGET_DIR PARENT_PATH CARGO_TARGET_DIR)
+cmake_path(APPEND CARGO_TARGET_DIR "target" )
+
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)
 set(RUST_SOURCE_FILE ${PROJECT_SOURCE_DIR}/src/lib.rs)
 list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
@@ -167,7 +166,7 @@ endif()
 
 # Platform-specific test configuration
 if(WIN32)
-    target_link_libraries(opendal_cpp userenv ws2_32 bcrypt)
+    target_link_libraries(opendal_cpp PRIVATE userenv ws2_32 bcrypt Ntdll.lib)
     set_target_properties(
             opendal_cpp
             PROPERTIES

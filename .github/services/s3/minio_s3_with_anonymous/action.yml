@@ -49,5 +49,5 @@ runs:
         OPENDAL_S3_REGION=us-east-1
         OPENDAL_S3_ALLOW_ANONYMOUS=on
         OPENDAL_S3_DISABLE_EC2_METADATA=on
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,write_can_append=false,copy_with_if_not_exists=false,copy_with_if_match=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,write_can_append=false,copy_with_if_not_exists=false,copy_with_if_match=false,delete_with_if_match=false
         EOF

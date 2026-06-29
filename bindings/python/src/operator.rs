@@ -518,18 +518,22 @@ impl Operator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None))]
     pub fn delete(
         &self,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        if version.is_some() || recursive.is_some() {
+        if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
                 version,
                 recursive: recursive.unwrap_or(false),
+                if_match,
             };
             self.core.delete_options(&path, opts).map_err(format_pyerr)
         } else {
@@ -1258,21 +1262,25 @@ impl AsyncOperator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None) -> "collections.abc.Awaitable[None]")]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None) -> "collections.abc.Awaitable[None]")]
     pub fn delete<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            if version.is_some() || recursive.is_some() {
+            if version.is_some() || recursive.is_some() || if_match.is_some() {
                 let opts = ocore::options::DeleteOptions {
                     version,
                     recursive: recursive.unwrap_or(false),
+                    if_match,
                 };
                 this.delete_options(&path, opts).await.map_err(format_pyerr)
             } else {

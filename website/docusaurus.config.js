@@ -90,6 +90,14 @@ const config = {
     locales: ["en"],
   },
 
+  future: {
+    faster: {
+      rspackBundler: true,
+      rspackPersistentCache: true,
+    },
+  },
+
+
   presets: [
     [
       "@docusaurus/preset-classic",

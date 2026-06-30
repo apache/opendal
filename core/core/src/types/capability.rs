@@ -177,6 +177,9 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is natively supported.
+    /// For unsupported services, `GlobLayer` should be used.
+    pub list_with_glob: bool,
 
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,

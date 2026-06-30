@@ -1575,6 +1575,10 @@ public interface ServiceConfig {
     class Hf implements ServiceConfig {
         /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
+         * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
+         * environment variable: a non-empty value forces <code>http</code>, otherwise it
+         * defaults to <code>xet</code>. An explicit value here takes precedence.</p>
+         * <p>See <a href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet">https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet</a>.</p>
          */
         public final String downloadMode;
         /**

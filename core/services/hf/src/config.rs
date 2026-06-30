@@ -53,6 +53,12 @@ pub struct HfConfig {
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
     /// Download mode. Either `xet` (default) or `http`.
+    ///
+    /// When unset, the mode is resolved from the `HF_HUB_DISABLE_XET`
+    /// environment variable: a non-empty value forces `http`, otherwise it
+    /// defaults to `xet`. An explicit value here takes precedence.
+    ///
+    /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
 }
 

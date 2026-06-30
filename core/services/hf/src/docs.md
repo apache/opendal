@@ -31,6 +31,7 @@ This service can be used to:
 - `root`: Set the work directory for backend.
 - `token`: The token for accessing the repository. Required for write operations.
 - `endpoint`: The Hub base URL. Default is `https://huggingface.co`. Can also be set via the `HF_ENDPOINT` environment variable.
+- `download_mode`: How files are downloaded. One of `xet` (default) or `http`. When unset, a non-empty `HF_HUB_DISABLE_XET` environment variable forces `http`.
 
 Refer to [`HfBuilder`]'s public API docs for more information.
 

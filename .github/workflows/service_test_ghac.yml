@@ -25,18 +25,19 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/service_test_ghac.yml"
+      - ".github/actions/test_service_ghac_v2/**"
       - "core/Cargo.toml"
       - "core/Cargo.lock"
       - "core/core/Cargo.toml"
       - "core/core/src/**"
-      - "core/layers/**"
-      - "core/testkit/**"
-      - "core/tests/**"
       - "!core/core/src/docs/**"
+      - "core/layers/**"
       - "core/services/azblob/**"
       - "core/services/azure-common/**"
       - "core/services/ghac/**"
-      - ".github/workflows/service_test_ghac.yml"
+      - "core/testkit/**"
+      - "core/tests/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -44,29 +45,10 @@ concurrency:
 
 jobs:
   ghac_v2:
-    runs-on: ubuntu-latest
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-
-      - name: Configure Cache Env
-        uses: actions/github-script@v9
-        with:
-          script: |
-            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
-
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo test behavior --features tests,services-ghac
-        env:
-          OPENDAL_TEST: ghac
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # `opendal-ghac-service-continuous-integration` repo contains an action wrapper that delegates
+    # implementation on opendal repo but runs and store caches in `opendal-ghac-service-continuous-integration` repo.
+    # We want to reduce cache load on GitHub for a single repo.
+    uses: apache/opendal-ghac-service-continuous-integration/.github/workflows/service-ghac-v2-test.yml@main
+    with:
+      ref: ${{ github.sha }}

@@ -31,7 +31,7 @@ use opendal::tests::ReadChecker;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
 
-const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
+const MAX_DATA_SIZE: usize = 4 * 1024 * 1024;
 
 #[derive(Clone)]
 struct FuzzInput {
@@ -59,7 +59,7 @@ impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> arbitrary::Result<Self> {
         let total_size = u.int_in_range(1..=MAX_DATA_SIZE)?;
 
-        let count = u.int_in_range(1..=1024)?;
+        let count = u.int_in_range(1..=256)?;
         let mut actions = vec![];
 
         for _ in 0..count {

@@ -91,12 +91,13 @@ impl ReadChecker {
 
         let expected = &self.raw_data[offset..offset + output.len()];
 
-        // Check the read result
-        assert_eq!(
-            sha256_digest(output),
-            sha256_digest(expected),
-            "check read failed: output bs is different with expected bs",
-        );
+        if output != expected {
+            assert_eq!(
+                sha256_digest(output),
+                sha256_digest(expected),
+                "check read failed: output bs is different with expected bs",
+            );
+        }
     }
 
     /// Check will check the correctness of the read process via given actions.

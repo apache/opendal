@@ -17,7 +17,7 @@
 
 use ::opendal as core;
 use std::collections::HashMap;
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{c_char, c_void, CString};
 use std::ptr;
 
 /// \brief A user metadata key-value pair.

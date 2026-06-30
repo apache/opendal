@@ -57,7 +57,7 @@ impl oio::PageList for AlluxioLister {
                         path
                     };
                     ctx.entries.push_back(Entry::new(
-                        &build_rel_path(&self.core.root, &path),
+                        &build_relative_path(&self.core.root, &path),
                         file_info.try_into()?,
                     ));
                 }

@@ -42,7 +42,7 @@ impl Debug for IpmfsCore {
 
 impl IpmfsCore {
     pub async fn ipmfs_stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/api/v0/files/stat?arg={}",
@@ -64,7 +64,7 @@ impl IpmfsCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/api/v0/files/read?arg={}",
@@ -86,7 +86,7 @@ impl IpmfsCore {
     }
 
     pub async fn ipmfs_rm(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/api/v0/files/rm?arg={}",
@@ -107,7 +107,7 @@ impl IpmfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/api/v0/files/ls?arg={}&long=true",
@@ -128,7 +128,7 @@ impl IpmfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/api/v0/files/mkdir?arg={}&parents=true",
@@ -151,7 +151,7 @@ impl IpmfsCore {
         path: &str,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=true",

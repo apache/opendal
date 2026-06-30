@@ -81,7 +81,7 @@ impl oio::BatchDelete for S3Deleter {
             failed: Vec::with_capacity(errors.len()),
         };
         for (path, op) in batch {
-            let abs_path = build_abs_path(&self.core.root, &path);
+            let abs_path = build_absolute_path(&self.core.root, &path);
             // Assume errors are rare, so lookup and erase is acceptable.
             if let Some(idx) = errors
                 .iter()

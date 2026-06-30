@@ -34,7 +34,7 @@ impl HdfsDeleter {
 
 impl oio::OneShotDelete for HdfsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.core.root, &path);
+        let p = build_rooted_absolute_path(&self.core.root, &path);
 
         let meta = self.core.client.metadata(&p);
 

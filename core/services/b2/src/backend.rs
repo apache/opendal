@@ -368,7 +368,7 @@ impl Service for B2Backend {
                     .core
                     .get_download_authorization(ctx, path, args.expire())
                     .await?;
-                let path = build_abs_path(&self.core.root, path);
+                let path = build_absolute_path(&self.core.root, path);
 
                 let auth_info = self.core.get_auth_info(ctx).await?;
 
@@ -395,7 +395,7 @@ impl Service for B2Backend {
                     .core
                     .get_download_authorization(ctx, path, args.expire())
                     .await?;
-                let path = build_abs_path(&self.core.root, path);
+                let path = build_absolute_path(&self.core.root, path);
 
                 let auth_info = self.core.get_auth_info(ctx).await?;
 
@@ -423,7 +423,7 @@ impl Service for B2Backend {
                 let mut req = Request::post(&resp.upload_url);
 
                 req = req.header(http::header::AUTHORIZATION, resp.authorization_token);
-                req = req.header("X-Bz-File-Name", build_abs_path(&self.core.root, path));
+                req = req.header("X-Bz-File-Name", build_absolute_path(&self.core.root, path));
                 req = req.header(http::header::CONTENT_TYPE, "b2/x-auto");
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 

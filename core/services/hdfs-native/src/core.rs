@@ -43,7 +43,7 @@ impl Debug for HdfsNativeCore {
 
 impl HdfsNativeCore {
     pub async fn hdfs_create_dir(&self, path: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client
             .mkdirs(&p, 0o777, true)
@@ -54,7 +54,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_stat(&self, path: &str) -> Result<Metadata> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let status: hdfs_native::client::FileStatus = self
             .client
@@ -79,7 +79,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client.read(&p).await.map_err(parse_hdfs_error)
     }
@@ -89,7 +89,7 @@ impl HdfsNativeCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<(hdfs_native::file::FileWriter, u64)> {
-        let target_path = build_rooted_abs_path(&self.root, path);
+        let target_path = build_rooted_absolute_path(&self.root, path);
         let mut initial_size = 0;
 
         let target_exists = match self.client.get_file_info(&target_path).await {
@@ -128,7 +128,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_delete(&self, path: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client
             .delete(&p, true)
@@ -139,7 +139,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_list(&self, path: &str) -> Result<Option<(String, Option<String>)>> {
-        let p: String = build_rooted_abs_path(&self.root, path);
+        let p: String = build_rooted_absolute_path(&self.root, path);
 
         let isdir = match self.client.get_file_info(&p).await {
             Ok(status) => status.isdir,
@@ -165,8 +165,8 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
-        let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path = build_rooted_abs_path(&self.root, to);
+        let from_path = build_rooted_absolute_path(&self.root, from);
+        let to_path = build_rooted_absolute_path(&self.root, to);
 
         match self.client.get_file_info(&to_path).await {
             Ok(status) => {

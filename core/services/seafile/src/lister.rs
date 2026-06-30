@@ -52,7 +52,7 @@ impl oio::PageList for SeafileLister {
 
                 for info in infos {
                     if !info.name.is_empty() {
-                        let rel_path = build_rel_path(
+                        let rel_path = build_relative_path(
                             &self.core.root,
                             &format!("{}{}", list_response.rooted_abs_path, info.name),
                         );

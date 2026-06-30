@@ -72,7 +72,7 @@ impl oio::PageList for B2Lister {
                 if ctx.token.is_empty() {
                     self.start_after
                         .as_ref()
-                        .map(|v| build_abs_path(&self.core.root, v))
+                        .map(|v| build_absolute_path(&self.core.root, v))
                 } else {
                     Some(ctx.token.clone())
                 },
@@ -96,7 +96,7 @@ impl oio::PageList for B2Lister {
 
         for file in output.files {
             if let Some(start_after) = self.start_after.clone() {
-                if build_abs_path(&self.core.root, &start_after) == file.file_name {
+                if build_absolute_path(&self.core.root, &start_after) == file.file_name {
                     continue;
                 }
             }
@@ -104,7 +104,7 @@ impl oio::PageList for B2Lister {
             let metadata = parse_file_info(&file);
 
             ctx.entries.push_back(oio::Entry::new(
-                &build_rel_path(&self.core.root, &file_name),
+                &build_relative_path(&self.core.root, &file_name),
                 metadata,
             ))
         }

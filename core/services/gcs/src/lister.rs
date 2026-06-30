@@ -96,7 +96,7 @@ impl oio::PageList for GcsLister {
 
         for prefix in output.prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix),
+                &build_relative_path(&self.core.root, &prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -105,7 +105,7 @@ impl oio::PageList for GcsLister {
 
         for object in output.items {
             // exclude the inclusive start_after itself
-            let mut path = build_rel_path(&self.core.root, &object.name);
+            let mut path = build_relative_path(&self.core.root, &object.name);
             if path.is_empty() {
                 path = "/".to_string();
             }

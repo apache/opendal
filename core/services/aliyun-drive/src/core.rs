@@ -184,9 +184,9 @@ impl AliyunDriveCore {
 
     pub fn build_path(&self, path: &str, rooted: bool) -> String {
         let file_path = if rooted {
-            build_rooted_abs_path(&self.root, path)
+            build_rooted_absolute_path(&self.root, path)
         } else {
-            build_abs_path(&self.root, path)
+            build_absolute_path(&self.root, path)
         };
         let file_path = file_path.strip_suffix('/').unwrap_or(&file_path);
         if file_path.is_empty() {

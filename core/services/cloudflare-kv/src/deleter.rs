@@ -40,7 +40,7 @@ impl CloudflareKvDeleter {
 
 impl oio::BatchDelete for CloudflareKvDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let path = build_abs_path(&self.core.info.root(), &path);
+        let path = build_absolute_path(&self.core.info.root(), &path);
         let resp = self
             .core
             .delete(&self.ctx, &[path.trim_end_matches('/').to_string()])
@@ -67,7 +67,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         let keys = batch
             .iter()
             .map(|path| {
-                let path = build_abs_path(&self.core.info.root(), &path.0);
+                let path = build_absolute_path(&self.core.info.root(), &path.0);
                 path.trim_end_matches('/').to_string()
             })
             .collect::<Vec<String>>();

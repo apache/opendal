@@ -260,7 +260,7 @@ impl OssCore {
         body: Buffer,
         is_presign: bool,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -287,7 +287,7 @@ impl OssCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
         let url = format!(
             "{}/{}?append&position={}",
@@ -318,7 +318,7 @@ impl OssCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -377,7 +377,7 @@ impl OssCore {
     }
 
     fn oss_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -412,7 +412,7 @@ impl OssCore {
         is_presign: bool,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -455,7 +455,7 @@ impl OssCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
         let mut url = QueryPairsWriter::new(endpoint);
@@ -480,7 +480,7 @@ impl OssCore {
 
         // start-after
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
+            let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("start-after", &percent_encode_path(&start_after));
         }
 
@@ -521,8 +521,8 @@ impl OssCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/{}",
@@ -569,7 +569,7 @@ impl OssCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("versions", "");
@@ -624,7 +624,7 @@ impl OssCore {
             object: paths
                 .into_iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_absolute_path(&self.root, &path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -668,7 +668,7 @@ impl OssCore {
         content_encoding: Option<&str>,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
         let mut req = Request::post(&url);
@@ -707,7 +707,7 @@ impl OssCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
 
         let url = format!(
@@ -738,7 +738,7 @@ impl OssCore {
         is_presign: bool,
         parts: Vec<MultipartUploadPart>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!(
             "{}/{}?uploadId={}",
@@ -777,7 +777,7 @@ impl OssCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",

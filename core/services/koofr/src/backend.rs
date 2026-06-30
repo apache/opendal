@@ -207,13 +207,13 @@ impl Service for KoofrBackend {
     ) -> Result<RpCreateDir> {
         self.core.ensure_dir_exists(ctx, path).await?;
         self.core
-            .create_dir(ctx, &build_abs_path(&self.core.root, path))
+            .create_dir(ctx, &build_absolute_path(&self.core.root, path))
             .await?;
         Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = build_rooted_abs_path(&self.core.root, path);
+        let path = build_rooted_absolute_path(&self.core.root, path);
         let resp = self.core.info(ctx, &path).await?;
 
         let status = resp.status();

@@ -259,7 +259,7 @@ impl GdriveCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         match self.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Deleted => {
                 return Err(Error::new(
@@ -533,7 +533,7 @@ impl GdriveCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
+        let from = build_absolute_path(&self.root, from);
 
         let from_file_id = match self.resolve_path(ctx, &from).await? {
             Some(id) => id,
@@ -549,7 +549,7 @@ impl GdriveCore {
         };
 
         let to_name = get_basename(to);
-        let to_path = build_abs_path(&self.root, to);
+        let to_path = build_absolute_path(&self.root, to);
         let to_parent_id = self.ensure_dir(ctx, get_parent(&to_path)).await?;
 
         self.trash_path_if_exists(ctx, &to_path).await?;

@@ -230,7 +230,7 @@ impl Service for GdriveBackend {
         path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let path = build_abs_path(&self.core.root, path);
+        let path = build_absolute_path(&self.core.root, path);
         let dir_id = self.core.ensure_dir(ctx, &path).await?;
         let metadata = Metadata::new(EntryMode::DIR);
 
@@ -241,7 +241,7 @@ impl Service for GdriveBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = build_abs_path(&self.core.root, path);
+        let path = build_absolute_path(&self.core.root, path);
 
         match self.core.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Present(metadata) => {
@@ -325,7 +325,7 @@ impl Service for GdriveBackend {
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: oio::OneShotWriter<GdriveWriter> = {
-            let path = build_abs_path(&self.core.root, path);
+            let path = build_absolute_path(&self.core.root, path);
 
             Ok(oio::OneShotWriter::new(GdriveWriter::new(
                 self.core.clone(),
@@ -351,7 +351,7 @@ impl Service for GdriveBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: GdriveListers = {
-            let path = build_abs_path(&self.core.root, path);
+            let path = build_absolute_path(&self.core.root, path);
 
             if args.recursive() {
                 // Use optimized batch-query recursive lister
@@ -381,8 +381,8 @@ impl Service for GdriveBackend {
         let to = to.to_string();
 
         Ok(oio::OneShotCopier::new(async move {
-            let source = build_abs_path(&core.root, &from);
-            let target = build_abs_path(&core.root, &to);
+            let source = build_absolute_path(&core.root, &from);
+            let target = build_absolute_path(&core.root, &to);
             let resp = core.gdrive_copy(&ctx, &from, &to).await?;
 
             match resp.status() {
@@ -391,7 +391,7 @@ impl Service for GdriveBackend {
                     let meta: GdriveFile = serde_json::from_reader(body.reader())
                         .map_err(new_json_deserialize_error)?;
 
-                    let to_path = build_abs_path(&core.root, &to);
+                    let to_path = build_absolute_path(&core.root, &to);
                     let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
                         Metadata::new(EntryMode::DIR)
                     } else {
@@ -424,7 +424,7 @@ impl Service for GdriveBackend {
                             let meta: GdriveFile = serde_json::from_reader(body.reader())
                                 .map_err(new_json_deserialize_error)?;
 
-                            let to_path = build_abs_path(&core.root, &to);
+                            let to_path = build_absolute_path(&core.root, &to);
                             let mut metadata =
                                 if meta.mime_type == "application/vnd.google-apps.folder" {
                                     Metadata::new(EntryMode::DIR)
@@ -464,8 +464,8 @@ impl Service for GdriveBackend {
         to: &str,
         _args: OpRename,
     ) -> Result<RpRename> {
-        let source = build_abs_path(&self.core.root, from);
-        let target = build_abs_path(&self.core.root, to);
+        let source = build_absolute_path(&self.core.root, from);
+        let target = build_absolute_path(&self.core.root, to);
 
         // rename will overwrite `to`, delete it if exist
         self.core.trash_path_if_exists(ctx, &target).await?;
@@ -484,14 +484,14 @@ impl Service for GdriveBackend {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let source_path = if meta.mime_type == "application/vnd.google-apps.folder" {
-                    normalize_dir_path(&build_abs_path(&self.core.root, from))
+                    normalize_dir_path(&build_absolute_path(&self.core.root, from))
                 } else {
-                    build_abs_path(&self.core.root, from)
+                    build_absolute_path(&self.core.root, from)
                 };
                 let target_path = if meta.mime_type == "application/vnd.google-apps.folder" {
-                    normalize_dir_path(&build_abs_path(&self.core.root, to))
+                    normalize_dir_path(&build_absolute_path(&self.core.root, to))
                 } else {
-                    build_abs_path(&self.core.root, to)
+                    build_absolute_path(&self.core.root, to)
                 };
                 let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
                     Metadata::new(EntryMode::DIR)
@@ -536,14 +536,14 @@ impl Service for GdriveBackend {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let source_path = if meta.mime_type == "application/vnd.google-apps.folder" {
-                    normalize_dir_path(&build_abs_path(&self.core.root, from))
+                    normalize_dir_path(&build_absolute_path(&self.core.root, from))
                 } else {
-                    build_abs_path(&self.core.root, from)
+                    build_absolute_path(&self.core.root, from)
                 };
                 let target_path = if meta.mime_type == "application/vnd.google-apps.folder" {
-                    normalize_dir_path(&build_abs_path(&self.core.root, to))
+                    normalize_dir_path(&build_absolute_path(&self.core.root, to))
                 } else {
-                    build_abs_path(&self.core.root, to)
+                    build_absolute_path(&self.core.root, to)
                 };
                 let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
                     Metadata::new(EntryMode::DIR)

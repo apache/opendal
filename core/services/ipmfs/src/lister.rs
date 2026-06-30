@@ -64,8 +64,8 @@ impl oio::PageList for IpmfsLister {
 
         // Add current directory entry when processing the first page
         if ctx.token.is_empty() && !ctx.done {
-            let path = build_abs_path(&self.root, self.path.as_str());
-            let path = build_rel_path(&self.root, &path);
+            let path = build_absolute_path(&self.root, self.path.as_str());
+            let path = build_relative_path(&self.root, &path);
 
             ctx.entries
                 .push_back(oio::Entry::new(&path, Metadata::new(EntryMode::DIR)));
@@ -85,7 +85,7 @@ impl oio::PageList for IpmfsLister {
                 EntryMode::Unknown => unreachable!(),
             };
 
-            let path = build_rel_path(&self.root, &path);
+            let path = build_relative_path(&self.root, &path);
 
             ctx.entries.push_back(oio::Entry::new(
                 &path,

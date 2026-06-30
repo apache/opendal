@@ -57,7 +57,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=MKDIRS&overwrite=true&noredirect=true",
@@ -91,7 +91,7 @@ impl WebhdfsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=CREATE&overwrite=true&noredirect=true",
@@ -150,8 +150,8 @@ impl WebhdfsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=RENAME&destination={}",
@@ -174,7 +174,7 @@ impl WebhdfsCore {
     }
 
     async fn webhdfs_init_append(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=APPEND&noredirect=true",
             self.endpoint,
@@ -244,11 +244,11 @@ impl WebhdfsCore {
         path: &str,
         sources: Vec<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let sources = sources
             .iter()
-            .map(|p| build_rooted_abs_path(&self.root, p))
+            .map(|p| build_rooted_absolute_path(&self.root, p))
             .collect::<Vec<String>>()
             .join(",");
 
@@ -281,7 +281,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
             self.endpoint,
@@ -306,7 +306,7 @@ impl WebhdfsCore {
         path: &str,
         start_after: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS_BATCH",
@@ -330,7 +330,7 @@ impl WebhdfsCore {
     }
 
     fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
             self.endpoint,
@@ -374,7 +374,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
             self.endpoint,
@@ -401,7 +401,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
             self.endpoint,

@@ -44,7 +44,7 @@ rustls = [
 # Use Rustls without a built-in crypto provider.
 rustls-no-provider = ["reqwest/rustls-no-provider"]
 # Use Rustls with the aws-lc-rs crypto provider and bundled Mozilla root certificates.
-webpki-roots = [
+rustls-webpki-roots = [
   "reqwest/rustls-no-provider",
   "dep:rustls",
   "rustls/aws-lc-rs",

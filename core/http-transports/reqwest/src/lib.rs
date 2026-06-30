@@ -36,7 +36,7 @@
 //!   client. Use this when you want to bring your own provider (e.g. `ring`
 //!   or a FIPS-certified module).
 //!
-//! - **`webpki-roots`** — Rustls with bundled
+//! - **`rustls-webpki-roots`** — Rustls with bundled
 //!   [Mozilla root certificates](https://crates.io/crates/webpki-roots).
 //!   Fully self-contained: no platform certificate store dependency.
 //!   When opendal compiles, cargo will download webpki and bundle certificates.
@@ -101,10 +101,10 @@ fn build_default_client() -> reqwest::Client {
     feature = "native-tls",
     feature = "rustls",
     feature = "rustls-no-provider",
-    feature = "webpki-roots",
+    feature = "rustls-webpki-roots",
 )))]
 compile_error!(
-    "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider, webpki-roots"
+    "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider, rustls-webpki-roots"
 );
 
 /// TLS backend options.
@@ -124,8 +124,8 @@ pub enum ReqwestTlsBackend {
     #[cfg(feature = "rustls-no-provider")]
     RustlsNoProvider,
     /// Rustls with bundled Mozilla root certificates.
-    #[cfg(feature = "webpki-roots")]
-    WebpkiRoots,
+    #[cfg(feature = "rustls-webpki-roots")]
+    RustlsWebpkiRoots,
 }
 
 impl ReqwestTlsBackend {
@@ -138,8 +138,8 @@ impl ReqwestTlsBackend {
             ReqwestTlsBackend::Rustls => "rustls",
             #[cfg(feature = "rustls-no-provider")]
             ReqwestTlsBackend::RustlsNoProvider => "rustls-no-provider",
-            #[cfg(feature = "webpki-roots")]
-            ReqwestTlsBackend::WebpkiRoots => "webpki-roots",
+            #[cfg(feature = "rustls-webpki-roots")]
+            ReqwestTlsBackend::RustlsWebpkiRoots => "rustls-webpki-roots",
         }
     }
 }
@@ -166,8 +166,8 @@ impl FromStr for ReqwestTlsBackend {
             #[cfg(feature = "rustls-no-provider")]
             "rustls-no-provider" => Ok(Self::RustlsNoProvider),
 
-            #[cfg(feature = "webpki-roots")]
-            "webpki-roots" => Ok(Self::WebpkiRoots),
+            #[cfg(feature = "rustls-webpki-roots")]
+            "rustls-webpki-roots" => Ok(Self::RustlsWebpkiRoots),
 
             _ => Err(
                 Error::new(ErrorKind::ConfigInvalid, "unknown reqwest TLS backend")
@@ -305,8 +305,8 @@ fn apply_tls_backend(
         ReqwestTlsBackend::Rustls => client_builder.tls_backend_preconfigured(rustls_tls_config()),
         #[cfg(feature = "rustls-no-provider")]
         ReqwestTlsBackend::RustlsNoProvider => client_builder.tls_backend_rustls(),
-        #[cfg(feature = "webpki-roots")]
-        ReqwestTlsBackend::WebpkiRoots => {
+        #[cfg(feature = "rustls-webpki-roots")]
+        ReqwestTlsBackend::RustlsWebpkiRoots => {
             client_builder.tls_backend_preconfigured(webpki_roots_tls_config())
         }
     }

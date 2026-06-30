@@ -11,8 +11,8 @@ When using Rustls, TLS configuration has two independent axes:
 
 | Axis | What it decides | Options |
 |------|----------------|---------|
-| **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | `aws-lc-rs` (default in `rustls`/`webpki-roots`), `ring`, or any custom `CryptoProvider` |
-| **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`webpki-roots`), or custom |
+| **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | `aws-lc-rs`, `ring`, or any custom `CryptoProvider` |
+| **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`rustls-webpki-roots`), or custom |
 
 The `native-tls` feature sidesteps both axes by delegating everything to
 the OS TLS library (SChannel / Secure Transport / OpenSSL).
@@ -23,7 +23,7 @@ the OS TLS library (SChannel / Secure Transport / OpenSSL).
 |---------|----------------|-------------------|----------|
 | `native-tls` (default) | OS library | OS trust store | You want zero Rust-side TLS config |
 | `rustls` | aws-lc-rs | Platform verifier | Pure-Rust TLS with OS trust store |
-| `webpki-roots` | aws-lc-rs | Bundled Mozilla roots | Fully self-contained, no OS dependency |
+| `rustls-webpki-roots` | aws-lc-rs | Bundled Mozilla roots | Fully self-contained, no OS dependency |
 | `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, FIPS module, etc.) |
 
 ### Usage via the `opendal` facade crate

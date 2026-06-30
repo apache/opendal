@@ -90,13 +90,13 @@ const BINDINGS: &[Binding] = &[
         id: "c",
         label: "C",
         language: "c",
-        cargo: None,
+        cargo: Some("bindings/c/Cargo.toml"),
     },
     Binding {
         id: "cpp",
         label: "C++",
         language: "cpp",
-        cargo: None,
+        cargo: Some("bindings/cpp/Cargo.toml"),
     },
 ];
 

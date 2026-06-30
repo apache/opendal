@@ -857,6 +857,42 @@ typedef struct opendal_copy_options {
 } opendal_copy_options;
 
 /**
+ * \brief BlockingCopier is designed to drive a long-running copy operation in a
+ * blocking manner.
+ *
+ * Users can construct a copier by `opendal_operator_copier` or
+ * `opendal_operator_copier_with`. Each `opendal_copier_next` call drives the copy
+ * forward by one step and reports the number of bytes copied; the copy is complete
+ * once `has_next` is false.
+ *
+ * @see opendal_operator_copier()
+ */
+typedef struct opendal_copier {
+  /**
+   * The pointer to the opendal::blocking::Copier in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_copier;
+
+/**
+ * \brief The result type returned by opendal_operator_copier().
+ * The result type for opendal_operator_copier(), the field `copier` contains the copier
+ * used to drive a long-running copy operation. The field `error` represents whether the
+ * operation is successful. If successful, the `error` field is null.
+ */
+typedef struct opendal_result_operator_copier {
+  /**
+   * The pointer for opendal_copier
+   */
+  struct opendal_copier *copier;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_operator_copier;
+
+/**
  * \brief Metadata for **operator**, users can use this metadata to get information
  * of operator.
  */
@@ -1202,6 +1238,28 @@ typedef struct opendal_result_writer_write {
    */
   struct opendal_error *error;
 } opendal_result_writer_write;
+
+/**
+ * \brief The result type returned by opendal_copier_next().
+ * The result type contains a `size` field, which is the number of bytes copied in this
+ * step (zero on error or completion), and a `has_next` field, which is true when the copy
+ * made progress and should be driven again. When `has_next` is false and `error` is null,
+ * the copy has completed. The error field is the error code and error message.
+ */
+typedef struct opendal_result_copier_next {
+  /**
+   * The number of bytes copied in this step.
+   */
+  uintptr_t size;
+  /**
+   * Whether the copy operation made progress and should be driven again.
+   */
+  bool has_next;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_copier_next;
 
 #ifdef __cplusplus
 extern "C" {
@@ -2206,6 +2264,57 @@ struct opendal_error *opendal_operator_copy_with(const struct opendal_operator *
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
 
 /**
+ * \brief Blocking create a copier to copy a file from `src` to `dest`.
+ *
+ * The returned copier drives a long-running copy operation. Call
+ * `opendal_copier_next` repeatedly to make progress, and `opendal_copier_free`
+ * to release it once finished.
+ *
+ * @param op The opendal_operator created previously
+ * @param src The designated source path you want to copy
+ * @param dest The designated destination path you want to copy
+ * @see opendal_operator
+ * @see opendal_copier
+ * @see opendal_result_operator_copier
+ * @return opendal_result_operator_copier, containing a copier and an opendal_error.
+ * If the operation succeeds, the `copier` field holds a valid copier and the `error`
+ * field is null. Otherwise, the `copier` will be null and the `error` will be set
+ * correspondingly.
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the
+ *   end of the string.
+ *
+ * # Panic
+ *
+ * * If the `src` or `dest` points to NULL, this function panics
+ */
+struct opendal_result_operator_copier opendal_operator_copier(const struct opendal_operator *op,
+                                                              const char *src,
+                                                              const char *dest);
+
+/**
+ * \brief Blocking create a copier to copy a file from `src` to `dest` with options.
+ *
+ * This is the same as `opendal_operator_copier` but accepts an `opendal_copy_options`
+ * to control the behavior, e.g. `concurrent` or `chunk`. Pass NULL to use defaults.
+ *
+ * @param op The opendal_operator created previously
+ * @param src The designated source path you want to copy
+ * @param dest The designated destination path you want to copy
+ * @param opts The options for the copy operation; pass NULL to use defaults
+ * @see opendal_operator_copier
+ * @see opendal_copy_options
+ * @return opendal_result_operator_copier, containing a copier and an opendal_error.
+ */
+struct opendal_result_operator_copier opendal_operator_copier_with(const struct opendal_operator *op,
+                                                                   const char *src,
+                                                                   const char *dest,
+                                                                   const struct opendal_copy_options *opts);
+
+/**
  * \brief Get information of underlying accessor.
  *
  * # Example
@@ -2883,6 +2992,30 @@ struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
  * \brief Frees the heap memory used by the opendal_writer.
  */
 void opendal_writer_free(struct opendal_writer *ptr);
+
+/**
+ * \brief Drive the copy operation forward by one step.
+ *
+ * Returns the number of bytes copied in this step. When `has_next` is true the
+ * caller should keep calling this function to drive the copy. When `has_next` is
+ * false and `error` is null the copy has completed.
+ *
+ * @see opendal_operator_copier()
+ */
+struct opendal_result_copier_next opendal_copier_next(struct opendal_copier *self);
+
+/**
+ * \brief Abort the pending copy operation.
+ *
+ * Returns NULL if the abort succeeds, otherwise it contains the error code and
+ * error message.
+ */
+struct opendal_error *opendal_copier_abort(struct opendal_copier *self);
+
+/**
+ * \brief Free the heap memory used by the opendal_copier.
+ */
+void opendal_copier_free(struct opendal_copier *ptr);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -58,7 +58,7 @@ impl opendal_writer {
                 return opendal_result_writer_write {
                     size: 0,
                     error: opendal_error::new(e),
-                }
+                };
             }
         };
         match self.deref_mut().write(bytes) {

@@ -46,6 +46,7 @@ use crate::S3_SCHEME;
 use crate::config::S3Config;
 use crate::copier::S3Copiers;
 use crate::copier::new_s3_copier;
+use crate::core::ChecksumAlgorithm;
 use crate::core::parse_error;
 use crate::core::*;
 use crate::deleter::S3Deleter;
@@ -951,6 +952,7 @@ impl Builder for S3Builder {
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
+                    write_with_checksum: true,
 
                     // The min multipart size of S3 is 5 MiB.
                     //
@@ -1102,6 +1104,16 @@ impl Service for S3Backend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        // A supplied checksum covers the whole object, which only maps cleanly
+        // onto a single PutObject request. Append uploads write incrementally,
+        // so reject the combination instead of silently dropping the checksum.
+        if args.checksum().is_some() && args.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "a precomputed checksum cannot be used together with append writes",
+            ));
+        }
+
         let output: S3Writers = {
             let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args.clone());
 

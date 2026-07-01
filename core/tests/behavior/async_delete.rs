@@ -48,6 +48,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
                 tests.extend(async_trials!(op, test_remove_all_with_prefix_exists));
             }
         }
+        if cap.delete_with_if_match {
+            tests.extend(async_trials!(
+                op,
+                test_delete_with_if_match_match,
+                test_delete_with_if_match_mismatch
+            ));
+        }
     }
 }
 
@@ -411,6 +418,47 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
     }
+
+    Ok(())
+}
+
+/// Delete with a matching `If-Match` ETag should succeed and remove the object.
+pub async fn test_delete_with_if_match_match(op: Operator) -> Result<()> {
+    if !op.info().capability().delete_with_if_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&path, content).await.expect("write must succeed");
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let etag = meta.etag().expect("etag must be present");
+
+    op.delete_with(&path).if_match(etag).await?;
+
+    assert!(!op.exists(&path).await?);
+
+    Ok(())
+}
+
+/// Delete with a non-matching `If-Match` ETag should fail with
+/// [`ErrorKind::ConditionNotMatch`] and leave the object intact.
+pub async fn test_delete_with_if_match_mismatch(op: Operator) -> Result<()> {
+    if !op.info().capability().delete_with_if_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&path, content).await.expect("write must succeed");
+
+    let err = op
+        .delete_with(&path)
+        .if_match("\"this-etag-does-not-match\"")
+        .await
+        .expect_err("delete must fail when etag mismatches");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    assert!(op.exists(&path).await?);
 
     Ok(())
 }

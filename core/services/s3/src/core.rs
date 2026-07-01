@@ -672,6 +672,11 @@ impl S3Core {
 
         let mut req = Request::delete(&url);
 
+        // Set conditional delete header.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
@@ -1276,6 +1281,7 @@ impl S3Core {
                 .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
+                    etag: op.if_match().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -1451,6 +1457,8 @@ pub struct DeleteObjectsRequestObject {
     pub key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -1713,10 +1721,17 @@ mod tests {
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
                     version_id: None,
+                    etag: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "sample2.txt".to_string(),
                     version_id: Some("11111".to_owned()),
+                    etag: None,
+                },
+                DeleteObjectsRequestObject {
+                    key: "sample3.txt".to_string(),
+                    version_id: None,
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_owned()),
                 },
             ],
         };
@@ -1733,6 +1748,10 @@ mod tests {
              <Object>
                <Key>sample2.txt</Key>
                <VersionId>11111</VersionId>
+             </Object>
+             <Object>
+               <Key>sample3.txt</Key>
+               <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
              </Object>
              </Delete>"#
                 // Cleanup space and new line

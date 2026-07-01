@@ -45,6 +45,7 @@ reqsign-aws-v4 = { version = "3.0.0", default-features = false }
 reqsign-core = { version = "3.0.1", default-features = false }
 reqsign-file-read-tokio = { version = "3.0.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]

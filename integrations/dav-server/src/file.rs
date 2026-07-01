@@ -23,8 +23,8 @@ use dav_server::fs::{DavFile, OpenOptions};
 use dav_server::fs::{DavMetaData, FsResult};
 use dav_server::fs::{FsError, FsFuture};
 use futures::FutureExt;
-use futures::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use opendal::{FuturesAsyncReader, FuturesAsyncWriter, Operator};
+use futures::{AsyncReadExt, AsyncSeekExt};
+use opendal::{Buffer, FuturesAsyncReader, Operator, Writer};
 
 use super::metadata::OpendalMetaData;
 use super::utils::*;
@@ -54,7 +54,7 @@ impl Debug for OpendalFile {
 
 enum State {
     Read(FuturesAsyncReader),
-    Write(FuturesAsyncWriter),
+    Write(Option<Writer>),
 }
 
 impl OpendalFile {
@@ -74,9 +74,8 @@ impl OpendalFile {
                 .writer_with(&path)
                 .append(options.append)
                 .await
-                .map_err(convert_error)?
-                .into_futures_async_write();
-            State::Write(w)
+                .map_err(convert_error)?;
+            State::Write(Some(w))
         } else {
             return Err(FsError::NotImplemented);
         };
@@ -106,13 +105,19 @@ impl DavFile for OpendalFile {
 
     fn write_buf(&mut self, mut buf: Box<dyn Buf + Send>) -> FsFuture<'_, ()> {
         async move {
-            let State::Write(w) = &mut self.state else {
+            let State::Write(Some(w)) = &mut self.state else {
                 return Err(FsError::GeneralFailure);
             };
 
-            w.write_all(&buf.copy_to_bytes(buf.remaining()))
+            if w.write(Buffer::from(buf.copy_to_bytes(buf.remaining())))
                 .await
-                .map_err(|_| FsError::GeneralFailure)?;
+                .is_err()
+            {
+                let _ = w.abort().await;
+                self.state = State::Write(None);
+                return Err(FsError::GeneralFailure);
+            }
+
             Ok(())
         }
         .boxed()
@@ -120,11 +125,17 @@ impl DavFile for OpendalFile {
 
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<'_, ()> {
         async move {
-            let State::Write(w) = &mut self.state else {
+            let State::Write(Some(w)) = &mut self.state else {
                 return Err(FsError::GeneralFailure);
             };
 
-            w.write_all(&buf).await.map_err(|_| FsError::GeneralFailure)
+            if w.write(Buffer::from(buf)).await.is_err() {
+                let _ = w.abort().await;
+                self.state = State::Write(None);
+                return Err(FsError::GeneralFailure);
+            }
+
+            Ok(())
         }
         .boxed()
     }
@@ -158,12 +169,18 @@ impl DavFile for OpendalFile {
 
     fn flush(&mut self) -> FsFuture<'_, ()> {
         async move {
-            let State::Write(w) = &mut self.state else {
+            let State::Write(Some(w)) = &mut self.state else {
                 return Err(FsError::GeneralFailure);
             };
 
-            w.flush().await.map_err(|_| FsError::GeneralFailure)?;
-            w.close().await.map_err(|_| FsError::GeneralFailure)
+            if w.close().await.is_err() {
+                let _ = w.abort().await;
+                self.state = State::Write(None);
+                return Err(FsError::GeneralFailure);
+            }
+
+            self.state = State::Write(None);
+            Ok(())
         }
         .boxed()
     }

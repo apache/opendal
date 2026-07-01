@@ -41,7 +41,7 @@ jobs:
     outputs:
       packages: ${{ steps.plan.outputs.packages }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Plan publish matrix
         id: plan
         run: python3 .github/scripts/release_rust/plan.py --github-output
@@ -53,7 +53,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:

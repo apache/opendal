@@ -43,7 +43,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup dotnet toolchain
         uses: actions/setup-dotnet@v5
         with:
@@ -74,7 +74,7 @@ jobs:
           - '8.0.x'
           - '10.0.x'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup dotnet toolchain
         uses: actions/setup-dotnet@v5
         with:

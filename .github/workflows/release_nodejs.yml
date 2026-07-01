@@ -104,7 +104,7 @@ jobs:
             features: services-all
             build: pnpm build
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 8
@@ -177,7 +177,7 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 8

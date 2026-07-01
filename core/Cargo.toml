@@ -114,7 +114,7 @@ http-transport-reqwest-rustls-no-provider = [
 # Use reqwest with Rustls, the aws-lc-rs crypto provider, and bundled Mozilla root certificates.
 http-transport-reqwest-webpki-roots = [
   "http-transport-reqwest",
-  "opendal-http-transport-reqwest/webpki-roots",
+  "opendal-http-transport-reqwest/rustls-webpki-roots",
 ]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]

@@ -831,6 +831,30 @@ typedef struct opendal_copy_options {
    */
   const char *if_match;
   /**
+   * Source If-Match condition; NULL means unset.
+   */
+  const char *source_if_match;
+  /**
+   * Source If-None-Match condition; NULL means unset.
+   */
+  const char *source_if_none_match;
+  /**
+   * Whether `source_if_modified_since` has been set.
+   */
+  bool has_source_if_modified_since;
+  /**
+   * Source If-Modified-Since condition, in Unix milliseconds.
+   */
+  int64_t source_if_modified_since;
+  /**
+   * Whether `source_if_unmodified_since` has been set.
+   */
+  bool has_source_if_unmodified_since;
+  /**
+   * Source If-Unmodified-Since condition, in Unix milliseconds.
+   */
+  int64_t source_if_unmodified_since;
+  /**
    * Source version; NULL means unset.
    */
   const char *source_version;
@@ -2755,6 +2779,30 @@ void opendal_copy_options_set_if_not_exists(struct opendal_copy_options *opts, b
  * \brief Set If-Match.
  */
 void opendal_copy_options_set_if_match(struct opendal_copy_options *opts, const char *if_match);
+
+/**
+ * \brief Set Source If-Match.
+ */
+void opendal_copy_options_set_source_if_match(struct opendal_copy_options *opts,
+                                              const char *source_if_match);
+
+/**
+ * \brief Set Source If-None-Match.
+ */
+void opendal_copy_options_set_source_if_none_match(struct opendal_copy_options *opts,
+                                                   const char *source_if_none_match);
+
+/**
+ * \brief Set Source If-Modified-Since, in Unix milliseconds.
+ */
+void opendal_copy_options_set_source_if_modified_since(struct opendal_copy_options *opts,
+                                                       int64_t source_if_modified_since);
+
+/**
+ * \brief Set Source If-Unmodified-Since, in Unix milliseconds.
+ */
+void opendal_copy_options_set_source_if_unmodified_since(struct opendal_copy_options *opts,
+                                                         int64_t source_if_unmodified_since);
 
 /**
  * \brief Set source version.

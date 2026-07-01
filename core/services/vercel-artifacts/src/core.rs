@@ -118,7 +118,6 @@ impl VercelArtifactsCore {
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
-        req = req.header(header::CONTENT_LENGTH, 0);
 
         req = req
             .extension(Operation::Stat)
@@ -144,7 +143,9 @@ mod error {
 
         let (kind, retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                (ErrorKind::PermissionDenied, false)
+            }
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

@@ -50,15 +50,20 @@ impl VercelArtifactsWriter {
 
 impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        let size = bs.len() as u64;
         let response = self
             .core
-            .vercel_artifacts_put(&self.ctx, self.path.as_str(), bs.len() as u64, bs)
+            .vercel_artifacts_put(&self.ctx, self.path.as_str(), size, bs)
             .await?;
 
         let status = response.status();
 
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::ACCEPTED => {
+                let mut meta = Metadata::default();
+                meta.set_content_length(size);
+                Ok(meta)
+            }
             _ => Err(parse_error(response)),
         }
     }

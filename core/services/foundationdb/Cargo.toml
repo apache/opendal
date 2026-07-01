@@ -31,7 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-foundationdb = { version = "0.10.0", features = [
+foundationdb = { version = "0.11.0", features = [
   "embedded-fdb-include",
   "fdb-7_3",
 ] }

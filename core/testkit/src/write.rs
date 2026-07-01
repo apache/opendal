@@ -70,10 +70,12 @@ impl WriteChecker {
 
     /// Check the correctness of the write process.
     pub fn check(&self, actual: &[u8]) {
-        assert_eq!(
-            sha256_digest(actual),
-            sha256_digest(&self.data),
-            "check failed: result is not expected"
-        )
+        if actual != self.data.as_ref() {
+            assert_eq!(
+                sha256_digest(actual),
+                sha256_digest(&self.data),
+                "check failed: result is not expected"
+            );
+        }
     }
 }

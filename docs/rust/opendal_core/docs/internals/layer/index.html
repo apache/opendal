@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The internal implementation details of `Layer`."><title>opendal_core::docs::internals::layer - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0-nightly (c935696dd 2026-04-29)" data-channel="nightly" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-aa4d37ac.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module layer</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal_core/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt="logo"></a><h2><a href="../../../../opendal_core/index.html">opendal_<wbr>core</a><span class="version">0.57.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal_<wbr>core::<wbr>docs::<wbr>internals</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal_core</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">internals</a></div><h1>Module <span>layer</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal_core/docs/internals/layer.rs.html#18-94">Source</a> </span></div><span class="item-info"><div class="stab portability">Available on <strong><code>docsrs</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The internal implementation details of <a href="../../../raw/trait.Layer.html" title="trait opendal_core::raw::Layer"><code>Layer</code></a>.</p>
+<p>OpenDAL has one layer composition surface:</p>
+<ul>
+<li><a href="../../../raw/trait.Layer.html" title="trait opendal_core::raw::Layer"><code>Layer</code></a> receives an already erased <a href="../../../raw/trait.ServiceDyn.html" title="trait opendal_core::raw::ServiceDyn"><code>ServiceDyn</code></a> stack and can wrap the
+service or its <a href="crate::raw::OperationContext"><code>OperationContext</code></a>.</li>
+<li>Layer wrappers still implement typed <a href="../../../raw/trait.Service.html" title="trait opendal_core::raw::Service"><code>Service</code></a>, so their own reader,
+writer, lister, deleter, and copier bodies stay concrete.</li>
+<li>The composition boundary is <a href="../../../raw/type.Servicer.html" title="type opendal_core::raw::Servicer"><code>Servicer</code></a>. Boxing operation
+bodies remains centralized in the blanket <a href="../../../raw/trait.ServiceDyn.html" title="trait opendal_core::raw::ServiceDyn"><code>ServiceDyn</code></a> implementation
+for typed <a href="../../../raw/trait.Service.html" title="trait opendal_core::raw::Service"><code>Service</code></a> values.</li>
+</ul>
+<p><a href="../../../raw/trait.Layer.html" title="trait opendal_core::raw::Layer"><code>Layer</code></a> itself is the runtime hook surface. Every hook returns <code>inner</code> by
+default, so a layer only implements the plane it needs:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub trait </span>Layer: Send + Sync + Debug + Unpin + <span class="lifetime">'static </span>{
+    <span class="kw">fn </span>apply_service(<span class="kw-2">&amp;</span><span class="self">self</span>, srv: Servicer) -&gt; Servicer;
+    <span class="kw">fn </span>apply_context(<span class="kw-2">&amp;</span><span class="self">self</span>, srv: Servicer, inner: OperationContext) -&gt; OperationContext;
+}</code></pre></div>
+<p><a href="../../../struct.Operator.html" title="struct opendal_core::Operator"><code>Operator</code></a> replays the same ordered layer list over the base service and
+base <a href="crate::raw::OperationContext"><code>OperationContext</code></a>. It first composes the operation service stack.
+Then context hooks receive the final <a href="../../../raw/type.Servicer.html" title="type opendal_core::raw::Servicer"><code>Servicer</code></a> and compose runtime
+resources such as HTTP transport and executor. The composed context is passed
+to service operations.</p>
+<p>An operation layer normally has two parts:</p>
+<ul>
+<li><code>XxxLayer</code> implements <a href="../../../raw/trait.Layer.html" title="trait opendal_core::raw::Layer"><code>Layer</code></a> and returns a typed service wrapper from
+<code>apply_service</code>.</li>
+<li><code>XxxService</code> stores the inner <a href="../../../raw/type.Servicer.html" title="type opendal_core::raw::Servicer"><code>Servicer</code></a> and implements <a href="../../../raw/trait.Service.html" title="trait opendal_core::raw::Service"><code>Service</code></a>.</li>
+</ul>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>XxxLayer;
+
+<span class="kw">impl </span>Layer <span class="kw">for </span>XxxLayer {
+    <span class="kw">fn </span>apply_service(<span class="kw-2">&amp;</span><span class="self">self</span>, inner: Servicer) -&gt; Servicer {
+        Arc::new(XxxService { inner })
+    }
+}</code></pre></div>
+<p>Most operation layers only override the operations they need and forward the
+rest to <code>inner</code>. This works because <a href="../../../raw/type.Servicer.html" title="type opendal_core::raw::Servicer"><code>Servicer</code></a> implements <a href="../../../raw/trait.Service.html" title="trait opendal_core::raw::Service"><code>Service</code></a> by
+forwarding calls to <a href="../../../raw/trait.ServiceDyn.html" title="trait opendal_core::raw::ServiceDyn"><code>ServiceDyn</code></a>, while the wrapper keeps concrete
+operation body types until it is returned as a <a href="../../../raw/type.Servicer.html" title="type opendal_core::raw::Servicer"><code>Servicer</code></a>.</p>
+<p>Resource-only layers can implement only <code>apply_context</code>. If they do not need
+the final service stack, they should name that parameter <code>_srv</code>.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>TransportLayer {
+    transport: HttpTransporter,
+}
+
+<span class="kw">impl </span>Layer <span class="kw">for </span>TransportLayer {
+    <span class="kw">fn </span>apply_context(<span class="kw-2">&amp;</span><span class="self">self</span>, _srv: Servicer, inner: OperationContext) -&gt; OperationContext {
+        inner.with_http_transport(<span class="self">self</span>.transport.clone())
+    }
+}</code></pre></div>
+<p>Layers that need consistent policy across planes can implement both hooks,
+for example operation and I/O timeout handling. Resource wrappers that
+replace HTTP transport or executor must forward to the previous value when
+they want lower layers to remain effective.</p>
+</div></details></section></div></main></body></html>

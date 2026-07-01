@@ -96,7 +96,6 @@ impl Builder for VercelArtifactsBuilder {
             stat: true,
 
             read: true,
-            read_with_suffix: true,
 
             write: true,
 
@@ -205,6 +204,14 @@ impl Service for VercelArtifactsBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        // Vercel Remote Cache is key-based; paths ending with '/' are treated as directories.
+        if path.ends_with('/') {
+            return Err(Error::new(
+                ErrorKind::IsADirectory,
+                "write to a directory path is not supported",
+            ));
+        }
+
         let output: oio::OneShotWriter<VercelArtifactsWriter> = {
             Ok(oio::OneShotWriter::new(VercelArtifactsWriter::new(
                 self.core.clone(),

@@ -43,7 +43,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Haskell build tools
         run: |
           sudo apt-get update
@@ -65,7 +65,7 @@ jobs:
         run: |
           cargo clippy -- -D warnings
       - name: Restore haskell cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -89,7 +89,7 @@ jobs:
           echo "running $bin"
           "$bin"
       - name: Save haskell cache
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Haskell build tools
         run: |
           sudo apt-get update
@@ -118,7 +118,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Restore haskell cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |

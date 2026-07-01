@@ -37,6 +37,12 @@ pub struct FuturesAsyncWriter {
     buf: oio::FlexBuf,
 }
 
+impl std::fmt::Debug for FuturesAsyncWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FuturesAsyncWriter").finish_non_exhaustive()
+    }
+}
+
 impl FuturesAsyncWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
@@ -131,8 +137,10 @@ mod tests {
         ));
         let write_gen = WriteGenerator::create(ctx).unwrap();
 
-        let v = FuturesAsyncWriter::new(write_gen);
+        fn assert_writer_traits<T: std::fmt::Debug + Unpin + MaybeSend + Sync + 'static>(_: &T) {}
 
+        let v = FuturesAsyncWriter::new(write_gen);
+        assert_writer_traits(&v);
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }
 }

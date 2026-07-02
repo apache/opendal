@@ -36,8 +36,8 @@
 //!
 //! - **`rustls-no-provider`** — Rustls without a built-in crypto provider.
 //!   You must install a [`rustls::crypto::CryptoProvider`] before building a
-//!   client. Use this when you want to bring your own provider (e.g. `ring`
-//!   or a FIPS-certified module).
+//!   client. Use this when you want to bring your own provider
+//!   (e.g., a FIPS-certified module).
 //!
 //! - **`rustls-webpki-roots`** — Rustls with bundled
 //!   [Mozilla root certificates](https://crates.io/crates/webpki-roots).
@@ -46,9 +46,10 @@
 //!   Good for reproducible builds and environments with a stripped-down root store.
 //!   But you can't update root certificates without rebuilding opendal.
 //!
-//! In application builds, prefer selecting a single backend. In workspace or
-//! `--all-features` builds, Cargo may enable multiple backend features via
-//! feature unification; the transport picks native TLS when available.
+//! In application or language binding builds, prefer selecting a single backend.
+//! e.g., native-tls. In workspace or `--all-features` builds, Cargo may enable
+//! multiple backend features via feature unification; Users can set a transport
+//! by calling a builder to pick desired backend.
 //!
 //! # Builder example
 //!

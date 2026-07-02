@@ -116,42 +116,22 @@ compile_error!(
 /// Each variant corresponds to one of the Cargo features exposed by this
 /// crate. Building a transport with a variant whose feature is not compiled
 /// returns [`ErrorKind::ConfigInvalid`].
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReqwestTlsBackend {
     /// Platform TLS through reqwest's `native-tls` feature.
     #[cfg(feature = "native-tls")]
-    #[default]
     NativeTls,
     /// Rustls configured by reqwest with its default crypto provider and platform certificate verification.
     #[cfg(feature = "rustls")]
-    #[cfg_attr(not(feature = "native-tls"), default)]
     Rustls,
     /// Rustls with the ring crypto provider and platform certificate verification.
     #[cfg(feature = "rustls-ring")]
-    #[cfg_attr(all(not(feature = "native-tls"), not(feature = "rustls")), default)]
     RustlsRing,
     /// Rustls without a built-in crypto provider through reqwest's `rustls-no-provider` feature.
     #[cfg(feature = "rustls-no-provider")]
-    #[cfg_attr(
-        all(
-            not(feature = "native-tls"),
-            not(feature = "rustls"),
-            not(feature = "rustls-ring")
-        ),
-        default
-    )]
     RustlsNoProvider,
     /// Rustls with bundled Mozilla root certificates.
     #[cfg(feature = "rustls-webpki-roots")]
-    #[cfg_attr(
-        all(
-            not(feature = "native-tls"),
-            not(feature = "rustls"),
-            not(feature = "rustls-ring"),
-            not(feature = "rustls-no-provider")
-        ),
-        default
-    )]
     RustlsWebpkiRoots,
 }
 
@@ -169,6 +149,51 @@ impl ReqwestTlsBackend {
             ReqwestTlsBackend::RustlsNoProvider => "rustls-no-provider",
             #[cfg(feature = "rustls-webpki-roots")]
             ReqwestTlsBackend::RustlsWebpkiRoots => "rustls-webpki-roots",
+        }
+    }
+}
+
+#[allow(clippy::derivable_impls, clippy::needless_return)]
+impl Default for ReqwestTlsBackend {
+    fn default() -> Self {
+        #[cfg(feature = "native-tls")]
+        {
+            return Self::NativeTls;
+        }
+
+        #[cfg(all(not(feature = "native-tls"), feature = "rustls"))]
+        {
+            return Self::Rustls;
+        }
+
+        #[cfg(all(
+            not(feature = "native-tls"),
+            not(feature = "rustls"),
+            feature = "rustls-ring"
+        ))]
+        {
+            return Self::RustlsRing;
+        }
+
+        #[cfg(all(
+            not(feature = "native-tls"),
+            not(feature = "rustls"),
+            not(feature = "rustls-ring"),
+            feature = "rustls-no-provider"
+        ))]
+        {
+            return Self::RustlsNoProvider;
+        }
+
+        #[cfg(all(
+            not(feature = "native-tls"),
+            not(feature = "rustls"),
+            not(feature = "rustls-ring"),
+            not(feature = "rustls-no-provider"),
+            feature = "rustls-webpki-roots"
+        ))]
+        {
+            Self::RustlsWebpkiRoots
         }
     }
 }

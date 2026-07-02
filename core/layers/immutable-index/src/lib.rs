@@ -279,7 +279,7 @@ mod tests {
     use futures::TryStreamExt;
     use log::debug;
     use logforth::append::Testing;
-    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::filter::rustlog::RustLogFilterBuilder;
     use logforth::layout::TextLayout;
 
     #[derive(Debug)]
@@ -393,7 +393,7 @@ mod tests {
     fn setup() {
         let _ = logforth::starter_log::builder()
             .dispatch(|d| {
-                d.filter(EnvFilterBuilder::from_default_env().build())
+                d.filter(RustLogFilterBuilder::from_default_env().build())
                     .append(Testing::default().with_layout(TextLayout::default()))
             })
             .try_apply();

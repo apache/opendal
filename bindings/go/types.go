@@ -63,6 +63,15 @@ var (
 		}[0],
 	}
 
+	typeResultWrite = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultList = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -316,6 +325,11 @@ type resultIsExist struct {
 }
 
 type resultStat struct {
+	meta  *opendalMetadata
+	error *opendalError
+}
+
+type resultWrite struct {
 	meta  *opendalMetadata
 	error *opendalError
 }

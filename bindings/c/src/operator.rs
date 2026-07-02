@@ -312,6 +312,73 @@ pub unsafe extern "C" fn opendal_operator_write_with(
     }
 }
 
+/// \brief Blocking write raw bytes to `path`, returning the written object's metadata.
+///
+/// Like `opendal_operator_write_with`, but on success returns the metadata of the
+/// just-written object (e.g. etag, version, last modified) instead of discarding it.
+/// A NULL `opts` is treated as the default options, behaving like a plain write.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path where the data will be written
+/// @param bytes The data to write
+/// @param opts The write options, or NULL to use the defaults
+/// @see opendal_operator
+/// @see opendal_write_options
+/// @see opendal_result_write
+/// @return Returns opendal_result_write, containing the metadata and an opendal_error.
+/// If the operation succeeds, the `meta` field holds the metadata and the `error` field
+/// is null. Otherwise, the `meta` will be null and the `error` will be set correspondingly.
+///
+/// \note The returned metadata must be freed with opendal_metadata_free().
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+/// * The `bytes` provided has valid byte in the `data` field and the `len` field is set
+///   correctly.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with_metadata(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+) -> opendal_result_write {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return opendal_result_write {
+                meta: std::ptr::null_mut(),
+                error: opendal_error::new(e),
+            }
+        }
+    };
+    match op.deref().write_options(path, bytes, opts) {
+        Ok(m) => opendal_result_write {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_write {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking read the data from `path`.
 ///
 /// Read the data out from `path` blocking by operator.

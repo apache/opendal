@@ -68,6 +68,7 @@ pub use result::opendal_result_operator_writer;
 pub use result::opendal_result_read;
 pub use result::opendal_result_reader_read;
 pub use result::opendal_result_stat;
+pub use result::opendal_result_write;
 pub use result::opendal_result_writer_write;
 
 mod types;

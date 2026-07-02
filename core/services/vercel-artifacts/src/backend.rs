@@ -96,7 +96,6 @@ impl Builder for VercelArtifactsBuilder {
             stat: true,
 
             read: true,
-            read_with_suffix: true,
 
             write: true,
 
@@ -166,6 +165,7 @@ impl Service for VercelArtifactsBackend {
         _path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
+        // Vercel Remote Cache is append-only and does not support folder operations.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -173,16 +173,36 @@ impl Service for VercelArtifactsBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+        if path == "/" || path.ends_with('/') {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
         let response = self.core.vercel_artifacts_stat(ctx, path).await?;
 
         let status = response.status();
 
         match status {
-            StatusCode::OK => {
+            StatusCode::PARTIAL_CONTENT => {
+                // 206: Content-Range header encodes total artifact size.
                 let meta = parse_into_metadata(path, response.headers())?;
                 Ok(RpStat::new(meta))
             }
-
+            StatusCode::OK => {
+                // 200: server returned full content (Range header not honoured).
+                // Content-Length may be absent when transfer is chunked; fall back
+                // to body length so that stat always returns the correct file size.
+                let (parts, body) = response.into_parts();
+                let mut meta = parse_into_metadata(path, &parts.headers)?;
+                if meta.content_length() == 0 && !body.is_empty() {
+                    meta.set_content_length(body.len() as u64);
+                }
+                Ok(RpStat::new(meta))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                // 416: artifact exists but is empty (size = 0).
+                let meta = parse_into_metadata(path, response.headers())?;
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(response)),
         }
     }
@@ -200,6 +220,14 @@ impl Service for VercelArtifactsBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        // Vercel Remote Cache is key-based; paths ending with '/' are treated as directories.
+        if path.ends_with('/') {
+            return Err(Error::new(
+                ErrorKind::IsADirectory,
+                "write to a directory path is not supported",
+            ));
+        }
+
         let output: oio::OneShotWriter<VercelArtifactsWriter> = {
             Ok(oio::OneShotWriter::new(VercelArtifactsWriter::new(
                 self.core.clone(),
@@ -213,6 +241,7 @@ impl Service for VercelArtifactsBackend {
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        // Vercel Remote Cache is append-only and does not support artifact deletion.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

@@ -131,7 +131,7 @@ When adding or changing a public optional layer:
 
 ## Important Notes
 
-- Minimum Rust version is 1.85, configured in `core/Cargo.toml` and checked by CI.
+- Minimum Rust version is 1.91, configured in `core/Cargo.toml` and checked by CI.
 - Use `opendal_core::raw::Access`, `Layer`, and `LayeredAccess` for internal implementations.
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.

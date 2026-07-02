@@ -118,7 +118,10 @@ impl VercelArtifactsCore {
         // header gives us the total artifact size (Vercel's HEAD responses do not
         // include Content-Length). Matches the pattern used by the ghac backend.
         let req = Request::get(&url)
-            .header(header::AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", self.access_token),
+            )
             .header(header::RANGE, "bytes=0-0")
             .extension(Operation::Stat)
             .extension(ServiceOperation("ArtifactExists"))

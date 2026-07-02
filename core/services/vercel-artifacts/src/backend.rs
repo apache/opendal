@@ -182,14 +182,27 @@ impl Service for VercelArtifactsBackend {
         let status = response.status();
 
         match status {
-            // 206 Partial Content: Range GET succeeded; Content-Range encodes total size.
-            // 200 OK: server returned full content (Range header ignored); Content-Length set.
-            // 416 Range Not Satisfiable: artifact exists but is empty (size = 0).
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
+            StatusCode::PARTIAL_CONTENT => {
+                // 206: Content-Range header encodes total artifact size.
                 let meta = parse_into_metadata(path, response.headers())?;
                 Ok(RpStat::new(meta))
             }
-
+            StatusCode::OK => {
+                // 200: server returned full content (Range header not honoured).
+                // Content-Length may be absent when transfer is chunked; fall back
+                // to body length so that stat always returns the correct file size.
+                let (parts, body) = response.into_parts();
+                let mut meta = parse_into_metadata(path, &parts.headers)?;
+                if meta.content_length() == 0 && !body.is_empty() {
+                    meta.set_content_length(body.len() as u64);
+                }
+                Ok(RpStat::new(meta))
+            }
+            StatusCode::RANGE_NOT_SATISFIABLE => {
+                // 416: artifact exists but is empty (size = 0).
+                let meta = parse_into_metadata(path, response.headers())?;
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(response)),
         }
     }

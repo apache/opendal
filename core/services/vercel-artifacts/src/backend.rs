@@ -165,7 +165,7 @@ impl Service for VercelArtifactsBackend {
         _path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        // Vercel Remote Cache is content-addressable storage (CAS) and does not support folder operations.
+        // Vercel Remote Cache is append-only and does not support folder operations.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -182,7 +182,10 @@ impl Service for VercelArtifactsBackend {
         let status = response.status();
 
         match status {
-            StatusCode::OK => {
+            // 206 Partial Content: Range GET succeeded; Content-Range encodes total size.
+            // 200 OK: server returned full content (Range header ignored); Content-Length set.
+            // 416 Range Not Satisfiable: artifact exists but is empty (size = 0).
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT | StatusCode::RANGE_NOT_SATISFIABLE => {
                 let meta = parse_into_metadata(path, response.headers())?;
                 Ok(RpStat::new(meta))
             }
@@ -225,7 +228,7 @@ impl Service for VercelArtifactsBackend {
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
-        // Vercel Remote Cache is content-addressable storage (CAS) and does not support resource deletion.
+        // Vercel Remote Cache is append-only and does not support artifact deletion.
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

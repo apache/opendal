@@ -36,6 +36,15 @@ default = ["native-tls"]
 native-tls = ["reqwest/native-tls"]
 # Use Rustls with reqwest's default crypto provider and platform certificate verification.
 rustls = ["reqwest/rustls"]
+# Use Rustls with the ring crypto provider and platform certificate verification.
+rustls-ring = [
+  "reqwest/rustls-no-provider",
+  "dep:rustls",
+  "rustls/ring",
+  # rustls-ring builds its own ClientConfig, so it must pull in the
+  # platform verifier directly instead of relying on reqwest's rustls setup.
+  "dep:rustls-platform-verifier",
+]
 # Use Rustls without a built-in crypto provider.
 rustls-no-provider = ["reqwest/rustls-no-provider"]
 # Use Rustls with the aws-lc-rs crypto provider and bundled Mozilla root certificates.
@@ -56,4 +65,5 @@ reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }
 rustls = { version = "0.23", optional = true, default-features = false }
+rustls-platform-verifier = { version = "0.7", optional = true, default-features = false }
 webpki-roots = { version = "1", optional = true }

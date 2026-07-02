@@ -11,7 +11,7 @@ When using Rustls, TLS configuration has two independent axes:
 
 | Axis | What it decides | Options |
 |------|----------------|---------|
-| **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | reqwest's default provider, or any custom `CryptoProvider` |
+| **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | reqwest's default provider, `ring`, or any custom `CryptoProvider` |
 | **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`rustls-webpki-roots`), or custom |
 
 The `native-tls` feature sidesteps both axes by delegating everything to
@@ -23,6 +23,7 @@ the OS TLS library (SChannel / Secure Transport / OpenSSL).
 |---------|----------------|-------------------|----------|
 | `native-tls` (default) | OS library | OS trust store | You want zero Rust-side TLS config |
 | `rustls` | reqwest default | Platform verifier | Pure-Rust TLS with OS trust store |
+| `rustls-ring` | ring | Platform verifier | Rustls with ring and OS trust store |
 | `rustls-webpki-roots` | aws-lc-rs | Bundled Mozilla roots | Fully self-contained, no OS dependency |
 | `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, FIPS module, etc.) |
 
@@ -49,6 +50,8 @@ The `rustls` feature uses reqwest's own Rustls configuration through
 `ClientBuilder::tls_backend_rustls()`, so settings such as custom root
 certificates, client identity, SNI, TLS info, and dangerous certificate
 verification flags should be configured with reqwest's builder methods.
+The `rustls-ring` feature builds a `rustls::ClientConfig` directly so it can
+select ring without installing a process-global Rustls crypto provider.
 The `rustls-webpki-roots` feature still builds a `rustls::ClientConfig` directly
 because `webpki-roots` exposes Rustls trust anchors rather than
 `reqwest::Certificate` values.

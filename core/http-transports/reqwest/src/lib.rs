@@ -31,6 +31,9 @@
 //!   reqwest with its default crypto provider and platform certificate
 //!   verification. Pure-Rust TLS stack, no system TLS dependency.
 //!
+//! - **`rustls-ring`** — Rustls with the ring crypto provider and platform
+//!   certificate verification.
+//!
 //! - **`rustls-no-provider`** — Rustls without a built-in crypto provider.
 //!   You must install a [`rustls::crypto::CryptoProvider`] before building a
 //!   client. Use this when you want to bring your own provider (e.g. `ring`
@@ -100,11 +103,12 @@ fn build_default_client() -> reqwest::Client {
 #[cfg(not(any(
     feature = "native-tls",
     feature = "rustls",
+    feature = "rustls-ring",
     feature = "rustls-no-provider",
     feature = "rustls-webpki-roots",
 )))]
 compile_error!(
-    "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider, rustls-webpki-roots"
+    "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-ring, rustls-no-provider, rustls-webpki-roots"
 );
 
 /// TLS backend options.
@@ -112,19 +116,42 @@ compile_error!(
 /// Each variant corresponds to one of the Cargo features exposed by this
 /// crate. Building a transport with a variant whose feature is not compiled
 /// returns [`ErrorKind::ConfigInvalid`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ReqwestTlsBackend {
     /// Platform TLS through reqwest's `native-tls` feature.
     #[cfg(feature = "native-tls")]
+    #[default]
     NativeTls,
     /// Rustls configured by reqwest with its default crypto provider and platform certificate verification.
     #[cfg(feature = "rustls")]
+    #[cfg_attr(not(feature = "native-tls"), default)]
     Rustls,
+    /// Rustls with the ring crypto provider and platform certificate verification.
+    #[cfg(feature = "rustls-ring")]
+    #[cfg_attr(all(not(feature = "native-tls"), not(feature = "rustls")), default)]
+    RustlsRing,
     /// Rustls without a built-in crypto provider through reqwest's `rustls-no-provider` feature.
     #[cfg(feature = "rustls-no-provider")]
+    #[cfg_attr(
+        all(
+            not(feature = "native-tls"),
+            not(feature = "rustls"),
+            not(feature = "rustls-ring")
+        ),
+        default
+    )]
     RustlsNoProvider,
     /// Rustls with bundled Mozilla root certificates.
     #[cfg(feature = "rustls-webpki-roots")]
+    #[cfg_attr(
+        all(
+            not(feature = "native-tls"),
+            not(feature = "rustls"),
+            not(feature = "rustls-ring"),
+            not(feature = "rustls-no-provider")
+        ),
+        default
+    )]
     RustlsWebpkiRoots,
 }
 
@@ -136,6 +163,8 @@ impl ReqwestTlsBackend {
             ReqwestTlsBackend::NativeTls => "native-tls",
             #[cfg(feature = "rustls")]
             ReqwestTlsBackend::Rustls => "rustls",
+            #[cfg(feature = "rustls-ring")]
+            ReqwestTlsBackend::RustlsRing => "rustls-ring",
             #[cfg(feature = "rustls-no-provider")]
             ReqwestTlsBackend::RustlsNoProvider => "rustls-no-provider",
             #[cfg(feature = "rustls-webpki-roots")]
@@ -162,6 +191,9 @@ impl FromStr for ReqwestTlsBackend {
 
             #[cfg(feature = "rustls")]
             "rustls" => Ok(Self::Rustls),
+
+            #[cfg(feature = "rustls-ring")]
+            "rustls-ring" => Ok(Self::RustlsRing),
 
             #[cfg(feature = "rustls-no-provider")]
             "rustls-no-provider" => Ok(Self::RustlsNoProvider),
@@ -198,7 +230,7 @@ impl ReqwestTransportBuilder {
     pub fn new() -> Self {
         Self {
             client_builder: reqwest::Client::builder(),
-            tls_backend: default_tls_backend(),
+            tls_backend: ReqwestTlsBackend::default(),
         }
     }
 
@@ -206,7 +238,7 @@ impl ReqwestTransportBuilder {
     pub fn from_client_builder(client_builder: reqwest::ClientBuilder) -> Self {
         Self {
             client_builder,
-            tls_backend: default_tls_backend(),
+            tls_backend: ReqwestTlsBackend::default(),
         }
     }
 
@@ -303,6 +335,10 @@ fn apply_tls_backend(
         ReqwestTlsBackend::NativeTls => client_builder.tls_backend_native(),
         #[cfg(feature = "rustls")]
         ReqwestTlsBackend::Rustls => client_builder.tls_backend_rustls(),
+        #[cfg(feature = "rustls-ring")]
+        ReqwestTlsBackend::RustlsRing => {
+            client_builder.tls_backend_preconfigured(rustls_ring_tls_config())
+        }
         #[cfg(feature = "rustls-no-provider")]
         ReqwestTlsBackend::RustlsNoProvider => client_builder.tls_backend_rustls(),
         #[cfg(feature = "rustls-webpki-roots")]
@@ -312,37 +348,16 @@ fn apply_tls_backend(
     }
 }
 
-fn default_tls_backend() -> ReqwestTlsBackend {
-    default_tls_backend_impl()
-}
+#[cfg(feature = "rustls-ring")]
+fn rustls_ring_tls_config() -> rustls::ClientConfig {
+    use rustls_platform_verifier::BuilderVerifierExt;
 
-#[cfg(feature = "native-tls")]
-fn default_tls_backend_impl() -> ReqwestTlsBackend {
-    ReqwestTlsBackend::NativeTls
-}
-
-#[cfg(all(not(feature = "native-tls"), feature = "rustls"))]
-fn default_tls_backend_impl() -> ReqwestTlsBackend {
-    ReqwestTlsBackend::Rustls
-}
-
-#[cfg(all(
-    not(feature = "native-tls"),
-    not(feature = "rustls"),
-    feature = "rustls-no-provider"
-))]
-fn default_tls_backend_impl() -> ReqwestTlsBackend {
-    ReqwestTlsBackend::RustlsNoProvider
-}
-
-#[cfg(all(
-    not(feature = "native-tls"),
-    not(feature = "rustls"),
-    not(feature = "rustls-no-provider"),
-    feature = "rustls-webpki-roots"
-))]
-fn default_tls_backend_impl() -> ReqwestTlsBackend {
-    ReqwestTlsBackend::RustlsWebpkiRoots
+    rustls::ClientConfig::builder_with_provider(rustls::crypto::ring::default_provider().into())
+        .with_safe_default_protocol_versions()
+        .expect("ring provider must support the default rustls protocol versions")
+        .with_platform_verifier()
+        .expect("platform verifier must be available")
+        .with_no_client_auth()
 }
 
 #[cfg(feature = "rustls-webpki-roots")]

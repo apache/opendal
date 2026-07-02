@@ -64,14 +64,12 @@ opendal-http-transport-reqwest = { version = "0.57", default-features = false, f
 ```rust
 use std::time::Duration;
 
-use opendal_http_transport_reqwest::ReqwestTlsBackend;
 use opendal_http_transport_reqwest::ReqwestTransport;
 use opendal::HttpTransporter;
 
 // You can configure reqwest dynamically and select a compiled TLS backend.
-let tls_backend = "rustls".parse::<ReqwestTlsBackend>().unwrap();
 let transport = ReqwestTransport::builder()
-    .tls_backend(tls_backend)
+    .tls_backend("rustls")
     .configure(|builder| builder.connect_timeout(Duration::from_secs(10)))
     .build()
     .unwrap();

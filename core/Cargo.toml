@@ -94,8 +94,6 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
-# Enable the reqwest HTTP transport without selecting a TLS backend.
-http-transport-reqwest = ["dep:opendal-http-transport-reqwest"]
 # Use reqwest with platform TLS via native-tls.
 http-transport-reqwest-native-tls = [
   "http-transport-reqwest",

@@ -100,6 +100,23 @@ compile_error!(
     "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider"
 );
 
+const DEFAULT_TLS_BACKEND: &str = get_default_tls_backend();
+
+const fn get_default_tls_backend() -> &'static str {
+    // returns by a deliberate order when enable multiple features
+
+    let preference = [
+        #[cfg(feature = "rustls")]
+        "rustls",
+        #[cfg(feature = "rustls-no-provider")]
+        "rustls-no-provider",
+        #[cfg(feature = "native-tls")]
+        "native-tls",
+    ];
+
+    preference[0]
+}
+
 /// Builder for [`ReqwestTransport`].
 ///
 /// This builder enables applications choose an TLS backend at runtime
@@ -112,29 +129,6 @@ pub struct ReqwestTransportBuilder {
     // [`reqwest::ClientBuilder::tls_backend_preconfigured`] is not stable.
     // For example, users could provide a [`rustls::ClientConfig`].
     tls_backend_preconfigured: Option<Box<dyn Any>>,
-}
-
-const DEFAULT_TLS_BACKEND: &str = get_default_tls_backend();
-
-const fn get_default_tls_backend() -> &'static str {
-    // returns early by a deliberate order when enable multiple features
-
-    #[cfg(feature = "rustls")]
-    {
-        return "rustls";
-    }
-
-    #[allow(unreachable_code)] // useful when compiles multiple features
-    #[cfg(feature = "rustls-no-provider")]
-    {
-        return "rustls-no-provider";
-    }
-
-    #[allow(unreachable_code)] // useful when compiles multiple features
-    #[cfg(feature = "native-tls")]
-    {
-        "native-tls"
-    }
 }
 
 impl Default for ReqwestTransportBuilder {

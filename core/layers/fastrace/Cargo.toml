@@ -31,7 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-fastrace = "0.7.16"
+fastrace = { version = "0.7.18" }
 opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
 
 [dev-dependencies]

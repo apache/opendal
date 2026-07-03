@@ -59,15 +59,15 @@ impl Builder for MonoiofsBuilder {
             Error::new(ErrorKind::ConfigInvalid, "root is not specified")
                 .with_operation("Builder::build"),
         )?;
-        if let Err(e) = std::fs::metadata(&root) {
-            if e.kind() == io::ErrorKind::NotFound {
-                std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "create root dir failed")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy())
-                        .set_source(e)
-                })?;
-            }
+        if let Err(e) = std::fs::metadata(&root)
+            && e.kind() == io::ErrorKind::NotFound
+        {
+            std::fs::create_dir_all(&root).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "create root dir failed")
+                    .with_operation("Builder::build")
+                    .with_context("root", root.to_string_lossy())
+                    .set_source(e)
+            })?;
         }
         let root = root.canonicalize().map_err(|e| {
             Error::new(

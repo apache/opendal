@@ -99,12 +99,11 @@ impl PcloudCore {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
-                if let Some(hosts) = resp.hosts {
-                    if let Some(path) = resp.path {
-                        if !hosts.is_empty() {
-                            return Ok(format!("https://{}{}", hosts[0], path));
-                        }
-                    }
+                if let Some(hosts) = resp.hosts
+                    && let Some(path) = resp.path
+                    && !hosts.is_empty()
+                {
+                    return Ok(format!("https://{}{}", hosts[0], path));
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }

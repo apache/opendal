@@ -671,11 +671,11 @@ impl TosCore {
         if let Some(limit) = limit {
             url = url.push("max-keys", &limit.to_string());
         }
-        if let Some(start_after) = start_after {
-            if path.is_empty() || path == "/" || start_after.starts_with(path) {
-                let start_after = build_abs_path(&self.root, &start_after);
-                url = url.push("start-after", &percent_encode_query(&start_after));
-            }
+        if let Some(start_after) = start_after
+            && (path.is_empty() || path == "/" || start_after.starts_with(path))
+        {
+            let start_after = build_abs_path(&self.root, &start_after);
+            url = url.push("start-after", &percent_encode_query(&start_after));
         }
         if !continuation_token.is_empty() {
             url = url.push(

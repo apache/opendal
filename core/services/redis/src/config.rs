@@ -92,27 +92,27 @@ impl Configurator for RedisConfig {
             .with_context("service", REDIS_SCHEME));
         }
 
-        if let Some(path) = uri.root() {
-            if !path.is_empty() {
-                if let Some((first, rest)) = path.split_once('/') {
-                    if let Ok(db) = first.parse::<i64>() {
-                        map.insert("db".to_string(), db.to_string());
-                        if !rest.is_empty() {
-                            map.insert("root".to_string(), rest.to_string());
-                        }
-                    } else {
-                        let mut root_value = first.to_string();
-                        if !rest.is_empty() {
-                            root_value.push('/');
-                            root_value.push_str(rest);
-                        }
-                        map.insert("root".to_string(), root_value);
-                    }
-                } else if let Ok(db) = path.parse::<i64>() {
+        if let Some(path) = uri.root()
+            && !path.is_empty()
+        {
+            if let Some((first, rest)) = path.split_once('/') {
+                if let Ok(db) = first.parse::<i64>() {
                     map.insert("db".to_string(), db.to_string());
+                    if !rest.is_empty() {
+                        map.insert("root".to_string(), rest.to_string());
+                    }
                 } else {
-                    map.insert("root".to_string(), path.to_string());
+                    let mut root_value = first.to_string();
+                    if !rest.is_empty() {
+                        root_value.push('/');
+                        root_value.push_str(rest);
+                    }
+                    map.insert("root".to_string(), root_value);
                 }
+            } else if let Ok(db) = path.parse::<i64>() {
+                map.insert("db".to_string(), db.to_string());
+            } else {
+                map.insert("root".to_string(), path.to_string());
             }
         }
 

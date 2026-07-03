@@ -51,10 +51,10 @@ impl HfBuilder {
     ///
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
-        if !repo_type.is_empty() {
-            if let Ok(rt) = HfRepoType::parse(repo_type) {
-                self.config.repo_type = Some(rt);
-            }
+        if !repo_type.is_empty()
+            && let Ok(rt) = HfRepoType::parse(repo_type)
+        {
+            self.config.repo_type = Some(rt);
         }
         self
     }
@@ -125,10 +125,10 @@ impl HfBuilder {
     ///
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub fn download_mode(mut self, mode: &str) -> Self {
-        if !mode.is_empty() {
-            if let Ok(m) = HfDownloadMode::parse(mode) {
-                self.config.download_mode = Some(m);
-            }
+        if !mode.is_empty()
+            && let Ok(m) = HfDownloadMode::parse(mode)
+        {
+            self.config.download_mode = Some(m);
         }
         self
     }
@@ -158,10 +158,10 @@ impl HfBuilder {
         if let Some(mode) = self.config.download_mode {
             return mode;
         }
-        if let Ok(val) = std::env::var("HF_HUB_DISABLE_XET") {
-            if !val.is_empty() {
-                return HfDownloadMode::Http;
-            }
+        if let Ok(val) = std::env::var("HF_HUB_DISABLE_XET")
+            && !val.is_empty()
+        {
+            return HfDownloadMode::Http;
         }
         HfDownloadMode::default()
     }
@@ -183,15 +183,15 @@ impl HfBuilder {
         if let Some(t) = self.config.token.clone() {
             return Some(t);
         }
-        if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN") {
-            if !val.is_empty() {
-                return None;
-            }
+        if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN")
+            && !val.is_empty()
+        {
+            return None;
         }
-        if let Ok(t) = std::env::var("HF_TOKEN") {
-            if !t.is_empty() {
-                return Some(t);
-            }
+        if let Ok(t) = std::env::var("HF_TOKEN")
+            && !t.is_empty()
+        {
+            return Some(t);
         }
         let token_path = if let Ok(p) = std::env::var("HF_TOKEN_PATH") {
             Some(PathBuf::from(p))

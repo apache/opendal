@@ -200,10 +200,10 @@ impl AzdlsCore {
             req = req.header(IF_NONE_MATCH, v)
         }
 
-        if let Some(user_metadata) = args.user_metadata() {
-            if !user_metadata.is_empty() {
-                req = req.header(X_MS_PROPERTIES, encode_user_metadata(user_metadata));
-            }
+        if let Some(user_metadata) = args.user_metadata()
+            && !user_metadata.is_empty()
+        {
+            req = req.header(X_MS_PROPERTIES, encode_user_metadata(user_metadata));
         }
 
         let operation = if resource == DIRECTORY {

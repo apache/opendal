@@ -87,18 +87,18 @@ impl opendal_core::Configurator for HfConfig {
         // OperatorUri splits "hf://datasets/user/repo@rev/path" into
         // name="datasets" and root="user/repo@rev/path".
         let mut path = String::new();
-        if let Some(name) = uri.name() {
-            if !name.is_empty() {
-                path.push_str(name);
-            }
+        if let Some(name) = uri.name()
+            && !name.is_empty()
+        {
+            path.push_str(name);
         }
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                if !path.is_empty() {
-                    path.push('/');
-                }
-                path.push_str(root);
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            if !path.is_empty() {
+                path.push('/');
             }
+            path.push_str(root);
         }
 
         let download_mode = opts

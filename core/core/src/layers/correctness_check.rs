@@ -143,15 +143,15 @@ impl Service for CorrectnessService {
         if args.if_match().is_some() && !capability.write_with_if_match {
             return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
         }
-        if let Some(if_none_match) = args.if_none_match() {
-            if !capability.write_with_if_none_match {
-                let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
-                if if_none_match == "*" && capability.write_with_if_not_exists {
-                    err = err.with_context("hint", "use if_not_exists instead");
-                }
-
-                return Err(err);
+        if let Some(if_none_match) = args.if_none_match()
+            && !capability.write_with_if_none_match
+        {
+            let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
+            if if_none_match == "*" && capability.write_with_if_not_exists {
+                err = err.with_context("hint", "use if_not_exists instead");
             }
+
+            return Err(err);
         }
 
         self.inner.write(ctx, path, args)

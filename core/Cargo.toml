@@ -94,6 +94,8 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
+# Default http-transport-reqwest transport
+http-transport-reqwest = ["http-transport-reqwest-rustls"]
 # Use reqwest with platform TLS via native-tls.
 http-transport-reqwest-native-tls = [
   "dep:opendal-http-transport-reqwest",

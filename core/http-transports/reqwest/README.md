@@ -21,9 +21,9 @@ the OS TLS library (SChannel / Secure Transport / OpenSSL).
 
 | Feature | Crypto provider | Certificate roots | Use when |
 |---------|----------------|-------------------|----------|
-| `native-tls` (default) | OS library | OS trust store | You want zero Rust-side TLS config |
-| `rustls` | reqwest default | Platform verifier | Pure-Rust TLS with OS trust store |
+| `rustls` (default) | reqwest default | Platform verifier | Pure-Rust TLS with OS trust store |
 | `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, webpki roots, FIPS module, etc.) |
+| `native-tls` | OS library | OS trust store | You want zero Rust-side TLS config |
 
 ### Usage via the `opendal` facade crate
 

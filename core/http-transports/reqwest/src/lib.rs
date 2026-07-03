@@ -119,12 +119,6 @@ const DEFAULT_TLS_BACKEND: &str = get_default_tls_backend();
 const fn get_default_tls_backend() -> &'static str {
     // returns early by a deliberate order when enable multiple features
 
-    #[cfg(feature = "native-tls")]
-    {
-        return "native-tls";
-    }
-
-    #[allow(unreachable_code)] // useful when compiles multiple features
     #[cfg(feature = "rustls")]
     {
         return "rustls";
@@ -134,6 +128,12 @@ const fn get_default_tls_backend() -> &'static str {
     #[cfg(feature = "rustls-no-provider")]
     {
         return "rustls-no-provider";
+    }
+
+    #[allow(unreachable_code)] // useful when compiles multiple features
+    #[cfg(feature = "native-tls")]
+    {
+        "native-tls"
     }
 }
 

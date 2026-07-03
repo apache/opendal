@@ -12,7 +12,7 @@ When using Rustls, TLS configuration has two independent axes:
 | Axis | What it decides | Options |
 |------|----------------|---------|
 | **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | reqwest's default provider, `ring`, or any custom `CryptoProvider` |
-| **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`rustls-webpki-roots`), or custom |
+| **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`webpki-roots`), or custom |
 
 The `native-tls` feature sidesteps both axes by delegating everything to
 the OS TLS library (SChannel / Secure Transport / OpenSSL).
@@ -23,9 +23,7 @@ the OS TLS library (SChannel / Secure Transport / OpenSSL).
 |---------|----------------|-------------------|----------|
 | `native-tls` (default) | OS library | OS trust store | You want zero Rust-side TLS config |
 | `rustls` | reqwest default | Platform verifier | Pure-Rust TLS with OS trust store |
-| `rustls-ring` | ring | Platform verifier | Rustls with ring and OS trust store |
-| `rustls-webpki-roots` | aws-lc-rs | Bundled Mozilla roots | Fully self-contained, no OS dependency |
-| `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, FIPS module, etc.) |
+| `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, webpki roots, FIPS module, etc.) |
 
 ### Usage via the `opendal` facade crate
 
@@ -44,17 +42,14 @@ one you need:
 opendal = { version = "0.57", default-features = false, features = ["http-transport-reqwest-rustls"] }
 ```
 
+When using `rustls-no-provider`, you must provide crypto or TLS crates.
+
 ### Feature usage with `rustls`
 
 The `rustls` feature uses reqwest's own Rustls configuration through
 `ClientBuilder::tls_backend_rustls()`, so settings such as custom root
 certificates, client identity, SNI, TLS info, and dangerous certificate
 verification flags should be configured with reqwest's builder methods.
-The `rustls-ring` feature builds a `rustls::ClientConfig` directly so it can
-select ring without installing a process-global Rustls crypto provider.
-The `rustls-webpki-roots` feature still builds a `rustls::ClientConfig` directly
-because `webpki-roots` exposes Rustls trust anchors rather than
-`reqwest::Certificate` values.
 
 ```toml
 [dependencies]
@@ -103,26 +98,21 @@ fn main() {
     // 1. Configure your crypto provider and certificate roots.
     let root_store =
         rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
     let tls_config = rustls::ClientConfig::builder_with_provider(
-        rustls::crypto::ring::default_provider().into(),
-    )
-    .with_safe_default_protocol_versions()
-    .unwrap()
-    .with_root_certificates(root_store)
-    .with_no_client_auth();
+            rustls::crypto::aws_lc_rs::default_provider().into(),
+        )
+        .with_safe_default_protocol_versions()
+        .expect("aws-lc-rs provider must support the default rustls protocol versions")
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
     // 2. Build a reqwest client with your TLS config.
-    let client = reqwest::Client::builder()
+    let transport = ReqwestTransport::builder()
+        .tls_backend("rustls-no-provider")
         .tls_backend_preconfigured(tls_config)
-        .connect_timeout(Duration::from_secs(10))
-        .pool_max_idle_per_host(20)
-        .build()
-        .unwrap();
+        .build();
 
-    // 3. Wrap it as a ReqwestTransport and attach to an operator.
-    let transport = HttpTransporter::new(ReqwestTransport::new(client));
-
+    // 3. Use in an operator.
     let op = opendal::Operator::via_iter("s3", [
         ("bucket".to_string(), "my-bucket".to_string()),
         ("region".to_string(), "us-east-1".to_string()),

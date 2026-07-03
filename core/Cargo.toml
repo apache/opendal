@@ -101,25 +101,15 @@ http-transport-reqwest-native-tls = [
   "http-transport-reqwest",
   "opendal-http-transport-reqwest/native-tls",
 ]
-# Use reqwest with Rustls, the aws-lc-rs crypto provider, and platform certificate verification.
+# Use reqwest with Rustls, with default aws-lc-rs crypto provider.
 http-transport-reqwest-rustls = [
   "http-transport-reqwest",
   "opendal-http-transport-reqwest/rustls",
-]
-# Use reqwest with Rustls, the ring crypto provider, and platform certificate verification.
-http-transport-reqwest-rustls-ring = [
-  "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls-ring",
 ]
 # Use reqwest with Rustls and no built-in crypto provider.
 http-transport-reqwest-rustls-no-provider = [
   "http-transport-reqwest",
   "opendal-http-transport-reqwest/rustls-no-provider",
-]
-# Use reqwest with Rustls, the aws-lc-rs crypto provider, and bundled Mozilla root certificates.
-http-transport-reqwest-webpki-roots = [
-  "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls-webpki-roots",
 ]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
@@ -146,6 +136,10 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
+# Deprecated since 0.58; Will delete in 0.59.
+reqwest-rustls-no-provider-tls = ["http-transport-reqwest-rustls-no-provider"]
+# Deprecated since 0.58; Will delete in 0.59.
+reqwest-rustls-tls = ["http-transport-reqwest-rustls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]

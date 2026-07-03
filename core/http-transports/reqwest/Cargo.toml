@@ -36,24 +36,16 @@ default = ["native-tls"]
 native-tls = ["reqwest/native-tls"]
 # Use Rustls with reqwest's default crypto provider and platform certificate verification.
 rustls = ["reqwest/rustls"]
-# Use Rustls with the ring crypto provider and platform certificate verification.
-rustls-ring = [
-  "reqwest/rustls-no-provider",
-  "dep:rustls",
-  "rustls/ring",
-  # rustls-ring builds its own ClientConfig, so it must pull in the
-  # platform verifier directly instead of relying on reqwest's rustls setup.
-  "dep:rustls-platform-verifier",
-]
 # Use Rustls without a built-in crypto provider.
+#
+# `rustls` builds `aws_lc_rs` crypto provider by default. When using other TLS backends,
+# consider features like:
+# - ring
+# - fips
+# Also read more about `rustls-native-certs` crate.
+#
+# To use WebPKI roots, read more about `webpki_roots` crate as well. 
 rustls-no-provider = ["reqwest/rustls-no-provider"]
-# Use Rustls with the aws-lc-rs crypto provider and bundled Mozilla root certificates.
-rustls-webpki-roots = [
-  "reqwest/rustls-no-provider",
-  "dep:rustls",
-  "rustls/aws-lc-rs",
-  "dep:webpki-roots",
-]
 
 [dependencies]
 bytes = { workspace = true }
@@ -64,6 +56,3 @@ opendal-core = { path = "../../core", version = "0.57.0", default-features = fal
 reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }
-rustls = { version = "0.23", optional = true, default-features = false }
-rustls-platform-verifier = { version = "0.7", optional = true, default-features = false }
-webpki-roots = { version = "1", optional = true }

@@ -153,10 +153,10 @@ impl GoosefsCore {
         // Double-check after acquiring write lock: another task may have
         // initialised it while we were waiting.
         let pid_now = self.ctx_pid.load(Ordering::Relaxed);
-        if pid_now == current_pid {
-            if let Some(ref ctx) = *guard {
-                return Ok(Arc::clone(ctx));
-            }
+        if pid_now == current_pid
+            && let Some(ref ctx) = *guard
+        {
+            return Ok(Arc::clone(ctx));
         }
 
         // If we had a stale context from a different process, drop it.
@@ -472,10 +472,10 @@ impl GoosefsCore {
         if let Some(length) = info.length {
             metadata.set_content_length(length as u64);
         }
-        if let Some(mtime) = info.last_modification_time_ms {
-            if let Ok(ts) = Timestamp::from_millisecond(mtime) {
-                metadata.set_last_modified(ts);
-            }
+        if let Some(mtime) = info.last_modification_time_ms
+            && let Ok(ts) = Timestamp::from_millisecond(mtime)
+        {
+            metadata.set_last_modified(ts);
         }
         metadata
     }

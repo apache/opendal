@@ -183,10 +183,10 @@ fn collect_custom_type_names(items: &[Item]) -> HashSet<String> {
 
     let mut names = HashSet::new();
     for item in items {
-        if let Item::Use(item_use) = item {
-            if let Some(name) = extract_name(&item_use.tree) {
-                names.insert(name);
-            }
+        if let Item::Use(item_use) = item
+            && let Some(name) = extract_name(&item_use.tree)
+        {
+            names.insert(name);
         }
     }
     names
@@ -262,10 +262,10 @@ impl ServiceParser {
             .items
             .iter()
             .find_map(|v| {
-                if let Item::Struct(v) = v {
-                    if v.ident.to_string().contains("Config") {
-                        return Some(v.clone());
-                    }
+                if let Item::Struct(v) = v
+                    && v.ident.to_string().contains("Config")
+                {
+                    return Some(v.clone());
                 }
                 None
             })
@@ -354,13 +354,12 @@ impl ServiceParser {
             .iter()
             .filter(|attr| attr.path().is_ident("doc"))
             .filter_map(|attr| {
-                if let Meta::NameValue(meta) = &attr.meta {
-                    if let Expr::Lit(ExprLit {
+                if let Meta::NameValue(meta) = &attr.meta
+                    && let Expr::Lit(ExprLit {
                         lit: Lit::Str(s), ..
                     }) = &meta.value
-                    {
-                        return Some(s.value().trim().to_string());
-                    }
+                {
+                    return Some(s.value().trim().to_string());
                 }
 
                 None

@@ -88,20 +88,20 @@ impl oio::StreamRead for CloudflareKvReader {
             let metadata = cf_response.result.unwrap();
 
             // Check if_match condition
-            if let Some(if_match) = &args.if_match() {
-                if if_match != &metadata.etag {
-                    return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
-                }
+            if let Some(if_match) = &args.if_match()
+                && if_match != &metadata.etag
+            {
+                return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
             }
 
             // Check if_none_match condition
-            if let Some(if_none_match) = &args.if_none_match() {
-                if if_none_match == &metadata.etag {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "etag match when expected none match",
-                    ));
-                }
+            if let Some(if_none_match) = &args.if_none_match()
+                && if_none_match == &metadata.etag
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "etag match when expected none match",
+                ));
             }
 
             // Parse since time once for both time-based conditions
@@ -111,23 +111,23 @@ impl oio::StreamRead for CloudflareKvReader {
                 .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
             // Check modified_since condition
-            if let Some(modified_since) = &args.if_modified_since() {
-                if !last_modified.gt(modified_since) {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "not modified since specified time",
-                    ));
-                }
+            if let Some(modified_since) = &args.if_modified_since()
+                && !last_modified.gt(modified_since)
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "not modified since specified time",
+                ));
             }
 
             // Check unmodified_since condition
-            if let Some(unmodified_since) = &args.if_unmodified_since() {
-                if !last_modified.le(unmodified_since) {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "modified since specified time",
-                    ));
-                }
+            if let Some(unmodified_since) = &args.if_unmodified_since()
+                && !last_modified.le(unmodified_since)
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "modified since specified time",
+                ));
             }
         }
 

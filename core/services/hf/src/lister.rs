@@ -144,10 +144,10 @@ impl oio::PageList for HfLister {
             let rel_path = build_rel_path(&self.core.root, &path);
 
             // Filter by prefix when doing prefix-based listing.
-            if let Some(prefix) = &self.prefix {
-                if !rel_path.starts_with(prefix.as_str()) {
-                    continue;
-                }
+            if let Some(prefix) = &self.prefix
+                && !rel_path.starts_with(prefix.as_str())
+            {
+                continue;
             }
 
             ctx.entries.push_back(oio::Entry::new(&rel_path, meta));

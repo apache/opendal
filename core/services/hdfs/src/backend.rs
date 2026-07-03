@@ -134,23 +134,22 @@ impl Builder for HdfsBuilder {
         let client = builder.connect().map_err(new_std_io_error)?;
 
         // Create root dir if not exist.
-        if let Err(e) = client.metadata(&root) {
-            if e.kind() == io::ErrorKind::NotFound {
-                debug!("root {root} is not exist, creating now");
+        if let Err(e) = client.metadata(&root)
+            && e.kind() == io::ErrorKind::NotFound
+        {
+            debug!("root {root} is not exist, creating now");
 
-                client.create_dir(&root).map_err(new_std_io_error)?
-            }
+            client.create_dir(&root).map_err(new_std_io_error)?
         }
 
         let atomic_write_dir = self.config.atomic_write_dir;
 
         // If atomic write dir is not exist, we must create it.
-        if let Some(d) = &atomic_write_dir {
-            if let Err(e) = client.metadata(d) {
-                if e.kind() == io::ErrorKind::NotFound {
-                    client.create_dir(d).map_err(new_std_io_error)?
-                }
-            }
+        if let Some(d) = &atomic_write_dir
+            && let Err(e) = client.metadata(d)
+            && e.kind() == io::ErrorKind::NotFound
+        {
+            client.create_dir(d).map_err(new_std_io_error)?
         }
 
         Ok(HdfsBackend {
@@ -171,6 +170,7 @@ impl Builder for HdfsBuilder {
                     list: true,
 
                     rename: true,
+                    rename_with_if_not_exists: true,
 
                     shared: true,
 
@@ -273,9 +273,9 @@ impl Service for HdfsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        self.core.hdfs_rename(from, to)?;
+        self.core.hdfs_rename(from, to, &args)?;
         Ok(RpRename::new())
     }
 

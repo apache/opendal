@@ -104,10 +104,10 @@ impl opendal_core::Configurator for GoosefsConfig {
             // goosefs://host:port/path → master_addr = "host:port"
             map.insert("master_addr".to_string(), authority.to_string());
         }
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
-            }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            map.insert("root".to_string(), root.to_string());
         }
         Self::from_iter(map)
     }

@@ -55,7 +55,7 @@ jobs:
           - os: macos-latest
             classifier: osx-aarch_64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up JDK 8
         uses: actions/setup-java@v5
         with:
@@ -98,7 +98,7 @@ jobs:
             -e HOST_GID="$HOST_GID" \
             -v "$GITHUB_WORKSPACE":/work \
             -w /work/bindings/java \
-            rust:1.85-alpine3.20 \
+            rust:1.91-alpine3.20 \
             sh -lc '
               set -eu
               apk add --no-cache python3 build-base cmake pkgconfig git protobuf sqlite-dev zlib-dev
@@ -189,7 +189,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [stage-snapshot]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: apache/opendal
           ref: ${{ github.ref }}
@@ -244,7 +244,7 @@ jobs:
           name: osx-aarch_64-local-staging
           path: ~/osx-aarch_64-local-staging
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: ci-opendal
       - name: Merge staging repositories

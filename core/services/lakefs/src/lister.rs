@@ -99,10 +99,10 @@ impl oio::PageList for LakefsLister {
                 meta.set_last_modified(Timestamp::from_second(status.mtime).unwrap());
             }
 
-            if entry_type == EntryMode::FILE {
-                if let Some(size_bytes) = status.size_bytes {
-                    meta.set_content_length(size_bytes);
-                }
+            if entry_type == EntryMode::FILE
+                && let Some(size_bytes) = status.size_bytes
+            {
+                meta.set_content_length(size_bytes);
             }
 
             let path = if entry_type == EntryMode::DIR {

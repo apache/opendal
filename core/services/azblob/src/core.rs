@@ -1169,20 +1169,19 @@ mod error {
         };
 
         // If there is no body here, fill with error code.
-        if message.is_empty() {
-            if let Some(code) = parts
+        if message.is_empty()
+            && let Some(code) = parts
                 .headers
                 .get("x-ms-error-code")
                 .and_then(|v| v.to_str().ok())
-            {
-                message = format!(
-                    "{:?}",
-                    AzblobError {
-                        code: code.to_string(),
-                        ..Default::default()
-                    }
-                );
-            }
+        {
+            message = format!(
+                "{:?}",
+                AzblobError {
+                    code: code.to_string(),
+                    ..Default::default()
+                }
+            );
         }
 
         let mut err = Error::new(kind, &message);

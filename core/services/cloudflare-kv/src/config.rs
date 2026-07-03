@@ -84,10 +84,10 @@ impl opendal_core::Configurator for CloudflareKvConfig {
         map.insert("account_id".to_string(), account_id.to_string());
         map.insert("namespace_id".to_string(), namespace_id.to_string());
 
-        if let Some(rest) = segments.next() {
-            if !rest.is_empty() {
-                map.insert("root".to_string(), rest.to_string());
-            }
+        if let Some(rest) = segments.next()
+            && !rest.is_empty()
+        {
+            map.insert("root".to_string(), rest.to_string());
         }
 
         Self::from_iter(map)

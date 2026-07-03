@@ -231,10 +231,10 @@ impl FsCore {
         // only *nix supports `write_with_user_metadata`
         #[cfg(unix)]
         {
-            if let Ok(user_meta) = Self::get_user_metadata(&from) {
-                if !user_meta.is_empty() {
-                    Self::set_user_metadata(&to, &user_meta)?;
-                }
+            if let Ok(user_meta) = Self::get_user_metadata(&from)
+                && !user_meta.is_empty()
+            {
+                Self::set_user_metadata(&to, &user_meta)?;
             }
         }
 
@@ -285,12 +285,11 @@ impl FsCore {
         for attr in attrs {
             let attr_name = attr.to_string_lossy();
             // Only read xattr in the "user." namespace and strip the prefix
-            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX) {
-                if let Ok(Some(value)) = xattr::get(path, &attr) {
-                    if let Ok(v) = String::from_utf8(value) {
-                        user_metadata.insert(key.to_string(), v);
-                    }
-                }
+            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX)
+                && let Ok(Some(value)) = xattr::get(path, &attr)
+                && let Ok(v) = String::from_utf8(value)
+            {
+                user_metadata.insert(key.to_string(), v);
             }
         }
 

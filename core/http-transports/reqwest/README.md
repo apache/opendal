@@ -39,7 +39,7 @@ To select a different TLS backend, disable default features and enable the
 one you need:
 
 ```toml
-opendal = { version = "0.57", default-features = false, features = ["http-transport-reqwest-rustls"] }
+opendal = { version = "0.57", default-features = false, features = ["http-transport-reqwest-native-tls"] }
 ```
 
 When using `rustls-no-provider`, you must provide crypto or TLS crates.

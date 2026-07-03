@@ -35,7 +35,7 @@ impl EtcdDeleter {
 
 impl oio::OneShotDelete for EtcdDeleter {
     async fn delete_once(&self, path: String, _args: OpDelete) -> Result<()> {
-        let abs_path = build_abs_path(&self.root, &path);
+        let abs_path = build_absolute_path(&self.root, &path);
         self.core.delete(&abs_path).await
     }
 }

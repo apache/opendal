@@ -74,7 +74,7 @@ impl oio::BatchDelete for TosDeleter {
             failed: Vec::with_capacity(errors.len()),
         };
         for (path, op) in batch {
-            let abs_path = build_abs_path(&self.core.root, &path);
+            let abs_path = build_absolute_path(&self.core.root, &path);
             if let Some(idx) = errors
                 .iter()
                 .position(|e| e.key == abs_path && e.version_id.as_deref() == op.version())

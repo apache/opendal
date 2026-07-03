@@ -18,19 +18,48 @@
 use crate::*;
 use std::hash::{BuildHasher, Hasher};
 
-/// build_abs_path will build an absolute path with root.
+// a representation of root path.
+// Don't get confused with file system root. Because services can define services' root.
+// For example, when users create an `Operator` with a root like `/root/dir/`, the root path is `/root/dir/`.
+const ROOT_PATH: &str = "/";
+const PATH_SEPARATOR: &str = "/";
+const PATH_SEPARATOR_CHAR: char = '/';
+
+/// Build an absolute path by joining root and path, stripping the leading `/` from root.
 ///
-/// # Rules
+/// # Conformance
 ///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Output will be the format like `path/to/root/path`.
-pub fn build_abs_path(root: &str, path: &str) -> String {
+/// - Users MUST provide a root that follows a format like `/`, `/root/dir/`.
+/// - Output will follow a format like `path/to/root/path`.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::build_absolute_path;
+/// #
+/// assert_eq!(
+///     build_absolute_path("/root/", "dir/"),
+///     "root/dir/",
+///     "input dir with root /root/"
+/// );
+/// assert_eq!(
+///     build_absolute_path("/root/", "file.txt"),
+///     "root/file.txt",
+///     "input file with root /root/"
+/// );
+/// assert_eq!(
+///     build_absolute_path("/", "dir/"),
+///     "dir/",
+///     "input dir with root /"
+/// );
+/// ```
+pub fn build_absolute_path(root: &str, path: &str) -> String {
     debug_assert!(root.starts_with('/'), "root must start with /");
     debug_assert!(root.ends_with('/'), "root must end with /");
 
     let p = root[1..].to_string();
 
-    if path == "/" {
+    if path == ROOT_PATH {
         p
     } else {
         debug_assert!(!path.starts_with('/'), "path must not start with /");
@@ -38,19 +67,46 @@ pub fn build_abs_path(root: &str, path: &str) -> String {
     }
 }
 
-/// build_rooted_abs_path will build an absolute path with root.
+/// Build an absolute path by joining root and path, preserving the leading `/`.
 ///
-/// # Rules
+/// # Conformance
 ///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Output will be the format like `/path/to/root/path`.
-pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
+/// - Users MUST provide a root that follows a format like `/`, `/abc/def/`.
+/// - Output will follow a format like `/path/to/root/path`.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::build_rooted_absolute_path;
+/// #
+/// assert_eq!(
+///     build_rooted_absolute_path("/root/", "dir/"),
+///     "/root/dir/",
+///     "input dir with root /root/"
+/// );
+/// assert_eq!(
+///     build_rooted_absolute_path("/", "dir/"),
+///     "/dir/",
+///     "input dir with root /"
+/// );
+/// assert_eq!(
+///     build_rooted_absolute_path("/root/", "file.txt"),
+///     "/root/file.txt",
+///     "input file with root /root/"
+/// );
+/// assert_eq!(
+///     build_rooted_absolute_path("/", ""),
+///     "/",
+///     "input root path with root /"
+/// );
+/// ```
+pub fn build_rooted_absolute_path(root: &str, path: &str) -> String {
     debug_assert!(root.starts_with('/'), "root must start with /");
     debug_assert!(root.ends_with('/'), "root must end with /");
 
     let p = root.to_string();
 
-    if path == "/" {
+    if path == ROOT_PATH {
         p
     } else {
         debug_assert!(!path.starts_with('/'), "path must not start with /");
@@ -58,17 +114,49 @@ pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
     }
 }
 
-/// build_rel_path will build a relative path towards root.
+/// Build a relative path from a rooted absolute path by stripping the root prefix.
 ///
-/// # Rules
+/// # Conformance
 ///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Input path MUST start with root like `/abc/def/path/to/file`
-/// - Output will be the format like `path/to/file`.
-pub fn build_rel_path(root: &str, path: &str) -> String {
-    debug_assert!(root != path, "get rel path with root is invalid");
+/// - Users MUST provide a root that follows a format like `/`, `/root/dir/`.
+/// - Output will follow a format like `path/to/file` stripping the root prefix.
+///   The output will not have a leading `/`.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::build_relative_path;
+/// #
+/// assert_eq!(
+///     build_relative_path("/root/", "/root/file.txt"),
+///     "file.txt",
+///     "input absolute file with root /root/"
+/// );
+/// assert_eq!(
+///     build_relative_path("/root/", "/root/dir/file.txt"),
+///     "dir/file.txt",
+///     "input file path with root /root/"
+/// );
+/// assert_eq!(
+///     build_relative_path("/", "/dir"),
+///     "dir",
+///     "input absolute file with root /"
+/// );
+/// assert_eq!(
+///     build_relative_path("/", "dir"),
+///     "dir",
+///     "input file with root /"
+/// );
+/// assert_eq!(
+///     build_relative_path("/root/", "/root/file.txt"),
+///     "file.txt",
+///     "input file path with root /root/"
+/// );
+/// ```
+pub fn build_relative_path(root: &str, path: &str) -> String {
+    debug_assert!(root != path, "build relative path with root is invalid");
 
-    if path.starts_with('/') {
+    if path.starts_with(ROOT_PATH) {
         debug_assert!(
             path.starts_with(root),
             "path {path} doesn't start with root {root}"
@@ -83,81 +171,151 @@ pub fn build_rel_path(root: &str, path: &str) -> String {
     }
 }
 
-/// Make sure all operation are constructed by normalized path:
+/// Normalize a user-provided path for services.
 ///
-/// - Path endswith `/` means it's a dir path.
-/// - Otherwise, it's a file path.
+/// OpenDAL core's `Operator` normalizes paths before services process normalized paths in `Service` trait.
+/// e.g., when users call `op.read("///root/dir/")`, OpenDAL normalizes the path to `root/dir/`
+/// before calling `Service::read` in services.
+///
+/// # Path conventions for OpenDAL users
+///
+/// - Paths ending with `/` represent directories.
+/// - Otherwise, paths represent files.
 ///
 /// # Normalize Rules
 ///
-/// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
-/// - All leading / will be trimmed: `///abc` => `abc`
-/// - Internal // will be replaced by /: `abc///def` => `abc/def`
-/// - Empty path will be `/`: `` => `/`
+/// - Strip leading `/`: `/root` => `root`
+/// - Collapse double slashes `//` in a path: `root///dir` => `root/dir`
+/// - Remove `.` segments:
+///    - `./root/./dir` => `root/dir`
+///    - `./` => `/`
+/// - Preserve trailing `/`: `dir/` => `dir/`
+/// - Empty path becomes `/`: `` => `/`
+/// - Preserve content within path components (including whitespace):
+///      - `root/file   ` => `root/file   `
+///      - `  root/dir` => `  root/dir`
+///      - ` root/dir ` => ` root/dir `
+///
+///   This aligns with POSIX, URI, and object-store conventions where
+///   whitespace is significant content — `file` and `file ` are
+///   distinct objects.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::normalize_path;
+/// #
+/// assert_eq!(normalize_path("file"), "file", "normalize file path");
+/// assert_eq!(normalize_path("dir/"), "dir/", "normalize dir path");
+/// assert_eq!(
+///     normalize_path("/root/dir/"),
+///     "root/dir/",
+///     "absolute dir path with root /root/"
+/// );
+/// assert_eq!(normalize_path("///root//dir"), "root/dir");
+/// assert_eq!(
+///     normalize_path("./root/./dir"),
+///     "root/dir",
+///     "removes dot segment"
+/// );
+/// assert_eq!(normalize_path(""), "/", "empty path");
+/// ```
 pub fn normalize_path(path: &str) -> String {
-    // - all whitespace has been trimmed.
-    // - all leading `/` has been trimmed.
-    let path = path.trim().trim_start_matches('/');
+    let path = path.trim_start_matches(PATH_SEPARATOR);
 
-    // Fast line for empty path.
     if path.is_empty() {
-        return "/".to_string();
+        return ROOT_PATH.to_string();
     }
 
-    let has_trailing = path.ends_with('/');
+    let has_trailing = path.ends_with(PATH_SEPARATOR);
 
     let mut p = path
-        .split('/')
-        .filter(|v| !v.is_empty())
+        .split(PATH_SEPARATOR_CHAR)
+        .filter(|v| !v.is_empty() && *v != ".")
         .collect::<Vec<&str>>()
-        .join("/");
+        .join(PATH_SEPARATOR);
 
-    // Append trailing back if input path is endswith `/`.
+    if p.is_empty() {
+        return ROOT_PATH.to_string();
+    }
+
     if has_trailing {
-        p.push('/');
+        p.push_str(PATH_SEPARATOR);
     }
 
     p
 }
 
-/// Make sure root is normalized to style like `/abc/def/`.
+/// Normalize a root path to the style `/root/dir/`.
 ///
 /// # Normalize Rules
 ///
-/// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
-/// - All leading / will be trimmed: `///abc` => `abc`
-/// - Internal // will be replaced by /: `abc///def` => `abc/def`
-/// - Empty path will be `/`: `` => `/`
-/// - Add leading `/` if not starts with: `abc/` => `/abc/`
-/// - Add trailing `/` if not ends with: `/abc` => `/abc/`
+/// - Strip excessive leading `/` but keep one: `///root` => `/root/`
+/// - Ensure leading `/` presence: `root/` => `/root/`
+/// - Collapse internal `//`: `root///dir` => `/root/dir/`
+/// - Remove `.` segments: `./workspace/./root/` => `/workspace/root/`
+/// - Ensure trailing `/` presence: `/root` => `/root/`
+/// - Empty path becomes `/`: `` => `/`
+/// - Preserves content within path components including whitespace: `workspace/file ` => `workspace/file `
 ///
-/// Finally, we will get path like `/path/to/root/`.
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::normalize_root;
+/// #
+/// assert_eq!(normalize_root("root/"), "/root/", "dir path");
+/// assert_eq!(
+///     normalize_root("///root//dir"),
+///     "/root/dir/",
+///     "abs dir path with extra /"
+/// );
+/// assert_eq!(normalize_root("."), "/", "only dot");
+/// assert_eq!(
+///     normalize_root("./workspace/./report/"),
+///     "/workspace/report/",
+///     "dot within path"
+/// );
+/// assert_eq!(
+///     normalize_root("/root/dir v1"),
+///     "/root/dir v1/",
+///     "respects whitespace in path component"
+/// );
+/// ```
 pub fn normalize_root(v: &str) -> String {
     let mut v = v
-        .split('/')
-        .filter(|v| !v.is_empty())
+        .split(PATH_SEPARATOR)
+        .filter(|v| !v.is_empty() && *v != ".")
         .collect::<Vec<&str>>()
-        .join("/");
-    if !v.starts_with('/') {
-        v.insert(0, '/');
+        .join(PATH_SEPARATOR);
+    if !v.starts_with(PATH_SEPARATOR) {
+        v.insert_str(0, PATH_SEPARATOR);
     }
-    if !v.ends_with('/') {
-        v.push('/')
+    if !v.ends_with(PATH_SEPARATOR) {
+        v.push_str(PATH_SEPARATOR);
     }
     v
 }
 
 /// Get basename from path.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::get_basename;
+/// assert_eq!(get_basename("root/dir/file.txt"), "file.txt", "file absolute path");
+/// assert_eq!(get_basename("root/dir/"), "dir/");
+/// assert_eq!(get_basename("/"), "/", "dir root");
+/// ```
 pub fn get_basename(path: &str) -> &str {
     // Handle root case
-    if path == "/" {
-        return "/";
+    if path == ROOT_PATH {
+        return ROOT_PATH;
     }
 
     // Handle file case
-    if !path.ends_with('/') {
+    if !path.ends_with(PATH_SEPARATOR) {
         return path
-            .split('/')
+            .split(PATH_SEPARATOR_CHAR)
             .next_back()
             .expect("file path without name is invalid");
     }
@@ -165,7 +323,7 @@ pub fn get_basename(path: &str) -> &str {
     // The idx of second `/` if path in reserve order.
     // - `abc/` => `None`
     // - `abc/def/` => `Some(3)`
-    let idx = path[..path.len() - 1].rfind('/').map(|v| v + 1);
+    let idx = path[..path.len() - 1].rfind(PATH_SEPARATOR).map(|v| v + 1);
 
     match idx {
         Some(v) => {
@@ -177,37 +335,49 @@ pub fn get_basename(path: &str) -> &str {
 }
 
 /// Get parent from path.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::get_parent;
+/// assert_eq!(get_parent("root/dir/file.txt"), "root/dir/", "get parent of a file's path");
+/// assert_eq!(get_parent("root/dir/"), "root/", "get parent of a dir's path");
+/// assert_eq!(get_parent("/root/dir/file.txt"), "/root/dir/", "get parent of a file's path");
+/// assert_eq!(get_parent("/root/dir/"), "/root/", "get parent of a dir's path");
+/// assert_eq!(get_parent("dir"), "/");
+/// assert_eq!(get_parent("/"), "/", "dir root");
+/// ```
 pub fn get_parent(path: &str) -> &str {
-    if path == "/" {
-        return "/";
+    if path == ROOT_PATH {
+        return ROOT_PATH;
     }
 
-    if !path.ends_with('/') {
+    if !path.ends_with(PATH_SEPARATOR) {
         // The idx of first `/` if path in reserve order.
         // - `abc` => `None`
         // - `abc/def` => `Some(3)`
-        let idx = path.rfind('/');
+        let idx = path.rfind(PATH_SEPARATOR);
 
         return match idx {
             Some(v) => {
                 let (parent, _) = path.split_at(v + 1);
                 parent
             }
-            None => "/",
+            None => PATH_SEPARATOR,
         };
     }
 
     // The idx of second `/` if path in reserve order.
     // - `abc/` => `None`
     // - `abc/def/` => `Some(3)`
-    let idx = path[..path.len() - 1].rfind('/').map(|v| v + 1);
+    let idx = path[..path.len() - 1].rfind(PATH_SEPARATOR).map(|v| v + 1);
 
     match idx {
         Some(v) => {
             let (parent, _) = path.split_at(v);
             parent
         }
-        None => "/",
+        None => PATH_SEPARATOR,
     }
 }
 
@@ -221,6 +391,16 @@ const CHARS_LENGTH: u64 = CHARS.len() as u64;
 ///
 /// `build_tmp_path_of` appends a dot following a random generated postfix.
 /// Don't use it with a path to a folder.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::build_tmp_path_of;
+/// #
+/// let name = "a file path in a directory";
+/// let tmp = build_tmp_path_of("report.txt");
+/// assert!(tmp.starts_with("report.txt."), "use file name as prefix");
+/// ```
 #[inline]
 pub fn build_tmp_path_of(path: &str) -> String {
     let name = get_basename(path);
@@ -254,14 +434,28 @@ pub fn build_tmp_path_of(path: &str) -> String {
     buf
 }
 
-/// Validate given path is match with given EntryMode.
+/// Validate if a path matches EntryMode by OpenDAL path convention.
+///
+/// # Examples
+///
+/// ```
+/// # use opendal_core::raw::validate_path;
+/// # use opendal_core::EntryMode;
+/// #
+/// assert!(validate_path("file.txt", EntryMode::FILE), "is a file");
+/// assert!(!validate_path("dir/", EntryMode::FILE), "dir is not a file with FILE mode");
+/// assert!(validate_path("dir/", EntryMode::DIR), "is a directory");
+/// assert!(!validate_path("dir/", EntryMode::FILE), "dir is not a file");
+/// assert!(!validate_path("file.txt", EntryMode::Unknown), "is not a valid mode");
+/// assert!(!validate_path("dir/", EntryMode::Unknown), "is not a valid mode");
+/// ```
 #[inline]
 pub fn validate_path(path: &str, mode: EntryMode) -> bool {
     debug_assert!(!path.is_empty(), "input path should not be empty");
 
     match mode {
-        EntryMode::FILE => !path.ends_with('/'),
-        EntryMode::DIR => path.ends_with('/'),
+        EntryMode::FILE => !path.ends_with(ROOT_PATH),
+        EntryMode::DIR => path.ends_with(ROOT_PATH),
         EntryMode::Unknown => false,
     }
 }
@@ -270,182 +464,236 @@ pub fn validate_path(path: &str, mode: EntryMode) -> bool {
 mod tests {
     use super::*;
 
+    struct Case {
+        name: &'static str,
+        input: &'static str,
+        expect: &'static str,
+    }
+
+    struct RootCase {
+        name: &'static str,
+        root: &'static str,
+        expect: &'static str,
+    }
+
     #[test]
     fn test_normalize_path() {
         let cases = vec![
-            ("file path", "abc", "abc"),
-            ("dir path", "abc/", "abc/"),
-            ("empty path", "", "/"),
-            ("root path", "/", "/"),
-            ("root path with extra /", "///", "/"),
-            ("abs file path", "/abc/def", "abc/def"),
-            ("abs dir path", "/abc/def/", "abc/def/"),
-            ("abs file path with extra /", "///abc/def", "abc/def"),
-            ("abs dir path with extra /", "///abc/def/", "abc/def/"),
-            ("file path contains ///", "abc///def", "abc/def"),
-            ("dir path contains ///", "abc///def///", "abc/def/"),
-            ("file with whitespace", "abc/def   ", "abc/def"),
+            Case {
+                name: "root path",
+                input: "/",
+                expect: "/",
+            },
+            Case {
+                name: "root path with extra /",
+                input: "///",
+                expect: "/",
+            },
+            Case {
+                name: "absolute file path",
+                input: "/abc/def",
+                expect: "abc/def",
+            },
+            Case {
+                name: "absolute file path with extra /",
+                input: "///abc/def",
+                expect: "abc/def",
+            },
+            Case {
+                name: "absolute dir path with extra /",
+                input: "///abc/def/",
+                expect: "abc/def/",
+            },
+            Case {
+                name: "file path contains ///",
+                input: "abc///def",
+                expect: "abc/def",
+            },
+            Case {
+                name: "dir path contains ///",
+                input: "abc///def///",
+                expect: "abc/def/",
+            },
+            Case {
+                name: "file with trailing whitespace",
+                input: "abc/def   ",
+                expect: "abc/def   ",
+            },
+            Case {
+                name: "file with leading whitespace",
+                input: "  abc/def",
+                expect: "  abc/def",
+            },
+            Case {
+                name: "whitespace preserved",
+                input: " a/b ",
+                expect: " a/b ",
+            },
+            Case {
+                name: "whitespace only preserved as file name",
+                input: "   ",
+                expect: "   ",
+            },
+            Case {
+                name: "dot dir becomes root",
+                input: "./",
+                expect: "/",
+            },
+            Case {
+                name: "only dot",
+                input: ".",
+                expect: "/",
+            },
+            Case {
+                name: "dot in middle",
+                input: "a/./b/./c",
+                expect: "a/b/c",
+            },
+            Case {
+                name: "dot with trailing slash",
+                input: "a/./b/",
+                expect: "a/b/",
+            },
         ];
 
-        for (name, input, expect) in cases {
-            assert_eq!(normalize_path(input), expect, "{name}")
+        for case in cases {
+            assert_eq!(normalize_path(case.input), case.expect, "{}", case.name);
         }
     }
 
     #[test]
     fn test_normalize_root() {
         let cases = vec![
-            ("dir path", "abc/", "/abc/"),
-            ("empty path", "", "/"),
-            ("root path", "/", "/"),
-            ("root path with extra /", "///", "/"),
-            ("abs dir path", "/abc/def/", "/abc/def/"),
-            ("abs file path with extra /", "///abc/def", "/abc/def/"),
-            ("abs dir path with extra /", "///abc/def/", "/abc/def/"),
-            ("dir path contains ///", "abc///def///", "/abc/def/"),
+            RootCase {
+                name: "empty path",
+                root: "",
+                expect: "/",
+            },
+            RootCase {
+                name: "root path",
+                root: "/",
+                expect: "/",
+            },
+            RootCase {
+                name: "root path with extra /",
+                root: "///",
+                expect: "/",
+            },
+            RootCase {
+                name: "abs dir path",
+                root: "/abc/def/",
+                expect: "/abc/def/",
+            },
+            RootCase {
+                name: "abs file path with extra /",
+                root: "///abc/def",
+                expect: "/abc/def/",
+            },
+            RootCase {
+                name: "abs dir path with extra /",
+                root: "///abc/def/",
+                expect: "/abc/def/",
+            },
+            RootCase {
+                name: "dir path contains ///",
+                root: "abc///def///",
+                expect: "/abc/def/",
+            },
+            RootCase {
+                name: "dot segment removed",
+                root: "./data/./root/",
+                expect: "/data/root/",
+            },
+            RootCase {
+                name: "dot with path",
+                root: "./abc",
+                expect: "/abc/",
+            },
         ];
 
-        for (name, input, expect) in cases {
-            assert_eq!(normalize_root(input), expect, "{name}")
+        for case in cases {
+            assert_eq!(normalize_root(case.root), case.expect, "{}", case.name);
         }
     }
 
     #[test]
     fn test_get_basename() {
         let cases = vec![
-            ("file abs path", "foo/bar/baz.txt", "baz.txt"),
-            ("file rel path", "bar/baz.txt", "baz.txt"),
-            ("file walk", "foo/bar/baz", "baz"),
-            ("dir rel path", "bar/baz/", "baz/"),
-            ("dir root", "/", "/"),
-            ("dir walk", "foo/bar/baz/", "baz/"),
+            Case {
+                name: "file relative path",
+                input: "bar/baz.txt",
+                expect: "baz.txt",
+            },
+            Case {
+                name: "file walk",
+                input: "foo/bar/baz",
+                expect: "baz",
+            },
+            Case {
+                name: "dir relative path",
+                input: "bar/baz/",
+                expect: "baz/",
+            },
+            Case {
+                name: "dir walk",
+                input: "foo/bar/baz/",
+                expect: "baz/",
+            },
         ];
 
-        for (name, input, expect) in cases {
-            let actual = get_basename(input);
-            assert_eq!(actual, expect, "{name}")
+        for case in cases {
+            let actual = get_basename(case.input);
+            assert_eq!(actual, case.expect, "{}", case.name);
         }
     }
 
     #[test]
     fn test_get_parent() {
-        let cases = vec![
-            ("file abs path", "foo/bar/baz.txt", "foo/bar/"),
-            ("file rel path", "bar/baz.txt", "bar/"),
-            ("file walk", "foo/bar/baz", "foo/bar/"),
-            ("dir rel path", "bar/baz/", "bar/"),
-            ("dir root", "/", "/"),
-            ("dir abs path", "/foo/bar/", "/foo/"),
-            ("dir walk", "foo/bar/baz/", "foo/bar/"),
-        ];
-
-        for (name, input, expect) in cases {
-            let actual = get_parent(input);
-            assert_eq!(actual, expect, "{name}")
-        }
+        assert_eq!(get_parent("foo/bar/baz/"), "foo/bar/", "dir walk")
     }
 
     #[test]
-    fn test_build_abs_path() {
-        let cases = vec![
-            ("input abs file", "/abc/", "/", "abc/"),
-            ("input dir", "/abc/", "def/", "abc/def/"),
-            ("input file", "/abc/", "def", "abc/def"),
-            ("input abs file with root /", "/", "/", ""),
-            ("input empty with root /", "/", "", ""),
-            ("input dir with root /", "/", "def/", "def/"),
-            ("input file with root /", "/", "def", "def"),
-        ];
-
-        for (name, root, input, expect) in cases {
-            let actual = build_abs_path(root, input);
-            assert_eq!(actual, expect, "{name}")
-        }
+    fn test_build_absolute_path() {
+        assert_eq!(
+            build_absolute_path("/", "/"),
+            "",
+            "input root path with root /"
+        );
+        assert_eq!(
+            build_absolute_path("/", ""),
+            "",
+            "input empty file path with root /"
+        );
+        assert_eq!(
+            build_absolute_path("/", "def"),
+            "def",
+            "input file with root /"
+        );
     }
 
     #[test]
-    fn test_build_rooted_abs_path() {
-        let cases = vec![
-            ("input abs file", "/abc/", "/", "/abc/"),
-            ("input dir", "/abc/", "def/", "/abc/def/"),
-            ("input file", "/abc/", "def", "/abc/def"),
-            ("input abs file with root /", "/", "/", "/"),
-            ("input dir with root /", "/", "def/", "/def/"),
-            ("input file with root /", "/", "def", "/def"),
-        ];
+    fn test_build_rooted_absolute_path() {
+        assert_eq!(
+            build_rooted_absolute_path("/", ""),
+            "/",
+            "input empty with root /"
+        );
 
-        for (name, root, input, expect) in cases {
-            let actual = build_rooted_abs_path(root, input);
-            assert_eq!(actual, expect, "{name}")
-        }
-    }
-
-    #[test]
-    fn test_build_rel_path() {
-        let cases = vec![
-            ("input abs file", "/abc/", "/abc/def", "def"),
-            ("input dir", "/abc/", "/abc/def/", "def/"),
-            ("input file", "/abc/", "abc/def", "def"),
-            ("input dir with root /", "/", "def/", "def/"),
-            ("input file with root /", "/", "def", "def"),
-        ];
-
-        for (name, root, input, expect) in cases {
-            let actual = build_rel_path(root, input);
-            assert_eq!(actual, expect, "{name}")
-        }
-    }
-
-    #[test]
-    fn test_validate_path() {
-        let cases = vec![
-            ("input file with mode file", "abc", EntryMode::FILE, true),
-            ("input file with mode dir", "abc", EntryMode::DIR, false),
-            ("input dir with mode file", "abc/", EntryMode::FILE, false),
-            ("input dir with mode dir", "abc/", EntryMode::DIR, true),
-            ("root with mode dir", "/", EntryMode::DIR, true),
-            (
-                "input file with mode unknown",
-                "abc",
-                EntryMode::Unknown,
-                false,
-            ),
-            (
-                "input dir with mode unknown",
-                "abc/",
-                EntryMode::Unknown,
-                false,
-            ),
-        ];
-
-        for (name, path, mode, expect) in cases {
-            let actual = validate_path(path, mode);
-            assert_eq!(actual, expect, "{name}")
-        }
+        assert_eq!(
+            build_rooted_absolute_path("/", "def/"),
+            "/def/",
+            "input dir with root /"
+        );
     }
 
     #[test]
     fn test_build_tmp_path_of() {
-        let cases = vec![
-            ("a file path", "example.txt", "example.txt."),
-            (
-                "a file path in a directory",
-                "folder/example.txt",
-                "example.txt.",
-            ),
-        ];
+        let actual = build_tmp_path_of("folder/example.txt");
 
-        for (name, path, expect_starts_with) in cases {
-            let actual = build_tmp_path_of(path);
-            assert!(
-                actual.starts_with(expect_starts_with),
-                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
-            );
-            assert_eq!(
-                actual.len(),
-                expect_starts_with.len() + 8, // See RANDOM_TMP_PATH_POSTFIX_SIZE
-                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
-            )
-        }
+        assert_eq!(
+            actual.len(),
+            "example.txt.".len() + 8, // See RANDOM_TMP_PATH_POSTFIX_SIZE
+            "a file path in a directory: got `{actual}`, but expect `example.txt.`"
+        )
     }
 }

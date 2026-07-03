@@ -42,7 +42,7 @@ impl SledLister {
 impl oio::List for SledLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if let Some((key, value_len)) = self.iter.next() {
-            let path = build_rel_path(&self.root, &key);
+            let path = build_relative_path(&self.root, &key);
 
             // Determine if it's a file or directory based on trailing slash
             let mode = if key.ends_with('/') {

@@ -20,7 +20,7 @@ use std::vec::IntoIter;
 
 use super::core::EtcdCore;
 use opendal_core::raw::oio::Entry;
-use opendal_core::raw::{build_abs_path, build_rel_path, oio};
+use opendal_core::raw::{build_absolute_path, build_relative_path, oio};
 use opendal_core::*;
 
 pub struct EtcdLister {
@@ -31,7 +31,7 @@ pub struct EtcdLister {
 
 impl EtcdLister {
     pub async fn new(core: Arc<EtcdCore>, root: String, path: String) -> Result<Self> {
-        let abs_path = build_abs_path(&root, &path);
+        let abs_path = build_absolute_path(&root, &path);
 
         // Get all keys with the specified prefix
         let mut client = core.conn().await?;
@@ -67,7 +67,7 @@ impl oio::List for EtcdLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
         for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_rel_path(&self.root, &key);
+                let path = build_relative_path(&self.root, &key);
 
                 let entry = Entry::new(&path, Metadata::new(EntryMode::from_path(&key)));
                 return Ok(Some(entry));

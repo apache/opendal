@@ -68,7 +68,7 @@ impl YandexDiskCore {
 impl YandexDiskCore {
     /// Get upload url.
     async fn get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources/upload?path={}&overwrite=true",
@@ -120,7 +120,7 @@ impl YandexDiskCore {
     }
 
     async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources/download?path={}&overwrite=true",
@@ -173,7 +173,7 @@ impl YandexDiskCore {
     }
 
     pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
@@ -217,8 +217,8 @@ impl YandexDiskCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_rooted_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_rooted_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources/copy?from={}&path={}&overwrite=true",
@@ -246,8 +246,8 @@ impl YandexDiskCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_rooted_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_rooted_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources/move?from={}&path={}&overwrite=true",
@@ -270,7 +270,7 @@ impl YandexDiskCore {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path={}&permanently=true",
@@ -298,7 +298,7 @@ impl YandexDiskCore {
         limit: Option<usize>,
         offset: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://cloud-api.yandex.net/v1/disk/resources?path={}",

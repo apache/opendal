@@ -53,7 +53,7 @@ impl oio::PageList for GithubLister {
 
         if !self.recursive || !has_dir {
             for entry in resp.entries {
-                let path = build_rel_path(&self.core.root, &entry.path);
+                let path = build_relative_path(&self.core.root, &entry.path);
                 let entry = if entry.type_field == "dir" {
                     let path = format!("{path}/");
                     Entry::new(&path, Metadata::new(EntryMode::DIR))

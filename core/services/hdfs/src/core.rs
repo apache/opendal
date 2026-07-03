@@ -43,13 +43,13 @@ impl Debug for HdfsCore {
 
 impl HdfsCore {
     pub fn hdfs_create_dir(&self, path: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
         self.client.create_dir(&p).map_err(new_std_io_error)?;
         Ok(())
     }
 
     pub fn hdfs_stat(&self, path: &str) -> Result<Metadata> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
         let meta = self.client.metadata(&p).map_err(new_std_io_error)?;
 
         let mode = if meta.is_dir() {
@@ -67,7 +67,7 @@ impl HdfsCore {
     }
 
     pub async fn hdfs_open(&self, path: &str) -> Result<hdrs::File> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let client = self.client.clone();
         let f = tokio::task::spawn_blocking(move || client.open_file().read(true).open(&p))
@@ -83,7 +83,7 @@ impl HdfsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<(String, Option<String>, hdrs::AsyncFile, bool, u64)> {
-        let target_path = build_rooted_abs_path(&self.root, path);
+        let target_path = build_rooted_absolute_path(&self.root, path);
         let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
             Ok(meta) => {
@@ -101,7 +101,7 @@ impl HdfsCore {
         let should_append = op.append() && target_exists;
         let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
             // If the target file exists, we should append to the end of it directly.
-            (!should_append).then_some(build_rooted_abs_path(
+            (!should_append).then_some(build_rooted_absolute_path(
                 atomic_write_dir,
                 &build_tmp_path_of(path),
             ))
@@ -132,7 +132,7 @@ impl HdfsCore {
     }
 
     pub fn hdfs_list(&self, path: &str) -> Result<Option<hdrs::Readdir>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         match self.client.read_dir(&p) {
             Ok(f) => Ok(Some(f)),
@@ -147,10 +147,10 @@ impl HdfsCore {
     }
 
     pub fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
-        let from_path = build_rooted_abs_path(&self.root, from);
+        let from_path = build_rooted_absolute_path(&self.root, from);
         self.client.metadata(&from_path).map_err(new_std_io_error)?;
 
-        let to_path = build_rooted_abs_path(&self.root, to);
+        let to_path = build_rooted_absolute_path(&self.root, to);
         let result = self.client.metadata(&to_path);
         match result {
             Err(err) => {

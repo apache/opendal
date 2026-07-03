@@ -112,7 +112,7 @@ impl oio::PageList for LakefsLister {
             };
 
             ctx.entries.push_back(oio::Entry::new(
-                &build_rel_path(&self.core.root, &path),
+                &build_relative_path(&self.core.root, &path),
                 meta,
             ));
         }

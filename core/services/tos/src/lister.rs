@@ -89,7 +89,7 @@ impl oio::PageList for TosLister {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix.prefix),
+                &build_relative_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -97,7 +97,7 @@ impl oio::PageList for TosLister {
         }
 
         for object in output.contents {
-            let mut path = build_rel_path(&self.core.root, &object.key);
+            let mut path = build_relative_path(&self.core.root, &object.key);
             if path.is_empty() {
                 path = "/".to_string();
             }
@@ -135,7 +135,7 @@ impl TosObjectVersionsLister {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
-            .map(|start_after| build_abs_path(&core.root, start_after));
+            .map(|start_after| build_absolute_path(&core.root, start_after));
 
         Self {
             core,
@@ -192,7 +192,7 @@ impl oio::PageList for TosObjectVersionsLister {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix.prefix),
+                &build_relative_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -204,7 +204,7 @@ impl oio::PageList for TosObjectVersionsLister {
                 continue;
             }
 
-            let mut path = build_rel_path(&self.core.root, &version_object.key);
+            let mut path = build_relative_path(&self.core.root, &version_object.key);
             if path.is_empty() {
                 path = "/".to_string();
             }
@@ -226,7 +226,7 @@ impl oio::PageList for TosObjectVersionsLister {
 
         if self.args.deleted() {
             for delete_marker in output.delete_markers {
-                let mut path = build_rel_path(&self.core.root, &delete_marker.key);
+                let mut path = build_relative_path(&self.core.root, &delete_marker.key);
                 if path.is_empty() {
                     path = "/".to_string();
                 }

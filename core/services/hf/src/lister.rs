@@ -141,7 +141,7 @@ impl oio::PageList for HfLister {
             } else {
                 info.path.clone()
             };
-            let rel_path = build_rel_path(&self.core.root, &path);
+            let rel_path = build_relative_path(&self.core.root, &path);
 
             // Filter by prefix when doing prefix-based listing.
             if let Some(prefix) = &self.prefix {

@@ -103,7 +103,7 @@ impl AzfileCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -134,7 +134,7 @@ impl AzfileCore {
         size: usize,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
         let url = format!(
@@ -187,7 +187,7 @@ impl AzfileCore {
         position: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -223,7 +223,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -247,7 +247,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?restype=directory",
@@ -273,11 +273,11 @@ impl AzfileCore {
         path: &str,
         new_path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
-        let new_p = build_abs_path(&self.root, new_path)
+        let new_p = build_absolute_path(&self.root, new_path)
             .trim_start_matches('/')
             .to_string();
 
@@ -331,7 +331,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -360,7 +360,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -387,7 +387,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -416,7 +416,7 @@ impl AzfileCore {
         limit: &Option<usize>,
         continuation: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 

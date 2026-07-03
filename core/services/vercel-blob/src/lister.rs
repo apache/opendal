@@ -50,7 +50,7 @@ impl VercelBlobLister {
 
 impl oio::PageList for VercelBlobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let p = build_abs_path(&self.core.root, &self.path);
+        let p = build_absolute_path(&self.core.root, &self.path);
 
         let resp = self.core.list(&self.ctx, &p, self.limit).await?;
 
@@ -61,7 +61,7 @@ impl oio::PageList for VercelBlobLister {
         }
 
         for blob in resp.blobs {
-            let path = build_rel_path(&self.core.root, &blob.pathname);
+            let path = build_relative_path(&self.core.root, &blob.pathname);
 
             if path == self.path {
                 continue;

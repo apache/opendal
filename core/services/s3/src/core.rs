@@ -389,7 +389,7 @@ impl S3Core {
 
 impl S3Core {
     pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -464,7 +464,7 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // Construct headers to add to the request
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -560,7 +560,7 @@ impl S3Core {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -599,7 +599,7 @@ impl S3Core {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
         let mut req = Request::put(&url);
 
@@ -652,7 +652,7 @@ impl S3Core {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -692,8 +692,8 @@ impl S3Core {
         to: &str,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = args.source_version() {
@@ -779,7 +779,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
@@ -820,7 +820,7 @@ impl S3Core {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("list-type", "2");
@@ -869,7 +869,7 @@ impl S3Core {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -941,7 +941,7 @@ impl S3Core {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -976,8 +976,8 @@ impl S3Core {
         &self,
         input: S3UploadPartCopyRequest<'_>,
     ) -> Result<Request<Buffer>> {
-        let from = build_abs_path(&self.root, input.from);
-        let to = build_abs_path(&self.root, input.to);
+        let from = build_absolute_path(&self.root, input.from);
+        let to = build_absolute_path(&self.root, input.to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = input.source_version {
@@ -1063,7 +1063,7 @@ impl S3Core {
         body: Buffer,
         checksum: Option<String>,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -1107,7 +1107,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1159,7 +1159,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1206,7 +1206,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1237,7 +1237,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1274,7 +1274,7 @@ impl S3Core {
             object: paths
                 .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, path),
+                    key: build_absolute_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -1312,7 +1312,7 @@ impl S3Core {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = format!("{}?versions", self.endpoint);
         if !p.is_empty() {

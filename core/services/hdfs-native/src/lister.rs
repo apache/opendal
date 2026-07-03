@@ -59,7 +59,7 @@ impl oio::List for HdfsNativeLister {
 
         match self.iter.next().await {
             Some(Ok(status)) => {
-                let path = build_rel_path(&self.root, &status.path);
+                let path = build_relative_path(&self.root, &status.path);
 
                 let entry = if status.isdir {
                     oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))

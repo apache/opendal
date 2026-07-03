@@ -64,7 +64,7 @@ impl PcloudCore {
 
 impl PcloudCore {
     pub async fn get_file_link(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/getfilelink?path=/{}&username={}&password={}",
@@ -132,7 +132,7 @@ impl PcloudCore {
     }
 
     pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
@@ -196,8 +196,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/renamefile?path=/{}&topath=/{}&username={}&password={}",
@@ -226,8 +226,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
         let url = format!(
             "{}/renamefolder?path=/{}&topath=/{}&username={}&password={}",
             self.endpoint,
@@ -254,7 +254,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/deletefolder?path=/{}&username={}&password={}",
@@ -281,7 +281,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/deletefile?path=/{}&username={}&password={}",
@@ -309,8 +309,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/copyfile?path=/{}&topath=/{}&username={}&password={}",
@@ -339,8 +339,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/copyfolder?path=/{}&topath=/{}&username={}&password={}",
@@ -364,7 +364,7 @@ impl PcloudCore {
     }
 
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let path = path.trim_end_matches('/');
 
@@ -394,7 +394,7 @@ impl PcloudCore {
         path: &str,
         bs: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
 
@@ -424,7 +424,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let path = normalize_root(&path);
 

@@ -159,7 +159,7 @@ impl KoofrCore {
     pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let mut dirs = VecDeque::default();
 
-        let mut p = build_abs_path(&self.root, path);
+        let mut p = build_absolute_path(&self.root, path);
 
         while p != "/" {
             let parent = get_parent(&p).to_string();
@@ -256,7 +256,7 @@ impl KoofrCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let mount_id = self.get_mount_id(ctx).await?;
 
@@ -286,7 +286,7 @@ impl KoofrCore {
         path: &str,
         bs: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let filename = get_basename(&path);
         let parent = get_parent(&path);
@@ -326,7 +326,7 @@ impl KoofrCore {
     }
 
     pub async fn remove(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let mount_id = self.get_mount_id(ctx).await?;
 
@@ -356,8 +356,8 @@ impl KoofrCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_rooted_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_rooted_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let mount_id = self.get_mount_id(ctx).await?;
 
@@ -395,8 +395,8 @@ impl KoofrCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_rooted_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_rooted_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let mount_id = self.get_mount_id(ctx).await?;
 
@@ -429,7 +429,7 @@ impl KoofrCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let mount_id = self.get_mount_id(ctx).await?;
 

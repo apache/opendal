@@ -36,7 +36,7 @@ jobs:
   check_docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -58,7 +58,7 @@ jobs:
   check_clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -83,7 +83,7 @@ jobs:
       # OpenDAL's MSRV is 1.85.
       OPENDAL_MSRV: "1.85"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup msrv of rust
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
@@ -101,7 +101,7 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -113,7 +113,7 @@ jobs:
   run_examples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -127,7 +127,7 @@ jobs:
   build_all_features:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -158,7 +158,7 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -232,7 +232,7 @@ jobs:
   build_under_wasm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -267,7 +267,7 @@ jobs:
 
           sudo docker image prune --all --force
           sudo docker builder prune -a
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -312,7 +312,7 @@ jobs:
 
           sudo docker image prune --all --force
           sudo docker builder prune -a
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:

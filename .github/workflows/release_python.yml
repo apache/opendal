@@ -39,7 +39,7 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
@@ -66,7 +66,7 @@ jobs:
           - { os: ubuntu-latest, target: "aarch64-unknown-linux-musl", manylinux: "musllinux_1_1" }
           - { os: ubuntu-latest, target: "armv7-unknown-linux-musleabihf", manylinux: "musllinux_1_1" }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1

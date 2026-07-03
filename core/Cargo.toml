@@ -96,17 +96,17 @@ default = [
 executors-tokio = ["opendal-core/executors-tokio"]
 # Use reqwest with platform TLS via native-tls.
 http-transport-reqwest-native-tls = [
-  "http-transport-reqwest",
+  "dep:opendal-http-transport-reqwest",
   "opendal-http-transport-reqwest/native-tls",
 ]
 # Use reqwest with Rustls, with default aws-lc-rs crypto provider.
 http-transport-reqwest-rustls = [
-  "http-transport-reqwest",
+  "dep:opendal-http-transport-reqwest",
   "opendal-http-transport-reqwest/rustls",
 ]
 # Use reqwest with Rustls and no built-in crypto provider.
 http-transport-reqwest-rustls-no-provider = [
-  "http-transport-reqwest",
+  "dep:opendal-http-transport-reqwest",
   "opendal-http-transport-reqwest/rustls-no-provider",
 ]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]

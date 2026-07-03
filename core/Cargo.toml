@@ -86,7 +86,7 @@ auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
-  "http-transport-reqwest-rustls",
+  "http-transport-reqwest",
   "executors-tokio",
   "layers-concurrent-limit",
   "layers-logging",

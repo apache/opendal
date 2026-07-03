@@ -349,10 +349,10 @@ impl Service for CosBackend {
                     meta = meta.with_user_metadata(user_meta);
                 }
 
-                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
-                    if v != "null" {
-                        meta.set_version(v);
-                    }
+                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
+                    && v != "null"
+                {
+                    meta.set_version(v);
                 }
 
                 Ok(RpStat::new(meta))

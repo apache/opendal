@@ -212,15 +212,14 @@ impl GdriveCore {
                 }
                 if let Some(tombstone_expires_at) =
                     lookup_recent_tombstone(&recent_entries.tombstones, path)
+                    && tombstone_expires_at > entry.expires_at
                 {
-                    if tombstone_expires_at > entry.expires_at {
-                        return None;
-                    }
+                    return None;
                 }
-                if let Some(latest_entry) = lookup_recent_entry(&recent_entries.entries, path) {
-                    if latest_entry.expires_at > entry.expires_at {
-                        return None;
-                    }
+                if let Some(latest_entry) = lookup_recent_entry(&recent_entries.entries, path)
+                    && latest_entry.expires_at > entry.expires_at
+                {
+                    return None;
                 }
                 if recent_entry_in_scope(scope_path, path, metadata.mode(), recursive) {
                     Some((path.clone(), metadata))

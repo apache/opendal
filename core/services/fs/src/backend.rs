@@ -79,31 +79,30 @@ impl Builder for FsBuilder {
         debug!("backend use root {}", root.to_string_lossy());
 
         // If root dir is not exist, we must create it.
-        if let Err(e) = std::fs::metadata(&root) {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "create root dir failed")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy())
-                        .set_source(e)
-                })?;
-            }
+        if let Err(e) = std::fs::metadata(&root)
+            && e.kind() == std::io::ErrorKind::NotFound
+        {
+            std::fs::create_dir_all(&root).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "create root dir failed")
+                    .with_operation("Builder::build")
+                    .with_context("root", root.to_string_lossy())
+                    .set_source(e)
+            })?;
         }
 
         let atomic_write_dir = self.config.atomic_write_dir.map(PathBuf::from);
 
         // If atomic write dir is not exist, we must create it.
-        if let Some(d) = &atomic_write_dir {
-            if let Err(e) = std::fs::metadata(d) {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    std::fs::create_dir_all(d).map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
-                            .with_operation("Builder::build")
-                            .with_context("atomic_write_dir", d.to_string_lossy())
-                            .set_source(e)
-                    })?;
-                }
-            }
+        if let Some(d) = &atomic_write_dir
+            && let Err(e) = std::fs::metadata(d)
+            && e.kind() == std::io::ErrorKind::NotFound
+        {
+            std::fs::create_dir_all(d).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
+                    .with_operation("Builder::build")
+                    .with_context("atomic_write_dir", d.to_string_lossy())
+                    .set_source(e)
+            })?;
         }
 
         // Canonicalize the root directory. This should work since we already know that we can

@@ -307,10 +307,10 @@ impl HfCore {
 
     fn xet_token_refresh_headers(&self) -> http::HeaderMap {
         let mut headers = http::HeaderMap::new();
-        if let Some(token) = &self.token {
-            if let Ok(val) = format!("Bearer {}", token).parse() {
-                headers.insert(header::AUTHORIZATION, val);
-            }
+        if let Some(token) = &self.token
+            && let Ok(val) = format!("Bearer {}", token).parse()
+        {
+            headers.insert(header::AUTHORIZATION, val);
         }
         headers
     }

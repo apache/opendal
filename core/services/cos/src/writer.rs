@@ -60,10 +60,10 @@ impl CosWriter {
         if let Some(md5) = parse_content_md5(headers)? {
             meta.set_content_md5(md5);
         }
-        if let Some(version) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
-            if version != "null" {
-                meta.set_version(version);
-            }
+        if let Some(version) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
+            && version != "null"
+        {
+            meta.set_version(version);
         }
 
         Ok(meta)

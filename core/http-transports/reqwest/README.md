@@ -133,11 +133,12 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
 }
 ```
 
-### Rustls no provider with WebPKI roots
+### rustls-no-provider + webpki-roots
 
 Use `rustls-no-provider` when the application owns the Rustls provider and
-certificate roots. This example uses `ring` for crypto and `webpki-roots` for
-Mozilla roots.
+certificate roots. This example only configures Mozilla roots from
+`webpki-roots`; install or configure the Rustls crypto provider in application
+startup.
 
 ```toml
 [dependencies]
@@ -148,7 +149,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
     "rustls-no-provider",
     "stream",
 ] }
-rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "1"
 ```
 
@@ -160,10 +161,7 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
     let root_store =
         rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-    let tls_config = rustls::ClientConfig::builder_with_provider(
-            rustls::crypto::ring::default_provider().into(),
-        )
-        .with_safe_default_protocol_versions()?
+    let tls_config = rustls::ClientConfig::builder()
         .with_root_certificates(root_store)
         .with_no_client_auth();
 

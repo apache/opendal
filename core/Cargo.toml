@@ -139,7 +139,10 @@ layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
 # Deprecated since 0.58; Will delete in 0.59.
-reqwest-rustls-no-provider-tls = ["http-transport-reqwest", "http-transport-reqwest-rustls-no-provider"]
+reqwest-rustls-no-provider-tls = [
+  "http-transport-reqwest",
+  "http-transport-reqwest-rustls-no-provider",
+]
 # Deprecated since 0.58; Will delete in 0.59.
 reqwest-rustls-tls = ["http-transport-reqwest", "http-transport-reqwest-rustls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]

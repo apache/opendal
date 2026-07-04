@@ -104,6 +104,27 @@ impl D1Core {
         }
     }
 
+    pub async fn get_length(&self, ctx: &OperationContext, path: &str) -> Result<Option<usize>> {
+        let query = format!(
+            "SELECT LENGTH(CAST({} AS BLOB)) AS content_length FROM {} WHERE {} = ? LIMIT 1",
+            self.value_field, self.table, self.key_field
+        );
+        let req =
+            self.create_d1_query_request(&query, vec![path.into()], Operation::Stat, "Stat")?;
+
+        let resp = ctx.http_transport().send(req).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let body = resp.into_body();
+                let bs = body.to_bytes();
+                let d1_response = D1Response::parse(&bs)?;
+                d1_response.get_usize_result("content_length")
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     pub async fn set(&self, ctx: &OperationContext, path: &str, value: Buffer) -> Result<()> {
         let table = &self.table;
         let key_field = &self.key_field;

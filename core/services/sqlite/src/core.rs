@@ -64,7 +64,7 @@ impl SqliteCore {
         let pool = self.get_client().await?;
 
         let value: Option<i64> = sqlx::query_scalar(&format!(
-            "SELECT LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+            "SELECT LENGTH(CAST(`{}` AS BLOB)) FROM `{}` WHERE `{}` = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         ))
         .bind(path)
@@ -91,7 +91,7 @@ impl SqliteCore {
         let pool = self.get_client().await?;
         let query = match limit {
             Some(limit) => format!(
-                "SELECT SUBSTR(`{}`, {}, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                "SELECT SUBSTR(CAST(`{}` AS BLOB), {}, {}), LENGTH(CAST(`{}` AS BLOB)) FROM `{}` WHERE `{}` = $1 LIMIT 1",
                 self.value_field,
                 start + 1,
                 limit,
@@ -100,7 +100,7 @@ impl SqliteCore {
                 self.key_field
             ),
             None => format!(
-                "SELECT SUBSTR(`{}`, {}), LENGTH(`{}`) FROM `{}` WHERE `{}` = $1 LIMIT 1",
+                "SELECT SUBSTR(CAST(`{}` AS BLOB), {}), LENGTH(CAST(`{}` AS BLOB)) FROM `{}` WHERE `{}` = $1 LIMIT 1",
                 self.value_field,
                 start + 1,
                 self.value_field,

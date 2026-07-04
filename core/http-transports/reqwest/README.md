@@ -72,7 +72,7 @@ opendal = { version = "0.57", default-features = false, features = [
 ] }
 ```
 
-## Code snippets
+## Build different TLS backends
 
 ### Rustls
 
@@ -133,7 +133,9 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
 }
 ```
 
-### rustls-no-provider + webpki-roots
+### rustls-no-provider
+
+When using `wekpki-roots`, you could use `rustls-no-provider`.
 
 Use `rustls-no-provider` when the application owns the Rustls provider and
 certificate roots. This example only configures Mozilla roots from
@@ -173,9 +175,11 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
 }
 ```
 
-## Wasm targets
+To use `ring` crate, please refer `rustls` documentation.
 
-On `wasm32-unknown-unknown` and `wasm32-none`, reqwest switches to its wasm
+## WASM targets
+
+On `wasm32-unknown-unknown` and `wasm32-none`, reqwest switches to its WASM
 client implementation. It uses the browser or host Fetch API instead of hyper.
 TLS is provided by the browser or host environment, so the effective choice is
 the system TLS stack exposed to that environment.

@@ -19,8 +19,8 @@
 //!
 //! # TLS backends
 //!
-//! Enable one of the following Cargo features to select a TLS backend.
-//! The `default` feature enables `native-tls`.
+//! Enable one of the following Cargo features to compile reqwest TLS support.
+//! The `default` feature enables `rustls`.
 //!
 //! - **`native-tls`** — Platform TLS links against the OS TLS library:
 //!    - Windows: SChannel
@@ -36,15 +36,17 @@
 //!   client. Use this when you want to bring your own provider
 //!   (e.g., a FIPS-certified module).
 //!
-//! In application or language binding builds, prefer selecting a single backend.
-//! e.g., native-tls. In workspace or `--all-features` builds, Cargo may enable
-//! multiple backend features via feature unification; Users can set a transport
-//! by calling a builder to pick desired backend.
+//! In application or language binding builds, prefer selecting a single backend
+//! feature. In workspace or `--all-features` builds, Cargo may enable multiple
+//! backend features via feature unification; build a [`reqwest::Client`] with
+//! reqwest's TLS configuration methods and pass it to [`ReqwestTransport::new`]
+//! to force the backend you want.
 //!
-//! # Builder example
+//! On wasm targets, reqwest uses the Fetch API instead of hyper. TLS is provided
+//! by the host environment, so native TLS backend features do not select a TLS
+//! stack there.
 //!
-//! Use [`ReqwestTransport::builder`] when applications need to select a TLS
-//! backend at runtime while still configuring reqwest-specific options:
+//! # Custom reqwest client
 //!
 //! ```
 //! use std::time::Duration;
@@ -52,20 +54,17 @@
 //! use opendal_core::HttpTransporter;
 //! use opendal_http_transport_reqwest::ReqwestTransport;
 //!
-//! # fn build() -> opendal_core::Result<()> {
-//! let transport = ReqwestTransport::builder()
-//!     .tls_backend("rustls")
-//!     .configure(|builder| builder.connect_timeout(Duration::from_secs(10)))
+//! # fn build() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = reqwest::Client::builder()
+//!     .tls_backend_rustls()
+//!     .connect_timeout(Duration::from_secs(10))
 //!     .build()?;
+//! let transport = ReqwestTransport::new(client);
 //! let _transport = HttpTransporter::new(transport);
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! Building the transport returns [`ErrorKind::ConfigInvalid`] when the chosen
-//! TLS backend feature was not compiled into this crate.
 
-use std::any::Any;
 use std::fmt::{Debug, Formatter};
 use std::future;
 use std::mem;
@@ -86,8 +85,8 @@ use opendal_core::raw::parse_content_length;
 static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(build_default_client);
 
 fn build_default_client() -> reqwest::Client {
-    ReqwestTransportBuilder::new()
-        .build_client()
+    default_client_builder()
+        .build()
         .expect("failed to build default reqwest client")
 }
 
@@ -100,153 +99,30 @@ compile_error!(
     "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider"
 );
 
-const DEFAULT_TLS_BACKEND: &str = get_default_tls_backend();
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::needless_return, unreachable_code)]
+fn default_client_builder() -> reqwest::ClientBuilder {
+    let builder = reqwest::Client::builder();
 
-const fn get_default_tls_backend() -> &'static str {
-    // returns by a deliberate order when enable multiple features
+    #[cfg(feature = "rustls")]
+    {
+        return builder.tls_backend_rustls();
+    }
 
-    let preference = [
-        #[cfg(feature = "rustls")]
-        "rustls",
-        #[cfg(feature = "rustls-no-provider")]
-        "rustls-no-provider",
-        #[cfg(feature = "native-tls")]
-        "native-tls",
-    ];
+    #[cfg(feature = "native-tls")]
+    {
+        return builder.tls_backend_native();
+    }
 
-    preference[0]
-}
-
-/// Builder for [`ReqwestTransport`].
-///
-/// This builder enables applications choose an TLS backend at runtime
-/// while preserving access to reqwest's own [`reqwest::ClientBuilder`] options.
-pub struct ReqwestTransportBuilder {
-    client_builder: reqwest::ClientBuilder,
-    tls_backend: String,
-    // A preconfigured TLS backend. We don't want to import ruslts as a direct dependency,
-    // so we rely [`reqwest::ClientBuilder::tls_backend_preconfigured`] API.
-    // [`reqwest::ClientBuilder::tls_backend_preconfigured`] is not stable.
-    // For example, users could provide a [`rustls::ClientConfig`].
-    tls_backend_preconfigured: Option<Box<dyn Any>>,
-}
-
-impl Default for ReqwestTransportBuilder {
-    fn default() -> Self {
-        Self::new()
+    #[cfg(feature = "rustls-no-provider")]
+    {
+        return builder.tls_backend_rustls();
     }
 }
 
-impl ReqwestTransportBuilder {
-    /// Create a new builder from [`reqwest::Client::builder`].
-    pub fn new() -> Self {
-        Self {
-            client_builder: reqwest::Client::builder(),
-            tls_backend: DEFAULT_TLS_BACKEND.to_string(),
-            tls_backend_preconfigured: None,
-        }
-    }
-
-    /// Create a new builder from an existing [`reqwest::ClientBuilder`].
-    pub fn from_client_builder(client_builder: reqwest::ClientBuilder) -> Self {
-        Self {
-            client_builder,
-            tls_backend: DEFAULT_TLS_BACKEND.to_string(),
-            tls_backend_preconfigured: None,
-        }
-    }
-
-    /// Select a TLS backend to use while building the reqwest client.
-    ///
-    /// [`Self::build`] and [`Self::build_client`] return [`ErrorKind::ConfigInvalid`]
-    /// if the matching Cargo feature is not compiled into this crate.
-    ///
-    /// Supported values are:
-    /// - `native-tls`
-    /// - `rustls`
-    /// - `rustls-no-provider`
-    pub fn tls_backend(mut self, tls_backend: impl Into<String>) -> Self {
-        self.tls_backend = tls_backend.into();
-        self
-    }
-
-    /// Set a preconfigured TLS backend to use while building the reqwest client.
-    /// For example, a user-provided [`rustls::ClientConfig`].
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// fn rustls_ring_tls_config() -> rustls::ClientConfig {
-    ///     use rustls_platform_verifier::BuilderVerifierExt;
-    ///
-    ///     rustls::ClientConfig::builder_with_provider(rustls::crypto::ring::default_provider().into())
-    ///         .with_safe_default_protocol_versions()
-    ///         .expect("ring provider must support the default rustls protocol versions")
-    ///         .with_platform_verifier()
-    ///         .expect("platform verifier must be available")
-    ///         .with_no_client_auth()
-    /// }
-    /// builder.tls_backend_preconfigured(rustls_ring_tls_config());
-    /// ```
-    ///
-    /// ```ignore
-    /// fn rustls_webpki_roots_tls_config() -> rustls::ClientConfig {
-    ///     let root_store =
-    ///         rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    ///
-    ///     rustls::ClientConfig::builder_with_provider(
-    ///         rustls::crypto::aws_lc_rs::default_provider().into(),
-    ///     )
-    ///     .with_safe_default_protocol_versions()
-    ///     .expect("aws-lc-rs provider must support the default rustls protocol versions")
-    ///     .with_root_certificates(root_store)
-    ///     .with_no_client_auth()
-    /// }
-    /// builder.tls_backend_preconfigured(rustls_webpki_roots_tls_config());
-    /// ```
-    pub fn tls_backend_preconfigured(mut self, tls_backend_preconfigured: impl Any) -> Self {
-        self.tls_backend_preconfigured = Some(Box::new(tls_backend_preconfigured));
-        self
-    }
-
-    /// Configure the underlying [`reqwest::ClientBuilder`].
-    pub fn configure(
-        mut self,
-        configure: impl FnOnce(reqwest::ClientBuilder) -> reqwest::ClientBuilder,
-    ) -> Self {
-        self.client_builder = configure(self.client_builder);
-        self
-    }
-
-    fn build_client(self) -> Result<reqwest::Client> {
-        let mut client_builder = apply_tls_backend(self.client_builder, &self.tls_backend)?;
-
-        if self.tls_backend == "rustls-no-provider" {
-            if let Some(tls_backend_preconfigured) = self.tls_backend_preconfigured {
-                client_builder =
-                    client_builder.tls_backend_preconfigured(tls_backend_preconfigured);
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "reqwest TLS backend rustls-no-provider requires a preconfigured TLS backend",
-                )
-                .with_operation("ReqwestTransportBuilder::build")
-                .with_context("tls_backend", self.tls_backend.as_str()));
-            }
-        }
-
-        client_builder.build().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "reqwest client config is invalid")
-                .with_operation("ReqwestTransportBuilder::build")
-                .with_context("tls_backend", self.tls_backend.as_str())
-                .set_source(err)
-        })
-    }
-
-    /// Build a [`ReqwestTransport`].
-    pub fn build(self) -> Result<ReqwestTransport> {
-        self.build_client().map(ReqwestTransport::new)
-    }
+#[cfg(target_arch = "wasm32")]
+fn default_client_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
 }
 
 /// A HTTP transport with [`reqwest::Client`].
@@ -274,43 +150,9 @@ impl From<reqwest::Client> for ReqwestTransport {
 }
 
 impl ReqwestTransport {
-    /// Create a builder for [`ReqwestTransport`].
-    pub fn builder() -> ReqwestTransportBuilder {
-        ReqwestTransportBuilder::new()
-    }
-
     /// Create a new transport from a [`reqwest::Client`].
     pub fn new(client: reqwest::Client) -> Self {
         Self { client }
-    }
-
-    /// Create a new transport from a [`reqwest::ClientBuilder`] and TLS backend.
-    pub fn from_client_builder(
-        client_builder: reqwest::ClientBuilder,
-        tls_backend: impl Into<String>,
-    ) -> Result<Self> {
-        ReqwestTransportBuilder::from_client_builder(client_builder)
-            .tls_backend(tls_backend)
-            .build()
-    }
-}
-
-fn apply_tls_backend(
-    client_builder: reqwest::ClientBuilder,
-    tls_backend: &str,
-) -> Result<reqwest::ClientBuilder> {
-    match tls_backend {
-        #[cfg(feature = "native-tls")]
-        "native-tls" => Ok(client_builder.tls_backend_native()),
-        #[cfg(feature = "rustls")]
-        "rustls" => Ok(client_builder.tls_backend_rustls()),
-        #[cfg(feature = "rustls-no-provider")]
-        "rustls-no-provider" => Ok(client_builder.tls_backend_rustls()),
-        _ => Err(
-            Error::new(ErrorKind::ConfigInvalid, "unknown reqwest TLS backend")
-                .with_operation("ReqwestTransportBuilder::tls_backend")
-                .with_context("tls_backend", tls_backend),
-        ),
     }
 }
 
@@ -446,67 +288,7 @@ impl http_body::Body for HttpBufferBody {
 mod tests {
     use super::*;
 
-    #[cfg(feature = "native-tls")]
-    #[test]
-    fn test_tls_backend_accepts_native_tls() {
-        let transport = ReqwestTransportBuilder::new()
-            .tls_backend("native-tls")
-            .build();
-        assert!(transport.is_ok());
-    }
-
-    #[cfg(feature = "rustls")]
-    #[test]
-    fn test_tls_backend_accepts_rustls() {
-        let transport = ReqwestTransportBuilder::new().tls_backend("rustls").build();
-        assert!(transport.is_ok());
-    }
-
-    #[cfg(feature = "rustls-no-provider")]
-    #[test]
-    fn test_tls_backend_warns_on_unconfigured_rustls() {
-        let err = ReqwestTransportBuilder::new()
-            .tls_backend("rustls-no-provider")
-            .build()
-            .unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("rustls-no-provider requires a preconfigured TLS backend")
-        );
-    }
-
-    #[test]
-    fn test_tls_backend_unknown() {
-        let err = ReqwestTransportBuilder::new()
-            .tls_backend("bogus")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[test]
-    fn test_tls_backend_context_on_unknown() {
-        let err = ReqwestTransportBuilder::new()
-            .tls_backend("bogus")
-            .build()
-            .unwrap_err();
-        assert!(err.to_string().contains("unknown reqwest TLS backend"));
-    }
-
-    #[test]
-    fn test_builder_defaults_to_native_tls() {
-        let builder = ReqwestTransportBuilder::new();
-        assert_eq!(builder.tls_backend, "native-tls");
-    }
-
-    #[test]
-    fn test_builder_configure() {
-        let transport = ReqwestTransportBuilder::new()
-            .configure(|b| b.connect_timeout(std::time::Duration::from_secs(5)))
-            .build();
-        assert!(transport.is_ok());
-    }
-
+    #[cfg(any(feature = "rustls", feature = "native-tls"))]
     #[test]
     fn test_default_transport_succeeds() {
         let transport = ReqwestTransport::default();

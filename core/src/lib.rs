@@ -25,7 +25,7 @@
 pub use opendal_core::*;
 
 #[cfg(feature = "http-transport-reqwest")]
-pub use opendal_http_transport_reqwest::{ReqwestTransport, ReqwestTransportBuilder};
+pub use opendal_http_transport_reqwest::ReqwestTransport;
 
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;

@@ -7,122 +7,185 @@ This crate provides `ReqwestTransport`, an implementation of OpenDAL's
 
 ## TLS configuration
 
-When using Rustls, TLS configuration has two independent axes:
+OpenDAL does not add another TLS backend selector on top of reqwest. Pick the
+Cargo feature set you need, build a `reqwest::Client` with reqwest's
+`ClientBuilder`, and pass that client to `ReqwestTransport::new`.
 
-| Axis | What it decides | Options |
-|------|----------------|---------|
-| **Crypto provider** | Who performs the cryptographic operations (key exchange, symmetric ciphers, hashing) | reqwest's default provider, `ring`, or any custom `CryptoProvider` |
-| **Certificate verification** | How the server's TLS certificate chain is validated | Platform verifier (default in `rustls`), bundled Mozilla roots (`webpki-roots`), or custom |
+The default feature is `rustls`. When `ReqwestTransport::default()` is used on
+native targets, this crate explicitly asks reqwest for the Rustls backend if the
+`rustls` feature is compiled in.
 
-The `native-tls` feature sidesteps both axes by delegating everything to
-the OS TLS library (SChannel / Secure Transport / OpenSSL).
+If this crate is built with only `rustls-no-provider`, install a Rustls default
+crypto provider before using `ReqwestTransport::default()`, or build a
+preconfigured `reqwest::Client` yourself and pass it to `ReqwestTransport::new`.
+
+### Reqwest TLS resolution
+
+Reqwest has its own TLS resolution rules. For OpenDAL users, the practical
+resolution order is:
+
+- Explicit reqwest client configuration wins. Call
+  `ClientBuilder::tls_backend_rustls()`,
+  `ClientBuilder::tls_backend_native()`, or
+  `ClientBuilder::tls_backend_preconfigured()`, but reqwest documents that API
+  as semver-unstable because the concrete TLS config type must match reqwest's
+  dependency versions.
+- Otherwise, reqwest's automatic TLS backend selection applies. The reqwest
+  `default-tls` feature takes precedence if any crate in the dependency tree
+  enables it. Disable reqwest defaults with `default-features = false` when you
+  need deterministic TLS features.
+- Cargo features are additive. If multiple TLS backends are compiled by feature
+  unification, use explicit client configuration instead of relying on automatic
+  selection.
+
+See reqwest's TLS documentation:
+
+- [reqwest TLS module](https://docs.rs/reqwest/latest/reqwest/tls/index.html)
+- [ClientBuilder::tls_backend_rustls](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.tls_backend_rustls)
+- [ClientBuilder::tls_backend_native](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.tls_backend_native)
+- [ClientBuilder::tls_backend_preconfigured](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.tls_backend_preconfigured)
 
 ### Feature matrix
 
 | Feature | Crypto provider | Certificate roots | Use when |
-|---------|----------------|-------------------|----------|
-| `rustls` (default) | reqwest default | Platform verifier | Pure-Rust TLS with OS trust store |
-| `rustls-no-provider` | **you provide** | **you provide** | BYO crypto (ring, webpki roots, FIPS module, etc.) |
-| `native-tls` | OS library | OS trust store | You want zero Rust-side TLS config |
+|---------|-----------------|-------------------|----------|
+| `rustls` (default) | reqwest default | Platform verifier | Pure-Rust TLS with the system trust store |
+| `rustls-no-provider` | You provide | You provide | BYO crypto provider, roots, or FIPS module |
+| `native-tls` | OS library | OS trust store | You want platform TLS |
 
-### Usage via the `opendal` facade crate
+## Cargo features
 
-Most users depend on `opendal` rather than this crate directly. The facade
-installs this transport when any `http-transport-reqwest-*` feature is enabled.
-
-```toml
-# Default — reqwest transport with native-tls
-opendal = { version = "0.57" }
-```
-
-To select a different TLS backend, disable default features and enable the
-one you need:
-
-```toml
-opendal = { version = "0.57", default-features = false, features = ["http-transport-reqwest-native-tls"] }
-```
-
-When using `rustls-no-provider`, you must provide crypto or TLS crates.
-
-### Feature usage with `rustls`
-
-The `rustls` feature uses reqwest's own Rustls configuration through
-`ClientBuilder::tls_backend_rustls()`, so settings such as custom root
-certificates, client identity, SNI, TLS info, and dangerous certificate
-verification flags should be configured with reqwest's builder methods.
+Most users depend on the `opendal` facade crate:
 
 ```toml
 [dependencies]
-opendal-http-transport-reqwest = { version = "0.57", default-features = false, features = ["rustls"] }
+# Default: reqwest transport with rustls.
+opendal = { version = "0.57" }
 ```
 
-```rust
-use std::time::Duration;
-
-use opendal_http_transport_reqwest::ReqwestTransport;
-use opendal::HttpTransporter;
-
-// You can configure reqwest dynamically and select a compiled TLS backend.
-let transport = ReqwestTransport::builder()
-    .tls_backend("rustls")
-    .configure(|builder| builder.connect_timeout(Duration::from_secs(10)))
-    .build()
-    .unwrap();
-```
-
-### Bringing your own reqwest client
-
-When you need full control over the TLS stack — custom `ClientConfig`,
-client certificates, proxy settings, or connection pool tuning — build a
-`reqwest::Client` yourself and wrap it:
+To select one transport TLS feature explicitly, disable default features:
 
 ```toml
 [dependencies]
 opendal = { version = "0.57", default-features = false, features = [
-    "services-s3",
-    "http-transport-reqwest-rustls-no-provider",
+    "http-transport-reqwest-rustls",
 ] }
-opendal-http-transport-reqwest = { version = "0.57", default-features = false, features = ["rustls-no-provider"] }
-rustls = { version = "0.23", features = ["ring"], default-features = false }
-webpki-roots = "1"
+```
+
+## Code snippets
+
+### Rustls
+
+Use reqwest's Rustls backend explicitly when you build the client:
+
+```toml
+[dependencies]
+opendal = { version = "0.57", default-features = false, features = [
+    "http-transport-reqwest-rustls",
+] }
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "rustls",
+    "stream",
+] }
 ```
 
 ```rust
 use std::time::Duration;
 
 use opendal::HttpTransporter;
-use opendal::OperationContext;
-use opendal_http_transport_reqwest::ReqwestTransport;
+use opendal::ReqwestTransport;
 
-fn main() {
-    // 1. Configure your crypto provider and certificate roots.
-    let root_store =
-        rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let tls_config = rustls::ClientConfig::builder_with_provider(
-            rustls::crypto::aws_lc_rs::default_provider().into(),
-        )
-        .with_safe_default_protocol_versions()
-        .expect("aws-lc-rs provider must support the default rustls protocol versions")
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
+fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::builder()
+        .tls_backend_rustls()
+        .connect_timeout(Duration::from_secs(10))
+        .build()?;
 
-    // 2. Build a reqwest client with your TLS config.
-    let transport = ReqwestTransport::builder()
-        .tls_backend("rustls-no-provider")
-        .tls_backend_preconfigured(tls_config)
-        .build();
-
-    // 3. Use in an operator.
-    let op = opendal::Operator::via_iter("s3", [
-        ("bucket".to_string(), "my-bucket".to_string()),
-        ("region".to_string(), "us-east-1".to_string()),
-    ])
-    .expect("failed to build operator")
-    .with_context(OperationContext::new().with_http_transport(transport));
+    Ok(HttpTransporter::new(ReqwestTransport::new(client)))
 }
 ```
 
-This approach gives you complete ownership over TLS and client.
+### Native TLS
+
+Use `native-tls` when you want reqwest to delegate TLS to the platform stack:
+
+```toml
+[dependencies]
+opendal = { version = "0.57", default-features = false, features = [
+    "http-transport-reqwest-native-tls",
+] }
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "native-tls",
+    "stream",
+] }
+```
+
+```rust
+use opendal::HttpTransporter;
+use opendal::ReqwestTransport;
+
+fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::builder()
+        .tls_backend_native()
+        .build()?;
+
+    Ok(HttpTransporter::new(ReqwestTransport::new(client)))
+}
+```
+
+### Rustls no provider with WebPKI roots
+
+Use `rustls-no-provider` when the application owns the Rustls provider and
+certificate roots. This example uses `ring` for crypto and `webpki-roots` for
+Mozilla roots.
+
+```toml
+[dependencies]
+opendal = { version = "0.57", default-features = false, features = [
+    "http-transport-reqwest-rustls-no-provider",
+] }
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "rustls-no-provider",
+    "stream",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+webpki-roots = "1"
+```
+
+```rust
+use opendal::HttpTransporter;
+use opendal::ReqwestTransport;
+
+fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
+    let root_store =
+        rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+    let tls_config = rustls::ClientConfig::builder_with_provider(
+            rustls::crypto::ring::default_provider().into(),
+        )
+        .with_safe_default_protocol_versions()?
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    let client = reqwest::Client::builder()
+        .tls_backend_preconfigured(tls_config)
+        .build()?;
+
+    Ok(HttpTransporter::new(ReqwestTransport::new(client)))
+}
+```
+
+## Wasm targets
+
+On `wasm32-unknown-unknown` and `wasm32-none`, reqwest switches to its wasm
+client implementation. It uses the browser or host Fetch API instead of hyper.
+TLS is provided by the browser or host environment, so the effective choice is
+the system TLS stack exposed to that environment.
+
+This means `native-tls`, `rustls`, `rustls-no-provider`, custom root stores,
+and custom Rustls crypto providers do not select the TLS implementation for
+wasm requests. See [reqwest's WASM documentation](https://docs.rs/reqwest/latest/reqwest/#wasm)
+for the target-specific limitations.
 
 ## License and Trademarks
 

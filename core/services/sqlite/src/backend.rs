@@ -240,14 +240,7 @@ impl Service for SqliteBackend {
                     } else {
                         format!("{}/", p)
                     };
-                    let count: i64 = sqlx::query_scalar(&format!(
-                        "SELECT COUNT(*) FROM `{}` WHERE `{}` LIKE $1 LIMIT 1",
-                        self.core.table, self.core.key_field
-                    ))
-                    .bind(format!("{}%", dir_path))
-                    .fetch_one(self.core.get_client().await?)
-                    .await
-                    .map_err(parse_sqlite_error)?;
+                    let count = self.core.count_under(&dir_path).await?;
 
                     if count > 0 {
                         // Directory exists (has children)

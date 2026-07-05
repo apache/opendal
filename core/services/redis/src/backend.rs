@@ -348,6 +348,7 @@ impl Service for RedisBackend {
             }
         }
     }
+
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<RedisReader> = {
             Ok(oio::StreamReader::new(RedisReader::new(

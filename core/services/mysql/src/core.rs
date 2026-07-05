@@ -45,6 +45,16 @@ impl MysqlCore {
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let pool = self.get_client().await?;
 
+        // MySQL uses a backtick for identifier quote. An identifier may or may not be case-sensitive,
+        // depending on database configuration. Only a quoted identifier can have special characters.
+        // Read more:
+        // https://dev.mysql.com/doc/refman/9.7/en/identifiers.html
+        // https://dev.mysql.com/doc/refman/9.7/en/identifier-case-sensitivity.html
+        //
+        // We use:
+        // - formatted, quoted identifiers for trusted table and field configuration
+        // - bind parameters for values to avoid malformed SQL and SQL injection
+        // to ensure correctness.
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             "SELECT `{}` FROM `{}` WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
@@ -84,7 +94,7 @@ impl MysqlCore {
 
         sqlx::query(&format!(
             r#"INSERT INTO `{}` (`{}`, `{}`) VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE `{}` = VALUES({})"#,
+            ON DUPLICATE KEY UPDATE `{}` = VALUES(`{}`)"#,
             self.table, self.key_field, self.value_field, self.value_field, self.value_field
         ))
         .bind(path)

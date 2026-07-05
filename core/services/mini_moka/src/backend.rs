@@ -135,6 +135,7 @@ impl MiniMokaBackend {
             write_can_empty: true,
             delete: true,
             list: true,
+            shared: false,
 
             ..Default::default()
         };

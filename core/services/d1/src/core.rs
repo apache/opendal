@@ -61,11 +61,7 @@ impl D1Core {
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
         );
-        let url: String = format!(
-            "{}{}",
-            CLOUDFLARE_API_BASE_URL,
-            percent_encode_path(&p)
-        );
+        let url: String = format!("{}{}", CLOUDFLARE_API_BASE_URL, percent_encode_path(&p));
 
         let mut req = Request::post(&url);
         if let Some(auth) = &self.authorization {

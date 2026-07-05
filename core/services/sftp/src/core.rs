@@ -27,12 +27,15 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 pub struct SftpCore {
     pub info: ServiceInfo,
     pub capability: Capability,
     pub endpoint: String,
     pub root: String,
+    /// Service-wide result of the lazy positioned-read probe.
+    pub positioned_read_support: OnceLock<bool>,
     client: Arc<bounded::Pool<Manager>>,
 }
 
@@ -71,6 +74,7 @@ impl SftpCore {
             capability,
             endpoint,
             root,
+            positioned_read_support: OnceLock::new(),
             client,
         }
     }

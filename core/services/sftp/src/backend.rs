@@ -203,7 +203,7 @@ pub struct SftpBackend {
 }
 
 impl Service for SftpBackend {
-    type Reader = oio::StreamReader<SftpReader>;
+    type Reader = SftpReader;
     type Writer = SftpLazyWriter;
     type Lister = SftpLazyLister;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
@@ -255,15 +255,7 @@ impl Service for SftpBackend {
         Ok(RpStat::new(meta))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let output: oio::StreamReader<SftpReader> = {
-            Ok(oio::StreamReader::new(SftpReader::new(
-                self.clone(),
-                path,
-                args,
-            )))
-        }?;
-
-        Ok(output)
+        Ok(SftpReader::new(self.clone(), path, args))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {

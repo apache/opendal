@@ -35,7 +35,7 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
-    /// Raw reader returned by [`Access::read`].
+    /// Raw reader returned by [`Service::read`].
     reader: oio::Reader,
     /// Complete object metadata observed from successful read opens.
     metadata: OnceLock<Metadata>,

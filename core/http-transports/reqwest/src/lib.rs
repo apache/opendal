@@ -82,48 +82,7 @@ use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
 
-static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(build_default_client);
-
-fn build_default_client() -> reqwest::Client {
-    default_client_builder()
-        .build()
-        .expect("failed to build default reqwest client")
-}
-
-#[cfg(not(any(
-    feature = "native-tls",
-    feature = "rustls",
-    feature = "rustls-no-provider",
-)))]
-compile_error!(
-    "At least one reqwest TLS backend feature must be enabled: native-tls, rustls, rustls-no-provider"
-);
-
-#[cfg(not(target_arch = "wasm32"))]
-#[allow(clippy::needless_return, unreachable_code)]
-fn default_client_builder() -> reqwest::ClientBuilder {
-    let builder = reqwest::Client::builder();
-
-    #[cfg(feature = "rustls")]
-    {
-        return builder.tls_backend_rustls();
-    }
-
-    #[cfg(feature = "native-tls")]
-    {
-        return builder.tls_backend_native();
-    }
-
-    #[cfg(feature = "rustls-no-provider")]
-    {
-        return builder.tls_backend_rustls();
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn default_client_builder() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-}
+static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 /// A HTTP transport with [`reqwest::Client`].
 #[derive(Clone)]

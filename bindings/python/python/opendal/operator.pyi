@@ -38,7 +38,6 @@ class AsyncOperator:
     Operator
     """
 
-    def __getnewargs_ex__(self, /) -> Any: ...
     def __new__(cls, /, scheme: str | Scheme, **kwargs) -> AsyncOperator:
         """
         Create a new `AsyncOperator`.
@@ -55,6 +54,7 @@ class AsyncOperator:
         AsyncOperator
             The new async operator.
         """
+    def __reduce__(self, /) -> Any: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
@@ -160,6 +160,35 @@ class AsyncOperator:
         -------
         coroutine
             An awaitable that returns True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_uri(cls, /, uri: str, **kwargs) -> AsyncOperator:
+        """
+        Create a new `AsyncOperator` from a URI string.
+
+        The URI encodes the scheme and configuration in a single string, e.g.
+        ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+        belong to a service enabled in this build.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service.
+        **kwargs : dict
+            Extra options that override or supplement values encoded in the URI.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
+
+        Examples
+        --------
+        >>> import opendal
+        >>> op = opendal.AsyncOperator.from_uri("memory://")
+        >>> op = opendal.AsyncOperator.from_uri(
+        ...     "s3://bucket/path", region="us-east-1"
+        ... )
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
@@ -647,7 +676,6 @@ class Operator:
     AsyncOperator
     """
 
-    def __getnewargs_ex__(self, /) -> Any: ...
     def __new__(cls, /, scheme: str | Scheme, **kwargs) -> Operator:
         """
         Create a new blocking `Operator`.
@@ -664,6 +692,7 @@ class Operator:
         Operator
             The new operator.
         """
+    def __reduce__(self, /) -> Any: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
@@ -745,6 +774,35 @@ class Operator:
         -------
         bool
             True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_uri(cls, /, uri: str, **kwargs) -> Operator:
+        """
+        Create a new blocking `Operator` from a URI string.
+
+        The URI encodes the scheme and configuration in a single string, e.g.
+        ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+        belong to a service enabled in this build.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service.
+        **kwargs : dict
+            Extra options that override or supplement values encoded in the URI.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+
+        Examples
+        --------
+        >>> import opendal
+        >>> op = opendal.Operator.from_uri("memory://")
+        >>> op = opendal.Operator.from_uri(
+        ...     "s3://bucket/path", region="us-east-1"
+        ... )
         """
     def layer(self, /, layer: Layer) -> Operator:
         """

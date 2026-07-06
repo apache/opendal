@@ -24,6 +24,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
+use pyo3::types::PyType;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -45,8 +46,80 @@ fn build_blocking_operator(
     Ok(op)
 }
 
+fn build_operator_from_uri(uri: &str, map: HashMap<String, String>) -> PyResult<ocore::Operator> {
+    let op = ocore::Operator::from_uri((uri, map)).map_err(format_pyerr)?;
+    Ok(op)
+}
+
+fn build_blocking_operator_from_uri(
+    uri: &str,
+    map: HashMap<String, String>,
+) -> PyResult<ocore::blocking::Operator> {
+    let op = build_operator_from_uri(uri, map)?;
+
+    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let _guard = runtime.enter();
+    let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
+    Ok(op)
+}
+
 fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
+}
+
+/// Rebuild a blocking [`Operator`] while unpickling.
+///
+/// `from_uri` operators store a full URI in `__scheme` and must be rebuilt via
+/// `from_uri`; scheme operators are rebuilt via `via_iter`. Routing both through
+/// this reconstructor keeps a single pickle entry point and avoids the scheme
+/// normalization in `__new__` that would corrupt a stored URI.
+#[pyfunction]
+pub fn _reconstruct_operator(
+    from_uri: bool,
+    scheme: &str,
+    map: HashMap<String, String>,
+) -> PyResult<Operator> {
+    if from_uri {
+        Ok(Operator {
+            core: build_blocking_operator_from_uri(scheme, map.clone())?,
+            __scheme: scheme.to_string(),
+            __map: map,
+            __from_uri: true,
+        })
+    } else {
+        Ok(Operator {
+            core: build_blocking_operator(scheme, map.clone())?,
+            __scheme: scheme.to_string(),
+            __map: map,
+            __from_uri: false,
+        })
+    }
+}
+
+/// Rebuild an [`AsyncOperator`] while unpickling.
+///
+/// See [`_reconstruct_operator`] for why a dedicated reconstructor is used.
+#[pyfunction]
+pub fn _reconstruct_async_operator(
+    from_uri: bool,
+    scheme: &str,
+    map: HashMap<String, String>,
+) -> PyResult<AsyncOperator> {
+    if from_uri {
+        Ok(AsyncOperator {
+            core: build_operator_from_uri(scheme, map.clone())?,
+            __scheme: scheme.to_string(),
+            __map: map,
+            __from_uri: true,
+        })
+    } else {
+        Ok(AsyncOperator {
+            core: build_operator(scheme, map.clone())?,
+            __scheme: scheme.to_string(),
+            __map: map,
+            __from_uri: false,
+        })
+    }
 }
 
 /// The blocking equivalent of `AsyncOperator`.
@@ -61,6 +134,10 @@ pub struct Operator {
     core: ocore::blocking::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
+    // When true, `__scheme` holds a full URI: reconstruct via `from_uri`, not
+    // scheme-based `__new__` (which normalizes and corrupts the URI). See
+    // `__reduce__`.
+    __from_uri: bool,
 }
 #[pymethods]
 impl Operator {
@@ -101,6 +178,52 @@ impl Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
+            __from_uri: false,
+        })
+    }
+
+    /// Create a new blocking `Operator` from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+    /// belong to a service enabled in this build.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service.
+    /// **kwargs : dict
+    ///     Extra options that override or supplement values encoded in the URI.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    ///
+    /// Examples
+    /// --------
+    /// >>> import opendal
+    /// >>> op = opendal.Operator.from_uri("memory://")
+    /// >>> op = opendal.Operator.from_uri("s3://bucket/path", region="us-east-1")
+    #[classmethod]
+    #[pyo3(signature = (uri, **kwargs))]
+    pub fn from_uri(
+        _cls: &Bound<PyType>,
+        uri: &str,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Self> {
+        let map = kwargs
+            .map(|v| {
+                v.extract::<HashMap<String, String>>()
+                    .expect("must be valid hashmap")
+            })
+            .unwrap_or_default();
+
+        Ok(Operator {
+            core: build_blocking_operator_from_uri(uri, map.clone())?,
+            __scheme: uri.to_string(),
+            __map: map,
+            __from_uri: true,
         })
     }
 
@@ -125,6 +248,7 @@ impl Operator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __from_uri: self.__from_uri,
         })
     }
 
@@ -676,6 +800,7 @@ impl Operator {
             core: self.core.clone().into(),
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __from_uri: self.__from_uri,
         })
     }
 
@@ -692,11 +817,12 @@ impl Operator {
             )
         }
     }
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let args = vec![self.__scheme.clone()];
-        let args = PyTuple::new(py, args)?.into_py_any(py)?;
-        let kwargs = self.__map.clone().into_py_any(py)?;
-        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
+    fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let reconstructor = py
+            .import("opendal._opendal")?
+            .getattr("_reconstruct_operator")?;
+        let args = (self.__from_uri, self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }
 
@@ -712,6 +838,8 @@ pub struct AsyncOperator {
     core: ocore::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
+    // See `Operator.__from_uri`.
+    __from_uri: bool,
 }
 #[pymethods]
 impl AsyncOperator {
@@ -753,6 +881,52 @@ impl AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
+            __from_uri: false,
+        })
+    }
+
+    /// Create a new `AsyncOperator` from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+    /// belong to a service enabled in this build.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service.
+    /// **kwargs : dict
+    ///     Extra options that override or supplement values encoded in the URI.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
+    ///
+    /// Examples
+    /// --------
+    /// >>> import opendal
+    /// >>> op = opendal.AsyncOperator.from_uri("memory://")
+    /// >>> op = opendal.AsyncOperator.from_uri("s3://bucket/path", region="us-east-1")
+    #[classmethod]
+    #[pyo3(signature = (uri, **kwargs))]
+    pub fn from_uri(
+        _cls: &Bound<PyType>,
+        uri: &str,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Self> {
+        let map = kwargs
+            .map(|v| {
+                v.extract::<HashMap<String, String>>()
+                    .expect("must be valid hashmap")
+            })
+            .unwrap_or_default();
+
+        Ok(AsyncOperator {
+            core: build_operator_from_uri(uri, map.clone())?,
+            __scheme: uri.to_string(),
+            __map: map,
+            __from_uri: true,
         })
     }
 
@@ -773,6 +947,7 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __from_uri: self.__from_uri,
         })
     }
 
@@ -1696,6 +1871,7 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __from_uri: self.__from_uri,
         })
     }
 
@@ -1716,11 +1892,12 @@ impl AsyncOperator {
             )
         }
     }
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let args = vec![self.__scheme.clone()];
-        let args = PyTuple::new(py, args)?.into_py_any(py)?;
-        let kwargs = self.__map.clone().into_py_any(py)?;
-        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
+    fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let reconstructor = py
+            .import("opendal._opendal")?
+            .getattr("_reconstruct_async_operator")?;
+        let args = (self.__from_uri, self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }
 

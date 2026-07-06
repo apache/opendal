@@ -19,6 +19,8 @@ from typing import Final, final
 
 from _typeshed import Incomplete
 
+from .operator import AsyncOperator, Operator
+
 __version__: Final[str]
 
 @final
@@ -35,5 +37,24 @@ class StatOptions: ...
 
 @final
 class WriteOptions: ...
+
+def _reconstruct_async_operator(
+    from_uri: bool, scheme: str, map: dict[str, str]
+) -> AsyncOperator:
+    """
+    Rebuild an [`AsyncOperator`] while unpickling.
+
+    See [`_reconstruct_operator`] for why a dedicated reconstructor is used.
+    """
+
+def _reconstruct_operator(from_uri: bool, scheme: str, map: dict[str, str]) -> Operator:
+    """
+    Rebuild a blocking [`Operator`] while unpickling.
+
+    `from_uri` operators store a full URI in `__scheme` and must be rebuilt via
+    `from_uri`; scheme operators are rebuilt via `via_iter`. Routing both through
+    this reconstructor keeps a single pickle entry point and avoids the scheme
+    normalization in `__new__` that would corrupt a stored URI.
+    """
 
 def __getattr__(name: str) -> Incomplete: ...

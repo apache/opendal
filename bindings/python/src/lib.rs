@@ -57,6 +57,12 @@ mod _opendal {
         use crate::{AsyncOperator, Operator};
     }
 
+    // Pickle reconstructors for operators built via `from_uri`. They must live
+    // on the top-level `_opendal` module so `__reduce__` can reference them by
+    // their qualified name during unpickling.
+    #[pymodule_export]
+    use crate::{_reconstruct_async_operator, _reconstruct_operator};
+
     #[pymodule]
     mod file {
         #[pymodule_export]

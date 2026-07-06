@@ -35,7 +35,7 @@ async-trait = "0.1"
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false, features = [
+opendal-core = { path = "../../core", version = "0.58.0", default-features = false, features = [
   "reqsign",
 ] }
 percent-encoding = "2.3"

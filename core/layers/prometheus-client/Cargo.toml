@@ -31,11 +31,11 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
-opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.57.0" }
+opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.58.0" }
 prometheus-client = { version = "0.25" }
 
 [dev-dependencies]
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0" }
+opendal-core = { path = "../../core", version = "0.58.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

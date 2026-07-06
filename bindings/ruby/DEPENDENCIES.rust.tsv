@@ -143,7 +143,7 @@ opendal-layer-logging@0.57.0	X
 opendal-layer-retry@0.57.0	X													
 opendal-layer-throttle@0.57.0	X													
 opendal-layer-timeout@0.57.0	X													
-opendal-ruby@0.1.6	X													
+opendal-ruby@0.1.7	X
 opendal-service-azblob@0.57.0	X													
 opendal-service-azdls@0.57.0	X													
 opendal-service-azfile@0.57.0	X													

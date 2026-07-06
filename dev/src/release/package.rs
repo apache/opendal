@@ -77,7 +77,7 @@ pub fn all_packages() -> Vec<Package> {
     let java = make_package("bindings/java", "0.49.0", vec![core.clone()]);
     let nodejs = make_package("bindings/nodejs", "0.49.4", vec![core.clone()]);
     let python = make_package("bindings/python", "0.47.2", vec![core.clone()]);
-    let ruby = make_package("bindings/ruby", "0.1.6", vec![core.clone()]);
+    let ruby = make_package("bindings/ruby", "0.1.7", vec![core.clone()]);
 
     vec![
         core,
@@ -533,24 +533,38 @@ mod tests {
         std::env::temp_dir().join(format!("odev-package-{name}-{nanos}"))
     }
 
+    fn release_package(name: &str) -> Package {
+        all_packages()
+            .into_iter()
+            .find(|package| package.name() == name)
+            .unwrap()
+    }
+
+    fn cargo_manifest_version(package: &Package) -> Version {
+        let manifest_path = package.path.join("Cargo.toml");
+        let manifest = std::fs::read_to_string(manifest_path).unwrap();
+        let manifest = DocumentMut::from_str(&manifest).unwrap();
+
+        manifest["package"]["version"]
+            .as_str()
+            .map(Version::parse)
+            .transpose()
+            .unwrap()
+            .unwrap()
+    }
+
     #[test]
     fn parquet_release_version_matches_manifest() {
-        let parquet = all_packages()
-            .into_iter()
-            .find(|package| package.name() == "integrations/parquet")
-            .unwrap();
+        let parquet = release_package("integrations/parquet");
 
-        assert_eq!(parquet.version, Version::parse("0.8.1").unwrap());
+        assert_eq!(parquet.version, cargo_manifest_version(&parquet));
     }
 
     #[test]
     fn ruby_release_version_matches_manifest() {
-        let ruby = all_packages()
-            .into_iter()
-            .find(|package| package.name() == "bindings/ruby")
-            .unwrap();
+        let ruby = release_package("bindings/ruby");
 
-        assert_eq!(ruby.version, Version::parse("0.1.6").unwrap());
+        assert_eq!(ruby.version, cargo_manifest_version(&ruby));
     }
 
     #[test]

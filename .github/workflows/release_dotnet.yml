@@ -18,6 +18,10 @@
 name: Release Dotnet Binding
 
 on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
   pull_request:
     branches:
       - main
@@ -126,18 +130,41 @@ jobs:
         id: version
         shell: bash
         run: |
-          case "${{ inputs.release_type }}" in
-            rc)
-              SUFFIX="rc"
-              ;;
-            *)
-              SUFFIX="preview.${GITHUB_RUN_NUMBER}"
-              ;;
-          esac
-          echo "VERSION_SUFFIX=${SUFFIX}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          suffix=""
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.([0-9]+)$ ]]; then
+            suffix="rc.${BASH_REMATCH[1]}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            suffix=""
+          else
+            case "${{ inputs.release_type }}" in
+              rc)
+                suffix="rc"
+                ;;
+              *)
+                suffix="preview.${GITHUB_RUN_NUMBER}"
+                ;;
+            esac
+          fi
+
+          echo "version_suffix=${suffix}" >> "$GITHUB_OUTPUT"
 
       - name: Pack OpenDAL
-        run: dotnet pack OpenDAL/OpenDAL.csproj -c Release -o artifacts/package --version-suffix "${{ steps.version.outputs.VERSION_SUFFIX }}"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pack_args=(
+            OpenDAL/OpenDAL.csproj
+            -c Release
+            -o artifacts/package
+          )
+          if [[ -n "${{ steps.version.outputs.version_suffix }}" ]]; then
+            pack_args+=(--version-suffix "${{ steps.version.outputs.version_suffix }}")
+          fi
+
+          dotnet pack "${pack_args[@]}"
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v7
@@ -148,7 +175,7 @@ jobs:
 
   publish:
     name: Publish
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_type != 'none' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_type != 'none') || (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')) }}
     runs-on: ubuntu-latest
     needs:
       - package

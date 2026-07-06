@@ -29,10 +29,19 @@ from opendal.exceptions import Unsupported
 @pytest.fixture(scope="session")
 def uri_async_operator(service_name, setup_config):
     # Mirror the `async_operator` fixture but construct via `from_uri`: a bare
-    # `scheme://` URI plus the same config passed as keyword options. This gives
-    # `from_uri` parity with the `via_iter`-based constructor across every
-    # service the suite runs against.
-    return opendal.AsyncOperator.from_uri(f"{service_name}://", **setup_config)
+    # `scheme://` URI plus the same config passed as keyword options. Apply the
+    # same layers and capability overrides so capability gating and equality
+    # assertions match the constructor-based operator the suite uses.
+    operator = (
+        opendal.AsyncOperator.from_uri(f"{service_name}://", **setup_config)
+        .layer(opendal.layers.RetryLayer())
+        .layer(opendal.layers.ConcurrentLimitLayer(1024))
+        .layer(opendal.layers.MimeGuessLayer())
+    )
+    overrides = os.environ.get("OPENDAL_TEST_CAPABILITY_OVERRIDES")
+    if overrides:
+        operator = operator.layer(opendal.layers.CapabilityOverrideLayer(overrides))
+    return operator
 
 
 @pytest.fixture(scope="session")

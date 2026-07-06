@@ -67,6 +67,15 @@ fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
+/// Extract service options from `**kwargs`, propagating a Python exception if a
+/// value is not a `str -> str` mapping instead of panicking.
+fn extract_kwargs(kwargs: Option<&Bound<PyDict>>) -> PyResult<HashMap<String, String>> {
+    match kwargs {
+        Some(v) => v.extract::<HashMap<String, String>>(),
+        None => Ok(HashMap::new()),
+    }
+}
+
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
 /// `from_uri` operators store a full URI in `__scheme` and must be rebuilt via
@@ -167,12 +176,7 @@ impl Operator {
             ));
         };
         let scheme = normalize_scheme(&scheme);
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = extract_kwargs(kwargs)?;
 
         Ok(Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
@@ -212,12 +216,7 @@ impl Operator {
         uri: &str,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Self> {
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = extract_kwargs(kwargs)?;
 
         Ok(Operator {
             core: build_blocking_operator_from_uri(uri, map.clone())?,
@@ -870,12 +869,7 @@ impl AsyncOperator {
         };
         let scheme = normalize_scheme(&scheme);
 
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = extract_kwargs(kwargs)?;
 
         Ok(AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
@@ -915,12 +909,7 @@ impl AsyncOperator {
         uri: &str,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Self> {
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = extract_kwargs(kwargs)?;
 
         Ok(AsyncOperator {
             core: build_operator_from_uri(uri, map.clone())?,

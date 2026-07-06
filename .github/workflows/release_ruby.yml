@@ -28,7 +28,13 @@ on:
       - main
     paths:
       - ".github/workflows/release_ruby.yml"
-  workflow_dispatch: # allow repo collaborators to publish gem
+  # Rubygems doesn't have a staging environment, and Rubygems don't provide a
+  # public registry. Most gems follow a pre-release tag convention. But
+  # OpenDAL doesn't want pre-releases to a publish registry beyond
+  # a release process. For now, we can rely on artifacts for testing pre-releases.
+  # In the future, we could consider a GitHub private registry for pre-releases.
+  #
+  # omits `workflow_dispatch` to tighten this release workflow.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -156,15 +162,8 @@ jobs:
           retention-days: 30
 
   publish:
-    # allow:
-    # - standard tag releases
-    # - workflow_dispatch:
-    #   - reattempt standard tag releases
-    #   - pre-releases
-
-    if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
-        (github.event_name == 'workflow_dispatch' && contains(needs.build.outputs.version, 'rc'))
+    # allow tag releases
+    if: startsWith(github.ref, 'refs/tags/v')
 
     needs: [build, build-native]
     runs-on: ubuntu-latest

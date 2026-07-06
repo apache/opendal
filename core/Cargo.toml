@@ -87,7 +87,6 @@ blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
   "http-transport-reqwest",
-  "reqwest-rustls-tls",
   "executors-tokio",
   "layers-concurrent-limit",
   "layers-logging",
@@ -95,7 +94,25 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
-http-transport-reqwest = ["dep:opendal-http-transport-reqwest"]
+# Default http-transport-reqwest transport feature, used for:
+# - install default http transport
+# - feature gate for various of bindings dependency
+http-transport-reqwest = ["http-transport-reqwest-rustls"]
+# Use reqwest with platform TLS via native-tls.
+http-transport-reqwest-native-tls = [
+  "dep:opendal-http-transport-reqwest",
+  "opendal-http-transport-reqwest/native-tls",
+]
+# Use reqwest with Rustls, with default aws-lc-rs crypto provider.
+http-transport-reqwest-rustls = [
+  "dep:opendal-http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls",
+]
+# Use reqwest with Rustls and no built-in crypto provider.
+http-transport-reqwest-rustls-no-provider = [
+  "dep:opendal-http-transport-reqwest",
+  "opendal-http-transport-reqwest/rustls-no-provider",
+]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
@@ -121,14 +138,13 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
+# Deprecated since 0.58; Will delete in 0.59.
 reqwest-rustls-no-provider-tls = [
   "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls-no-provider",
+  "http-transport-reqwest-rustls-no-provider",
 ]
-reqwest-rustls-tls = [
-  "http-transport-reqwest",
-  "opendal-http-transport-reqwest/rustls",
-]
+# Deprecated since 0.58; Will delete in 0.59.
+reqwest-rustls-tls = ["http-transport-reqwest", "http-transport-reqwest-rustls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]

@@ -78,10 +78,9 @@ fn extract_kwargs(kwargs: Option<&Bound<PyDict>>) -> PyResult<HashMap<String, St
 
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
-/// Reconstruction goes through `from_uri` (not the scheme-based `__new__`)
-/// because `__scheme` may hold a full URI that `__new__` would normalize and
-/// corrupt. A bare scheme is also accepted here, since the core resolves both
-/// bare schemes and full URIs through the same path.
+/// Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
+/// normalization would corrupt a URI held in `__scheme`. Bare schemes work too:
+/// the core resolves both through the same path.
 #[pyfunction]
 pub fn _reconstruct_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<Operator> {
     Ok(Operator {
@@ -169,9 +168,7 @@ impl Operator {
     /// uri : str
     ///     The URI of the service, including any options as query parameters.
     /// **kwargs : dict
-    ///     Optional overrides for options already encoded in the URI. Prefer
-    ///     encoding options in the URI itself; these are for the rare case where
-    ///     an option is more convenient to pass separately.
+    ///     Overrides for URI options. Prefer the URI query string.
     ///
     /// Returns
     /// -------
@@ -862,9 +859,7 @@ impl AsyncOperator {
     /// uri : str
     ///     The URI of the service, including any options as query parameters.
     /// **kwargs : dict
-    ///     Optional overrides for options already encoded in the URI. Prefer
-    ///     encoding options in the URI itself; these are for the rare case where
-    ///     an option is more convenient to pass separately.
+    ///     Overrides for URI options. Prefer the URI query string.
     ///
     /// Returns
     /// -------

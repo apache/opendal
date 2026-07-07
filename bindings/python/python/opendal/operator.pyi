@@ -177,9 +177,7 @@ class AsyncOperator:
         uri : str
             The URI of the service, including any options as query parameters.
         **kwargs : dict
-            Optional overrides for options already encoded in the URI. Prefer
-            encoding options in the URI itself; these are for the rare case where
-            an option is more convenient to pass separately.
+            Overrides for URI options. Prefer the URI query string.
 
         Returns
         -------
@@ -797,9 +795,7 @@ class Operator:
         uri : str
             The URI of the service, including any options as query parameters.
         **kwargs : dict
-            Optional overrides for options already encoded in the URI. Prefer
-            encoding options in the URI itself; these are for the rare case where
-            an option is more convenient to pass separately.
+            Overrides for URI options. Prefer the URI query string.
 
         Returns
         -------

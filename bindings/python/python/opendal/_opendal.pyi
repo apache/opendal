@@ -49,10 +49,9 @@ def _reconstruct_operator(scheme: str, map: dict[str, str]) -> Operator:
     """
     Rebuild a blocking [`Operator`] while unpickling.
 
-    Reconstruction goes through `from_uri` (not the scheme-based `__new__`)
-    because `__scheme` may hold a full URI that `__new__` would normalize and
-    corrupt. A bare scheme is also accepted here, since the core resolves both
-    bare schemes and full URIs through the same path.
+    Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
+    normalization would corrupt a URI held in `__scheme`. Bare schemes work too:
+    the core resolves both through the same path.
     """
 
 def __getattr__(name: str) -> Incomplete: ...

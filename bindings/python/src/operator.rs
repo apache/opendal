@@ -78,31 +78,17 @@ fn extract_kwargs(kwargs: Option<&Bound<PyDict>>) -> PyResult<HashMap<String, St
 
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
-/// `from_uri` operators store a full URI in `__scheme` and must be rebuilt via
-/// `from_uri`; scheme operators are rebuilt via `via_iter`. Routing both through
-/// this reconstructor keeps a single pickle entry point and avoids the scheme
-/// normalization in `__new__` that would corrupt a stored URI.
+/// Reconstruction goes through `from_uri` (not the scheme-based `__new__`)
+/// because `__scheme` may hold a full URI that `__new__` would normalize and
+/// corrupt. A bare scheme is also accepted here, since the core resolves both
+/// bare schemes and full URIs through the same path.
 #[pyfunction]
-pub fn _reconstruct_operator(
-    from_uri: bool,
-    scheme: &str,
-    map: HashMap<String, String>,
-) -> PyResult<Operator> {
-    if from_uri {
-        Ok(Operator {
-            core: build_blocking_operator_from_uri(scheme, map.clone())?,
-            __scheme: scheme.to_string(),
-            __map: map,
-            __from_uri: true,
-        })
-    } else {
-        Ok(Operator {
-            core: build_blocking_operator(scheme, map.clone())?,
-            __scheme: scheme.to_string(),
-            __map: map,
-            __from_uri: false,
-        })
-    }
+pub fn _reconstruct_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<Operator> {
+    Ok(Operator {
+        core: build_blocking_operator_from_uri(scheme, map.clone())?,
+        __scheme: scheme.to_string(),
+        __map: map,
+    })
 }
 
 /// Rebuild an [`AsyncOperator`] while unpickling.
@@ -110,25 +96,14 @@ pub fn _reconstruct_operator(
 /// See [`_reconstruct_operator`] for why a dedicated reconstructor is used.
 #[pyfunction]
 pub fn _reconstruct_async_operator(
-    from_uri: bool,
     scheme: &str,
     map: HashMap<String, String>,
 ) -> PyResult<AsyncOperator> {
-    if from_uri {
-        Ok(AsyncOperator {
-            core: build_operator_from_uri(scheme, map.clone())?,
-            __scheme: scheme.to_string(),
-            __map: map,
-            __from_uri: true,
-        })
-    } else {
-        Ok(AsyncOperator {
-            core: build_operator(scheme, map.clone())?,
-            __scheme: scheme.to_string(),
-            __map: map,
-            __from_uri: false,
-        })
-    }
+    Ok(AsyncOperator {
+        core: build_operator_from_uri(scheme, map.clone())?,
+        __scheme: scheme.to_string(),
+        __map: map,
+    })
 }
 
 /// The blocking equivalent of `AsyncOperator`.
@@ -143,10 +118,6 @@ pub struct Operator {
     core: ocore::blocking::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
-    // When true, `__scheme` holds a full URI: reconstruct via `from_uri`, not
-    // scheme-based `__new__` (which normalizes and corrupts the URI). See
-    // `__reduce__`.
-    __from_uri: bool,
 }
 #[pymethods]
 impl Operator {
@@ -182,7 +153,6 @@ impl Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
-            __from_uri: false,
         })
     }
 
@@ -190,14 +160,18 @@ impl Operator {
     ///
     /// The URI encodes the scheme and configuration in a single string, e.g.
     /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
-    /// belong to a service enabled in this build.
+    /// belong to a service enabled in this build. Encode service options as
+    /// query parameters; use ``urllib.parse.urlencode`` when building the URI
+    /// dynamically.
     ///
     /// Parameters
     /// ----------
     /// uri : str
-    ///     The URI of the service.
+    ///     The URI of the service, including any options as query parameters.
     /// **kwargs : dict
-    ///     Extra options that override or supplement values encoded in the URI.
+    ///     Optional overrides for options already encoded in the URI. Prefer
+    ///     encoding options in the URI itself; these are for the rare case where
+    ///     an option is more convenient to pass separately.
     ///
     /// Returns
     /// -------
@@ -206,9 +180,11 @@ impl Operator {
     ///
     /// Examples
     /// --------
+    /// >>> from urllib.parse import urlencode
     /// >>> import opendal
     /// >>> op = opendal.Operator.from_uri("memory://")
-    /// >>> op = opendal.Operator.from_uri("s3://bucket/path", region="us-east-1")
+    /// >>> query = urlencode({"region": "us-east-1"})
+    /// >>> op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs))]
     pub fn from_uri(
@@ -222,7 +198,6 @@ impl Operator {
             core: build_blocking_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
             __map: map,
-            __from_uri: true,
         })
     }
 
@@ -247,7 +222,6 @@ impl Operator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
-            __from_uri: self.__from_uri,
         })
     }
 
@@ -799,7 +773,6 @@ impl Operator {
             core: self.core.clone().into(),
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
-            __from_uri: self.__from_uri,
         })
     }
 
@@ -820,7 +793,7 @@ impl Operator {
         let reconstructor = py
             .import("opendal._opendal")?
             .getattr("_reconstruct_operator")?;
-        let args = (self.__from_uri, self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        let args = (self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
         PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }
@@ -837,8 +810,6 @@ pub struct AsyncOperator {
     core: ocore::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
-    // See `Operator.__from_uri`.
-    __from_uri: bool,
 }
 #[pymethods]
 impl AsyncOperator {
@@ -875,7 +846,6 @@ impl AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
-            __from_uri: false,
         })
     }
 
@@ -883,14 +853,18 @@ impl AsyncOperator {
     ///
     /// The URI encodes the scheme and configuration in a single string, e.g.
     /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
-    /// belong to a service enabled in this build.
+    /// belong to a service enabled in this build. Encode service options as
+    /// query parameters; use ``urllib.parse.urlencode`` when building the URI
+    /// dynamically.
     ///
     /// Parameters
     /// ----------
     /// uri : str
-    ///     The URI of the service.
+    ///     The URI of the service, including any options as query parameters.
     /// **kwargs : dict
-    ///     Extra options that override or supplement values encoded in the URI.
+    ///     Optional overrides for options already encoded in the URI. Prefer
+    ///     encoding options in the URI itself; these are for the rare case where
+    ///     an option is more convenient to pass separately.
     ///
     /// Returns
     /// -------
@@ -899,9 +873,11 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
+    /// >>> from urllib.parse import urlencode
     /// >>> import opendal
     /// >>> op = opendal.AsyncOperator.from_uri("memory://")
-    /// >>> op = opendal.AsyncOperator.from_uri("s3://bucket/path", region="us-east-1")
+    /// >>> query = urlencode({"region": "us-east-1"})
+    /// >>> op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs))]
     pub fn from_uri(
@@ -915,7 +891,6 @@ impl AsyncOperator {
             core: build_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
             __map: map,
-            __from_uri: true,
         })
     }
 
@@ -936,7 +911,6 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
-            __from_uri: self.__from_uri,
         })
     }
 
@@ -1860,7 +1834,6 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
-            __from_uri: self.__from_uri,
         })
     }
 
@@ -1885,7 +1858,7 @@ impl AsyncOperator {
         let reconstructor = py
             .import("opendal._opendal")?
             .getattr("_reconstruct_async_operator")?;
-        let args = (self.__from_uri, self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        let args = (self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
         PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }

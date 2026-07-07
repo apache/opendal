@@ -38,23 +38,21 @@ class StatOptions: ...
 @final
 class WriteOptions: ...
 
-def _reconstruct_async_operator(
-    from_uri: bool, scheme: str, map: dict[str, str]
-) -> AsyncOperator:
+def _reconstruct_async_operator(scheme: str, map: dict[str, str]) -> AsyncOperator:
     """
     Rebuild an [`AsyncOperator`] while unpickling.
 
     See [`_reconstruct_operator`] for why a dedicated reconstructor is used.
     """
 
-def _reconstruct_operator(from_uri: bool, scheme: str, map: dict[str, str]) -> Operator:
+def _reconstruct_operator(scheme: str, map: dict[str, str]) -> Operator:
     """
     Rebuild a blocking [`Operator`] while unpickling.
 
-    `from_uri` operators store a full URI in `__scheme` and must be rebuilt via
-    `from_uri`; scheme operators are rebuilt via `via_iter`. Routing both through
-    this reconstructor keeps a single pickle entry point and avoids the scheme
-    normalization in `__new__` that would corrupt a stored URI.
+    Reconstruction goes through `from_uri` (not the scheme-based `__new__`)
+    because `__scheme` may hold a full URI that `__new__` would normalize and
+    corrupt. A bare scheme is also accepted here, since the core resolves both
+    bare schemes and full URIs through the same path.
     """
 
 def __getattr__(name: str) -> Incomplete: ...

@@ -168,14 +168,18 @@ class AsyncOperator:
 
         The URI encodes the scheme and configuration in a single string, e.g.
         ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
-        belong to a service enabled in this build.
+        belong to a service enabled in this build. Encode service options as
+        query parameters; use ``urllib.parse.urlencode`` when building the URI
+        dynamically.
 
         Parameters
         ----------
         uri : str
-            The URI of the service.
+            The URI of the service, including any options as query parameters.
         **kwargs : dict
-            Extra options that override or supplement values encoded in the URI.
+            Optional overrides for options already encoded in the URI. Prefer
+            encoding options in the URI itself; these are for the rare case where
+            an option is more convenient to pass separately.
 
         Returns
         -------
@@ -184,10 +188,12 @@ class AsyncOperator:
 
         Examples
         --------
+        >>> from urllib.parse import urlencode
         >>> import opendal
         >>> op = opendal.AsyncOperator.from_uri("memory://")
+        >>> query = urlencode({"region": "us-east-1"})
         >>> op = opendal.AsyncOperator.from_uri(
-        ...     "s3://bucket/path", region="us-east-1"
+        ...     f"s3://bucket/path?{query}"
         ... )
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
@@ -782,14 +788,18 @@ class Operator:
 
         The URI encodes the scheme and configuration in a single string, e.g.
         ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
-        belong to a service enabled in this build.
+        belong to a service enabled in this build. Encode service options as
+        query parameters; use ``urllib.parse.urlencode`` when building the URI
+        dynamically.
 
         Parameters
         ----------
         uri : str
-            The URI of the service.
+            The URI of the service, including any options as query parameters.
         **kwargs : dict
-            Extra options that override or supplement values encoded in the URI.
+            Optional overrides for options already encoded in the URI. Prefer
+            encoding options in the URI itself; these are for the rare case where
+            an option is more convenient to pass separately.
 
         Returns
         -------
@@ -798,11 +808,11 @@ class Operator:
 
         Examples
         --------
+        >>> from urllib.parse import urlencode
         >>> import opendal
         >>> op = opendal.Operator.from_uri("memory://")
-        >>> op = opendal.Operator.from_uri(
-        ...     "s3://bucket/path", region="us-east-1"
-        ... )
+        >>> query = urlencode({"region": "us-east-1"})
+        >>> op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
         """
     def layer(self, /, layer: Layer) -> Operator:
         """

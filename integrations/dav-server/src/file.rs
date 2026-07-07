@@ -70,9 +70,26 @@ impl OpendalFile {
                 .map_err(convert_error)?;
             State::Read(r)
         } else if options.write {
-            let w = op
-                .writer_with(&path)
-                .append(options.append)
+            let capability = op.info().capability();
+            let mut writer = op.writer_with(&path);
+
+            if options.append {
+                if !capability.write_can_append {
+                    // DAV append requires backend support.
+                    return Err(FsError::NotImplemented);
+                }
+                writer = writer.append(true);
+            }
+
+            if options.create_new {
+                if !capability.write_with_if_not_exists {
+                    // Conditional create requires backend support.
+                    return Err(FsError::NotImplemented);
+                }
+                writer = writer.if_not_exists(true);
+            }
+
+            let w = writer
                 .await
                 .map_err(convert_error)?
                 .into_futures_async_write();

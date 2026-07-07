@@ -24,7 +24,7 @@ use dav_server::fs::{DavMetaData, FsResult};
 use dav_server::fs::{FsError, FsFuture};
 use futures::FutureExt;
 use futures::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use opendal::{FuturesAsyncReader, FuturesAsyncWriter, Operator};
+use opendal_core::{FuturesAsyncReader, FuturesAsyncWriter, Operator};
 
 use super::metadata::OpendalMetaData;
 use super::utils::*;

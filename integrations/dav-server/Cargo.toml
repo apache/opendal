@@ -32,7 +32,7 @@ anyhow = "1"
 bytes = { version = "1.4.0" }
 dav-server = { version = "0.11.0" }
 futures = "0.3"
-opendal = { version = "0.58.0", path = "../../core" }
+opendal-core = { version = "0.58.0", path = "../../core/core", default-features = false }
 
 [dev-dependencies]
 opendal = { version = "0.58.0", path = "../../core", features = [

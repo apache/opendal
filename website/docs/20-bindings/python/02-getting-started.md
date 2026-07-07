@@ -60,4 +60,4 @@ asyncio.run(main())
 Both operators expose the same operations. Convert between them with
 `op.to_async_operator()` and `op.to_operator()` when you need the other form.
 
-[`AsyncOperator`]: https://opendal.apache.org/docs/python/opendal.html#opendal.AsyncOperator
+[`AsyncOperator`]: https://opendal.apache.org/docs/python/api/async_operator/#opendal.AsyncOperator

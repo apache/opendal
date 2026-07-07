@@ -51,17 +51,25 @@ impl RetryLayer {
     /// max_times : Optional[int]
     ///     Maximum number of retry attempts. Defaults to ``3``.
     /// factor : Optional[float]
-    ///     Backoff factor applied between retries. Defaults to ``2.0``.
+    ///     Backoff factor applied between retries. Must be a finite value
+    ///     ``>= 1.0``. Defaults to ``2.0``.
     /// jitter : bool
     ///     Whether to apply jitter to the backoff. Defaults to ``False``.
     /// max_delay : Optional[float]
-    ///     Maximum delay (in seconds) between retries. Defaults to ``60.0``.
+    ///     Maximum delay (in seconds) between retries. Must be finite and
+    ///     non-negative. Defaults to ``60.0``.
     /// min_delay : Optional[float]
-    ///     Minimum delay (in seconds) between retries. Defaults to ``1.0``.
+    ///     Minimum delay (in seconds) between retries. Must be finite and
+    ///     non-negative. Defaults to ``1.0``.
     ///
     /// Returns
     /// -------
     /// RetryLayer
+    ///
+    /// Raises
+    /// ------
+    /// ConfigInvalid
+    ///     If ``factor``, ``max_delay``, or ``min_delay`` is out of range.
     #[new]
     #[pyo3(signature = (
         max_times = None,
@@ -82,16 +90,27 @@ impl RetryLayer {
             retry = retry.with_max_times(max_times);
         }
         if let Some(factor) = factor {
+            if !factor.is_finite() || factor < 1.0 {
+                return Err(ConfigInvalid::new_err(
+                    "factor must be a finite value greater than or equal to 1.0",
+                ));
+            }
             retry = retry.with_factor(factor);
         }
         if jitter {
             retry = retry.with_jitter();
         }
         if let Some(max_delay) = max_delay {
-            retry = retry.with_max_delay(Duration::from_micros((max_delay * 1_000_000.0) as u64));
+            let max_delay = Duration::try_from_secs_f64(max_delay).map_err(|_| {
+                ConfigInvalid::new_err("max_delay must be a finite, non-negative number of seconds")
+            })?;
+            retry = retry.with_max_delay(max_delay);
         }
         if let Some(min_delay) = min_delay {
-            retry = retry.with_min_delay(Duration::from_micros((min_delay * 1_000_000.0) as u64));
+            let min_delay = Duration::try_from_secs_f64(min_delay).map_err(|_| {
+                ConfigInvalid::new_err("min_delay must be a finite, non-negative number of seconds")
+            })?;
+            retry = retry.with_min_delay(min_delay);
         }
 
         let retry_layer = Self(retry);

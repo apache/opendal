@@ -177,11 +177,14 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// >>> from urllib.parse import urlencode
-    /// >>> import opendal
-    /// >>> op = opendal.Operator.from_uri("memory://")
-    /// >>> query = urlencode({"region": "us-east-1"})
-    /// >>> op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+    /// ```python
+    /// from urllib.parse import urlencode
+    /// import opendal
+    ///
+    /// op = opendal.Operator.from_uri("memory://")
+    /// query = urlencode({"region": "us-east-1"})
+    /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+    /// ```
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs))]
     pub fn from_uri(
@@ -868,11 +871,14 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// >>> from urllib.parse import urlencode
-    /// >>> import opendal
-    /// >>> op = opendal.AsyncOperator.from_uri("memory://")
-    /// >>> query = urlencode({"region": "us-east-1"})
-    /// >>> op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
+    /// ```python
+    /// from urllib.parse import urlencode
+    /// import opendal
+    ///
+    /// op = opendal.AsyncOperator.from_uri("memory://")
+    /// query = urlencode({"region": "us-east-1"})
+    /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
+    /// ```
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs))]
     pub fn from_uri(

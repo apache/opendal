@@ -186,13 +186,16 @@ class AsyncOperator:
 
         Examples
         --------
-        >>> from urllib.parse import urlencode
-        >>> import opendal
-        >>> op = opendal.AsyncOperator.from_uri("memory://")
-        >>> query = urlencode({"region": "us-east-1"})
-        >>> op = opendal.AsyncOperator.from_uri(
-        ...     f"s3://bucket/path?{query}"
-        ... )
+        ```python
+        from urllib.parse import urlencode
+        import opendal
+
+        op = opendal.AsyncOperator.from_uri("memory://")
+        query = urlencode({"region": "us-east-1"})
+        op = opendal.AsyncOperator.from_uri(
+            f"s3://bucket/path?{query}"
+        )
+        ```
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
@@ -804,11 +807,14 @@ class Operator:
 
         Examples
         --------
-        >>> from urllib.parse import urlencode
-        >>> import opendal
-        >>> op = opendal.Operator.from_uri("memory://")
-        >>> query = urlencode({"region": "us-east-1"})
-        >>> op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+        ```python
+        from urllib.parse import urlencode
+        import opendal
+
+        op = opendal.Operator.from_uri("memory://")
+        query = urlencode({"region": "us-east-1"})
+        op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+        ```
         """
     def layer(self, /, layer: Layer) -> Operator:
         """

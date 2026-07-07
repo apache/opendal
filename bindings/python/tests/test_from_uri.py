@@ -93,6 +93,31 @@ async def test_async_from_uri_write(service_name, uri_async_operator):
     await uri_async_operator.delete(filename)
 
 
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_from_uri_read_write_roundtrip(uri_operator):
+    # Write then read back through a from_uri-built operator and assert the
+    # content survives the round trip unchanged.
+    size = randint(1, 1024)
+    filename = f"test_file_{uuid4()}.txt"
+    content = os.urandom(size)
+    uri_operator.write(filename, content)
+    assert uri_operator.read(filename) == content
+
+    uri_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_from_uri_read_write_roundtrip(uri_async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{uuid4()}.txt"
+    content = os.urandom(size)
+    await uri_async_operator.write(filename, content)
+    assert (await uri_async_operator.read(filename)) == content
+
+    await uri_async_operator.delete(filename)
+
+
 @pytest.mark.need_capability("read", "write", "delete", "shared")
 def test_from_uri_operator_pickle(uri_operator):
     # Match `test_operator_pickle`: an operator built via `from_uri` must survive

@@ -67,15 +67,6 @@ fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
-/// Extract service options from `**kwargs`, propagating a Python exception if a
-/// value is not a `str -> str` mapping instead of panicking.
-fn extract_kwargs(kwargs: Option<&Bound<PyDict>>) -> PyResult<HashMap<String, String>> {
-    match kwargs {
-        Some(v) => v.extract::<HashMap<String, String>>(),
-        None => Ok(HashMap::new()),
-    }
-}
-
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
 /// Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
@@ -135,7 +126,7 @@ impl Operator {
     ///     The new operator.
     #[new]
     #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -146,7 +137,7 @@ impl Operator {
             ));
         };
         let scheme = normalize_scheme(&scheme);
-        let map = extract_kwargs(kwargs)?;
+        let map = kwargs.unwrap_or_default();
 
         Ok(Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
@@ -190,9 +181,9 @@ impl Operator {
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
-        kwargs: Option<&Bound<PyDict>>,
+        kwargs: Option<HashMap<String, String>>,
     ) -> PyResult<Self> {
-        let map = extract_kwargs(kwargs)?;
+        let map = kwargs.unwrap_or_default();
 
         Ok(Operator {
             core: build_blocking_operator_from_uri(uri, map.clone())?,
@@ -828,7 +819,7 @@ impl AsyncOperator {
     ///     The new async operator.
     #[new]
     #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -840,7 +831,7 @@ impl AsyncOperator {
         };
         let scheme = normalize_scheme(&scheme);
 
-        let map = extract_kwargs(kwargs)?;
+        let map = kwargs.unwrap_or_default();
 
         Ok(AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
@@ -884,9 +875,9 @@ impl AsyncOperator {
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
-        kwargs: Option<&Bound<PyDict>>,
+        kwargs: Option<HashMap<String, String>>,
     ) -> PyResult<Self> {
-        let map = extract_kwargs(kwargs)?;
+        let map = kwargs.unwrap_or_default();
 
         Ok(AsyncOperator {
             core: build_operator_from_uri(uri, map.clone())?,

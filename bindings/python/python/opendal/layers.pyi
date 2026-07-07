@@ -126,15 +126,23 @@ class RetryLayer(Layer):
         max_times : Optional[int]
             Maximum number of retry attempts. Defaults to ``3``.
         factor : Optional[float]
-            Backoff factor applied between retries. Defaults to ``2.0``.
+            Backoff factor applied between retries. Must be a finite value
+            ``>= 1.0``. Defaults to ``2.0``.
         jitter : bool
             Whether to apply jitter to the backoff. Defaults to ``False``.
         max_delay : Optional[float]
-            Maximum delay (in seconds) between retries. Defaults to ``60.0``.
+            Maximum delay (in seconds) between retries. Must be finite and
+            non-negative. Defaults to ``60.0``.
         min_delay : Optional[float]
-            Minimum delay (in seconds) between retries. Defaults to ``1.0``.
+            Minimum delay (in seconds) between retries. Must be finite and
+            non-negative. Defaults to ``1.0``.
 
         Returns
         -------
         RetryLayer
+
+        Raises
+        ------
+        ConfigInvalid
+            If ``factor``, ``max_delay``, or ``min_delay`` is out of range.
         """

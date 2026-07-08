@@ -180,3 +180,17 @@ pub struct opendal_result_writer_write {
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
+
+/// \brief The result type returned by the metadata-returning write operations.
+///
+/// Returned by opendal_operator_write_with_metadata() and
+/// opendal_writer_close_with_metadata(). On success the `meta` field holds the
+/// metadata of the just-written object (e.g. etag, version, last modified) and
+/// `error` is null; on failure `meta` is null and `error` is set.
+#[repr(C)]
+pub struct opendal_result_write {
+    /// The metadata of the written object, or null on error.
+    pub meta: *mut opendal_metadata,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}

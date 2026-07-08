@@ -385,6 +385,25 @@ typedef struct opendal_write_options {
 } opendal_write_options;
 
 /**
+ * \brief The result type returned by the metadata-returning write operations.
+ *
+ * Returned by opendal_operator_write_with_metadata() and
+ * opendal_writer_close_with_metadata(). On success the `meta` field holds the
+ * metadata of the just-written object (e.g. etag, version, last modified) and
+ * `error` is null; on failure `meta` is null and `error` is set.
+ */
+typedef struct opendal_result_write {
+  /**
+   * The metadata of the written object, or null on error.
+   */
+  struct opendal_metadata *meta;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_write;
+
+/**
  * \brief The result type returned by opendal's read operation.
  *
  * The result type of read operation in opendal C binding, it contains
@@ -1510,6 +1529,43 @@ struct opendal_error *opendal_operator_write_with(const struct opendal_operator 
                                                   const char *path,
                                                   const struct opendal_bytes *bytes,
                                                   const struct opendal_write_options *opts);
+
+/**
+ * \brief Blocking write raw bytes to `path`, returning the written object's metadata.
+ *
+ * Like `opendal_operator_write_with`, but on success returns the metadata of the
+ * just-written object (e.g. etag, version, last modified) instead of discarding it.
+ * A NULL `opts` is treated as the default options, behaving like a plain write.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The designated path where the data will be written
+ * @param bytes The data to write
+ * @param opts The write options, or NULL to use the defaults
+ * @see opendal_operator
+ * @see opendal_write_options
+ * @see opendal_result_write
+ * @return Returns opendal_result_write, containing the metadata and an opendal_error.
+ * If the operation succeeds, the `meta` field holds the metadata and the `error` field
+ * is null. Otherwise, the `meta` will be null and the `error` will be set correspondingly.
+ *
+ * \note The returned metadata must be freed with opendal_metadata_free().
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ * * The `bytes` provided has valid byte in the `data` field and the `len` field is set
+ *   correctly.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_write opendal_operator_write_with_metadata(const struct opendal_operator *op,
+                                                                 const char *path,
+                                                                 const struct opendal_bytes *bytes,
+                                                                 const struct opendal_write_options *opts);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -2878,6 +2934,21 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
  * \brief Close the writer and make sure all data have been stored.
  */
 struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
+
+/**
+ * \brief Close the writer and return the written object's metadata.
+ *
+ * Like `opendal_writer_close`, but on success returns the metadata of the
+ * written object (e.g. etag, version, last modified) instead of discarding it.
+ *
+ * @param ptr The opendal_writer to close
+ * @see opendal_result_write
+ * @return Returns opendal_result_write. On success the `meta` field holds the
+ * metadata and `error` is null; on failure `meta` is null and `error` is set.
+ *
+ * \note The returned metadata must be freed with opendal_metadata_free().
+ */
+struct opendal_result_write opendal_writer_close_with_metadata(struct opendal_writer *ptr);
 
 /**
  * \brief Frees the heap memory used by the opendal_writer.

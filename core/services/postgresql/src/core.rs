@@ -45,6 +45,14 @@ impl PostgresqlCore {
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let pool = self.get_client().await?;
 
+        // PostgreSQL uses `"` for identifier quote. A quoted identifier is case-sensitive and
+        // can contain special characters.
+        // Read more https://www.postgresql.org/docs/18/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+        //
+        // We use:
+        // - formatted, quoted identifiers for trusted table and field configuration
+        // - bind parameters for values to avoid malformed SQL and SQL injection
+        // to ensure correctness.
         let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
             r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
             self.value_field, self.table, self.key_field
@@ -55,6 +63,28 @@ impl PostgresqlCore {
         .map_err(parse_postgres_error)?;
 
         Ok(value.map(Buffer::from))
+    }
+
+    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
+        let pool = self.get_client().await?;
+
+        let value: Option<i64> = sqlx::query_scalar(&format!(
+            r#"SELECT OCTET_LENGTH("{}")::BIGINT FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
+            self.value_field, self.table, self.key_field
+        ))
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_postgres_error)?;
+
+        value
+            .map(|v| {
+                v.try_into().map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "postgresql value length is invalid")
+                        .set_source(err)
+                })
+            })
+            .transpose()
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
@@ -82,7 +112,7 @@ impl PostgresqlCore {
         let pool = self.get_client().await?;
 
         sqlx::query(&format!(
-            "DELETE FROM {} WHERE {} = $1",
+            r#"DELETE FROM "{}" WHERE "{}" = $1"#,
             self.table, self.key_field
         ))
         .bind(path)

@@ -16,14 +16,58 @@
 // under the License.
 
 //! Reqwest based HTTP transport for Apache OpenDAL.
+//!
+//! # TLS backends
+//!
+//! Enable one of the following Cargo features to compile reqwest TLS support.
+//! The `default` feature enables `rustls`.
+//!
+//! - **`native-tls`** — Platform TLS links against the OS TLS library:
+//!    - Windows: SChannel
+//!    - macOS: Secure Transport
+//!    - Linux: OpenSSL, requires system development packages
+//!
+//! - **`rustls`** — [Rustls](https://crates.io/crates/rustls) configured by
+//!   reqwest with its default crypto provider and platform certificate
+//!   verification. Pure-Rust TLS stack, no system TLS dependency.
+//!
+//! - **`rustls-no-provider`** — Rustls without a built-in crypto provider.
+//!   You must install a [`rustls::crypto::CryptoProvider`] before building a
+//!   client. Use this when you want to bring your own provider
+//!   (e.g., a FIPS-certified module).
+//!
+//! In application or language binding builds, prefer selecting a single backend
+//! feature. In workspace or `--all-features` builds, Cargo may enable multiple
+//! backend features via feature unification; build a [`reqwest::Client`] with
+//! reqwest's TLS configuration methods and pass it to [`ReqwestTransport::new`]
+//! to force the backend you want.
+//!
+//! On wasm targets, reqwest uses the Fetch API instead of hyper. TLS is provided
+//! by the host environment, so native TLS backend features do not select a TLS
+//! stack there.
+//!
+//! # Custom reqwest client
+//!
+//! ```
+//! use std::time::Duration;
+//!
+//! use opendal_core::HttpTransporter;
+//! use opendal_http_transport_reqwest::ReqwestTransport;
+//!
+//! # fn build() -> Result<(), Box<dyn std::error::Error>> {
+//! let client = reqwest::Client::builder()
+//!     .tls_backend_rustls()
+//!     .connect_timeout(Duration::from_secs(10))
+//!     .build()?;
+//! let transport = ReqwestTransport::new(client);
+//! let _transport = HttpTransporter::new(transport);
+//! # Ok(())
+//! # }
+//! ```
 
-#![deny(missing_docs)]
-
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
 use std::future;
 use std::mem;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use futures::TryStreamExt;
@@ -40,11 +84,7 @@ use opendal_core::raw::parse_content_length;
 
 static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
-/// A [`reqwest::Client`] backed HTTP transport.
-///
-/// # Notes
-///
-/// Reqwest must be configured with a TLS feature before sending HTTPS requests.
+/// A HTTP transport with [`reqwest::Client`].
 #[derive(Clone)]
 pub struct ReqwestTransport {
     client: reqwest::Client,
@@ -84,7 +124,7 @@ impl HttpTransport for ReqwestTransport {
 
         let (parts, body) = req.into_parts();
 
-        let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
+        let url = reqwest::Url::parse(&uri.to_string()).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
                 .with_operation("reqwest::fetch")
                 .with_context("url", uri.to_string())
@@ -200,5 +240,24 @@ impl http_body::Body for HttpBufferBody {
 
     fn size_hint(&self) -> http_body::SizeHint {
         http_body::SizeHint::with_exact(self.0.len() as u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(any(feature = "rustls", feature = "native-tls"))]
+    #[test]
+    fn test_default_transport_succeeds() {
+        let transport = ReqwestTransport::default();
+        assert_eq!(format!("{:?}", transport), "ReqwestTransport");
+    }
+
+    #[test]
+    fn test_from_reqwest_client() {
+        let client = reqwest::Client::new();
+        let transport = ReqwestTransport::from(client);
+        assert_eq!(format!("{:?}", transport), "ReqwestTransport");
     }
 }

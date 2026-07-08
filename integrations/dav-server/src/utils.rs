@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub fn convert_error(opendal_error: opendal::Error) -> dav_server::fs::FsError {
+pub fn convert_error(opendal_error: opendal_core::Error) -> dav_server::fs::FsError {
     match opendal_error.kind() {
-        opendal::ErrorKind::AlreadyExists | opendal::ErrorKind::IsSameFile => {
+        opendal_core::ErrorKind::AlreadyExists | opendal_core::ErrorKind::IsSameFile => {
             dav_server::fs::FsError::Exists
         }
-        opendal::ErrorKind::NotFound => dav_server::fs::FsError::NotFound,
+        opendal_core::ErrorKind::NotFound => dav_server::fs::FsError::NotFound,
         _ => dav_server::fs::FsError::GeneralFailure,
     }
 }

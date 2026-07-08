@@ -31,8 +31,20 @@ version = { workspace = true }
 all-features = true
 
 [features]
-default = []
+default = ["rustls"]
+# Use platform TLS via reqwest's native-tls feature.
+native-tls = ["reqwest/native-tls"]
+# Use Rustls with reqwest's default crypto provider and platform certificate verification.
 rustls = ["reqwest/rustls"]
+# Use Rustls without a built-in crypto provider.
+#
+# `rustls` builds `aws_lc_rs` crypto provider by default. When using other TLS backends,
+# consider features like:
+# - ring
+# - fips
+# Also read more about `rustls-native-certs` crate.
+#
+# To use WebPKI roots, read more about `webpki_roots` crate as well. 
 rustls-no-provider = ["reqwest/rustls-no-provider"]
 
 [dependencies]
@@ -40,7 +52,7 @@ bytes = { workspace = true }
 futures = { workspace = true, features = ["std"] }
 http = { workspace = true }
 http-body = "1"
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
 reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }

@@ -228,10 +228,10 @@ impl Service for SqliteBackend {
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            let bs = self.core.get(&p).await?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::from_path(&p)).with_content_length(bs.len() as u64),
+            let length = self.core.get_length(&p).await?;
+            match length {
+                Some(length) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::from_path(&p)).with_content_length(length as u64),
                 )),
                 None => {
                     // Check if this might be a directory by looking for keys with this prefix
@@ -240,14 +240,7 @@ impl Service for SqliteBackend {
                     } else {
                         format!("{}/", p)
                     };
-                    let count: i64 = sqlx::query_scalar(&format!(
-                        "SELECT COUNT(*) FROM `{}` WHERE `{}` LIKE $1 LIMIT 1",
-                        self.core.table, self.core.key_field
-                    ))
-                    .bind(format!("{}%", dir_path))
-                    .fetch_one(self.core.get_client().await?)
-                    .await
-                    .map_err(parse_sqlite_error)?;
+                    let count = self.core.count_under(&dir_path).await?;
 
                     if count > 0 {
                         // Directory exists (has children)
@@ -373,68 +366,147 @@ mod test {
         OnceCell::from_value(pool)
     }
 
-    #[tokio::test]
-    async fn test_sqlite_accessor_creation() {
+    async fn build_backend() -> SqliteBackend {
         let core = SqliteCore {
             pool: build_client().await,
             config: Default::default(),
-            table: "test".to_string(),
+            table: "test_table".to_string(),
             key_field: "key".to_string(),
             value_field: "value".to_string(),
         };
 
-        let accessor = SqliteBackend::new(core);
-
-        // Verify basic properties
-        assert_eq!(accessor.root, "/");
-        assert_eq!(accessor.info.scheme(), SQLITE_SCHEME);
-        assert!(accessor.capability().read);
-        assert!(accessor.capability().write);
-        assert!(accessor.capability().delete);
-        assert!(accessor.capability().stat);
+        SqliteBackend::new(core)
     }
 
     #[tokio::test]
-    async fn test_sqlite_accessor_with_root() {
-        let core = SqliteCore {
-            pool: build_client().await,
-            config: Default::default(),
-            table: "test".to_string(),
-            key_field: "key".to_string(),
-            value_field: "value".to_string(),
-        };
+    async fn test_sqlite_backend_creation() {
+        let backend = build_backend().await;
 
-        let accessor = SqliteBackend::new(core).with_normalized_root("/test/".to_string());
+        // Verify basic properties
+        assert_eq!(backend.root, "/");
+        assert_eq!(backend.info.scheme(), SQLITE_SCHEME);
+        assert!(backend.capability().read);
+        assert!(backend.capability().write);
+        assert!(backend.capability().delete);
+        assert!(backend.capability().stat);
+    }
 
-        assert_eq!(accessor.root, "/test/");
-        assert_eq!(accessor.info.root(), Arc::from("/test/"));
+    #[tokio::test]
+    async fn test_sqlite_backend_with_root() {
+        let backend = build_backend()
+            .await
+            .with_normalized_root("/test/".to_string());
+
+        assert_eq!(backend.root, "/test/");
+        assert_eq!(backend.info.root(), Arc::from("/test/"));
     }
 
     #[tokio::test]
     async fn test_sqlite_read_range_from_offset_reads_to_eof() {
-        let core = SqliteCore {
-            pool: build_client().await,
-            config: Default::default(),
-            table: "test".to_string(),
-            key_field: "key".to_string(),
-            value_field: "value".to_string(),
-        };
-        let pool = core.get_client().await.unwrap();
-        sqlx::query("CREATE TABLE test (key TEXT PRIMARY KEY, value BLOB)")
+        let backend = build_backend().await;
+
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
             .execute(pool)
             .await
             .unwrap();
 
-        let accessor = SqliteBackend::new(core);
         let ctx = OperationContext::new();
-        let mut writer = accessor.write(&ctx, "hello", OpWrite::default()).unwrap();
+        let mut writer = backend.write(&ctx, "hello", OpWrite::default()).unwrap();
         writer.write(Buffer::from("hello world")).await.unwrap();
         writer.close().await.unwrap();
 
-        let reader = accessor.read(&ctx, "hello", OpRead::default()).unwrap();
+        let reader = backend.read(&ctx, "hello", OpRead::default()).unwrap();
         let (_, mut stream) = reader.open(BytesRange::from(6_u64..)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
         assert_eq!(buffer.to_vec(), b"world");
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_stat_uses_value_length() {
+        let backend = build_backend().await;
+
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let ctx = OperationContext::new();
+        let mut writer = backend.write(&ctx, "key_id", OpWrite::default()).unwrap();
+        writer.write(Buffer::from("hello world")).await.unwrap();
+        writer.close().await.unwrap();
+
+        let rp = backend
+            .stat(&ctx, "key_id", OpStat::default())
+            .await
+            .unwrap();
+
+        assert_eq!(rp.into_metadata().content_length(), 11);
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_stat_returns_byte_length_for_text_value() {
+        let backend = build_backend().await;
+
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO test_table (key, value) VALUES ($1, $2)")
+            .bind("key_id")
+            .bind("你好")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let ctx = OperationContext::new();
+
+        let rp = backend
+            .stat(&ctx, "key_id", OpStat::default())
+            .await
+            .unwrap();
+        assert_eq!(rp.into_metadata().content_length(), 6);
+
+        let reader = backend.read(&ctx, "key_id", OpRead::default()).unwrap();
+        let (rp, mut stream) = reader.open(BytesRange::from(0_u64..3)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 6);
+        assert_eq!(buffer.to_vec(), "你".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_stat_returns_byte_length_for_text_column() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value TEXT)")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO test_table (key, value) VALUES ($1, $2)")
+            .bind("key_id")
+            .bind("你好")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let ctx = OperationContext::new();
+
+        let rp = backend
+            .stat(&ctx, "key_id", OpStat::default())
+            .await
+            .unwrap();
+        assert_eq!(rp.into_metadata().content_length(), 6);
+
+        let reader = backend.read(&ctx, "key_id", OpRead::default()).unwrap();
+        let (rp, mut stream) = reader.open(BytesRange::from(0_u64..3)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 6);
+        assert_eq!(buffer.to_vec(), "你".as_bytes());
     }
 }

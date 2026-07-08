@@ -61,23 +61,24 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.57.0", vec![]);
+    let core = make_package("core", "0.58.0", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.7.2", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.57.0", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.8.1", vec![core.clone()]);
-    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.2", vec![core.clone()]);
+    let dav_server = make_package("integrations/dav-server", "0.7.3", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.58.0", vec![core.clone()]);
+    let parquet = make_package("integrations/parquet", "0.8.2", vec![core.clone()]);
+    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.3", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
-    let c = make_package("bindings/c", "0.46.6", vec![core.clone()]);
-    let cpp = make_package("bindings/cpp", "0.45.26", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.49.0", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.49.4", vec![core.clone()]);
-    let python = make_package("bindings/python", "0.47.2", vec![core.clone()]);
-    let ruby = make_package("bindings/ruby", "0.1.6", vec![core.clone()]);
+    let c = make_package("bindings/c", "0.47.0", vec![core.clone()]);
+    let cpp = make_package("bindings/cpp", "0.45.27", vec![core.clone()]);
+    let java = make_package("bindings/java", "0.50.0", vec![core.clone()]);
+    let nodejs = make_package("bindings/nodejs", "0.49.5", vec![core.clone()]);
+    let python = make_package("bindings/python", "0.47.3", vec![core.clone()]);
+    let ruby = make_package("bindings/ruby", "0.1.8", vec![core.clone()]);
+    let dotnet = make_package("bindings/dotnet", "0.1.0", vec![core.clone()]);
 
     vec![
         core,
@@ -91,6 +92,7 @@ pub fn all_packages() -> Vec<Package> {
         nodejs,
         python,
         ruby,
+        dotnet,
     ]
 }
 
@@ -120,6 +122,7 @@ pub fn update_package_version(package: &Package) -> bool {
         }
         "bindings/java" => update_maven_version(&package.path, &package.version),
         "bindings/nodejs" => update_nodejs_version(&package.path, &package.version),
+        "bindings/dotnet" => update_dotnet_version(&package.path, &package.version),
 
         name => panic!("unknown package: {name}"),
     }
@@ -521,6 +524,33 @@ fn update_nodejs_version(path: &Path, version: &Version) -> bool {
     updated
 }
 
+fn update_dotnet_version(path: &Path, version: &Version) -> bool {
+    let path = path.join("OpenDAL").join("OpenDAL.csproj");
+    let manifest = std::fs::read_to_string(&path).unwrap();
+    let matcher = regex::Regex::new(r"<VersionPrefix>(\d+\.\d+\.\d+)</VersionPrefix>").unwrap();
+    let old_version = matcher
+        .captures(&manifest)
+        .and_then(|captures| captures.get(1))
+        .map(|matched| Version::parse(matched.as_str()).unwrap())
+        .unwrap_or_else(|| panic!("missing VersionPrefix for package: {}", path.display()));
+
+    if old_version == *version {
+        return false;
+    }
+
+    let new_version_string = format!("<VersionPrefix>{version}</VersionPrefix>");
+    let new_manifest = matcher.replace(&manifest, new_version_string.as_str());
+    std::fs::write(&path, new_manifest.as_bytes()).unwrap();
+    println!(
+        "updating version for package: {} from {} to {}",
+        path.display(),
+        old_version,
+        version
+    );
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -533,24 +563,56 @@ mod tests {
         std::env::temp_dir().join(format!("odev-package-{name}-{nanos}"))
     }
 
+    fn release_package(name: &str) -> Package {
+        all_packages()
+            .into_iter()
+            .find(|package| package.name() == name)
+            .unwrap()
+    }
+
+    fn cargo_manifest_version(package: &Package) -> Version {
+        let manifest_path = package.path.join("Cargo.toml");
+        let manifest = std::fs::read_to_string(manifest_path).unwrap();
+        let manifest = DocumentMut::from_str(&manifest).unwrap();
+
+        manifest["package"]["version"]
+            .as_str()
+            .map(Version::parse)
+            .transpose()
+            .unwrap()
+            .unwrap()
+    }
+
+    fn dotnet_project_version(package: &Package) -> Version {
+        let manifest_path = package.path.join("OpenDAL").join("OpenDAL.csproj");
+        let manifest = std::fs::read_to_string(manifest_path).unwrap();
+        let matcher = regex::Regex::new(r"<VersionPrefix>(\d+\.\d+\.\d+)</VersionPrefix>").unwrap();
+        matcher
+            .captures(&manifest)
+            .and_then(|captures| captures.get(1))
+            .map(|matched| Version::parse(matched.as_str()).unwrap())
+            .unwrap()
+    }
+
     #[test]
     fn parquet_release_version_matches_manifest() {
-        let parquet = all_packages()
-            .into_iter()
-            .find(|package| package.name() == "integrations/parquet")
-            .unwrap();
+        let parquet = release_package("integrations/parquet");
 
-        assert_eq!(parquet.version, Version::parse("0.8.1").unwrap());
+        assert_eq!(parquet.version, cargo_manifest_version(&parquet));
     }
 
     #[test]
     fn ruby_release_version_matches_manifest() {
-        let ruby = all_packages()
-            .into_iter()
-            .find(|package| package.name() == "bindings/ruby")
-            .unwrap();
+        let ruby = release_package("bindings/ruby");
 
-        assert_eq!(ruby.version, Version::parse("0.1.6").unwrap());
+        assert_eq!(ruby.version, cargo_manifest_version(&ruby));
+    }
+
+    #[test]
+    fn dotnet_release_version_matches_project() {
+        let dotnet = release_package("bindings/dotnet");
+
+        assert_eq!(dotnet.version, dotnet_project_version(&dotnet));
     }
 
     #[test]
@@ -649,6 +711,40 @@ opendal = { version = "0.55.0", path = "../core" }
             manifest["target"]["cfg(windows)"]["dependencies"]["opendal"]["version"].as_str(),
             Some("0.55.0")
         );
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn update_dotnet_version_updates_version_prefix() {
+        let dir = temp_test_dir("dotnet-version");
+        let project_dir = dir.join("OpenDAL");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let project_path = project_dir.join("OpenDAL.csproj");
+        std::fs::write(
+            &project_path,
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <VersionPrefix>0.1.0</VersionPrefix>
+        <AssemblyVersion>$(VersionPrefix)</AssemblyVersion>
+        <FileVersion>$(VersionPrefix)</FileVersion>
+    </PropertyGroup>
+</Project>"#,
+        )
+        .unwrap();
+
+        let updated = update_dotnet_version(&dir, &Version::parse("0.2.0").unwrap());
+        assert!(updated);
+
+        let manifest = std::fs::read_to_string(&project_path).unwrap();
+        assert!(manifest.contains("<VersionPrefix>0.2.0</VersionPrefix>"));
+        assert!(manifest.contains("<AssemblyVersion>$(VersionPrefix)</AssemblyVersion>"));
+        assert!(manifest.contains("<FileVersion>$(VersionPrefix)</FileVersion>"));
+        assert!(!update_dotnet_version(
+            &dir,
+            &Version::parse("0.2.0").unwrap()
+        ));
 
         std::fs::remove_dir_all(dir).unwrap();
     }

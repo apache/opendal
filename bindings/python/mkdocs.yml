@@ -50,6 +50,7 @@ nav:
       - File: api/file.md
       - Layers: api/layers.md
       - Operator: api/operator.md
+      - Services: api/services.md
       - Types: api/types.md
 
 markdown_extensions:

@@ -31,6 +31,7 @@ them and applies two temporary fixups (until PyO3 introspection covers them):
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent.parent / "python" / "opendal"
@@ -57,6 +58,9 @@ IMPORTS = {
         "from .types import Entry, PresignedRequest\n"
     ),
     "file": "import collections.abc\nimport types\nimport typing_extensions\n",
+    # Generated service configs use `PathBuf` params, which pyo3 renders as
+    # `str | PathLike[str]`; inject the import the annotation needs.
+    "services": "from os import PathLike\n",
 }
 
 # Mirrors the `create_exception!` types in `src/errors.rs`; keep in sync.
@@ -84,10 +88,38 @@ def fix_incomplete_exceptions() -> None:
         path.write_text(EXCEPTIONS_STUB)
 
 
+def rewrite_config_init(text: str) -> str:
+    """Rewrite generated config ``__new__`` methods as ``__init__``.
+
+    PyO3 emits pyclass constructors as ``__new__(cls, ...) -> XConfig``. Rename
+    them to ``__init__(self, ...) -> None`` so mkdocstrings' ``merge_init_into_class``
+    renders the typed constructor signature on the class. Typing is unchanged --
+    ``XConfig(...)`` still checks against the same parameters.
+    """
+    text = re.sub(
+        r"def __new__\(\n(\s*)cls,",
+        r"def __init__(\n\1self,",
+        text,
+    )
+    text = re.sub(
+        r"def __new__\(cls,",
+        r"def __init__(self,",
+        text,
+    )
+    text = re.sub(
+        r"\) -> [A-Za-z0-9]+Config: \.\.\.",
+        r") -> None: ...",
+        text,
+    )
+    return text
+
+
 def relocate() -> None:
     """Move the stubs to the public ``opendal/<name>.pyi`` paths."""
     for name in SUBMODULES:
         text = (GEN / f"{name}.pyi").read_text()
+        if name == "services":
+            text = rewrite_config_init(text)
         (PKG / f"{name}.pyi").write_text(IMPORTS.get(name, "") + text)
 
     # Stub for the ``opendal/_opendal.*.so`` extension itself.

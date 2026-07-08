@@ -38,6 +38,8 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
+mod config_types;
+pub use config_types::*;
 mod services;
 pub use services::*;
 
@@ -75,11 +77,9 @@ mod _opendal {
         use crate::Capability;
     }
 
-    #[pymodule]
-    mod services {
-        #[pymodule_export]
-        use crate::Scheme;
-    }
+    // The `services` submodule is defined in the generated `services.rs`.
+    #[pymodule_export]
+    use crate::services::services_submodule;
 
     #[pymodule]
     mod layers {

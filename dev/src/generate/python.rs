@@ -15,25 +15,69 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{ConfigType, Services, sorted_services};
+use crate::generate::parser::{Config, ConfigType, Service, Services, sorted_services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
 use std::fs;
 use std::path::PathBuf;
 
+/// Path-like fields, widened to accept `os.PathLike` in addition to `str`.
+fn is_path_like_field(name: &str) -> bool {
+    matches!(name, "root" | "atomic_write_dir")
+}
+
+/// Whether a field is keyword-optional in Python (optional core fields and bools).
+fn field_is_optional(field: &Config) -> bool {
+    field.optional || field.value == ConfigType::Bool
+}
+
+/// Order fields so required (no-default) params precede optional ones, as pyo3
+/// signatures require. Order within each group stays alphabetical.
+fn ordered_for_signature(services: Services) -> Services {
+    services
+        .into_iter()
+        .map(|(k, srv)| {
+            let mut config = srv.config;
+            config.sort_by(|a, b| {
+                field_is_optional(a)
+                    .cmp(&field_is_optional(b))
+                    .then_with(|| a.name.cmp(&b.name))
+            });
+            (k, Service { config })
+        })
+        .collect()
+}
+
 fn enabled_service(srv: &str) -> bool {
-    match srv {
-        // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
-        | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
-        | "vercel_blob" | "foyer" => false,
-        _ => true,
-    }
+    // Services keyed by their directory name (kebab-case). Excludes services not
+    // built by `bindings/python/Cargo.toml`'s `services-all` feature.
+    !matches!(
+        srv,
+        "etcd"
+            | "foundationdb"
+            | "hdfs"
+            | "hdfs-native"
+            | "rocksdb"
+            | "tikv"
+            | "github"
+            | "cloudflare-kv"
+            | "monoiofs"
+            | "dbfs"
+            | "surrealdb"
+            | "d1"
+            | "opfs"
+            | "compfs"
+            | "lakefs"
+            | "pcloud"
+            | "vercel-blob"
+            | "sftp"
+            | "foyer"
+    )
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let srvs = sorted_services(services, enabled_service);
+    let srvs = ordered_for_signature(sorted_services(services, enabled_service));
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_function("snake_to_kebab_case", snake_to_kebab_case);
@@ -42,6 +86,15 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     env.add_function("make_python_type", make_python_type);
     env.add_function("make_pydoc_param_header", make_pydoc_param_header);
     env.add_function("make_pydoc_param", make_pydoc_param);
+    env.add_function("config_param_type", config_param_type);
+    env.add_function("config_new_param", config_new_param);
+    env.add_function("config_to_opts", config_to_opts);
+    env.add_function("config_assign_map", config_assign_map);
+    env.add_function("config_getter", config_getter);
+    env.add_function("config_to_map", config_to_map);
+    env.add_function("config_picklable", config_picklable);
+    env.add_function("config_class_doc", config_class_doc);
+    env.add_function("config_field_doc", config_field_doc);
     let tmpl = env.get_template("python")?;
 
     let output = workspace_dir.join("bindings/python/src/services.rs");
@@ -50,6 +103,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
         rendered.push('\n');
     }
     fs::write(output, rendered)?;
+
     Ok(())
 }
 
@@ -244,3 +298,281 @@ fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja:
     }
     .to_string())
 }
+
+/// Classifies a config field to drive codegen.
+#[derive(Clone, Copy, PartialEq)]
+enum FieldKind {
+    Str,
+    StrRequired,
+    Path,
+    Bool,
+    Num,
+    Vec,
+    Map,
+    Duration,
+    /// A core type the parser can't map (e.g. an enum); passed through as a string.
+    Other,
+}
+
+fn field_kind(field: &Config) -> FieldKind {
+    match field.value {
+        ConfigType::Bool => FieldKind::Bool,
+        ConfigType::Usize | ConfigType::U64 | ConfigType::I64 | ConfigType::U32 | ConfigType::U16 => {
+            FieldKind::Num
+        }
+        ConfigType::Vec => FieldKind::Vec,
+        ConfigType::HashMap => FieldKind::Map,
+        ConfigType::Duration => FieldKind::Duration,
+        ConfigType::String => {
+            if is_opaque_string_fallback(&field.name) {
+                FieldKind::Other
+            } else if is_path_like_field(&field.name) {
+                FieldKind::Path
+            } else if field.optional {
+                FieldKind::Str
+            } else {
+                FieldKind::StrRequired
+            }
+        }
+    }
+}
+
+/// Config fields whose core type is a string-parsed enum, not a `String`.
+fn is_opaque_string_fallback(field: &str) -> bool {
+    matches!(field, "repo_type" | "download_mode")
+}
+
+fn int_type(ty: ConfigType) -> &'static str {
+    match ty {
+        ConfigType::Usize => "usize",
+        ConfigType::U64 => "u64",
+        ConfigType::I64 => "i64",
+        ConfigType::U32 => "u32",
+        ConfigType::U16 => "u16",
+        _ => "usize",
+    }
+}
+
+/// The Rust `#[new]` parameter type, chosen so introspection renders the exact
+/// Python type.
+fn config_param_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    Ok(match field_kind(&field) {
+        FieldKind::Str | FieldKind::Duration | FieldKind::Other => "Option<String>".to_string(),
+        FieldKind::StrRequired => "String".to_string(),
+        FieldKind::Path => "Option<crate::PyPath>".to_string(),
+        FieldKind::Bool => "Option<bool>".to_string(),
+        FieldKind::Num => format!("Option<{}>", int_type(field.value)),
+        FieldKind::Vec => "Option<Vec<String>>".to_string(),
+        FieldKind::Map => "Option<std::collections::HashMap<String, String>>".to_string(),
+    })
+}
+
+/// The `#[new]` signature parameter, defaulting optional fields to `None`.
+fn config_new_param(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    if field_is_optional(&field) {
+        Ok(format!("{} = None", field.name))
+    } else {
+        Ok(field.name.to_string())
+    }
+}
+
+/// Insert a `#[new]` parameter into the option map handed to `from_iter`.
+fn config_to_opts(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let name = &field.name;
+    let key = &field.name;
+    Ok(match field_kind(&field) {
+        FieldKind::StrRequired => format!("opts.insert(\"{key}\".to_string(), {name});"),
+        FieldKind::Str | FieldKind::Duration | FieldKind::Other => {
+            format!("if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), v); }}")
+        }
+        FieldKind::Path => format!(
+            "if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), v.into_string()); }}"
+        ),
+        FieldKind::Bool => format!(
+            "if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), if v {{ \"true\" }} else {{ \"false\" }}.to_string()); }}"
+        ),
+        FieldKind::Num => format!(
+            "if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), v.to_string()); }}"
+        ),
+        FieldKind::Vec => format!(
+            "if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), v.join(\",\")); }}"
+        ),
+        // Map fields are set on the config directly after `from_iter`.
+        FieldKind::Map => format!("// {name}: map field set after from_iter"),
+    })
+}
+
+/// Set a map-valued field on the core config after `from_iter` (map values
+/// cannot pass through the flat option map). No-op for other kinds.
+fn config_assign_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let name = &field.name;
+    Ok(match field_kind(&field) {
+        FieldKind::Map => format!("if let Some(v) = {name} {{ cfg.{name} = Some(v); }}"),
+        _ => format!("// {name}: not a map field"),
+    })
+}
+
+/// A getter (with doc comment) for a config field. Opaque fields have none.
+fn config_getter(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let name = &field.name;
+    let kind = field_kind(&field);
+
+    if kind == FieldKind::Other {
+        return Ok(format!("// {name}: opaque field, no getter"));
+    }
+
+    let body = match kind {
+        FieldKind::StrRequired => {
+            format!("#[getter]\n    fn {name}(&self) -> String {{ self.0.{name}.clone() }}")
+        }
+        FieldKind::Str => {
+            format!("#[getter]\n    fn {name}(&self) -> Option<String> {{ self.0.{name}.clone() }}")
+        }
+        // `PyPath`/`Option<bool>` keep the getter type equal to the constructor.
+        FieldKind::Path => format!(
+            "#[getter]\n    fn {name}(&self) -> Option<crate::PyPath> {{ self.0.{name}.clone().map(crate::PyPath::from) }}"
+        ),
+        FieldKind::Bool => {
+            format!("#[getter]\n    fn {name}(&self) -> Option<bool> {{ Some(self.0.{name}) }}")
+        }
+        FieldKind::Num => {
+            let ty = int_type(field.value);
+            if field.optional {
+                format!("#[getter]\n    fn {name}(&self) -> Option<{ty}> {{ self.0.{name} }}")
+            } else {
+                format!("#[getter]\n    fn {name}(&self) -> {ty} {{ self.0.{name} }}")
+            }
+        }
+        FieldKind::Vec => {
+            format!(
+                "#[getter]\n    fn {name}(&self) -> Option<Vec<String>> {{ self.0.{name}.clone() }}"
+            )
+        }
+        FieldKind::Map => format!(
+            "#[getter]\n    fn {name}(&self) -> Option<std::collections::HashMap<String, String>> {{ self.0.{name}.clone() }}"
+        ),
+        FieldKind::Duration => format!(
+            "#[getter]\n    fn {name}(&self) -> Option<String> {{ self.0.{name}.map(|d| format!(\"{{}}s\", d.as_secs())) }}"
+        ),
+        FieldKind::Other => unreachable!(),
+    };
+
+    let doc = config_field_doc(field)?;
+    if doc.is_empty() {
+        Ok(body)
+    } else {
+        Ok(format!("{doc}\n    {body}"))
+    }
+}
+
+/// Insert a field into the flat option map used for `repr`/pickle.
+fn config_to_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let name = &field.name;
+    let key = &field.name;
+    Ok(match field_kind(&field) {
+        FieldKind::StrRequired => {
+            format!("map.insert(\"{key}\".to_string(), self.0.{name}.clone());")
+        }
+        FieldKind::Str | FieldKind::Path => format!(
+            "if let Some(v) = &self.0.{name} {{ map.insert(\"{key}\".to_string(), v.clone()); }}"
+        ),
+        FieldKind::Bool => format!(
+            "map.insert(\"{key}\".to_string(), if self.0.{name} {{ \"true\" }} else {{ \"false\" }}.to_string());"
+        ),
+        FieldKind::Num => {
+            if field.optional {
+                format!(
+                    "if let Some(v) = &self.0.{name} {{ map.insert(\"{key}\".to_string(), v.to_string()); }}"
+                )
+            } else {
+                format!("map.insert(\"{key}\".to_string(), self.0.{name}.to_string());")
+            }
+        }
+        FieldKind::Vec => format!(
+            "if let Some(v) = &self.0.{name} {{ map.insert(\"{key}\".to_string(), v.join(\",\")); }}"
+        ),
+        FieldKind::Duration => format!(
+            "if let Some(d) = &self.0.{name} {{ map.insert(\"{key}\".to_string(), format!(\"{{}}s\", d.as_secs())); }}"
+        ),
+        // Map/opaque fields are omitted from the flat option map.
+        FieldKind::Map => format!("// {name}: map field omitted from flat option map"),
+        FieldKind::Other => format!("// {name}: opaque field omitted from flat option map"),
+    })
+}
+
+/// Flip `ok` to false when a map-valued field is set (breaks flat-map pickling).
+fn config_picklable(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let name = &field.name;
+    Ok(match field_kind(&field) {
+        FieldKind::Map => format!("if self.0.{name}.is_some() {{ ok = false; }}"),
+        _ => format!("// {name}: always picklable"),
+    })
+}
+
+/// Render text as Rust `///` doc-comment lines (lifted into `.pyi` docstrings).
+fn to_doc_lines(text: &str, indent: usize) -> String {
+    let pad = " ".repeat(indent);
+    let normalized: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return String::new();
+    }
+    format_text(&normalized, 0, 76)
+        .lines()
+        .map(|line| {
+            let line = line.trim_end();
+            if line.is_empty() {
+                format!("{pad}///")
+            } else {
+                format!("{pad}/// {line}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The class-level doc comment for a service config.
+fn config_class_doc(service: &str) -> Result<String, minijinja::Error> {
+    Ok(to_doc_lines(
+        &format!(
+            "Configuration for the `{}` service.",
+            snake_to_kebab_case(service)
+        ),
+        0,
+    ))
+}
+
+/// The field doc comment, including any deprecation note.
+fn config_field_doc(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let mut text = field.comments.trim().to_string();
+
+    match field_kind(&field) {
+        FieldKind::Duration => {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            text.push_str("Accepts a humantime duration string (e.g. \"5s\").");
+        }
+        FieldKind::Vec => {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            text.push_str("A list of strings, serialized as a \",\" separated value.");
+        }
+        _ => {}
+    }
+
+    if let Some(deprecated) = &field.deprecated {
+        if !text.is_empty() {
+            text.push(' ');
+        }
+        text.push_str(&format!(
+            "[Deprecated since {}] {}",
+            deprecated.since,
+            deprecated.note.trim()
+        ));
+    }
+
+    Ok(to_doc_lines(&text, 4))
+}
+
+

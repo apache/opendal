@@ -77,6 +77,8 @@ known-first-party = ["opendal"]
 [lint.per-file-ignores]
 "*.pyi" = [
   "PYI021", # keep docstrings in generated stubs
+  "D205",   # generated config docstrings copy upstream comments verbatim
+  "D404",   # some docstrings start with `This`
   "ANN401", # Any in signatures
   "ANN003", # **kwargs untyped
   "TID252", # injected relative sibling imports from generated stubs

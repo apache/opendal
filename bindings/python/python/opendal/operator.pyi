@@ -23,7 +23,7 @@ from typing import Any, final
 from .capability import Capability
 from .file import AsyncFile, File
 from .layers import Layer
-from .services import Scheme
+from .services import Scheme, ServiceConfig
 from .types import Entry, Metadata, PresignedRequest
 
 @final
@@ -160,6 +160,35 @@ class AsyncOperator:
         -------
         coroutine
             An awaitable that returns True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+        """
+        Create a new `AsyncOperator` from a typed service config.
+
+        The config binds its own scheme, so there is no scheme argument and no
+        way to pair a config with the wrong service.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service config such as ``opendal.services.S3Config``.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.services import S3Config
+
+        op = opendal.AsyncOperator.from_config(
+            S3Config(bucket="my-bucket")
+        )
+        ```
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs) -> AsyncOperator:
@@ -781,6 +810,35 @@ class Operator:
         -------
         bool
             True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> Operator:
+        """
+        Create a new blocking `Operator` from a typed service config.
+
+        The config binds its own scheme, so there is no scheme argument and no
+        way to pair a config with the wrong service.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service config such as ``opendal.services.S3Config``.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.services import S3Config
+
+        op = opendal.Operator.from_config(
+            S3Config(bucket="my-bucket")
+        )
+        ```
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs) -> Operator:

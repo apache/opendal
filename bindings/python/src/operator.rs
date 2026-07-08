@@ -67,6 +67,31 @@ fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
+/// Collect string-valued `**kwargs` into the option map; a non-string value
+/// raises a clear error pointing to `from_config`.
+fn kwargs_to_map(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<HashMap<String, String>> {
+    let Some(kwargs) = kwargs else {
+        return Ok(HashMap::new());
+    };
+    let mut map = HashMap::with_capacity(kwargs.len());
+    for (key, value) in kwargs.iter() {
+        let key: String = key.extract()?;
+        let value: String = value.extract().map_err(|_| {
+            ConfigInvalid::new_err(format!(
+                "option '{key}' must be a string; got {}. Pass options as strings, \
+                 or use Operator.from_config(<Service>Config(...)) for typed values.",
+                value
+                    .get_type()
+                    .name()
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|_| "?".to_string()),
+            ))
+        })?;
+        map.insert(key, value);
+    }
+    Ok(map)
+}
+
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
 /// Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
@@ -78,6 +103,7 @@ pub fn _reconstruct_operator(scheme: &str, map: HashMap<String, String>) -> PyRe
         core: build_blocking_operator_from_uri(scheme, map.clone())?,
         __scheme: scheme.to_string(),
         __map: map,
+        __picklable: true,
     })
 }
 
@@ -93,6 +119,7 @@ pub fn _reconstruct_async_operator(
         core: build_operator_from_uri(scheme, map.clone())?,
         __scheme: scheme.to_string(),
         __map: map,
+        __picklable: true,
     })
 }
 
@@ -108,6 +135,8 @@ pub struct Operator {
     core: ocore::blocking::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
+    /// False when built from a config with a map-valued field (not picklable).
+    __picklable: bool,
 }
 #[pymethods]
 impl Operator {
@@ -126,7 +155,7 @@ impl Operator {
     ///     The new operator.
     #[new]
     #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<Bound<PyDict>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -137,12 +166,13 @@ impl Operator {
             ));
         };
         let scheme = normalize_scheme(&scheme);
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs_to_map(kwargs.as_ref())?;
 
         Ok(Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
+            __picklable: true,
         })
     }
 
@@ -181,14 +211,56 @@ impl Operator {
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
-        kwargs: Option<HashMap<String, String>>,
+        kwargs: Option<Bound<PyDict>>,
     ) -> PyResult<Self> {
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs_to_map(kwargs.as_ref())?;
 
         Ok(Operator {
             core: build_blocking_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
             __map: map,
+            __picklable: true,
+        })
+    }
+
+    /// Create a new blocking `Operator` from a typed service config.
+    ///
+    /// The config binds its own scheme, so there is no scheme argument and no
+    /// way to pair a config with the wrong service.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service config such as ``opendal.services.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.services import S3Config
+    ///
+    /// op = opendal.Operator.from_config(S3Config(bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: PyRef<services::ServiceConfig>,
+    ) -> PyResult<Self> {
+        let op = config.0.build()?;
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let _guard = runtime.enter();
+        let core = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
+        Ok(Operator {
+            core,
+            __scheme: config.0.scheme().to_string(),
+            __map: config.0.to_map(),
+            __picklable: config.0.is_picklable(),
         })
     }
 
@@ -213,6 +285,7 @@ impl Operator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __picklable: self.__picklable,
         })
     }
 
@@ -764,6 +837,7 @@ impl Operator {
             core: self.core.clone().into(),
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __picklable: self.__picklable,
         })
     }
 
@@ -781,6 +855,11 @@ impl Operator {
         }
     }
     fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        if !self.__picklable {
+            return Err(Unsupported::new_err(
+                "cannot pickle an operator built from a config with a map-valued field",
+            ));
+        }
         let reconstructor = py
             .import("opendal._opendal")?
             .getattr("_reconstruct_operator")?;
@@ -801,6 +880,8 @@ pub struct AsyncOperator {
     core: ocore::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
+    /// False when built from a config with a map-valued field (not picklable).
+    __picklable: bool,
 }
 #[pymethods]
 impl AsyncOperator {
@@ -819,7 +900,7 @@ impl AsyncOperator {
     ///     The new async operator.
     #[new]
     #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<Bound<PyDict>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -831,12 +912,13 @@ impl AsyncOperator {
         };
         let scheme = normalize_scheme(&scheme);
 
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs_to_map(kwargs.as_ref())?;
 
         Ok(AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
+            __picklable: true,
         })
     }
 
@@ -875,14 +957,52 @@ impl AsyncOperator {
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
-        kwargs: Option<HashMap<String, String>>,
+        kwargs: Option<Bound<PyDict>>,
     ) -> PyResult<Self> {
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs_to_map(kwargs.as_ref())?;
 
         Ok(AsyncOperator {
             core: build_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
             __map: map,
+            __picklable: true,
+        })
+    }
+
+    /// Create a new `AsyncOperator` from a typed service config.
+    ///
+    /// The config binds its own scheme, so there is no scheme argument and no
+    /// way to pair a config with the wrong service.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service config such as ``opendal.services.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.services import S3Config
+    ///
+    /// op = opendal.AsyncOperator.from_config(S3Config(bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: PyRef<services::ServiceConfig>,
+    ) -> PyResult<Self> {
+        Ok(AsyncOperator {
+            core: config.0.build()?,
+            __scheme: config.0.scheme().to_string(),
+            __map: config.0.to_map(),
+            __picklable: config.0.is_picklable(),
         })
     }
 
@@ -903,6 +1023,7 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __picklable: self.__picklable,
         })
     }
 
@@ -1826,6 +1947,7 @@ impl AsyncOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
+            __picklable: self.__picklable,
         })
     }
 
@@ -1847,6 +1969,11 @@ impl AsyncOperator {
         }
     }
     fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        if !self.__picklable {
+            return Err(Unsupported::new_err(
+                "cannot pickle an operator built from a config with a map-valued field",
+            ));
+        }
         let reconstructor = py
             .import("opendal._opendal")?
             .getattr("_reconstruct_async_operator")?;

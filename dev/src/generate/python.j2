@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::*;
+use std::collections::HashMap;
 
 #[pyclass(
     eq,
@@ -81,3 +82,108 @@ impl_enum_to_str!(
 {%- endfor %}
     }
 );
+
+pub trait ConfigBuilder: Send + Sync {
+    fn build(&self) -> PyResult<ocore::Operator>;
+    fn scheme(&self) -> &'static str;
+    fn to_map(&self) -> HashMap<String, String>;
+    fn is_picklable(&self) -> bool;
+}
+
+/// Base class for all service configs.
+#[pyclass(module = "opendal.services", subclass)]
+pub struct ServiceConfig(pub Box<dyn ConfigBuilder>);
+
+#[pymethods]
+impl ServiceConfig {
+    /// The service scheme this config targets, e.g. ``"s3"``.
+    #[getter]
+    pub fn scheme(&self) -> &'static str {
+        self.0.scheme()
+    }
+}
+{% for name in srvs %}
+#[cfg(feature = "{{ service_to_feature(name) }}")]
+{{ config_class_doc(name) }}
+#[pyclass(module = "opendal.services", extends = ServiceConfig, frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub struct {{ service_to_pascal(name) }}Config(ocore::services::{{ service_to_pascal(name) }}Config);
+
+#[cfg(feature = "{{ service_to_feature(name) }}")]
+#[allow(deprecated)]
+impl ConfigBuilder for {{ service_to_pascal(name) }}Config {
+    fn build(&self) -> PyResult<ocore::Operator> {
+        ocore::Operator::from_config(self.0.clone()).map_err(format_pyerr)
+    }
+    fn scheme(&self) -> &'static str {
+        "{{ snake_to_kebab_case(name) }}"
+    }
+    fn to_map(&self) -> HashMap<String, String> {
+        #[allow(unused_mut)]
+        let mut map = HashMap::new();
+{%- for field in srvs[name].config %}
+        {{ config_to_map(field) }}
+{%- endfor %}
+        map
+    }
+    fn is_picklable(&self) -> bool {
+        #[allow(unused_mut)]
+        let mut ok = true;
+{%- for field in srvs[name].config %}
+        {{ config_picklable(field) }}
+{%- endfor %}
+        ok
+    }
+}
+
+#[cfg(feature = "{{ service_to_feature(name) }}")]
+#[allow(deprecated)]
+#[pymethods]
+impl {{ service_to_pascal(name) }}Config {
+    #[new]
+    #[pyo3(signature = (
+{%- for field in srvs[name].config %}
+        {{ config_new_param(field) }},
+{%- endfor %}
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+{%- for field in srvs[name].config %}
+        {{ field.name }}: {{ config_param_type(field) }},
+{%- endfor %}
+    ) -> PyResult<pyo3::PyClassInitializer<Self>> {
+        #[allow(unused_mut)]
+        let mut opts: HashMap<String, String> = HashMap::new();
+{%- for field in srvs[name].config %}
+        {{ config_to_opts(field) }}
+{%- endfor %}
+        #[allow(unused_mut)]
+        let mut cfg =
+            <ocore::services::{{ service_to_pascal(name) }}Config as ocore::Configurator>::from_iter(opts)
+                .map_err(format_pyerr)?;
+{%- for field in srvs[name].config %}
+        {{ config_assign_map(field) }}
+{%- endfor %}
+        let this = Self(cfg);
+        Ok(pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone()))).add_subclass(this))
+    }
+{% for field in srvs[name].config %}
+    {{ config_getter(field) }}
+{%- endfor %}
+}
+{% endfor %}
+// Defined here (not in `lib.rs`) so pyo3 introspection sees the config
+// `#[pymodule_export]`s as literal items.
+#[pyo3::pymodule(submodule, name = "services")]
+pub mod services_submodule {
+    #[pymodule_export]
+    use crate::Scheme;
+    #[pymodule_export]
+    use crate::ServiceConfig;
+{%- for name in srvs %}
+    #[cfg(feature = "{{ service_to_feature(name) }}")]
+    #[pymodule_export]
+    use crate::{{ service_to_pascal(name) }}Config;
+{%- endfor %}
+}
+

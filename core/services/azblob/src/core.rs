@@ -306,6 +306,10 @@ impl AzblobCore {
             req = req.header(IF_NONE_MATCH, v);
         }
 
+        if let Some(v) = args.if_match() {
+            req = req.header(IF_MATCH, v);
+        }
+
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }

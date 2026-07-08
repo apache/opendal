@@ -407,6 +407,7 @@ impl Builder for AzblobBuilder {
             write_can_multi: true,
             write_with_cache_control: true,
             write_with_content_type: true,
+            write_with_if_match: true,
             write_with_if_not_exists: true,
             write_with_if_none_match: true,
             write_with_user_metadata: true,

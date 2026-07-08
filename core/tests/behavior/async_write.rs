@@ -724,6 +724,16 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// GCS has no ETag-based conditional write; `if_match`/`if_none_match` are repurposed
+/// to carry the object's generation number (`Metadata::version()`) instead of an ETag.
+fn condition_token(op: &Operator, meta: &Metadata) -> String {
+    if op.info().scheme() == "gcs" {
+        meta.version().expect("generation must exist").to_string()
+    } else {
+        meta.etag().expect("etag must exist").to_string()
+    }
+}
+
 /// Write an exists file with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
     if !op.info().capability().write_with_if_none_match {
@@ -737,10 +747,11 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.stat(&path).await?;
+    let token = condition_token(&op, &meta);
 
     let res = op
         .write_with(&path, content.clone())
-        .if_none_match(meta.etag().expect("etag must exist"))
+        .if_none_match(&token)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
@@ -786,23 +797,23 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
     op.write(&path_a, content_a.clone()).await?;
     op.write(&path_b, content_b.clone()).await?;
 
-    // Get etags for both files
+    // Get condition tokens for both files
     let meta_a = op.stat(&path_a).await?;
-    let etag_a = meta_a.etag().expect("etag must exist");
+    let token_a = condition_token(&op, &meta_a);
     let meta_b = op.stat(&path_b).await?;
-    let etag_b = meta_b.etag().expect("etag must exist");
+    let token_b = condition_token(&op, &meta_b);
 
-    // Should succeed: Writing to path_a with its own etag
+    // Should succeed: Writing to path_a with its own token
     let res = op
         .write_with(&path_a, content_a.clone())
-        .if_match(etag_a)
+        .if_match(&token_a)
         .await;
     assert!(res.is_ok());
 
-    // Should fail: Writing to path_a with path_b's etag
+    // Should fail: Writing to path_a with path_b's token
     let res = op
         .write_with(&path_a, content_a.clone())
-        .if_match(etag_b)
+        .if_match(&token_b)
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);

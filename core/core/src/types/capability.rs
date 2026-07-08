@@ -118,8 +118,16 @@ pub struct Capability {
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
+    ///
+    /// The value passed to `if_match` is normally a literal ETag. GCS is an exception:
+    /// it has no ETag-based conditional write API, so it repurposes this field to carry
+    /// the object's generation number (`Metadata::version()`) instead.
     pub write_with_if_match: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
+    ///
+    /// The value passed to `if_none_match` is normally a literal ETag. GCS is an exception:
+    /// it has no ETag-based conditional write API, so it repurposes this field to carry
+    /// the object's generation number (`Metadata::version()`) instead.
     pub write_with_if_none_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
     pub write_with_if_not_exists: bool,

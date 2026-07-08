@@ -245,7 +245,7 @@ impl TosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::TOS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ));
         }
         if !query_args.is_empty() {
@@ -365,7 +365,7 @@ impl TosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::TOS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ));
         }
         if !query_args.is_empty() {
@@ -419,6 +419,15 @@ impl TosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
+        let req = self.tos_delete_object_request(path, args)?;
+        self.send(ctx, req).await
+    }
+
+    pub fn tos_delete_object_request(
+        &self,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -450,7 +459,7 @@ impl TosCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        Ok(req)
     }
 
     pub async fn tos_delete_objects(
@@ -1197,6 +1206,90 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use reqsign_core::ProvideCredentialChain;
+    use reqsign_volcengine_tos::RequestSigner;
+
+    use super::*;
+
+    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b=c%25&e";
+    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%3Dc%2525%26e";
+
+    fn test_core() -> TosCore {
+        TosCore {
+            info: ServiceInfo::new("tos", "", "test"),
+            capability: Capability::default(),
+            bucket: "test".to_string(),
+            endpoint: "https://tos-cn-beijing.volces.com".to_string(),
+            endpoint_domain: "tos-cn-beijing.volces.com".to_string(),
+            root: "/".to_string(),
+            default_storage_class: None,
+            skip_signature: true,
+            signer: Signer::new(
+                Context::new(),
+                ProvideCredentialChain::<Credential>::new(),
+                RequestSigner::new("cn-beijing"),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_get_object_encodes_version_id() {
+        let req = test_core()
+            .tos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.tos-cn-beijing.volces.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_head_object_encodes_version_id() {
+        let req = test_core()
+            .tos_head_object_request(
+                "test.txt",
+                OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.tos-cn-beijing.volces.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_delete_object_encodes_version_id() {
+        let req = test_core()
+            .tos_delete_object_request(
+                "test.txt",
+                &OpDelete::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.tos-cn-beijing.volces.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+}
 
 mod utils {
     use http::HeaderMap;

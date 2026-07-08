@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::str::FromStr;
 
 use bytes::Bytes;
 use http::Request;
 use http::Response;
+use http::Uri;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -76,12 +78,15 @@ impl CosCore {
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
+        let encoded_query = req.uri().query().map(str::to_string);
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Self::restore_encoded_query(&mut parts.uri, encoded_query.as_deref(), false)?;
 
         Ok(Request::from_parts(parts, body))
     }
@@ -92,6 +97,7 @@ impl CosCore {
         req: Request<T>,
         duration: Duration,
     ) -> Result<Request<T>> {
+        let encoded_query = req.uri().query().map(str::to_string);
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -99,7 +105,70 @@ impl CosCore {
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
+        Self::restore_encoded_query(&mut parts.uri, encoded_query.as_deref(), true)?;
+
         Ok(Request::from_parts(parts, body))
+    }
+
+    fn restore_encoded_query(
+        uri: &mut Uri,
+        encoded_query: Option<&str>,
+        keep_signed_query: bool,
+    ) -> Result<()> {
+        let Some(encoded_query) = encoded_query else {
+            return Ok(());
+        };
+
+        let Some(path_and_query) = uri.path_and_query() else {
+            return Ok(());
+        };
+        let Some(signed_query) = path_and_query.query() else {
+            return Ok(());
+        };
+
+        let rest = if keep_signed_query {
+            let decoded_query = Self::decode_signed_query(encoded_query);
+            let rest = signed_query
+                .strip_prefix(&decoded_query)
+                .ok_or_else(|| Error::new(ErrorKind::Unexpected, "signed query changed"))?;
+            rest.strip_prefix('&').filter(|v| !v.is_empty())
+        } else {
+            None
+        };
+
+        let query = if let Some(rest) = rest {
+            format!("{encoded_query}&{rest}")
+        } else {
+            encoded_query.to_string()
+        };
+
+        let path_and_query = format!("{}?{}", path_and_query.path(), query);
+
+        let mut parts = std::mem::take(uri).into_parts();
+        parts.path_and_query = Some(http::uri::PathAndQuery::from_str(&path_and_query).map_err(
+            |e| Error::new(ErrorKind::Unexpected, "invalid signed query").set_source(e),
+        )?);
+        *uri = Uri::from_parts(parts).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "failed to restore signed query").set_source(e)
+        })?;
+
+        Ok(())
+    }
+
+    fn decode_signed_query(encoded_query: &str) -> String {
+        encoded_query
+            .split('&')
+            .map(|pair| {
+                let mut kv = pair.splitn(2, '=');
+                let key = percent_decode_path(kv.next().unwrap_or_default());
+                if let Some(value) = kv.next() {
+                    format!("{key}={}", percent_decode_path(value))
+                } else {
+                    key
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("&")
     }
 
     #[inline]
@@ -141,7 +210,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -255,7 +324,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -287,6 +356,17 @@ impl CosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
+        let req = self.cos_delete_object_request(path, args)?;
+        let req = self.sign(ctx, req).await?;
+
+        self.send(ctx, req).await
+    }
+
+    pub fn cos_delete_object_request(
+        &self,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -296,7 +376,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -310,9 +390,8 @@ impl CosCore {
             .extension(ServiceOperation("DeleteObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(ctx, req).await?;
 
-        self.send(ctx, req).await
+        Ok(req)
     }
 
     pub fn cos_append_object_request(
@@ -733,9 +812,194 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bytes::Buf;
+    use reqsign_core::ProvideCredentialChain;
+    use reqsign_tencent_cos::RequestSigner;
+    use reqsign_tencent_cos::StaticCredentialProvider;
 
     use super::*;
+
+    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b=c%25&e";
+    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%3Dc%2525%26e";
+
+    fn assert_version_id_query_encoded(uri: &http::Uri) {
+        let query = uri.query().unwrap_or_default();
+        assert!(
+            query.split('&').any(|pair| {
+                pair == format!("versionId={ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS}")
+            }),
+            "uri query should keep versionId encoded: {uri}"
+        );
+        assert!(
+            !query.split('&').any(|pair| pair == "e"),
+            "uri query should not expose versionId suffix as a query parameter: {uri}"
+        );
+    }
+
+    fn test_core() -> CosCore {
+        CosCore {
+            info: ServiceInfo::new("cos", "", "test"),
+            capability: Capability::default(),
+            bucket: "test".to_string(),
+            root: "/".to_string(),
+            endpoint: "https://test.cos.ap-beijing.myqcloud.com".to_string(),
+            signer: Signer::new(
+                Context::new(),
+                ProvideCredentialChain::<Credential>::new()
+                    .push(StaticCredentialProvider::new("secret_id", "secret_key")),
+                RequestSigner::new(),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_get_object_encodes_version_id() {
+        let req = test_core()
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_head_object_encodes_version_id() {
+        let req = test_core()
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_delete_object_encodes_version_id() {
+        let req = test_core()
+            .cos_delete_object_request(
+                "test.txt",
+                &OpDelete::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_signed_get_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_signed_head_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_signed_delete_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_delete_object_request(
+                "test.txt",
+                &OpDelete::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_presigned_get_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign_query(&OperationContext::new(), req, Duration::from_secs(3600))
+            .await
+            .expect("request must be presigned");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_presigned_head_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign_query(&OperationContext::new(), req, Duration::from_secs(3600))
+            .await
+            .expect("request must be presigned");
+
+        assert_version_id_query_encoded(req.uri());
+    }
 
     #[test]
     fn test_parse_xml() {

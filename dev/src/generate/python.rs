@@ -50,14 +50,15 @@ fn ordered_for_signature(services: Services) -> Services {
 }
 
 fn enabled_service(srv: &str) -> bool {
-    // Services keyed by their directory name (kebab-case). Excludes services not
-    // built by `bindings/python/Cargo.toml`'s `services-all` feature.
+    // Services (keyed by kebab-case directory name) that are not exposed to the
+    // Python binding. Everything else is emitted `#[cfg(feature =
+    // "services-<name>")]`-gated, so services absent from `services-all` (e.g.
+    // sftp, hdfs-native) still appear in the `Scheme` enum but compile out.
     !matches!(
         srv,
         "etcd"
             | "foundationdb"
             | "hdfs"
-            | "hdfs-native"
             | "rocksdb"
             | "tikv"
             | "github"
@@ -71,7 +72,6 @@ fn enabled_service(srv: &str) -> bool {
             | "lakefs"
             | "pcloud"
             | "vercel-blob"
-            | "sftp"
             | "foyer"
     )
 }

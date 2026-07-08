@@ -64,6 +64,8 @@ pub enum Scheme {
     Goosefs,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
+    #[cfg(feature = "services-hdfs-native")]
+    HdfsNative,
     #[cfg(feature = "services-hf")]
     Hf,
     #[cfg(feature = "services-http")]
@@ -104,6 +106,8 @@ pub enum Scheme {
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-sftp")]
+    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
@@ -198,6 +202,8 @@ impl_enum_to_str!(
         Goosefs => "goosefs",
         #[cfg(feature = "services-gridfs")]
         Gridfs => "gridfs",
+        #[cfg(feature = "services-hdfs-native")]
+        HdfsNative => "hdfs-native",
         #[cfg(feature = "services-hf")]
         Hf => "hf",
         #[cfg(feature = "services-http")]
@@ -238,6 +244,8 @@ impl_enum_to_str!(
         S3 => "s3",
         #[cfg(feature = "services-seafile")]
         Seafile => "seafile",
+        #[cfg(feature = "services-sftp")]
+        Sftp => "sftp",
         #[cfg(feature = "services-sled")]
         Sled => "sled",
         #[cfg(feature = "services-sqlite")]
@@ -2515,6 +2523,120 @@ impl GridfsConfig {
         self.0.database.clone()
     }
     /// The working directory, all operations will be performed under it.
+    #[getter]
+    fn root(&self) -> Option<crate::PyPath> {
+        self.0.root.clone().map(crate::PyPath::from)
+    }
+}
+
+#[cfg(feature = "services-hdfs-native")]
+/// Configuration for the `hdfs-native` service.
+#[pyclass(module = "opendal.services", extends = ServiceConfig, frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub struct HdfsNativeConfig(ocore::services::HdfsNativeConfig);
+
+#[cfg(feature = "services-hdfs-native")]
+#[allow(deprecated)]
+impl ConfigBuilder for HdfsNativeConfig {
+    fn build(&self) -> PyResult<ocore::Operator> {
+        ocore::Operator::from_config(self.0.clone()).map_err(format_pyerr)
+    }
+    fn scheme(&self) -> &'static str {
+        "hdfs-native"
+    }
+    fn to_map(&self) -> HashMap<String, String> {
+        #[allow(unused_mut)]
+        let mut map = HashMap::new();
+        map.insert(
+            "enable_append".to_string(),
+            if self.0.enable_append {
+                "true"
+            } else {
+                "false"
+            }
+            .to_string(),
+        );
+        if let Some(v) = &self.0.name_node {
+            map.insert("name_node".to_string(), v.clone());
+        }
+        if let Some(v) = &self.0.root {
+            map.insert("root".to_string(), v.clone());
+        }
+        map
+    }
+    fn is_picklable(&self) -> bool {
+        #[allow(unused_mut)]
+        let mut ok = true;
+        if self.0.options.is_some() {
+            ok = false;
+        }
+        ok
+    }
+}
+
+#[cfg(feature = "services-hdfs-native")]
+#[allow(deprecated)]
+#[pymethods]
+impl HdfsNativeConfig {
+    #[new]
+    #[pyo3(signature = (
+        enable_append = None,
+        name_node = None,
+        options = None,
+        root = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        enable_append: Option<bool>,
+        name_node: Option<String>,
+        options: Option<std::collections::HashMap<String, String>>,
+        root: Option<crate::PyPath>,
+    ) -> PyResult<pyo3::PyClassInitializer<Self>> {
+        #[allow(unused_mut)]
+        let mut opts: HashMap<String, String> = HashMap::new();
+        if let Some(v) = enable_append {
+            opts.insert(
+                "enable_append".to_string(),
+                if v { "true" } else { "false" }.to_string(),
+            );
+        }
+        if let Some(v) = name_node {
+            opts.insert("name_node".to_string(), v);
+        }
+        if let Some(v) = root {
+            opts.insert("root".to_string(), v.into_string());
+        }
+        #[allow(unused_mut)]
+        let mut cfg = <ocore::services::HdfsNativeConfig as ocore::Configurator>::from_iter(opts)
+            .map_err(format_pyerr)?;
+        if let Some(v) = options {
+            cfg.options = Some(v);
+        }
+        let this = Self(cfg);
+        Ok(
+            pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
+                .add_subclass(this),
+        )
+    }
+
+    /// Deprecated: HDFS Native append capability is enabled by default.
+    /// [Deprecated since 0.57.0] HDFS Native append capability is enabled by
+    /// default and this option is no longer needed.
+    #[getter]
+    fn enable_append(&self) -> Option<bool> {
+        Some(self.0.enable_append)
+    }
+    /// name_node of this backend
+    #[getter]
+    fn name_node(&self) -> Option<String> {
+        self.0.name_node.clone()
+    }
+    /// other options for hdfs client
+    #[getter]
+    fn options(&self) -> Option<std::collections::HashMap<String, String>> {
+        self.0.options.clone()
+    }
+    /// work dir of this backend
     #[getter]
     fn root(&self) -> Option<crate::PyPath> {
         self.0.root.clone().map(crate::PyPath::from)
@@ -5604,6 +5726,141 @@ impl SeafileConfig {
     }
 }
 
+#[cfg(feature = "services-sftp")]
+/// Configuration for the `sftp` service.
+#[pyclass(module = "opendal.services", extends = ServiceConfig, frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub struct SftpConfig(ocore::services::SftpConfig);
+
+#[cfg(feature = "services-sftp")]
+#[allow(deprecated)]
+impl ConfigBuilder for SftpConfig {
+    fn build(&self) -> PyResult<ocore::Operator> {
+        ocore::Operator::from_config(self.0.clone()).map_err(format_pyerr)
+    }
+    fn scheme(&self) -> &'static str {
+        "sftp"
+    }
+    fn to_map(&self) -> HashMap<String, String> {
+        #[allow(unused_mut)]
+        let mut map = HashMap::new();
+        map.insert(
+            "enable_copy".to_string(),
+            if self.0.enable_copy { "true" } else { "false" }.to_string(),
+        );
+        if let Some(v) = &self.0.endpoint {
+            map.insert("endpoint".to_string(), v.clone());
+        }
+        if let Some(v) = &self.0.key {
+            map.insert("key".to_string(), v.clone());
+        }
+        if let Some(v) = &self.0.known_hosts_strategy {
+            map.insert("known_hosts_strategy".to_string(), v.clone());
+        }
+        if let Some(v) = &self.0.root {
+            map.insert("root".to_string(), v.clone());
+        }
+        if let Some(v) = &self.0.user {
+            map.insert("user".to_string(), v.clone());
+        }
+        map
+    }
+    fn is_picklable(&self) -> bool {
+        #[allow(unused_mut)]
+        let mut ok = true;
+        ok
+    }
+}
+
+#[cfg(feature = "services-sftp")]
+#[allow(deprecated)]
+#[pymethods]
+impl SftpConfig {
+    #[new]
+    #[pyo3(signature = (
+        enable_copy = None,
+        endpoint = None,
+        key = None,
+        known_hosts_strategy = None,
+        root = None,
+        user = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        enable_copy: Option<bool>,
+        endpoint: Option<String>,
+        key: Option<String>,
+        known_hosts_strategy: Option<String>,
+        root: Option<crate::PyPath>,
+        user: Option<String>,
+    ) -> PyResult<pyo3::PyClassInitializer<Self>> {
+        #[allow(unused_mut)]
+        let mut opts: HashMap<String, String> = HashMap::new();
+        if let Some(v) = enable_copy {
+            opts.insert(
+                "enable_copy".to_string(),
+                if v { "true" } else { "false" }.to_string(),
+            );
+        }
+        if let Some(v) = endpoint {
+            opts.insert("endpoint".to_string(), v);
+        }
+        if let Some(v) = key {
+            opts.insert("key".to_string(), v);
+        }
+        if let Some(v) = known_hosts_strategy {
+            opts.insert("known_hosts_strategy".to_string(), v);
+        }
+        if let Some(v) = root {
+            opts.insert("root".to_string(), v.into_string());
+        }
+        if let Some(v) = user {
+            opts.insert("user".to_string(), v);
+        }
+        #[allow(unused_mut)]
+        let mut cfg = <ocore::services::SftpConfig as ocore::Configurator>::from_iter(opts)
+            .map_err(format_pyerr)?;
+        let this = Self(cfg);
+        Ok(
+            pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
+                .add_subclass(this),
+        )
+    }
+
+    /// Deprecated: SFTP copy capability is enabled by default.
+    /// [Deprecated since 0.57.0] SFTP copy capability is enabled by default and
+    /// this option is no longer needed.
+    #[getter]
+    fn enable_copy(&self) -> Option<bool> {
+        Some(self.0.enable_copy)
+    }
+    /// endpoint of this backend
+    #[getter]
+    fn endpoint(&self) -> Option<String> {
+        self.0.endpoint.clone()
+    }
+    /// key of this backend
+    #[getter]
+    fn key(&self) -> Option<String> {
+        self.0.key.clone()
+    }
+    /// known_hosts_strategy of this backend
+    #[getter]
+    fn known_hosts_strategy(&self) -> Option<String> {
+        self.0.known_hosts_strategy.clone()
+    }
+    /// root of this backend
+    #[getter]
+    fn root(&self) -> Option<crate::PyPath> {
+        self.0.root.clone().map(crate::PyPath::from)
+    }
+    /// user of this backend
+    #[getter]
+    fn user(&self) -> Option<String> {
+        self.0.user.clone()
+    }
+}
+
 #[cfg(feature = "services-sled")]
 /// Configuration for the `sled` service.
 #[pyclass(module = "opendal.services", extends = ServiceConfig, frozen, skip_from_py_object)]
@@ -6882,6 +7139,9 @@ pub mod services_submodule {
     #[cfg(feature = "services-gridfs")]
     #[pymodule_export]
     use crate::GridfsConfig;
+    #[cfg(feature = "services-hdfs-native")]
+    #[pymodule_export]
+    use crate::HdfsNativeConfig;
     #[cfg(feature = "services-hf")]
     #[pymodule_export]
     use crate::HfConfig;
@@ -6946,6 +7206,9 @@ pub mod services_submodule {
     use crate::SeafileConfig;
     #[pymodule_export]
     use crate::ServiceConfig;
+    #[cfg(feature = "services-sftp")]
+    #[pymodule_export]
+    use crate::SftpConfig;
     #[cfg(feature = "services-sled")]
     #[pymodule_export]
     use crate::SledConfig;

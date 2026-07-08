@@ -122,7 +122,10 @@ impl ConfigBuilder for {{ service_to_pascal(name) }}Config {
         #[allow(unused_mut)]
         let mut map = HashMap::new();
 {%- for field in srvs[name].config %}
-        {{ config_to_map(field) }}
+{%- set line = config_to_map(field) %}
+{%- if line %}
+        {{ line }}
+{%- endif %}
 {%- endfor %}
         map
     }
@@ -130,7 +133,10 @@ impl ConfigBuilder for {{ service_to_pascal(name) }}Config {
         #[allow(unused_mut)]
         let mut ok = true;
 {%- for field in srvs[name].config %}
-        {{ config_picklable(field) }}
+{%- set line = config_picklable(field) %}
+{%- if line %}
+        {{ line }}
+{%- endif %}
 {%- endfor %}
         ok
     }
@@ -155,20 +161,29 @@ impl {{ service_to_pascal(name) }}Config {
         #[allow(unused_mut)]
         let mut opts: HashMap<String, String> = HashMap::new();
 {%- for field in srvs[name].config %}
-        {{ config_to_opts(field) }}
+{%- set line = config_to_opts(field) %}
+{%- if line %}
+        {{ line }}
+{%- endif %}
 {%- endfor %}
         #[allow(unused_mut)]
         let mut cfg =
             <ocore::services::{{ service_to_pascal(name) }}Config as ocore::Configurator>::from_iter(opts)
                 .map_err(format_pyerr)?;
 {%- for field in srvs[name].config %}
-        {{ config_assign_map(field) }}
+{%- set line = config_assign_map(field) %}
+{%- if line %}
+        {{ line }}
+{%- endif %}
 {%- endfor %}
         let this = Self(cfg);
         Ok(pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone()))).add_subclass(this))
     }
 {% for field in srvs[name].config %}
-    {{ config_getter(field) }}
+{%- set getter = config_getter(field) %}
+{%- if getter %}
+    {{ getter }}
+{%- endif %}
 {%- endfor %}
 }
 {% endfor %}

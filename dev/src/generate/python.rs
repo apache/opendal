@@ -398,7 +398,7 @@ fn config_to_opts(field: ViaDeserialize<Config>) -> Result<String, minijinja::Er
             "if let Some(v) = {name} {{ opts.insert(\"{key}\".to_string(), v.join(\",\")); }}"
         ),
         // Map fields are set on the config directly after `from_iter`.
-        FieldKind::Map => format!("// {name}: map field set after from_iter"),
+        FieldKind::Map => String::new(),
     })
 }
 
@@ -408,7 +408,7 @@ fn config_assign_map(field: ViaDeserialize<Config>) -> Result<String, minijinja:
     let name = &field.name;
     Ok(match field_kind(&field) {
         FieldKind::Map => format!("if let Some(v) = {name} {{ cfg.{name} = Some(v); }}"),
-        _ => format!("// {name}: not a map field"),
+        _ => String::new(),
     })
 }
 
@@ -418,7 +418,7 @@ fn config_getter(field: ViaDeserialize<Config>) -> Result<String, minijinja::Err
     let kind = field_kind(&field);
 
     if kind == FieldKind::Other {
-        return Ok(format!("// {name}: opaque field, no getter"));
+        return Ok(String::new());
     }
 
     let body = match kind {
@@ -495,8 +495,7 @@ fn config_to_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Err
             "if let Some(d) = &self.0.{name} {{ map.insert(\"{key}\".to_string(), format!(\"{{}}s\", d.as_secs())); }}"
         ),
         // Map/opaque fields are omitted from the flat option map.
-        FieldKind::Map => format!("// {name}: map field omitted from flat option map"),
-        FieldKind::Other => format!("// {name}: opaque field omitted from flat option map"),
+        FieldKind::Map | FieldKind::Other => String::new(),
     })
 }
 
@@ -505,7 +504,7 @@ fn config_picklable(field: ViaDeserialize<Config>) -> Result<String, minijinja::
     let name = &field.name;
     Ok(match field_kind(&field) {
         FieldKind::Map => format!("if self.0.{name}.is_some() {{ ok = false; }}"),
-        _ => format!("// {name}: always picklable"),
+        _ => String::new(),
     })
 }
 

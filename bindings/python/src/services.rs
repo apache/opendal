@@ -318,12 +318,6 @@ impl ConfigBuilder for AliyunDriveConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // drive_type: always picklable
-        // access_token: always picklable
-        // client_id: always picklable
-        // client_secret: always picklable
-        // refresh_token: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -371,12 +365,6 @@ impl AliyunDriveConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::AliyunDriveConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // drive_type: not a map field
-        // access_token: not a map field
-        // client_id: not a map field
-        // client_secret: not a map field
-        // refresh_token: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -456,8 +444,6 @@ impl ConfigBuilder for AlluxioConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -487,8 +473,6 @@ impl AlluxioConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::AlluxioConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -571,17 +555,6 @@ impl ConfigBuilder for AzblobConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // container: always picklable
-        // account_key: always picklable
-        // account_name: always picklable
-        // batch_max_operations: always picklable
-        // encryption_algorithm: always picklable
-        // encryption_key: always picklable
-        // encryption_key_sha256: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // sas_token: always picklable
-        // skip_signature: always picklable
         ok
     }
 }
@@ -657,17 +630,6 @@ impl AzblobConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::AzblobConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // container: not a map field
-        // account_key: not a map field
-        // account_name: not a map field
-        // batch_max_operations: not a map field
-        // encryption_algorithm: not a map field
-        // encryption_key: not a map field
-        // encryption_key_sha256: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // sas_token: not a map field
-        // skip_signature: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -796,17 +758,6 @@ impl ConfigBuilder for AzdlsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // filesystem: always picklable
-        // account_key: always picklable
-        // account_name: always picklable
-        // authority_host: always picklable
-        // client_id: always picklable
-        // client_secret: always picklable
-        // enable_hns: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // sas_token: always picklable
-        // tenant_id: always picklable
         ok
     }
 }
@@ -882,17 +833,6 @@ impl AzdlsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::AzdlsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // filesystem: not a map field
-        // account_key: not a map field
-        // account_name: not a map field
-        // authority_host: not a map field
-        // client_id: not a map field
-        // client_secret: not a map field
-        // enable_hns: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // sas_token: not a map field
-        // tenant_id: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1006,12 +946,6 @@ impl ConfigBuilder for AzfileConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // share_name: always picklable
-        // account_key: always picklable
-        // account_name: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // sas_token: always picklable
         ok
     }
 }
@@ -1059,12 +993,6 @@ impl AzfileConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::AzfileConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // share_name: not a map field
-        // account_key: not a map field
-        // account_name: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // sas_token: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1138,11 +1066,6 @@ impl ConfigBuilder for B2Config {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // bucket_id: always picklable
-        // application_key: always picklable
-        // application_key_id: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -1183,11 +1106,6 @@ impl B2Config {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::B2Config as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // bucket_id: not a map field
-        // application_key: not a map field
-        // application_key_id: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1255,7 +1173,6 @@ impl ConfigBuilder for CacacheConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // datadir: always picklable
         ok
     }
 }
@@ -1278,7 +1195,6 @@ impl CacacheConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::CacacheConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // datadir: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1352,14 +1268,6 @@ impl ConfigBuilder for CosConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // disable_config_load: always picklable
-        // enable_versioning: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // secret_id: always picklable
-        // secret_key: always picklable
-        // security_token: always picklable
         ok
     }
 }
@@ -1425,14 +1333,6 @@ impl CosConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::CosConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // disable_config_load: not a map field
-        // enable_versioning: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // secret_id: not a map field
-        // secret_key: not a map field
-        // security_token: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1520,7 +1420,6 @@ impl ConfigBuilder for DashmapConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // root: always picklable
         ok
     }
 }
@@ -1543,7 +1442,6 @@ impl DashmapConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::DashmapConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1596,11 +1494,6 @@ impl ConfigBuilder for DropboxConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_token: always picklable
-        // client_id: always picklable
-        // client_secret: always picklable
-        // refresh_token: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -1645,11 +1538,6 @@ impl DropboxConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::DropboxConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // access_token: not a map field
-        // client_id: not a map field
-        // client_secret: not a map field
-        // refresh_token: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1713,8 +1601,6 @@ impl ConfigBuilder for FsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // atomic_write_dir: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -1744,8 +1630,6 @@ impl FsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::FsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // atomic_write_dir: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1800,10 +1684,6 @@ impl ConfigBuilder for FtpConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // user: always picklable
         ok
     }
 }
@@ -1843,10 +1723,6 @@ impl FtpConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::FtpConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // user: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -1963,20 +1839,6 @@ impl ConfigBuilder for GcsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // allow_anonymous: always picklable
-        // credential: always picklable
-        // credential_path: always picklable
-        // default_storage_class: always picklable
-        // disable_config_load: always picklable
-        // disable_vm_metadata: always picklable
-        // endpoint: always picklable
-        // predefined_acl: always picklable
-        // root: always picklable
-        // scope: always picklable
-        // service_account: always picklable
-        // skip_signature: always picklable
-        // token: always picklable
         ok
     }
 }
@@ -2076,20 +1938,6 @@ impl GcsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::GcsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // allow_anonymous: not a map field
-        // credential: not a map field
-        // credential_path: not a map field
-        // default_storage_class: not a map field
-        // disable_config_load: not a map field
-        // disable_vm_metadata: not a map field
-        // endpoint: not a map field
-        // predefined_acl: not a map field
-        // root: not a map field
-        // scope: not a map field
-        // service_account: not a map field
-        // skip_signature: not a map field
-        // token: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2212,11 +2060,6 @@ impl ConfigBuilder for GdriveConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_token: always picklable
-        // client_id: always picklable
-        // client_secret: always picklable
-        // refresh_token: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -2261,11 +2104,6 @@ impl GdriveConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::GdriveConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // access_token: not a map field
-        // client_id: not a map field
-        // client_secret: not a map field
-        // refresh_token: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2335,10 +2173,6 @@ impl ConfigBuilder for GhacConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // root: always picklable
-        // runtime_token: always picklable
-        // version: always picklable
         ok
     }
 }
@@ -2378,10 +2212,6 @@ impl GhacConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::GhacConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // root: not a map field
-        // runtime_token: not a map field
-        // version: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2455,13 +2285,6 @@ impl ConfigBuilder for GoosefsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // auth_type: always picklable
-        // auth_username: always picklable
-        // block_size: always picklable
-        // chunk_size: always picklable
-        // master_addr: always picklable
-        // root: always picklable
-        // write_type: always picklable
         ok
     }
 }
@@ -2516,13 +2339,6 @@ impl GoosefsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::GoosefsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // auth_type: not a map field
-        // auth_username: not a map field
-        // block_size: not a map field
-        // chunk_size: not a map field
-        // master_addr: not a map field
-        // root: not a map field
-        // write_type: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2626,11 +2442,6 @@ impl ConfigBuilder for GridfsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // chunk_size: always picklable
-        // connection_string: always picklable
-        // database: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -2675,11 +2486,6 @@ impl GridfsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::GridfsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // chunk_size: not a map field
-        // connection_string: not a map field
-        // database: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2733,14 +2539,12 @@ impl ConfigBuilder for HfConfig {
     fn to_map(&self) -> HashMap<String, String> {
         #[allow(unused_mut)]
         let mut map = HashMap::new();
-        // download_mode: opaque field omitted from flat option map
         if let Some(v) = &self.0.endpoint {
             map.insert("endpoint".to_string(), v.clone());
         }
         if let Some(v) = &self.0.repo_id {
             map.insert("repo_id".to_string(), v.clone());
         }
-        // repo_type: opaque field omitted from flat option map
         if let Some(v) = &self.0.revision {
             map.insert("revision".to_string(), v.clone());
         }
@@ -2755,13 +2559,6 @@ impl ConfigBuilder for HfConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // download_mode: always picklable
-        // endpoint: always picklable
-        // repo_id: always picklable
-        // repo_type: always picklable
-        // revision: always picklable
-        // root: always picklable
-        // token: always picklable
         ok
     }
 }
@@ -2816,13 +2613,6 @@ impl HfConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::HfConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // download_mode: not a map field
-        // endpoint: not a map field
-        // repo_id: not a map field
-        // repo_type: not a map field
-        // revision: not a map field
-        // root: not a map field
-        // token: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -2830,7 +2620,6 @@ impl HfConfig {
         )
     }
 
-    // download_mode: opaque field, no getter
     /// Endpoint of the Hugging Face Hub.
     /// Default is "https://huggingface.co".
     #[getter]
@@ -2843,7 +2632,6 @@ impl HfConfig {
     fn repo_id(&self) -> Option<String> {
         self.0.repo_id.clone()
     }
-    // repo_type: opaque field, no getter
     /// Revision of this backend.
     /// Default is main.
     #[getter]
@@ -2903,11 +2691,6 @@ impl ConfigBuilder for HttpConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // token: always picklable
-        // username: always picklable
         ok
     }
 }
@@ -2952,11 +2735,6 @@ impl HttpConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::HttpConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // token: not a map field
-        // username: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3020,8 +2798,6 @@ impl ConfigBuilder for IpfsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -3051,8 +2827,6 @@ impl IpfsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::IpfsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3101,8 +2875,6 @@ impl ConfigBuilder for IpmfsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // endpoint: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -3132,8 +2904,6 @@ impl IpmfsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::IpmfsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // endpoint: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3184,10 +2954,6 @@ impl ConfigBuilder for KoofrConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // email: always picklable
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -3223,10 +2989,6 @@ impl KoofrConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::KoofrConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // email: not a map field
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3299,12 +3061,6 @@ impl ConfigBuilder for MemcachedConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // connection_pool_max_size: always picklable
-        // default_ttl: always picklable
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // username: always picklable
         ok
     }
 }
@@ -3354,12 +3110,6 @@ impl MemcachedConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MemcachedConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // connection_pool_max_size: not a map field
-        // default_ttl: not a map field
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // username: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3430,7 +3180,6 @@ impl ConfigBuilder for MemoryConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // root: always picklable
         ok
     }
 }
@@ -3453,7 +3202,6 @@ impl MemoryConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MemoryConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3503,10 +3251,6 @@ impl ConfigBuilder for MiniMokaConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // max_capacity: always picklable
-        // root: always picklable
-        // time_to_idle: always picklable
-        // time_to_live: always picklable
         ok
     }
 }
@@ -3546,10 +3290,6 @@ impl MiniMokaConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MiniMokaConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // max_capacity: not a map field
-        // root: not a map field
-        // time_to_idle: not a map field
-        // time_to_live: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3623,11 +3363,6 @@ impl ConfigBuilder for MokaConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // max_capacity: always picklable
-        // name: always picklable
-        // root: always picklable
-        // time_to_idle: always picklable
-        // time_to_live: always picklable
         ok
     }
 }
@@ -3672,11 +3407,6 @@ impl MokaConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MokaConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // max_capacity: not a map field
-        // name: not a map field
-        // root: not a map field
-        // time_to_idle: not a map field
-        // time_to_live: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3758,12 +3488,6 @@ impl ConfigBuilder for MongodbConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // collection: always picklable
-        // connection_string: always picklable
-        // database: always picklable
-        // key_field: always picklable
-        // root: always picklable
-        // value_field: always picklable
         ok
     }
 }
@@ -3813,12 +3537,6 @@ impl MongodbConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MongodbConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // collection: not a map field
-        // connection_string: not a map field
-        // database: not a map field
-        // key_field: not a map field
-        // root: not a map field
-        // value_field: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -3896,11 +3614,6 @@ impl ConfigBuilder for MysqlConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // connection_string: always picklable
-        // key_field: always picklable
-        // root: always picklable
-        // table: always picklable
-        // value_field: always picklable
         ok
     }
 }
@@ -3945,11 +3658,6 @@ impl MysqlConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::MysqlConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // connection_string: not a map field
-        // key_field: not a map field
-        // root: not a map field
-        // table: not a map field
-        // value_field: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4039,12 +3747,6 @@ impl ConfigBuilder for ObsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_key_id: always picklable
-        // bucket: always picklable
-        // enable_versioning: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // secret_access_key: always picklable
         ok
     }
 }
@@ -4097,12 +3799,6 @@ impl ObsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::ObsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // access_key_id: not a map field
-        // bucket: not a map field
-        // enable_versioning: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // secret_access_key: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4191,12 +3887,6 @@ impl ConfigBuilder for OnedriveConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_token: always picklable
-        // client_id: always picklable
-        // client_secret: always picklable
-        // enable_versioning: always picklable
-        // refresh_token: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -4249,12 +3939,6 @@ impl OnedriveConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::OnedriveConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // access_token: not a map field
-        // client_id: not a map field
-        // client_secret: not a map field
-        // enable_versioning: not a map field
-        // refresh_token: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4403,28 +4087,6 @@ impl ConfigBuilder for OssConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // access_key_id: always picklable
-        // access_key_secret: always picklable
-        // addressing_style: always picklable
-        // allow_anonymous: always picklable
-        // batch_max_operations: always picklable
-        // delete_max_size: always picklable
-        // enable_versioning: always picklable
-        // endpoint: always picklable
-        // external_id: always picklable
-        // oidc_provider_arn: always picklable
-        // oidc_token_file: always picklable
-        // presign_addressing_style: always picklable
-        // presign_endpoint: always picklable
-        // role_arn: always picklable
-        // role_session_name: always picklable
-        // root: always picklable
-        // security_token: always picklable
-        // server_side_encryption: always picklable
-        // server_side_encryption_key_id: always picklable
-        // skip_signature: always picklable
-        // sts_endpoint: always picklable
         ok
     }
 }
@@ -4561,28 +4223,6 @@ impl OssConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::OssConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // access_key_id: not a map field
-        // access_key_secret: not a map field
-        // addressing_style: not a map field
-        // allow_anonymous: not a map field
-        // batch_max_operations: not a map field
-        // delete_max_size: not a map field
-        // enable_versioning: not a map field
-        // endpoint: not a map field
-        // external_id: not a map field
-        // oidc_provider_arn: not a map field
-        // oidc_token_file: not a map field
-        // presign_addressing_style: not a map field
-        // presign_endpoint: not a map field
-        // role_arn: not a map field
-        // role_session_name: not a map field
-        // root: not a map field
-        // security_token: not a map field
-        // server_side_encryption: not a map field
-        // server_side_encryption_key_id: not a map field
-        // skip_signature: not a map field
-        // sts_endpoint: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4753,9 +4393,6 @@ impl ConfigBuilder for PersyConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // datafile: always picklable
-        // index: always picklable
-        // segment: always picklable
         ok
     }
 }
@@ -4790,9 +4427,6 @@ impl PersyConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::PersyConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // datafile: not a map field
-        // index: not a map field
-        // segment: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4856,11 +4490,6 @@ impl ConfigBuilder for PostgresqlConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // connection_string: always picklable
-        // key_field: always picklable
-        // root: always picklable
-        // table: always picklable
-        // value_field: always picklable
         ok
     }
 }
@@ -4905,11 +4534,6 @@ impl PostgresqlConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::PostgresqlConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // connection_string: not a map field
-        // key_field: not a map field
-        // root: not a map field
-        // table: not a map field
-        // value_field: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -4985,9 +4609,6 @@ impl ConfigBuilder for RedbConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // datadir: always picklable
-        // root: always picklable
-        // table: always picklable
         ok
     }
 }
@@ -5022,9 +4643,6 @@ impl RedbConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::RedbConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // datadir: not a map field
-        // root: not a map field
-        // table: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -5094,14 +4712,6 @@ impl ConfigBuilder for RedisConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // db: always picklable
-        // cluster_endpoints: always picklable
-        // connection_pool_max_size: always picklable
-        // default_ttl: always picklable
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // username: always picklable
         ok
     }
 }
@@ -5161,14 +4771,6 @@ impl RedisConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::RedisConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // db: not a map field
-        // cluster_endpoints: not a map field
-        // connection_pool_max_size: not a map field
-        // default_ttl: not a map field
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // username: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -5262,7 +4864,6 @@ impl ConfigBuilder for S3Config {
         if let Some(v) = &self.0.assume_role_duration_seconds {
             map.insert("assume_role_duration_seconds".to_string(), v.to_string());
         }
-        // assume_role_session_tags: map field omitted from flat option map
         if let Some(v) = &self.0.batch_max_operations {
             map.insert("batch_max_operations".to_string(), v.to_string());
         }
@@ -5421,41 +5022,9 @@ impl ConfigBuilder for S3Config {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // access_key_id: always picklable
-        // allow_anonymous: always picklable
-        // assume_role_duration_seconds: always picklable
         if self.0.assume_role_session_tags.is_some() {
             ok = false;
         }
-        // batch_max_operations: always picklable
-        // checksum_algorithm: always picklable
-        // default_acl: always picklable
-        // default_storage_class: always picklable
-        // delete_max_size: always picklable
-        // disable_config_load: always picklable
-        // disable_ec2_metadata: always picklable
-        // disable_list_objects_v2: always picklable
-        // disable_stat_with_override: always picklable
-        // disable_write_with_if_match: always picklable
-        // enable_request_payer: always picklable
-        // enable_versioning: always picklable
-        // enable_virtual_host_style: always picklable
-        // enable_write_with_append: always picklable
-        // endpoint: always picklable
-        // external_id: always picklable
-        // region: always picklable
-        // role_arn: always picklable
-        // role_session_name: always picklable
-        // root: always picklable
-        // secret_access_key: always picklable
-        // server_side_encryption: always picklable
-        // server_side_encryption_aws_kms_key_id: always picklable
-        // server_side_encryption_customer_algorithm: always picklable
-        // server_side_encryption_customer_key: always picklable
-        // server_side_encryption_customer_key_md5: always picklable
-        // session_token: always picklable
-        // skip_signature: always picklable
         ok
     }
 }
@@ -5551,7 +5120,6 @@ impl S3Config {
         if let Some(v) = assume_role_duration_seconds {
             opts.insert("assume_role_duration_seconds".to_string(), v.to_string());
         }
-        // assume_role_session_tags: map field set after from_iter
         if let Some(v) = batch_max_operations {
             opts.insert("batch_max_operations".to_string(), v.to_string());
         }
@@ -5669,41 +5237,9 @@ impl S3Config {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::S3Config as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // access_key_id: not a map field
-        // allow_anonymous: not a map field
-        // assume_role_duration_seconds: not a map field
         if let Some(v) = assume_role_session_tags {
             cfg.assume_role_session_tags = Some(v);
         }
-        // batch_max_operations: not a map field
-        // checksum_algorithm: not a map field
-        // default_acl: not a map field
-        // default_storage_class: not a map field
-        // delete_max_size: not a map field
-        // disable_config_load: not a map field
-        // disable_ec2_metadata: not a map field
-        // disable_list_objects_v2: not a map field
-        // disable_stat_with_override: not a map field
-        // disable_write_with_if_match: not a map field
-        // enable_request_payer: not a map field
-        // enable_versioning: not a map field
-        // enable_virtual_host_style: not a map field
-        // enable_write_with_append: not a map field
-        // endpoint: not a map field
-        // external_id: not a map field
-        // region: not a map field
-        // role_arn: not a map field
-        // role_session_name: not a map field
-        // root: not a map field
-        // secret_access_key: not a map field
-        // server_side_encryption: not a map field
-        // server_side_encryption_aws_kms_key_id: not a map field
-        // server_side_encryption_customer_algorithm: not a map field
-        // server_side_encryption_customer_key: not a map field
-        // server_side_encryption_customer_key_md5: not a map field
-        // session_token: not a map field
-        // skip_signature: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -5990,11 +5526,6 @@ impl ConfigBuilder for SeafileConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // repo_name: always picklable
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // username: always picklable
         ok
     }
 }
@@ -6037,11 +5568,6 @@ impl SeafileConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::SeafileConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // repo_name: not a map field
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // username: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6110,9 +5636,6 @@ impl ConfigBuilder for SledConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // datadir: always picklable
-        // root: always picklable
-        // tree: always picklable
         ok
     }
 }
@@ -6147,9 +5670,6 @@ impl SledConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::SledConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // datadir: not a map field
-        // root: not a map field
-        // tree: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6212,11 +5732,6 @@ impl ConfigBuilder for SqliteConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // connection_string: always picklable
-        // key_field: always picklable
-        // root: always picklable
-        // table: always picklable
-        // value_field: always picklable
         ok
     }
 }
@@ -6261,11 +5776,6 @@ impl SqliteConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::SqliteConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // connection_string: not a map field
-        // key_field: not a map field
-        // root: not a map field
-        // table: not a map field
-        // value_field: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6349,12 +5859,6 @@ impl ConfigBuilder for SwiftConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // container: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // temp_url_hash_algorithm: always picklable
-        // temp_url_key: always picklable
-        // token: always picklable
         ok
     }
 }
@@ -6404,12 +5908,6 @@ impl SwiftConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::SwiftConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // container: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // temp_url_hash_algorithm: not a map field
-        // temp_url_key: not a map field
-        // token: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6516,15 +6014,6 @@ impl ConfigBuilder for TosConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // access_key_id: always picklable
-        // disable_config_load: always picklable
-        // endpoint: always picklable
-        // region: always picklable
-        // root: always picklable
-        // secret_access_key: always picklable
-        // security_token: always picklable
-        // skip_signature: always picklable
         ok
     }
 }
@@ -6593,15 +6082,6 @@ impl TosConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::TosConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // access_key_id: not a map field
-        // disable_config_load: not a map field
-        // endpoint: not a map field
-        // region: not a map field
-        // root: not a map field
-        // secret_access_key: not a map field
-        // security_token: not a map field
-        // skip_signature: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6707,10 +6187,6 @@ impl ConfigBuilder for UpyunConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // bucket: always picklable
-        // operator: always picklable
-        // password: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -6748,10 +6224,6 @@ impl UpyunConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::UpyunConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // bucket: not a map field
-        // operator: not a map field
-        // password: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6817,10 +6289,6 @@ impl ConfigBuilder for VercelArtifactsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_token: always picklable
-        // endpoint: always picklable
-        // team_id: always picklable
-        // team_slug: always picklable
         ok
     }
 }
@@ -6861,10 +6329,6 @@ impl VercelArtifactsConfig {
         let mut cfg =
             <ocore::services::VercelArtifactsConfig as ocore::Configurator>::from_iter(opts)
                 .map_err(format_pyerr)?;
-        // access_token: not a map field
-        // endpoint: not a map field
-        // team_id: not a map field
-        // team_slug: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -6972,17 +6436,6 @@ impl ConfigBuilder for WebdavConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // disable_copy: always picklable
-        // disable_create_dir: always picklable
-        // enable_conditional_read: always picklable
-        // enable_user_metadata: always picklable
-        // endpoint: always picklable
-        // password: always picklable
-        // root: always picklable
-        // token: always picklable
-        // user_metadata_prefix: always picklable
-        // user_metadata_uri: always picklable
-        // username: always picklable
         ok
     }
 }
@@ -7069,17 +6522,6 @@ impl WebdavConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::WebdavConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // disable_copy: not a map field
-        // disable_create_dir: not a map field
-        // enable_conditional_read: not a map field
-        // enable_user_metadata: not a map field
-        // endpoint: not a map field
-        // password: not a map field
-        // root: not a map field
-        // token: not a map field
-        // user_metadata_prefix: not a map field
-        // user_metadata_uri: not a map field
-        // username: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -7220,12 +6662,6 @@ impl ConfigBuilder for WebhdfsConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // atomic_write_dir: always picklable
-        // delegation: always picklable
-        // disable_list_batch: always picklable
-        // endpoint: always picklable
-        // root: always picklable
-        // user_name: always picklable
         ok
     }
 }
@@ -7278,12 +6714,6 @@ impl WebhdfsConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::WebhdfsConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // atomic_write_dir: not a map field
-        // delegation: not a map field
-        // disable_list_batch: not a map field
-        // endpoint: not a map field
-        // root: not a map field
-        // user_name: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))
@@ -7350,8 +6780,6 @@ impl ConfigBuilder for YandexDiskConfig {
     fn is_picklable(&self) -> bool {
         #[allow(unused_mut)]
         let mut ok = true;
-        // access_token: always picklable
-        // root: always picklable
         ok
     }
 }
@@ -7379,8 +6807,6 @@ impl YandexDiskConfig {
         #[allow(unused_mut)]
         let mut cfg = <ocore::services::YandexDiskConfig as ocore::Configurator>::from_iter(opts)
             .map_err(format_pyerr)?;
-        // access_token: not a map field
-        // root: not a map field
         let this = Self(cfg);
         Ok(
             pyo3::PyClassInitializer::from(ServiceConfig(Box::new(this.clone())))

@@ -86,7 +86,7 @@ impl CosCore {
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
-        Self::restore_encoded_query(&mut parts.uri, encoded_query.as_deref(), false)?;
+        parts.uri = Self::restore_encoded_query(parts.uri, encoded_query.as_deref())?;
 
         Ok(Request::from_parts(parts, body))
     }
@@ -105,36 +105,29 @@ impl CosCore {
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
-        Self::restore_encoded_query(&mut parts.uri, encoded_query.as_deref(), true)?;
+        parts.uri = Self::restore_encoded_query(parts.uri, encoded_query.as_deref())?;
 
         Ok(Request::from_parts(parts, body))
     }
 
-    fn restore_encoded_query(
-        uri: &mut Uri,
-        encoded_query: Option<&str>,
-        keep_signed_query: bool,
-    ) -> Result<()> {
+    fn restore_encoded_query(uri: Uri, encoded_query: Option<&str>) -> Result<Uri> {
         let Some(encoded_query) = encoded_query else {
-            return Ok(());
+            return Ok(uri);
         };
 
         let Some(path_and_query) = uri.path_and_query() else {
-            return Ok(());
+            return Ok(uri);
         };
         let Some(signed_query) = path_and_query.query() else {
-            return Ok(());
+            return Ok(uri);
         };
 
-        let rest = if keep_signed_query {
-            let decoded_query = Self::decode_signed_query(encoded_query);
-            let rest = signed_query
-                .strip_prefix(&decoded_query)
-                .ok_or_else(|| Error::new(ErrorKind::Unexpected, "signed query changed"))?;
-            rest.strip_prefix('&').filter(|v| !v.is_empty())
-        } else {
-            None
-        };
+        let decoded_query = Self::decode_signed_query(encoded_query);
+        let rest = signed_query
+            .strip_prefix(&decoded_query)
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "signed query changed"))?
+            .strip_prefix('&')
+            .filter(|v| !v.is_empty());
 
         let query = if let Some(rest) = rest {
             format!("{encoded_query}&{rest}")
@@ -144,15 +137,15 @@ impl CosCore {
 
         let path_and_query = format!("{}?{}", path_and_query.path(), query);
 
-        let mut parts = std::mem::take(uri).into_parts();
+        let mut parts = uri.into_parts();
         parts.path_and_query = Some(http::uri::PathAndQuery::from_str(&path_and_query).map_err(
             |e| Error::new(ErrorKind::Unexpected, "invalid signed query").set_source(e),
         )?);
-        *uri = Uri::from_parts(parts).map_err(|e| {
+        let uri = Uri::from_parts(parts).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "failed to restore signed query").set_source(e)
         })?;
 
-        Ok(())
+        Ok(uri)
     }
 
     fn decode_signed_query(encoded_query: &str) -> String {

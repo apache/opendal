@@ -7,7 +7,10 @@ OpenDAL's Ruby [gem](https://rubygems.org/gems/opendal): access S3, GCS, Azure B
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL Ruby binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Ruby binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

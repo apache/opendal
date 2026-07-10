@@ -410,13 +410,13 @@ impl Builder for OssBuilder {
     type Config = OssConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         #[allow(deprecated)]
         let skip_signature = self.config.skip_signature || self.config.allow_anonymous;
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle endpoint, region and bucket name.
         let bucket = match self.config.bucket.is_empty() {
@@ -434,7 +434,7 @@ impl Builder for OssBuilder {
             bucket,
             (&self.config.addressing_style).try_into()?,
         )?;
-        debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
+        debug!("backend use bucket {}, endpoint: {}", bucket, endpoint);
 
         let presign_endpoint = if self.config.presign_endpoint.is_some() {
             self.parse_endpoint(
@@ -446,7 +446,7 @@ impl Builder for OssBuilder {
         } else {
             endpoint.clone()
         };
-        debug!("backend use presign_endpoint: {}", &presign_endpoint);
+        debug!("backend use presign_endpoint: {}", presign_endpoint);
 
         let server_side_encryption = match &self.config.server_side_encryption {
             None => None,

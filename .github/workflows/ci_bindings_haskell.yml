@@ -60,10 +60,14 @@ jobs:
           cabal update
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/haskell"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/haskell"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
       - name: Restore haskell cache
         uses: actions/cache/restore@v6
         with:

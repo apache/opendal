@@ -164,7 +164,7 @@ impl Builder for AzfileBuilder {
     type Config = AzfileConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -175,7 +175,7 @@ impl Builder for AzfileBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZFILE_SCHEME)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let account_name_option = self
             .config

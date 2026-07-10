@@ -128,10 +128,10 @@ impl Builder for GoosefsBuilder {
 
     /// Build the backend and return a GoosefsBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("GoosefsBuilder::build started: {:?}", &self);
+        debug!("GoosefsBuilder::build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("GoosefsBuilder use root {}", &root);
+        debug!("GoosefsBuilder use root {}", root);
 
         // ── Step 1: establish the base SDK config ─────────────────────────────
         //
@@ -210,7 +210,7 @@ impl Builder for GoosefsBuilder {
         }
         debug!(
             "GoosefsBuilder use master_addr {} (addrs={:?})",
-            &goosefs_config.master_addr, &goosefs_config.master_addrs
+            goosefs_config.master_addr, goosefs_config.master_addrs
         );
 
         if let Some(block_size) = self.config.block_size {

@@ -111,10 +111,10 @@ impl Builder for KoofrBuilder {
 
     /// Builds the backend and returns the result of KoofrBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
@@ -122,7 +122,7 @@ impl Builder for KoofrBuilder {
                 .with_context("service", KOOFR_SCHEME));
         }
 
-        debug!("backend use endpoint {}", &self.config.endpoint);
+        debug!("backend use endpoint {}", self.config.endpoint);
 
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
@@ -130,7 +130,7 @@ impl Builder for KoofrBuilder {
                 .with_context("service", KOOFR_SCHEME));
         }
 
-        debug!("backend use email {}", &self.config.email);
+        debug!("backend use email {}", self.config.email);
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),

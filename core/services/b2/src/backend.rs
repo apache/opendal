@@ -111,10 +111,10 @@ impl Builder for B2Builder {
 
     /// Builds the backend and returns the result of B2Backend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket.
         if self.config.bucket.is_empty() {
@@ -123,7 +123,7 @@ impl Builder for B2Builder {
                 .with_context("service", B2_SCHEME));
         }
 
-        debug!("backend use bucket {}", &self.config.bucket);
+        debug!("backend use bucket {}", self.config.bucket);
 
         // Handle bucket_id.
         if self.config.bucket_id.is_empty() {
@@ -132,7 +132,7 @@ impl Builder for B2Builder {
                 .with_context("service", B2_SCHEME));
         }
 
-        debug!("backend bucket_id {}", &self.config.bucket_id);
+        debug!("backend bucket_id {}", self.config.bucket_id);
 
         let application_key_id = match &self.config.application_key_id {
             Some(application_key_id) => Ok(application_key_id.clone()),

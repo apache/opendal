@@ -42,23 +42,32 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v7
       - name: Setup lua toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y lua-busted luarocks liblua5.2-dev
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/lua"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/lua"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
+
       - name: Build & Test
         working-directory: "bindings/lua"
         run: |
           sudo "PATH=$PATH" luarocks make
           busted test/opendal_test.lua
+
       - name: Run getting-started example
         working-directory: "bindings/lua"
         run: |

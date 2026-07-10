@@ -55,11 +55,15 @@ jobs:
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/dotnet"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/dotnet"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
   test:
     runs-on: ${{ matrix.os }}

@@ -89,7 +89,7 @@ impl Builder for IpfsBuilder {
     type Config = IpfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
@@ -108,7 +108,7 @@ impl Builder for IpfsBuilder {
                 .with_context("service", IPFS_SCHEME)
                 .with_context("root", &root)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let info = ServiceInfo::new(IPFS_SCHEME, &root, "");
         let capability = Capability {

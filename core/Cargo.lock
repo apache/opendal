@@ -9324,9 +9324,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-volcengine-tos"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19ac4120764e6cf8b8bd431c9256bf1defeb2331ae616d353ee9d6b750c39f62"
+checksum = "173387eb5ae4cf6a0a7098665ebcc6729862819dc3d95a81aee840767803e3d9"
 dependencies = [
  "anyhow",
  "http 1.4.2",

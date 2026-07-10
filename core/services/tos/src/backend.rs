@@ -33,7 +33,7 @@ use crate::writer::TosWriter;
 use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
-use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
+use opendal_core::{Buffer, Builder, Capability, EntryMode, Error, ErrorKind, Result};
 use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredentialProvider};
@@ -214,6 +214,12 @@ impl Builder for TosBuilder {
             list_with_recursive: true,
             list_with_versions: true,
             list_with_deleted: true,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
 
             stat: true,
             stat_with_if_match: true,
@@ -416,13 +422,31 @@ impl Service for TosBackend {
 
     async fn presign(
         &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpPresign,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
     ) -> Result<RpPresign> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let (expire, op) = args.into_parts();
+        let req = match op {
+            PresignOperation::Stat(v) => self.core.tos_head_object_request(path, v),
+            PresignOperation::Read(range, v) => self.core.tos_get_object_request(path, range, &v),
+            PresignOperation::Write(v) => {
+                self.core
+                    .tos_put_object_request(path, None, &v, Buffer::new())
+            }
+            PresignOperation::Delete(v) => self.core.tos_delete_object_request(path, &v),
+            _ => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+        }?;
+        let req = self.core.sign_query(ctx, req, expire).await?;
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }

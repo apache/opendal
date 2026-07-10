@@ -204,7 +204,7 @@ jobs:
 
       - name: Update npm
         # Trusted publishing requires npm CLI version 11.5.1 or later.
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Add LICENSE & NOTICE
         # Set working directory to root to copy LICENSE & NOTICE

@@ -79,10 +79,10 @@ impl Builder for YandexDiskBuilder {
 
     /// Builds the backend and returns the result of YandexDiskBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle oauth access_token.
         if self.config.access_token.is_empty() {

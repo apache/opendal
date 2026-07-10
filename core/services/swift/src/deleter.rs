@@ -73,7 +73,7 @@ impl oio::BatchDelete for SwiftDeleter {
             // The error paths from Swift include the container prefix, so we need
             // to reconstruct the full path for comparison.
             let abs = build_abs_path(&self.core.root, &path);
-            let full_path = format!("{}/{}", &self.core.container, abs);
+            let full_path = format!("{}/{}", self.core.container, abs);
 
             if let Some(error_entry) = result.errors.iter().find(|e| {
                 e.first()

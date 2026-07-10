@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
     // Dynamic query using the file path directly
     let ctx = ctx.enable_url_table();
     let df = ctx
-        .sql(format!(r#"SELECT * FROM '{}' LIMIT 10"#, &path).as_str())
+        .sql(format!(r#"SELECT * FROM '{}' LIMIT 10"#, path).as_str())
         .await?;
     // Print the results
     df.show().await?;

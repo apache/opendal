@@ -177,7 +177,7 @@ impl Builder for WebdavBuilder {
     type Config = WebdavConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let endpoint = match &self.config.endpoint {
             Some(v) => v,

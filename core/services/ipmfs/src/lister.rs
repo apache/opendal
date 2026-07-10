@@ -80,8 +80,8 @@ impl oio::PageList for IpmfsLister {
 
         for object in entries_body.entries.unwrap_or_default() {
             let path = match object.mode() {
-                EntryMode::FILE => format!("{}{}", &self.path, object.name),
-                EntryMode::DIR => format!("{}{}/", &self.path, object.name),
+                EntryMode::FILE => format!("{}{}", self.path, object.name),
+                EntryMode::DIR => format!("{}{}/", self.path, object.name),
                 EntryMode::Unknown => unreachable!(),
             };
 

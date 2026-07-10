@@ -916,14 +916,14 @@ mod uri {
         pub fn paths_info_url(&self, endpoint: &str) -> String {
             match self.repo_type {
                 HfRepoType::Bucket => {
-                    format!("{}/api/buckets/{}/paths-info", endpoint, &self.repo_id)
+                    format!("{}/api/buckets/{}/paths-info", endpoint, self.repo_id)
                 }
                 _ => {
                     format!(
                         "{}/api/{}/{}/paths-info/{}",
                         endpoint,
                         self.repo_type.as_plural_str(),
-                        &self.repo_id,
+                        self.repo_id,
                         percent_encode_revision(self.revision()),
                     )
                 }
@@ -936,7 +936,7 @@ mod uri {
                 HfRepoType::Bucket => {
                     format!(
                         "{}/api/buckets/{}/xet-{}-token",
-                        endpoint, &self.repo_id, token_type
+                        endpoint, self.repo_id, token_type
                     )
                 }
                 _ => {
@@ -944,7 +944,7 @@ mod uri {
                         "{}/api/{}/{}/xet-{}-token/{}",
                         endpoint,
                         self.repo_type.as_plural_str(),
-                        &self.repo_id,
+                        self.repo_id,
                         token_type,
                         self.revision(),
                     )
@@ -954,7 +954,7 @@ mod uri {
 
         /// Build the bucket batch API URL for this repository.
         pub fn bucket_batch_url(&self, endpoint: &str) -> String {
-            format!("{}/api/buckets/{}/batch", endpoint, &self.repo_id)
+            format!("{}/api/buckets/{}/batch", endpoint, self.repo_id)
         }
 
         /// Build the git commit API URL for this repository.
@@ -963,7 +963,7 @@ mod uri {
                 "{}/api/{}/{}/commit/{}",
                 endpoint,
                 self.repo_type.as_plural_str(),
-                &self.repo_id,
+                self.repo_id,
                 percent_encode_revision(self.revision()),
             )
         }
@@ -1095,25 +1095,25 @@ mod uri {
                 HfRepoType::Model => {
                     format!(
                         "{}/{}/resolve/{}/{}",
-                        endpoint, &self.repo.repo_id, revision, path
+                        endpoint, self.repo.repo_id, revision, path
                     )
                 }
                 HfRepoType::Dataset => {
                     format!(
                         "{}/datasets/{}/resolve/{}/{}",
-                        endpoint, &self.repo.repo_id, revision, path
+                        endpoint, self.repo.repo_id, revision, path
                     )
                 }
                 HfRepoType::Space => {
                     format!(
                         "{}/spaces/{}/resolve/{}/{}",
-                        endpoint, &self.repo.repo_id, revision, path
+                        endpoint, self.repo.repo_id, revision, path
                     )
                 }
                 HfRepoType::Bucket => {
                     format!(
                         "{}/buckets/{}/resolve/{}",
-                        endpoint, &self.repo.repo_id, path
+                        endpoint, self.repo.repo_id, path
                     )
                 }
             }
@@ -1135,7 +1135,7 @@ mod uri {
                 format!(
                     "{}/api/buckets/{}/tree/{}?expand=True",
                     endpoint,
-                    &self.repo.repo_id,
+                    self.repo.repo_id,
                     percent_encode_path(&self.path),
                 )
             } else {
@@ -1143,7 +1143,7 @@ mod uri {
                     "{}/api/{}/{}/tree/{}/{}?expand=True",
                     endpoint,
                     self.repo.repo_type.as_plural_str(),
-                    &self.repo.repo_id,
+                    self.repo.repo_id,
                     percent_encode_revision(self.revision()),
                     percent_encode_path(&self.path),
                 )

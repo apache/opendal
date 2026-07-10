@@ -248,7 +248,7 @@ impl oio::PageList for GdriveLister {
                 file.name += "/";
             }
 
-            let path = format!("{}{}", &self.path, file.name);
+            let path = format!("{}{}", self.path, file.name);
             let metadata = metadata_from_gdrive_file(&file)?;
             self.apply_recent_entry(ctx, path, metadata).await?;
         }
@@ -396,7 +396,7 @@ impl GdriveFlatLister {
     async fn initialize(&mut self) -> Result<()> {
         log::debug!(
             "GdriveFlatLister: initializing with root path: {:?}",
-            &self.root_path
+            self.root_path
         );
 
         if let GdriveRecentPathState::Deleted =
@@ -408,7 +408,7 @@ impl GdriveFlatLister {
 
         let root_id = match self.core.resolve_path(&self.ctx, &self.root_path).await? {
             Some(id) => {
-                log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", &id);
+                log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", id);
                 id
             }
             None => match self
@@ -417,13 +417,13 @@ impl GdriveFlatLister {
                 .await?
             {
                 Some(id) => {
-                    log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", &id);
+                    log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", id);
                     id
                 }
                 None => {
                     log::debug!(
                         "GdriveFlatLister: root path not found: {:?}",
-                        &self.root_path
+                        self.root_path
                     );
                     if self.root_path.ends_with('/') {
                         self.done = true;
@@ -612,7 +612,7 @@ impl GdriveFlatLister {
         log::debug!(
             "GdriveFlatLister: processing batch of {} directories: {:?}",
             self.current_batch.len(),
-            &self.current_batch
+            self.current_batch
         );
 
         let mut resp = self

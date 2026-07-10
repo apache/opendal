@@ -118,10 +118,10 @@ impl Builder for SeafileBuilder {
 
     /// Builds the backend and returns the result of SeafileBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket.
         if self.config.repo_name.is_empty() {
@@ -130,7 +130,7 @@ impl Builder for SeafileBuilder {
                 .with_context("service", SEAFILE_SCHEME));
         }
 
-        debug!("backend use repo_name {}", &self.config.repo_name);
+        debug!("backend use repo_name {}", self.config.repo_name);
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),

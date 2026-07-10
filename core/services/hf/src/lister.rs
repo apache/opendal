@@ -137,7 +137,7 @@ impl oio::PageList for HfLister {
         for info in response.files {
             let meta = info.metadata()?;
             let path = if meta.mode() == EntryMode::DIR {
-                format!("{}/", &info.path)
+                format!("{}/", info.path)
             } else {
                 info.path.clone()
             };

@@ -5,8 +5,10 @@
 A C binding for OpenDAL, providing blocking access to S3, GCS, Azure Blob, the
 local filesystem, and 50+ more storage backends through a single C API.
 
-> **Note**: This binding has its own independent version number, which may differ
-> from the Rust core version.
+We release the OpenDAL C binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the C binding version instead of the `opendal` crate
+version.
 
 **User guide**: https://opendal.apache.org/docs/bindings/c
 

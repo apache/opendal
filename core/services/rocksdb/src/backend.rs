@@ -98,7 +98,6 @@ impl RocksdbBackend {
             delete: true,
             list: true,
             list_with_recursive: true,
-            shared: false,
             ..Default::default()
         };
 

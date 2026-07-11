@@ -98,7 +98,6 @@ impl DashmapBackend {
             delete: true,
             stat: true,
             list: true,
-            shared: false,
             ..Default::default()
         };
 

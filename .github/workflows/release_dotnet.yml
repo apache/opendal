@@ -40,7 +40,6 @@ on:
           - none
           - preview
           - rc
-          - login-test
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -174,30 +173,16 @@ jobs:
           path: bindings/dotnet/artifacts/package/*.nupkg
           if-no-files-found: error
 
-  publish:
-    name: Publish
-    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.release_type == 'login-test' || inputs.release_type != 'none')) || (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')) }}
+  pr-login-check:
+    name: PR Login Check
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    needs:
-      - package
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Setup dotnet toolchain
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Download NuGet package
-        uses: actions/download-artifact@v8
-        with:
-          name: dotnet-package
-          path: bindings/dotnet/artifacts/package
-
       - name: NuGet login
-        id: login
         shell: bash
         env:
           NUGET_USERNAME: Apache.OpenDAL
@@ -206,7 +191,6 @@ jobs:
 
           echo "Workflow event: ${GITHUB_EVENT_NAME}"
           echo "Ref: ${GITHUB_REF}"
-          echo "Release type input: ${{ inputs.release_type }}"
 
           if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
             echo "::error::ACTIONS_ID_TOKEN_REQUEST_URL or ACTIONS_ID_TOKEN_REQUEST_TOKEN is empty"
@@ -252,16 +236,52 @@ jobs:
 
           api_key="$(python3 -c 'import json, sys; data=json.load(sys.stdin); print(data["apiKey"])' <<<"${login_body}")"
           echo "::add-mask::${api_key}"
+          echo "PR login check completed successfully."
+
+  publish:
+    name: Publish
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_type != 'none') || (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')) }}
+    runs-on: ubuntu-latest
+    needs:
+      - package
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Setup dotnet toolchain
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v8
+        with:
+          name: dotnet-package
+          path: bindings/dotnet/artifacts/package
+
+      - name: NuGet login
+        id: login
+        shell: bash
+        env:
+          NUGET_USERNAME: Apache.OpenDAL
+        run: |
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fwww.nuget.org" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${oidc_token}"
+
+          request_body="$(python3 -c 'import json, os; print(json.dumps({"username": os.environ["NUGET_USERNAME"], "tokenType": "ApiKey"}))')"
+          api_key="$(curl -fsSL \
+            -X POST https://www.nuget.org/api/v2/token \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${oidc_token}" \
+            -H "User-Agent: apache-opendal-release" \
+            --data "${request_body}" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["apiKey"])')"
+          echo "::add-mask::${api_key}"
           echo "NUGET_API_KEY=${api_key}" >> "${GITHUB_OUTPUT}"
 
-          if [[ "${{ inputs.release_type }}" == "login-test" ]]; then
-            echo "Login test completed successfully."
-          fi
-
-      - name: Skip publish for login test
-        if: ${{ inputs.release_type == 'login-test' }}
-        run: echo "Login test requested; skipping NuGet publish."
-
       - name: Publish package
-        if: ${{ inputs.release_type != 'login-test' }}
         run: dotnet nuget push bindings/dotnet/artifacts/package/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

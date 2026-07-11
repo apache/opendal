@@ -202,7 +202,6 @@ impl MokaBackend {
             delete: true,
             stat: true,
             list: true,
-            shared: false,
             ..Default::default()
         };
 

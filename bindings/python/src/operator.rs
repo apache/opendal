@@ -225,8 +225,8 @@ impl Operator {
 
     /// Create a new blocking `Operator` from a typed service config.
     ///
-    /// The config binds its own scheme, so there is no scheme argument and no
-    /// way to pair a config with the wrong service.
+    /// The config's type determines the service, so it cannot be paired with
+    /// the wrong scheme.
     ///
     /// Parameters
     /// ----------
@@ -971,8 +971,8 @@ impl AsyncOperator {
 
     /// Create a new `AsyncOperator` from a typed service config.
     ///
-    /// The config binds its own scheme, so there is no scheme argument and no
-    /// way to pair a config with the wrong service.
+    /// The config's type determines the service, so it cannot be paired with
+    /// the wrong scheme.
     ///
     /// Parameters
     /// ----------

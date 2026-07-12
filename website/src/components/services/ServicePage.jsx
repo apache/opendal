@@ -22,6 +22,7 @@ import Layout from "@theme/Layout";
 import CodeBlock from "@theme/CodeBlock";
 import Link from "@docusaurus/Link";
 import { useLocation } from "@docusaurus/router";
+import Tabs from "../ui/Tabs";
 import styles from "./styles.module.css";
 
 // Renders inline `code` spans inside an otherwise plain doc comment so the
@@ -68,9 +69,9 @@ function ConfigTable({ rows }) {
                   </span>
                 )}
               </td>
-              <td>{c.type}</td>
-              <td>{c.required ? "yes" : "no"}</td>
-              <td className={styles.desc}>
+              <td data-label="Type">{c.type}</td>
+              <td data-label="Required">{c.required ? "yes" : "no"}</td>
+              <td className={styles.desc} data-label="Description">
                 {renderComment(c.comments)}
                 {c.deprecated && c.deprecated.note && (
                   <div className={styles.deprecatedNote}>
@@ -139,30 +140,26 @@ export default function ServicePage({ data }) {
 
         {example && (
           <section className={styles.section}>
-            <div
-              className={styles.tabs}
-              role="tablist"
-              aria-label="Choose a binding"
-            >
-              {service.examples.map((e) => (
-                <button
-                  key={e.binding}
-                  type="button"
-                  role="tab"
-                  aria-selected={e.binding === active}
-                  className={`${styles.tab} ${
-                    e.binding === active ? styles.tabActive : ""
-                  }`}
-                  onClick={() => setActive(e.binding)}
-                >
-                  {labelOf[e.binding] || e.binding}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              items={service.examples}
+              activeId={active}
+              onChange={(e) => setActive(e.binding)}
+              getId={(e) => e.binding}
+              getLabel={(e) => labelOf[e.binding] || e.binding}
+              ariaLabel="Choose a binding"
+              controlsId="service-example-panel"
+              id="service-example-tabs"
+            />
 
-            <CodeBlock language={example.language} title="Quick start">
-              {example.minimal}
-            </CodeBlock>
+            <div
+              role="tabpanel"
+              id="service-example-panel"
+              aria-labelledby={`service-example-tabs-tab-${active}`}
+            >
+              <CodeBlock language={example.language} title="Quick start">
+                {example.minimal}
+              </CodeBlock>
+            </div>
 
             <details className={styles.details}>
               <summary>All configuration options (copy &amp; trim)</summary>

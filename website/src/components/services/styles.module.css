@@ -21,6 +21,7 @@
   max-width: 960px;
   margin: 0 auto;
   padding: 2.5rem 1rem 4rem;
+  overflow-wrap: anywhere;
 }
 
 .breadcrumb {
@@ -108,35 +109,6 @@
   margin-top: 2.5rem;
 }
 
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
-}
-
-.tab {
-  appearance: none;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--ifm-color-emphasis-600);
-  cursor: pointer;
-}
-
-.tab:hover {
-  color: var(--ifm-color-primary);
-}
-
-.tabActive {
-  color: var(--ifm-color-primary);
-  border-bottom-color: var(--ifm-color-primary);
-}
-
 .details {
   margin-top: 0.5rem;
 }
@@ -201,10 +173,13 @@
 
 .tableWrap {
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
+  min-width: 720px;
   display: table;
   border-collapse: collapse;
 }
@@ -248,4 +223,71 @@
   margin-top: 0.35rem;
   font-size: 0.8rem;
   color: var(--ifm-color-warning-darkest);
+}
+
+@media (max-width: 996px) {
+  .page {
+    padding: 1.75rem 0.875rem 3rem;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.75rem;
+  }
+
+  .card {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .tableWrap {
+    overflow-x: visible;
+  }
+
+  .table {
+    min-width: 0;
+    display: block;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table tr {
+    padding: 0.8rem 0.875rem;
+    border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  }
+
+  .table td {
+    padding: 0.25rem 0;
+    border-bottom: 0;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.1rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--ifm-color-emphasis-600);
+  }
+
+  .table td:first-child::before {
+    content: "Key";
+  }
+
+  .chip,
+  .badge {
+    margin-top: 0.3rem;
+    margin-left: 0;
+    margin-right: 0.3rem;
+    white-space: normal;
+  }
 }

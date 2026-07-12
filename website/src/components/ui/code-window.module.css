@@ -40,7 +40,7 @@
   display: flex;
   gap: var(--code-window-dot-gap);
 }
-.windowDots span {
+.windowDot {
   width: var(--code-window-dot-size);
   height: var(--code-window-dot-size);
   border-radius: var(--odl-radius-pill);
@@ -97,13 +97,13 @@
 }
 
 .codeBody :global(.theme-code-block),
-.codeBody :global(div[class*="codeBlockContainer"]) {
+.codeBody :global([class*="codeBlockContainer"]) {
   margin: 0;
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
-.codeBody :global(pre) {
+.codeBody :global(.prism-code) {
   border: 0 !important;
   border-radius: 0 !important;
   margin: 0;
@@ -112,7 +112,6 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.codeBody :global(pre code),
 .codeBody :global(.token-line) {
   white-space: inherit;
   overflow-wrap: inherit;

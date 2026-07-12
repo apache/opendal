@@ -108,7 +108,7 @@ export function UsedBy() {
         </div>
         <ul className={styles.logoWall}>
           {usedBy.map((u) => (
-            <li key={u.name}>
+            <li className={styles.logoWallItem} key={u.name}>
               <Link className={styles.logoItem} to={u.href} title={u.name}>
                 <img
                   className={styles.logoMark}
@@ -122,7 +122,7 @@ export function UsedBy() {
               </Link>
             </li>
           ))}
-          <li>
+          <li className={styles.logoWallItem}>
             <Link className={styles.actionLogo} to={USERS_LIST_URL}>
               + Add your logo
             </Link>
@@ -221,6 +221,7 @@ export function Services() {
                     key={s.name}
                   >
                     <img
+                      className={styles.serviceChipIcon}
                       src={withBaseUrl(s.icon)}
                       alt=""
                       width="15"
@@ -264,6 +265,7 @@ export function Bindings() {
           {bindings.map((b) => (
             <Link className={styles.bindingCard} to={b.doc} key={b.name}>
               <img
+                className={styles.bindingIcon}
                 src={withBaseUrl(b.icon)}
                 alt=""
                 width="30"

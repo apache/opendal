@@ -20,10 +20,21 @@
 import React, { useEffect, useState } from "react";
 import Layout from "@theme/Layout";
 import CodeBlock from "@theme/CodeBlock";
-import Link from "@docusaurus/Link";
 import { useLocation } from "@docusaurus/router";
+import Breadcrumb from "../ui/Breadcrumb";
 import Tabs from "../ui/Tabs";
 import styles from "./styles.module.css";
+
+const LANGUAGE_ALIASES = {
+  "c++": "cpp",
+  cplusplus: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+};
+
+function cx(...classNames) {
+  return classNames.filter(Boolean).join(" ");
+}
 
 // Renders inline `code` spans inside an otherwise plain doc comment so the
 // reference table stays readable without pulling in a full markdown renderer.
@@ -44,45 +55,70 @@ function ConfigTable({ rows }) {
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Key</th>
-            <th>Type</th>
-            <th>Required</th>
-            <th>Description</th>
+        <thead className={styles.tableHead}>
+          <tr className={styles.tableHeaderRow}>
+            <th className={styles.tableHeaderCell} scope="col">
+              Key
+            </th>
+            <th className={styles.tableHeaderCell} scope="col">
+              Type
+            </th>
+            <th className={styles.tableHeaderCell} scope="col">
+              Required
+            </th>
+            <th className={styles.tableHeaderCell} scope="col">
+              Description
+            </th>
           </tr>
         </thead>
-        <tbody>
-          {rows.map((c) => (
-            <tr key={c.name} className={c.deprecated ? styles.deprecatedRow : ""}>
-              <td>
-                <code>{c.name}</code>
-                {c.deprecated && <span className={styles.badge}>deprecated</span>}
-                {c.default != null && (
-                  <span className={styles.chip}>
-                    default <code>{c.default}</code>
-                  </span>
-                )}
-                {c.default == null && c.example != null && (
-                  <span className={styles.chip}>
-                    e.g. <code>{c.example}</code>
-                  </span>
-                )}
-              </td>
-              <td data-label="Type">{c.type}</td>
-              <td data-label="Required">{c.required ? "yes" : "no"}</td>
-              <td className={styles.desc} data-label="Description">
-                {renderComment(c.comments)}
-                {c.deprecated && c.deprecated.note && (
-                  <div className={styles.deprecatedNote}>
-                    Deprecated
-                    {c.deprecated.since ? ` since ${c.deprecated.since}` : ""}:{" "}
-                    {renderComment(c.deprecated.note)}
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
+        <tbody className={styles.tableBody}>
+          {rows.map((c) => {
+            const rowClassName = cx(
+              styles.tableRow,
+              c.deprecated ? styles.deprecatedRow : ""
+            );
+
+            return (
+              <tr key={c.name} className={rowClassName}>
+                <td className={cx(styles.tableCell, styles.tableKeyCell)}>
+                  <code className={styles.configKey}>{c.name}</code>
+                  {c.deprecated && (
+                    <span className={styles.badge}>deprecated</span>
+                  )}
+                  {c.default != null && (
+                    <span className={styles.chip}>
+                      default <code className={styles.chipCode}>{c.default}</code>
+                    </span>
+                  )}
+                  {c.default == null && c.example != null && (
+                    <span className={styles.chip}>
+                      e.g. <code className={styles.chipCode}>{c.example}</code>
+                    </span>
+                  )}
+                </td>
+                <td className={styles.tableCell} data-label="Type">
+                  {c.type}
+                </td>
+                <td className={styles.tableCell} data-label="Required">
+                  {c.required ? "yes" : "no"}
+                </td>
+                <td
+                  className={cx(styles.tableCell, styles.desc)}
+                  data-label="Description"
+                >
+                  {renderComment(c.comments)}
+                  {c.deprecated && c.deprecated.note && (
+                    <div className={styles.deprecatedNote}>
+                      {`Deprecated${
+                        c.deprecated.since ? ` since ${c.deprecated.since}` : ""
+                      }: `}
+                      {renderComment(c.deprecated.note)}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -99,6 +135,52 @@ function bindingFromPath(pathname, scheme, available) {
   return tail && available.includes(tail) ? tail : undefined;
 }
 
+function normalizeLanguage(value) {
+  const normalized = value.trim().toLowerCase();
+  return LANGUAGE_ALIASES[normalized] || normalized;
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
+}
+
+// Keep raw `+` characters intact so links like `?language=c++` select C++.
+// URLSearchParams decodes `+` as a space because it follows form encoding.
+function languageFromSearch(search) {
+  const query = search.startsWith("?") ? search.slice(1) : search;
+  for (const part of query.split("&")) {
+    const separator = part.indexOf("=");
+    const rawKey = separator === -1 ? part : part.slice(0, separator);
+    const rawValue = separator === -1 ? "" : part.slice(separator + 1);
+    const key = safeDecodeURIComponent(rawKey);
+    if (key !== "language") {
+      continue;
+    }
+
+    return safeDecodeURIComponent(rawValue);
+  }
+
+  return undefined;
+}
+
+function bindingFromSearch(search, examples) {
+  const language = languageFromSearch(search);
+  if (!language) {
+    return undefined;
+  }
+
+  const normalized = normalizeLanguage(language);
+  return examples.find(
+    (example) =>
+      normalizeLanguage(example.binding) === normalized ||
+      normalizeLanguage(example.language) === normalized
+  )?.binding;
+}
+
 export default function ServicePage({ data }) {
   const { bindings, service } = data;
   const location = useLocation();
@@ -106,14 +188,15 @@ export default function ServicePage({ data }) {
   const labelOf = Object.fromEntries(bindings.map((b) => [b.id, b.label]));
   const available = service.examples.map((e) => e.binding);
   const initial =
+    bindingFromSearch(location.search, service.examples) ||
     bindingFromPath(location.pathname, service.scheme, available) ||
     available[0];
 
   const [active, setActive] = useState(initial);
   useEffect(() => {
     setActive(initial);
-    // Re-sync when navigating between deep-link pages on the client.
-  }, [location.pathname]);
+    // Re-sync when navigating between deep-link pages or URL-selected tabs.
+  }, [location.pathname, location.search]);
 
   const example = service.examples.find((e) => e.binding === active);
 
@@ -123,11 +206,12 @@ export default function ServicePage({ data }) {
   return (
     <Layout title={title} description={description}>
       <div className={styles.page}>
-        <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-          <Link to="/services">Services</Link>
-          <span aria-hidden="true"> / </span>
-          <span>{service.scheme}</span>
-        </nav>
+        <Breadcrumb
+          aria-label="Breadcrumb"
+          rootLabel="Services"
+          rootHref="/services"
+          items={[{ label: service.scheme }]}
+        />
 
         <header className={styles.header}>
           <h1 className={styles.title}>{service.scheme}</h1>
@@ -146,7 +230,7 @@ export default function ServicePage({ data }) {
               onChange={(e) => setActive(e.binding)}
               getId={(e) => e.binding}
               getLabel={(e) => labelOf[e.binding] || e.binding}
-              ariaLabel="Choose a binding"
+              aria-label="Choose a binding"
               controlsId="service-example-panel"
               id="service-example-tabs"
             />
@@ -162,7 +246,9 @@ export default function ServicePage({ data }) {
             </div>
 
             <details className={styles.details}>
-              <summary>All configuration options (copy &amp; trim)</summary>
+              <summary className={styles.detailsSummary}>
+                All configuration options (copy &amp; trim)
+              </summary>
               <CodeBlock language={example.language} title="Full reference">
                 {example.full}
               </CodeBlock>

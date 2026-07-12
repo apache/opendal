@@ -26,10 +26,10 @@ export default function Tabs({
   onChange,
   getId = (item) => item.id,
   getLabel = (item) => item.label,
-  ariaLabel,
   controlsId,
   id,
   className = "",
+  ...tabListProps
 }) {
   const generatedId = useId();
   const baseId = id || generatedId;
@@ -74,9 +74,9 @@ export default function Tabs({
 
   return (
     <div
+      {...tabListProps}
       className={[styles.tabs, className].filter(Boolean).join(" ")}
       role="tablist"
-      aria-label={ariaLabel}
       onKeyDown={onKeyDown}
     >
       {items.map((item, index) => {

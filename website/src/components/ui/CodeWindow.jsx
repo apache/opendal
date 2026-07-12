@@ -24,9 +24,9 @@ import styles from "./code-window.module.css";
 function CodeWindowDots() {
   return (
     <div className={styles.windowDots} aria-hidden="true">
-      <span />
-      <span />
-      <span />
+      <span className={styles.windowDot} />
+      <span className={styles.windowDot} />
+      <span className={styles.windowDot} />
     </div>
   );
 }

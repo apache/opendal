@@ -162,7 +162,7 @@ export default function CodeTabs({ samples, title, equalize = false }) {
         getId={(sample) => sample.id}
         getLabel={(sample) => sample.label}
         className={styles.codeTabs}
-        ariaLabel="Choose a language"
+        aria-label="Choose a language"
         controlsId={`${baseId}-panel`}
         id={baseId}
       />

@@ -39,6 +39,15 @@ body {
     "ss01" 1;
 }
 
+#__docusaurus,
+.main-wrapper,
+[class*="docsWrapper"],
+[class*="docRoot"],
+[class*="docMainContainer"],
+[class*="docItemWrapper"] {
+  background: var(--odl-bg);
+}
+
 h1,
 h2,
 h3,

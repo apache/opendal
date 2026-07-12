@@ -186,7 +186,7 @@
   grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
   gap: var(--odl-space-3);
 }
-.logoWall > li {
+.logoWallItem {
   display: flex;
 }
 .logoItem {
@@ -347,7 +347,7 @@
   color: var(--odl-fg);
   text-decoration: none;
 }
-.serviceChip img {
+.serviceChipIcon {
   width: 15px;
   height: 15px;
   object-fit: contain;
@@ -386,7 +386,7 @@
   background: var(--odl-surface-2);
   text-decoration: none;
 }
-.bindingCard img {
+.bindingIcon {
   width: 30px;
   height: 30px;
   object-fit: contain;

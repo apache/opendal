@@ -197,7 +197,7 @@ jobs:
 
       - name: NuGet login
         id: login
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: Apache.OpenDAL
 

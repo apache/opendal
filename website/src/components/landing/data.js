@@ -38,11 +38,11 @@ export const codeSamples = [
     id: "rust",
     label: "Rust",
     language: "rust",
-    install: "$ cargo add opendal",
+    install: "$ cargo add [opendal](/docs/core)",
     code: `use opendal::services::S3;
 use opendal::Operator;
 
-// Configure a backend once, then use one Operator.
+// Configure a backend once, then use one operator.
 let builder = S3::default().bucket("data");
 let operator = Operator::new(builder)?.finish();
 
@@ -53,11 +53,11 @@ let bytes = operator.read("hello.txt").await?;`,
     id: "java",
     label: "Java",
     language: "java",
-    install: "org.apache.opendal:opendal-java",
+    install: "[org.apache.opendal:opendal-java](/docs/bindings/java)",
     code: `import org.apache.opendal.AsyncOperator;
 import java.util.Map;
 
-// Configure a backend once, then use one Operator.
+// Configure a backend once, then use one operator.
 var config = Map.of("bucket", "data");
 try (var operator = AsyncOperator.of("s3", config)) {
     operator.write("hello.txt", "Hello, World!").join();
@@ -68,10 +68,10 @@ try (var operator = AsyncOperator.of("s3", config)) {
     id: "python",
     label: "Python",
     language: "python",
-    install: "$ pip install opendal",
+    install: "$ pip install [opendal](/docs/bindings/python)",
     code: `import opendal
 
-# Configure a backend once, then use one Operator.
+# Configure a backend once, then use one operator.
 operator = opendal.Operator("s3", bucket="data")
 
 operator.write("hello.txt", b"Hello, World!")
@@ -81,10 +81,10 @@ data = operator.read("hello.txt")`,
     id: "node",
     label: "Node.js",
     language: "javascript",
-    install: "$ npm install opendal",
+    install: "$ npm install [opendal](/docs/bindings/nodejs)",
     code: `import { Operator } from "opendal";
 
-// Configure a backend once, then use one Operator.
+// Configure a backend once, then use one operator.
 const operator = new Operator("s3", { bucket: "data" });
 
 await operator.write("hello.txt", "Hello, World!");
@@ -94,10 +94,10 @@ const data = await operator.read("hello.txt");`,
     id: "ruby",
     label: "Ruby",
     language: "ruby",
-    install: "$ gem install opendal",
-    code: `require 'opendal'
+    install: "$ gem install [opendal](/docs/bindings/ruby)",
+    code: `require "opendal"
 
-# Configure a backend once, then use one Operator.
+# Configure a backend once, then use one operator.
 operator = OpenDAL::Operator.new("s3", { "bucket" => "data" })
 
 operator.write("hello.txt", "Hello, World!")
@@ -107,13 +107,13 @@ data = operator.read("hello.txt")`,
     id: "go",
     label: "Go",
     language: "go",
-    install: "$ go get github.com/apache/opendal/bindings/go",
+    install: "$ go get [github.com/apache/opendal/bindings/go](/docs/bindings/go)",
     code: `import (
     "github.com/apache/opendal-go-services/s3"
     opendal "github.com/apache/opendal/bindings/go"
 )
 
-// Configure a backend once, then use one Operator.
+// Configure a backend once, then use one operator.
 opts := opendal.OperatorOptions{"bucket": "data"}
 op, _ := opendal.NewOperator(s3.Scheme, opts)
 
@@ -124,7 +124,7 @@ data, _ := operator.Read("hello.txt")`,
     "id": "c",
     "label": "C",
     "language": "c",
-    "install": "opendal-c",
+    "install": "[opendal-c](/docs/bindings/c)",
     "code": `#include <opendal.h>
 
 od_operator_options_t *options = od_operator_options_new();
@@ -141,7 +141,7 @@ od_operator_read(operator, "hello.txt", &data, &size);`
     "id": "cpp",
     "label": "C++",
     "language": "cpp",
-    "install": "opendal-cpp",
+    "install": "[opendal-cpp](/docs/bindings/cpp)",
     "code": `#include <opendal.hpp>
 
 opendal::Operator operator("s3", {{"bucket", "data"}});

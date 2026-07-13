@@ -18,6 +18,7 @@
  */
 
 import React, { useState } from "react";
+import CodeWindow from "../ui/CodeWindow";
 import styles from "./styles.module.css";
 
 // The OpenDAL mental model in one picture: an application calls an operator,
@@ -58,17 +59,16 @@ export default function MentalModel() {
   const current = CONCEPTS.find((concept) => concept.id === active);
 
   return (
-    <figure className={styles.model} data-active={active}>
-      <div className={styles.windowBar}>
-        <div className={styles.windowDots} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <span className={styles.windowTitle}>
+    <CodeWindow
+      as="figure"
+      className={styles.model}
+      data-active={active}
+      title={
+        <>
           {current.index} {current.name} — {current.hint}
-        </span>
-      </div>
+        </>
+      }
+    >
       <div className={styles.diagram} aria-hidden="true">
         <div className={`${styles.gridLayer} odl-grid-bg`} />
         <div className={styles.backend}>
@@ -123,6 +123,6 @@ export default function MentalModel() {
           );
         })}
       </figcaption>
-    </figure>
+    </CodeWindow>
   );
 }

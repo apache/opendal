@@ -18,7 +18,7 @@
 use crate::types::builder::{Builder, Configurator};
 use crate::types::{IntoOperatorUri, OperatorUri};
 use crate::{Error, ErrorKind, Operator, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 
 /// Factory signature used to construct [`Operator`] from a URI and extra options.
@@ -59,6 +59,27 @@ impl OperatorRegistry {
         guard.insert(key, factory::<B::Config>);
     }
 
+    /// Return the set of schemes currently registered.
+    ///
+    /// For the global registry returned by [`OperatorRegistry::get`], this is
+    /// exactly the set of schemes that [`Operator::from_uri`] can construct, as
+    /// determined by the compiled-in `services-*` features.
+    ///
+    /// ```
+    /// use opendal_core::OperatorRegistry;
+    ///
+    /// let schemes = OperatorRegistry::get().schemes();
+    /// assert!(schemes.contains("memory"));
+    /// ```
+    pub fn schemes(&self) -> HashSet<String> {
+        self.factories
+            .lock()
+            .expect("operator registry mutex poisoned")
+            .keys()
+            .cloned()
+            .collect()
+    }
+
     /// Load an [`Operator`] via the factory registered for the URI's scheme.
     pub fn load(&self, uri: impl IntoOperatorUri) -> Result<Operator> {
         let parsed = uri.into_operator_uri()?;
@@ -71,8 +92,11 @@ impl OperatorRegistry {
             .get(scheme)
             .copied()
             .ok_or_else(|| {
+                let mut available: Vec<String> = self.schemes().into_iter().collect();
+                available.sort();
                 Error::new(ErrorKind::Unsupported, "scheme is not registered")
                     .with_context("scheme", scheme.to_string())
+                    .with_context("available", available.join(", "))
             })?;
 
         factory(&parsed)
@@ -83,4 +107,30 @@ impl OperatorRegistry {
 fn factory<C: Configurator>(uri: &OperatorUri) -> Result<Operator> {
     let cfg = C::from_uri(uri)?;
     Operator::from_config(cfg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_registry_exposes_memory_scheme() {
+        let schemes = OperatorRegistry::get().schemes();
+        assert!(schemes.contains("memory"));
+    }
+
+    #[test]
+    fn unregistered_scheme_error_lists_available_schemes() {
+        let err = OperatorRegistry::get()
+            .load("no-such-scheme://bucket/path")
+            .unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let msg = err.to_string();
+        assert!(msg.contains("scheme is not registered"));
+        assert!(msg.contains("no-such-scheme"));
+        assert!(msg.contains("available"));
+        assert!(msg.contains("memory"));
+    }
 }

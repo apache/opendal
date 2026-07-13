@@ -85,19 +85,27 @@ impl OperatorRegistry {
         let parsed = uri.into_operator_uri()?;
         let scheme = parsed.scheme();
 
-        let factory = self
-            .factories
-            .lock()
-            .expect("operator registry mutex poisoned")
-            .get(scheme)
-            .copied()
-            .ok_or_else(|| {
-                let mut available: Vec<String> = self.schemes().into_iter().collect();
-                available.sort();
-                Error::new(ErrorKind::Unsupported, "scheme is not registered")
-                    .with_context("scheme", scheme.to_string())
-                    .with_context("available", available.join(", "))
-            })?;
+        let factory = {
+            let guard = self
+                .factories
+                .lock()
+                .expect("operator registry mutex poisoned");
+
+            match guard.get(scheme).copied() {
+                Some(factory) => factory,
+                None => {
+                    // Collect the available schemes from the guard we already hold
+                    // to avoid re-locking the mutex (which would self-deadlock).
+                    let mut available: Vec<String> = guard.keys().cloned().collect();
+                    available.sort();
+                    return Err(
+                        Error::new(ErrorKind::Unsupported, "scheme is not registered")
+                            .with_context("scheme", scheme.to_string())
+                            .with_context("available", available.join(", ")),
+                    );
+                }
+            }
+        };
 
         factory(&parsed)
     }

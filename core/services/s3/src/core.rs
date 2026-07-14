@@ -770,6 +770,9 @@ impl S3Core {
             .extension(Operation::Copy)
             .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
+            // AWS S3 accepts CopyObject without Content-Length, but some S3-compatible
+            // providers, such as NetApp, require `Content-Length: 0` for its empty body.
+            .header(CONTENT_LENGTH, 0)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

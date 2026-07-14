@@ -134,8 +134,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -163,7 +163,7 @@ impl SwiftCore {
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         // The bulk-delete endpoint is on the account URL (the endpoint itself).
-        let url = format!("{}?bulk-delete", &self.endpoint);
+        let url = format!("{}?bulk-delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
@@ -177,7 +177,7 @@ impl SwiftCore {
             .iter()
             .map(|(path, _)| {
                 let abs = build_abs_path(&self.root, path);
-                format!("{}/{}", &self.container, percent_encode_path(&abs))
+                format!("{}/{}", self.container, percent_encode_path(&abs))
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -205,7 +205,7 @@ impl SwiftCore {
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
-        let mut url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container,))
+        let mut url = QueryPairsWriter::new(&format!("{}/{}/", self.endpoint, self.container,))
             .push("prefix", &percent_encode_path(&p))
             .push("delimiter", delimiter)
             .push("format", "json");
@@ -241,8 +241,8 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -293,8 +293,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -348,8 +348,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&dst_p)
         );
 
@@ -384,8 +384,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -443,8 +443,8 @@ impl SwiftCore {
         let segment = self.slo_segment_path(path, upload_id, part_number);
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&segment)
         );
 
@@ -477,8 +477,8 @@ impl SwiftCore {
         let abs = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?multipart-manifest=put",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&abs)
         );
 
@@ -524,7 +524,7 @@ impl SwiftCore {
         let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
 
         // List all segments with this prefix.
-        let url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container))
+        let url = QueryPairsWriter::new(&format!("{}/{}/", self.endpoint, self.container))
             .push("prefix", &percent_encode_path(&prefix))
             .push("format", "json")
             .finish();
@@ -551,8 +551,8 @@ impl SwiftCore {
             if let ListOpResponse::FileInfo { name, .. } = seg {
                 let seg_url = format!(
                     "{}/{}/{}",
-                    &self.endpoint,
-                    &self.container,
+                    self.endpoint,
+                    self.container,
                     percent_encode_path(&name)
                 );
 
@@ -606,7 +606,7 @@ impl SwiftCore {
         let signing_path = format!(
             "{}/{}/{}",
             account_path,
-            &self.container,
+            self.container,
             abs.trim_start_matches('/')
         );
 
@@ -629,10 +629,10 @@ impl SwiftCore {
 
         Ok(format!(
             "{}/{}/{}?temp_url_sig={}&temp_url_expires={}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&abs),
-            &encoded_sig,
+            encoded_sig,
             expires
         ))
     }

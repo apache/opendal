@@ -62,7 +62,6 @@ impl Builder for CacacheBuilder {
             stat: true,
             rename: false,
             list: false,
-            shared: false,
             ..Default::default()
         };
 

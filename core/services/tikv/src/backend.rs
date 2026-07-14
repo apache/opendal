@@ -94,7 +94,7 @@ impl Builder for TikvBuilder {
                 || self.config.key_path.is_some()
                 || self.config.cert_path.is_some())
         {
-            return Err(
+            Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
                     .with_context("service", TIKV_SCHEME)
                     .with_context("endpoints", format!("{endpoints:?}")),

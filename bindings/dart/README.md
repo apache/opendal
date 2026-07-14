@@ -4,8 +4,10 @@ A Dart binding for [Apache OpenDAL](https://opendal.apache.org/): access S3,
 GCS, Azure Blob, the local filesystem, and 50+ more services through one API.
 Built on the Rust core via [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge).
 
-> **Note**: This binding has its own independent version number, which may
-> differ from the Rust core version.
+We release the OpenDAL Dart binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Dart binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

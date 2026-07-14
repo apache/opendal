@@ -5,8 +5,10 @@
 A Lua binding for [Apache OpenDAL](https://opendal.apache.org/): access the
 local filesystem, in-memory storage, S3, and 50+ services through one API.
 
-> **Note**: This binding has its own independent version number, which may
-> differ from the Rust core version.
+We release the OpenDAL Lua binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Lua binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

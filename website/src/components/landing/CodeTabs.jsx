@@ -19,17 +19,112 @@
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import CodeBlock from "@theme/CodeBlock";
-import styles from "./styles.module.css";
+import IconCopy from "@theme/Icon/Copy";
+import IconSuccess from "@theme/Icon/Success";
+import CodeWindow, {
+  CodeWindowBody,
+  CodeWindowTitleLink,
+} from "../ui/CodeWindow";
+import IconAction from "../ui/IconAction";
+import Tabs from "../ui/Tabs";
+import styles from "./code-tabs.module.css";
 
-// A framed "code window" with language tabs. Wraps Docusaurus' CodeBlock so the
-// snippets get the same Prism highlighting as the docs.
-//
-// The header doubles as a terminal-style prompt: a sample's `install` command
-// is shown there (tracking the active tab), so install lives in the title bar
-// rather than a separate band. With `equalize`, the code area animates its
-// height to fit the active snippet — no dead space for short snippets, and the
-// left hero column never reflows (its width is locked and it is the taller
-// column, so only the code window resizes).
+const INLINE_LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
+
+function getInstallText(text) {
+  return text.replace(INLINE_LINK_PATTERN, "$1");
+}
+
+function InstallTitle({ text }) {
+  const links = [...text.matchAll(INLINE_LINK_PATTERN)];
+  if (links.length === 0) return text;
+
+  const title = [];
+  let offset = 0;
+
+  links.forEach((match) => {
+    const [source, label, to] = match;
+    const index = match.index ?? 0;
+
+    if (index > offset) {
+      title.push(text.slice(offset, index));
+    }
+
+    title.push(
+      <CodeWindowTitleLink key={`${to}-${index}`} to={to}>
+        {label}
+      </CodeWindowTitleLink>,
+    );
+    offset = index + source.length;
+  });
+
+  if (offset < text.length) {
+    title.push(text.slice(offset));
+  }
+
+  return <>{title}</>;
+}
+
+function copyText(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return Promise.resolve();
+}
+
+function getInstallCopyText(text) {
+  return getInstallText(text).replace(/^\$\s+/, "");
+}
+
+function InstallCopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [text]);
+
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function onCopy() {
+    try {
+      await copyText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <IconAction
+      className={`${styles.installCopyButton} ${
+        copied ? styles.installCopyButtonCopied : ""
+      }`}
+      onClick={onCopy}
+      aria-label={copied ? "Copied" : `Copy ${text}`}
+      title="Copy install command"
+    >
+      <span className={styles.installCopyIcons} aria-hidden="true">
+        <IconCopy className={styles.installCopyIcon} />
+        <IconSuccess className={styles.installCopySuccessIcon} />
+      </span>
+    </IconAction>
+  );
+}
+
 export default function CodeTabs({ samples, title, equalize = false }) {
   const [active, setActive] = useState(0);
   const baseId = useId();
@@ -51,51 +146,29 @@ export default function CodeTabs({ samples, title, equalize = false }) {
     return () => ro?.disconnect();
   }, [active, equalize]);
 
-  function onKeyDown(event) {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    event.preventDefault();
-    const dir = event.key === "ArrowRight" ? 1 : -1;
-    setActive((i) => (i + dir + samples.length) % samples.length);
-  }
-
   return (
-    <div className={styles.codeWindow}>
-      <div className={styles.windowBar}>
-        <div className={styles.windowDots} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <span className={styles.windowTitle}>{heading}</span>
-      </div>
-
-      <div
+    <CodeWindow
+      title={<InstallTitle text={heading} />}
+      action={
+        current.install ? (
+          <InstallCopyButton text={getInstallCopyText(heading)} />
+        ) : null
+      }
+    >
+      <Tabs
+        items={samples}
+        activeId={current.id}
+        onChange={(_, index) => setActive(index)}
+        getId={(sample) => sample.id}
+        getLabel={(sample) => sample.label}
         className={styles.codeTabs}
-        role="tablist"
         aria-label="Choose a language"
-        onKeyDown={onKeyDown}
-      >
-        {samples.map((sample, i) => (
-          <button
-            key={sample.id}
-            type="button"
-            role="tab"
-            id={`${baseId}-tab-${sample.id}`}
-            aria-selected={i === active}
-            aria-controls={`${baseId}-panel`}
-            tabIndex={i === active ? 0 : -1}
-            className={`${styles.codeTab} ${
-              i === active ? styles.codeTabActive : ""
-            }`}
-            onClick={() => setActive(i)}
-          >
-            {sample.label}
-          </button>
-        ))}
-      </div>
+        controlsId={`${baseId}-panel`}
+        id={baseId}
+      />
 
-      <div
-        className={`${styles.codeBody} ${equalize ? styles.codeBodyAnimated : ""}`}
+      <CodeWindowBody
+        animated={equalize}
         style={
           equalize && bodyHeight != null ? { height: bodyHeight } : undefined
         }
@@ -106,7 +179,7 @@ export default function CodeTabs({ samples, title, equalize = false }) {
         <div ref={innerRef}>
           <CodeBlock language={current.language}>{current.code}</CodeBlock>
         </div>
-      </div>
-    </div>
+      </CodeWindowBody>
+    </CodeWindow>
   );
 }

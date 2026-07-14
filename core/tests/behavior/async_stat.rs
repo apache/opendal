@@ -148,7 +148,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 
     op.write(&path, content).await.expect("write must succeed");
 
-    let meta = op.stat(&format!("//{}", &path)).await?;
+    let meta = op.stat(&format!("//{}", path)).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 

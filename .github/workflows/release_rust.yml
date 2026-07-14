@@ -30,6 +30,7 @@ on:
       - ".github/workflows/release_rust.yml"
       - ".github/scripts/release_rust/**"
       - "core/testkit/Cargo.toml"
+      - "core/http-transports/*/Cargo.toml"
   workflow_dispatch:
 
 permissions:

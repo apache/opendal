@@ -59,6 +59,14 @@ if (OPENDAL_DEV)
     set(OPENDAL_ENABLE_TESTING ON)
 endif()
 
+if (OPENDAL_ENABLE_TESTING)
+    if (OPENDAL_FEATURES)
+        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},testing")
+    else()
+        set(OPENDAL_FEATURES "testing")
+    endif()
+endif()
+
 # Documentation
 if (OPENDAL_ENABLE_DOCUMENTATION OR OPENDAL_DOCS_ONLY)
     set(PROJECT_DOCUMENT_SOURCE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/README.md)

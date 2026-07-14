@@ -19,80 +19,74 @@
 
 #include <chrono>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "framework/test_framework.hpp"
+#include "helpers/mock_operator.hpp"
 #include "layer.hpp"
-#include "mocks/mock_layer_builder.hpp"
 
 namespace opendal::test {
 
 class LayerTest : public ::testing::Test {};
 
-OPENDAL_TEST_F(LayerTest, WithTimeoutForwardsNanosecondsToMutator) {
-  MockLayerBuilderMutator mutator;
-  const auto timeout = std::chrono::seconds(30);
-  const auto io_timeout = std::chrono::seconds(5);
+namespace {
 
-  EXPECT_CALL(
-      mutator,
-      AddTimeout(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                           timeout)
-                                           .count()),
-                 static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                             io_timeout)
-                                             .count())))
-      .Times(1);
-
-  WithTimeout(timeout, io_timeout)->ApplyTo(mutator);
-}
-
-OPENDAL_TEST_F(LayerTest, WithRetryForwardsConfigToMutator) {
-  MockLayerBuilderMutator mutator;
-
-  EXPECT_CALL(mutator, AddRetry(false, 2.0F, 1'000'000ULL, 10'000'000ULL, 5))
-      .Times(1);
-
+std::vector<std::unique_ptr<OperatorOption>> FastRetryOptions() {
   RetryConfig config;
-  config.max_times = 5;
+  config.max_times = 3;
   config.min_delay = std::chrono::milliseconds(1);
-  config.max_delay = std::chrono::milliseconds(10);
+  config.max_delay = std::chrono::milliseconds(1);
 
-  WithRetry(config)->ApplyTo(mutator);
+  std::vector<std::unique_ptr<OperatorOption>> options;
+  options.push_back(WithRetry(config));
+  return options;
 }
 
-OPENDAL_TEST_F(LayerTest, WithRetryEnablesJitter) {
-  MockLayerBuilderMutator mutator;
+}  // namespace
 
-  EXPECT_CALL(mutator, AddRetry(true, testing::_, testing::_, testing::_, testing::_))
-      .Times(1);
+OPENDAL_TEST_F(LayerTest, IoTimeoutAbortsHangingRead) {
+  std::vector<std::unique_ptr<OperatorOption>> options;
+  options.push_back(WithTimeout(std::chrono::minutes(1),
+                                std::chrono::milliseconds(1)));
 
+  const auto start = std::chrono::steady_clock::now();
+  MockOperator op(std::move(options), MockBackendKind::Hanging);
+
+  try {
+    op.Read("test");
+    FAIL() << "expected hanging read to fail with timeout";
+  } catch (const std::exception& e) {
+    EXPECT_NE(std::string_view{e.what()}.find("timeout"), std::string_view::npos)
+        << e.what();
+  }
+
+  const auto elapsed = std::chrono::steady_clock::now() - start;
+  EXPECT_LT(elapsed, std::chrono::seconds(2));
+}
+
+OPENDAL_TEST_F(LayerTest, RetryReadSucceedsAfterTransientFailures) {
+  MockOperator op(FastRetryOptions(), MockBackendKind::Retryable);
+
+  EXPECT_EQ(op.Read("retryable_error"), "Hello, World!");
+  EXPECT_EQ(MockOperator::RetryAttemptCount(), 5U);
+}
+
+OPENDAL_TEST_F(LayerTest, RetryExhaustsConfiguredMaxTimes) {
   RetryConfig config;
-  config.jitter = true;
-  WithRetry(config)->ApplyTo(mutator);
-}
+  config.max_times = 1;
+  config.min_delay = std::chrono::milliseconds(1);
+  config.max_delay = std::chrono::milliseconds(1);
 
-OPENDAL_TEST_F(LayerTest, WithRetryUsesDefaultConfig) {
-  MockLayerBuilderMutator mutator;
+  std::vector<std::unique_ptr<OperatorOption>> options;
+  options.push_back(WithRetry(config));
 
-  EXPECT_CALL(mutator,
-              AddRetry(false, 2.0F, 1'000'000'000ULL, 60'000'000'000ULL, 3))
-      .Times(1);
+  MockOperator op(std::move(options), MockBackendKind::Retryable);
 
-  WithRetry()->ApplyTo(mutator);
-}
-
-OPENDAL_TEST_F(LayerTest, LayerOptionsApplyInOrder) {
-  MockLayerBuilderMutator mutator;
-  testing::InSequence sequence;
-
-  EXPECT_CALL(mutator, AddTimeout(testing::_, testing::_)).Times(1);
-  EXPECT_CALL(mutator, AddRetry(testing::_, testing::_, testing::_, testing::_, testing::_))
-      .Times(1);
-
-  WithTimeout(std::chrono::minutes(1), std::chrono::seconds(10))->ApplyTo(mutator);
-  WithRetry()->ApplyTo(mutator);
+  EXPECT_THROW(op.Read("retryable_error"), std::exception);
+  EXPECT_LT(MockOperator::RetryAttemptCount(), 5U);
 }
 
 OPENDAL_TEST_F(LayerTest, OperatorWithTimeoutAndRetry) {

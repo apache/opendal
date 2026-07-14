@@ -22,6 +22,9 @@ mod lister;
 mod reader;
 mod types;
 
+#[cfg(feature = "testing")]
+mod test_support;
+
 pub use layer::LayerBuilder;
 
 use std::collections::HashMap;
@@ -173,6 +176,13 @@ mod ffi {
 
         unsafe fn delete_lister(lister: *mut Lister);
         fn next(self: &mut Lister) -> Result<OptionalEntry>;
+
+        #[cfg(feature = "testing")]
+        fn new_test_hanging_operator(layers: &LayerBuilder) -> Result<*mut Operator>;
+        #[cfg(feature = "testing")]
+        fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator>;
+        #[cfg(feature = "testing")]
+        fn test_retryable_attempt_count() -> u64;
     }
 }
 
@@ -208,6 +218,21 @@ fn new_operator(
     let op = Box::into_raw(Box::new(op));
 
     Ok(op)
+}
+
+#[cfg(feature = "testing")]
+fn new_test_hanging_operator(layers: &LayerBuilder) -> Result<*mut Operator> {
+    test_support::new_hanging_operator(layers)
+}
+
+#[cfg(feature = "testing")]
+fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator> {
+    test_support::new_retryable_operator(layers)
+}
+
+#[cfg(feature = "testing")]
+fn test_retryable_attempt_count() -> u64 {
+    test_support::retryable_attempt_count() as u64
 }
 
 unsafe fn delete_operator(op: *mut Operator) {

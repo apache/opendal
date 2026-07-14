@@ -42,73 +42,26 @@ void FfiLayerBuilderMutator::AddRetry(bool jitter, float factor,
 
 namespace {
 
-class RetryMaxTimesOption final : public RetryOption {
- public:
-  explicit RetryMaxTimesOption(uint64_t max_times) : max_times_(max_times) {}
-
-  void Apply(RetryConfig &config) const override {
-    if (max_times_ == 0) {
-      throw std::invalid_argument("retry max times must be positive");
-    }
-    config.max_times = max_times_;
+void ValidateRetryConfig(const RetryConfig &config) {
+  if (config.max_times == 0) {
+    throw std::invalid_argument("retry max times must be positive");
   }
-
- private:
-  uint64_t max_times_;
-};
-
-class RetryFactorOption final : public RetryOption {
- public:
-  explicit RetryFactorOption(float factor) : factor_(factor) {}
-
-  void Apply(RetryConfig &config) const override {
-    if (std::isnan(factor_) || std::isinf(factor_) || factor_ < 1.0f) {
-      throw std::invalid_argument(
-          "retry factor must be finite and greater than or equal to 1");
-    }
-    config.factor = factor_;
+  if (std::isnan(config.factor) || std::isinf(config.factor) ||
+      config.factor < 1.0f) {
+    throw std::invalid_argument(
+        "retry factor must be finite and greater than or equal to 1");
   }
-
- private:
-  float factor_;
-};
-
-class RetryJitterOption final : public RetryOption {
- public:
-  void Apply(RetryConfig &config) const override { config.jitter = true; }
-};
-
-class RetryMinDelayOption final : public RetryOption {
- public:
-  explicit RetryMinDelayOption(std::chrono::nanoseconds delay)
-      : delay_(delay) {}
-
-  void Apply(RetryConfig &config) const override {
-    if (delay_.count() <= 0) {
-      throw std::invalid_argument("retry min delay must be positive");
-    }
-    config.min_delay = delay_;
+  if (config.min_delay.count() <= 0) {
+    throw std::invalid_argument("retry min delay must be positive");
   }
-
- private:
-  std::chrono::nanoseconds delay_;
-};
-
-class RetryMaxDelayOption final : public RetryOption {
- public:
-  explicit RetryMaxDelayOption(std::chrono::nanoseconds delay)
-      : delay_(delay) {}
-
-  void Apply(RetryConfig &config) const override {
-    if (delay_.count() <= 0) {
-      throw std::invalid_argument("retry max delay must be positive");
-    }
-    config.max_delay = delay_;
+  if (config.max_delay.count() <= 0) {
+    throw std::invalid_argument("retry max delay must be positive");
   }
-
- private:
-  std::chrono::nanoseconds delay_;
-};
+  if (config.max_delay < config.min_delay) {
+    throw std::invalid_argument(
+        "retry max delay must be greater than or equal to retry min delay");
+  }
+}
 
 class TimeoutOperatorOption final : public OperatorOption {
  public:
@@ -134,61 +87,29 @@ class TimeoutOperatorOption final : public OperatorOption {
 
 class RetryOperatorOption final : public OperatorOption {
  public:
-  explicit RetryOperatorOption(
-      std::vector<std::unique_ptr<RetryOption>> options)
-      : options_(std::move(options)) {}
+  explicit RetryOperatorOption(RetryConfig config) : config_(config) {}
 
   void Apply(LayerBuilderMutator &builder) const override {
-    RetryConfig config;
-    for (const auto &option : options_) {
-      if (option != nullptr) {
-        option->Apply(config);
-      }
-    }
-    if (config.max_delay < config.min_delay) {
-      throw std::invalid_argument(
-          "retry max delay must be greater than or equal to retry min delay");
-    }
+    ValidateRetryConfig(config_);
     builder.AddRetry(
-        config.jitter, config.factor,
-        static_cast<uint64_t>(config.min_delay.count()),
-        static_cast<uint64_t>(config.max_delay.count()), config.max_times);
+        config_.jitter, config_.factor,
+        static_cast<uint64_t>(config_.min_delay.count()),
+        static_cast<uint64_t>(config_.max_delay.count()), config_.max_times);
   }
 
  private:
-  std::vector<std::unique_ptr<RetryOption>> options_;
+  RetryConfig config_;
 };
 
 }  // namespace
-
-std::unique_ptr<RetryOption> RetryMaxTimes(uint64_t max_times) {
-  return std::make_unique<RetryMaxTimesOption>(max_times);
-}
-
-std::unique_ptr<RetryOption> RetryFactor(float factor) {
-  return std::make_unique<RetryFactorOption>(factor);
-}
-
-std::unique_ptr<RetryOption> RetryJitter() {
-  return std::make_unique<RetryJitterOption>();
-}
-
-std::unique_ptr<RetryOption> RetryMinDelay(std::chrono::nanoseconds delay) {
-  return std::make_unique<RetryMinDelayOption>(delay);
-}
-
-std::unique_ptr<RetryOption> RetryMaxDelay(std::chrono::nanoseconds delay) {
-  return std::make_unique<RetryMaxDelayOption>(delay);
-}
 
 std::unique_ptr<OperatorOption> WithTimeout(
     std::chrono::nanoseconds timeout, std::chrono::nanoseconds io_timeout) {
   return std::make_unique<TimeoutOperatorOption>(timeout, io_timeout);
 }
 
-std::unique_ptr<OperatorOption> WithRetry(
-    std::vector<std::unique_ptr<RetryOption>> options) {
-  return std::make_unique<RetryOperatorOption>(std::move(options));
+std::unique_ptr<OperatorOption> WithRetry(RetryConfig config) {
+  return std::make_unique<RetryOperatorOption>(config);
 }
 
 std::vector<std::unique_ptr<OperatorOption>> DefaultBehaviorLayerOptions() {

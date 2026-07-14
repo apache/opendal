@@ -54,12 +54,12 @@ OPENDAL_TEST_F(LayerTest, WithRetryForwardsConfigToMutator) {
   EXPECT_CALL(mutator, AddRetry(false, 2.0F, 1'000'000ULL, 10'000'000ULL, 5))
       .Times(1);
 
-  std::vector<std::unique_ptr<RetryOption>> retry_options;
-  retry_options.push_back(RetryMaxTimes(5));
-  retry_options.push_back(RetryMinDelay(std::chrono::milliseconds(1)));
-  retry_options.push_back(RetryMaxDelay(std::chrono::milliseconds(10)));
+  RetryConfig config;
+  config.max_times = 5;
+  config.min_delay = std::chrono::milliseconds(1);
+  config.max_delay = std::chrono::milliseconds(10);
 
-  WithRetry(std::move(retry_options))->ApplyTo(mutator);
+  WithRetry(config)->ApplyTo(mutator);
 }
 
 OPENDAL_TEST_F(LayerTest, WithRetryEnablesJitter) {
@@ -68,9 +68,9 @@ OPENDAL_TEST_F(LayerTest, WithRetryEnablesJitter) {
   EXPECT_CALL(mutator, AddRetry(true, testing::_, testing::_, testing::_, testing::_))
       .Times(1);
 
-  std::vector<std::unique_ptr<RetryOption>> retry_options;
-  retry_options.push_back(RetryJitter());
-  WithRetry(std::move(retry_options))->ApplyTo(mutator);
+  RetryConfig config;
+  config.jitter = true;
+  WithRetry(config)->ApplyTo(mutator);
 }
 
 OPENDAL_TEST_F(LayerTest, WithRetryUsesDefaultConfig) {
@@ -122,32 +122,32 @@ OPENDAL_TEST_F(LayerTest, WithTimeoutRejectsZeroIoTimeout) {
 }
 
 OPENDAL_TEST_F(LayerTest, RetryMaxTimesRejectsZero) {
-  std::vector<std::unique_ptr<RetryOption>> retry_options;
-  retry_options.push_back(RetryMaxTimes(0));
+  RetryConfig config;
+  config.max_times = 0;
 
   std::vector<std::unique_ptr<OperatorOption>> options;
-  options.push_back(WithRetry(std::move(retry_options)));
+  options.push_back(WithRetry(config));
 
   EXPECT_THROW(Operator("memory", {}, std::move(options)), std::invalid_argument);
 }
 
 OPENDAL_TEST_F(LayerTest, RetryMaxDelayBeforeMinDelay) {
-  std::vector<std::unique_ptr<RetryOption>> retry_options;
-  retry_options.push_back(RetryMinDelay(std::chrono::seconds(10)));
-  retry_options.push_back(RetryMaxDelay(std::chrono::seconds(1)));
+  RetryConfig config;
+  config.min_delay = std::chrono::seconds(10);
+  config.max_delay = std::chrono::seconds(1);
 
   std::vector<std::unique_ptr<OperatorOption>> options;
-  options.push_back(WithRetry(std::move(retry_options)));
+  options.push_back(WithRetry(config));
 
   EXPECT_THROW(Operator("memory", {}, std::move(options)), std::invalid_argument);
 }
 
 OPENDAL_TEST_F(LayerTest, RetryFactorRejectsInvalidValue) {
-  std::vector<std::unique_ptr<RetryOption>> retry_options;
-  retry_options.push_back(RetryFactor(0.5F));
+  RetryConfig config;
+  config.factor = 0.5F;
 
   std::vector<std::unique_ptr<OperatorOption>> options;
-  options.push_back(WithRetry(std::move(retry_options)));
+  options.push_back(WithRetry(config));
 
   EXPECT_THROW(Operator("memory", {}, std::move(options)), std::invalid_argument);
 }

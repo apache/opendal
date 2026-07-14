@@ -60,7 +60,7 @@ class FfiLayerBuilderMutator final : public LayerBuilderMutator {
 };
 
 /**
- * @brief Configuration values for the retry layer.
+ * @brief Configuration for the retry layer.
  */
 struct RetryConfig {
   bool jitter = false;
@@ -69,21 +69,6 @@ struct RetryConfig {
   std::chrono::nanoseconds max_delay{std::chrono::minutes(1)};
   uint64_t max_times = 3;
 };
-
-/**
- * @brief Configures the retry layer.
- */
-class RetryOption {
- public:
-  virtual ~RetryOption() = default;
-  virtual void Apply(RetryConfig &config) const = 0;
-};
-
-std::unique_ptr<RetryOption> RetryMaxTimes(uint64_t max_times);
-std::unique_ptr<RetryOption> RetryFactor(float factor);
-std::unique_ptr<RetryOption> RetryJitter();
-std::unique_ptr<RetryOption> RetryMinDelay(std::chrono::nanoseconds delay);
-std::unique_ptr<RetryOption> RetryMaxDelay(std::chrono::nanoseconds delay);
 
 /**
  * @brief Configures operator layers applied during construction.
@@ -115,8 +100,7 @@ std::unique_ptr<OperatorOption> WithTimeout(
  * timeout, pass WithTimeout before WithRetry so each retry attempt has its own
  * timeout.
  */
-std::unique_ptr<OperatorOption> WithRetry(
-    std::vector<std::unique_ptr<RetryOption>> options = {});
+std::unique_ptr<OperatorOption> WithRetry(RetryConfig config = {});
 
 /**
  * @brief Default layer options used by behavior tests.

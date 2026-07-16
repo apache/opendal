@@ -61,6 +61,7 @@ services-all = [
   'services-gdrive',
   'services-goosefs',
   'services-gridfs',
+  'services-hdfs-native',
   'services-hf',
   'services-ipfs',
   'services-koofr',
@@ -188,10 +189,6 @@ abi3 = ["pyo3/abi3-py311"]
 # Conditionally include sftp only on non-windows targets
 [target.'cfg(not(windows))'.features]
 services-all = ["services-sftp"]
-
-# Conditionally include hdfs-native only on non-arm targets
-[target.'cfg(not(target_arch = "arm"))'.features]
-services-all = ["services-hdfs-native"]
 
 [lib]
 crate-type = ["cdylib"]

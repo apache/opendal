@@ -1393,7 +1393,7 @@ dependencies = [
  "futures",
  "hex",
  "libc",
- "memmap2",
+ "memmap2 0.5.10",
  "miette",
  "reflink-copy",
  "serde",
@@ -3935,14 +3935,22 @@ dependencies = [
 
 [[package]]
 name = "goosefs-sdk"
-version = "0.1.5"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ae079b88ffe7772d12cfc5c40a5a324babb357893d95b5e3a22ae857f236c5f"
+checksum = "10a0d37903f5205a88de6b4a67244ca500aa0a99893a4f0ef287b7a56fdf7020"
 dependencies = [
+ "arc-swap",
  "async-trait",
  "bytes",
  "dashmap 6.2.1",
+ "futures",
  "hostname",
+ "io-uring 0.7.12",
+ "itoa",
+ "libc",
+ "lru",
+ "memmap2 0.9.11",
+ "moka",
  "prost 0.14.3",
  "prost-types",
  "rand 0.9.4",
@@ -3955,6 +3963,7 @@ dependencies = [
  "tonic-prost",
  "tracing",
  "uuid",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -5685,6 +5694,15 @@ name = "memmap2"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83faa42c0a078c393f6b29d5db232d8be22776a891f8f56e5284faee4a20b327"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "memmap2"
+version = "0.9.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0"
 dependencies = [
  "libc",
 ]

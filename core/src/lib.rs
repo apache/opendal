@@ -48,7 +48,7 @@ pub fn install_default() {
     init_default_registry();
 
     #[cfg(feature = "http-transport-reqwest")]
-    HttpTransporter::install_default(opendal_http_transport_reqwest::ReqwestTransport::default());
+    opendal_http_transport_reqwest::install_default();
 }
 
 /// Initialize the global [`OperatorRegistry`] with enabled services.

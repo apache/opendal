@@ -81,7 +81,9 @@ unused_async = "warn"
 all-features = true
 
 [features]
-# Register services enabled to the OperatorRegistry so that they can be used by `Operator::from_uri`.
+# Install facade defaults before `main`: register enabled services and, when
+# configured, install the default HTTP transport. Disable this feature when the
+# application needs to install its own process-wide HTTP transport.
 auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [

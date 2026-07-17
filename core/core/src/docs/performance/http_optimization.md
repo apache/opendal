@@ -1,6 +1,14 @@
 # HTTP Optimization
 
-All OpenDAL HTTP-based storage services use the same [HttpTransporter][crate::HttpTransporter] abstraction. This design offers users a unified interface for configuring HTTP transports. The `opendal` facade installs [reqwest](https://crates.io/crates/reqwest) as the default HTTP transport when the `http-transport-reqwest` feature is enabled.
+All OpenDAL HTTP-based storage services use the same
+[HttpTransporter][crate::HttpTransporter] abstraction. This design offers users
+a unified interface for configuring HTTP transports. The `opendal` facade
+installs [reqwest](https://crates.io/crates/reqwest) as the default HTTP transport
+when `opendal::install_default()` is called with the `http-transport-reqwest`
+feature enabled. The default `auto-register-services` feature calls
+`install_default()` before `main`. Applications that need to install their own
+process-wide transport should disable `auto-register-services`; transports
+configured directly on an operator are unaffected.
 
 Many of the services supported by OpenDAL are HTTP-based. This guide aims to provide optimization tips for using HTTP-based storage services. While these tips are also applicable to other HTTP clients, the configuration methods may vary.
 

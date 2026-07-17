@@ -25,7 +25,6 @@ use opendal_core::*;
 
 use super::core::OneDriveCore;
 use super::core::parse_error;
-use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
 
@@ -59,25 +58,15 @@ impl OneDriveLister {
 
 impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let request_url = if ctx.token.is_empty() {
-            let base = format!(
-                "{}:/children?{}",
-                self.core.onedrive_item_url(&self.path, true),
-                GENERAL_SELECT_PARAM
-            );
-            if let Some(limit) = self.op.limit() {
-                base + &format!("&$top={limit}")
-            } else {
-                base
-            }
+        let response = if ctx.token.is_empty() {
+            self.core
+                .onedrive_list(&self.ctx, &self.path, self.op.limit())
+                .await?
         } else {
-            ctx.token.clone()
+            self.core
+                .onedrive_get_next_list_page(&self.ctx, &ctx.token)
+                .await?
         };
-
-        let response = self
-            .core
-            .onedrive_get_next_list_page(&self.ctx, &request_url)
-            .await?;
 
         let status_code = response.status();
         if !status_code.is_success() {

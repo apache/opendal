@@ -47,6 +47,8 @@ impl Debug for D1Core {
     }
 }
 
+const CLOUDFLARE_API_BASE_URL: &str = "https://api.cloudflare.com/client/v4";
+
 impl D1Core {
     fn create_d1_query_request(
         &self,
@@ -59,11 +61,7 @@ impl D1Core {
             "/accounts/{}/d1/database/{}/query",
             self.account_id, self.database_id
         );
-        let url: String = format!(
-            "{}{}",
-            "https://api.cloudflare.com/client/v4",
-            percent_encode_path(&p)
-        );
+        let url: String = format!("{}{}", CLOUDFLARE_API_BASE_URL, percent_encode_path(&p));
 
         let mut req = Request::post(&url);
         if let Some(auth) = &self.authorization {
@@ -84,8 +82,13 @@ impl D1Core {
     }
 
     pub async fn get(&self, ctx: &OperationContext, path: &str) -> Result<Option<Buffer>> {
+        // d1 follows SQLite SQL syntax, we use `"` for identifier quote. A quoted identifier is case-sensitive and
+        // can contain special characters.
+        // Read more https://www.sqlite.org/quirks.html#double_quoted_string_literals
+        //
+        // We uses identifier quote for trusted table and field configuration to ensure correctness.
         let query = format!(
-            "SELECT {} FROM {} WHERE {} = ? LIMIT 1",
+            r#"SELECT "{}" FROM "{}" WHERE "{}" = ? LIMIT 1"#,
             self.value_field, self.table, self.key_field
         );
         let req =
@@ -104,15 +107,36 @@ impl D1Core {
         }
     }
 
+    pub async fn get_length(&self, ctx: &OperationContext, path: &str) -> Result<Option<usize>> {
+        let query = format!(
+            r#"SELECT LENGTH(CAST("{}" AS BLOB)) AS "content_length" FROM "{}" WHERE "{}" = ? LIMIT 1"#,
+            self.value_field, self.table, self.key_field
+        );
+        let req =
+            self.create_d1_query_request(&query, vec![path.into()], Operation::Stat, "Stat")?;
+
+        let resp = ctx.http_transport().send(req).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let body = resp.into_body();
+                let bs = body.to_bytes();
+                let d1_response = D1Response::parse(&bs)?;
+                d1_response.get_usize_result("content_length")
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     pub async fn set(&self, ctx: &OperationContext, path: &str, value: Buffer) -> Result<()> {
         let table = &self.table;
         let key_field = &self.key_field;
         let value_field = &self.value_field;
         let query = format!(
-            "INSERT INTO {table} ({key_field}, {value_field}) \
-                VALUES (?, ?) \
-                ON CONFLICT ({key_field}) \
-                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
+            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}") \
+                VALUES ('?', ?) \
+                ON CONFLICT ("{key_field}") \
+                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
         );
 
         let params = vec![path.into(), value.to_vec().into()];
@@ -127,7 +151,10 @@ impl D1Core {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let query = format!("DELETE FROM {} WHERE {} = ?", self.table, self.key_field);
+        let query = format!(
+            r#"DELETE FROM "{}" WHERE "{}" = ?"#,
+            self.table, self.key_field
+        );
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Delete, "Delete")?;
 

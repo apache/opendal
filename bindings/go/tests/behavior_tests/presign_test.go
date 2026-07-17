@@ -35,15 +35,19 @@ func testsPresign(cap *opendal.Capability) []behaviorTest {
 		return nil
 	}
 
-	tests := make([]behaviorTest, 0, 4)
+	tests := make([]behaviorTest, 0, 6)
 	if cap.PresignWrite() && cap.Stat() {
 		tests = append(tests, testPresignWrite)
 	}
 	if cap.PresignRead() && cap.Write() {
 		tests = append(tests, testPresignRead)
+		tests = append(tests, testPresignReadWithRange)
 	}
 	if cap.PresignStat() && cap.Write() {
 		tests = append(tests, testPresignStat)
+		if isCapEnabled(cap.StatWithOverrideContentType, "stat_with_override_content_type") {
+			tests = append(tests, testPresignStatWithOverrideContentType)
+		}
 	}
 	if cap.PresignDelete() {
 		tests = append(tests, testPresignDelete)
@@ -76,7 +80,8 @@ func testPresignWrite(assert *require.Assertions, op *opendal.Operator, fixture 
 func testPresignRead(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignRead(path, time.Hour)
 	assert.Nil(err)
@@ -92,10 +97,38 @@ func testPresignRead(assert *require.Assertions, op *opendal.Operator, fixture *
 	assert.Equal(content, bs)
 }
 
+func testPresignReadWithRange(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	const (
+		offset = 3
+		length = 7
+	)
+
+	path := fixture.NewFilePath()
+	content := genFixedBytes(32)
+
+	_, err := op.Write(path, content)
+	assert.Nil(err)
+
+	req, err := op.PresignRead(path, time.Hour, opendal.ReadWithRange(offset, length))
+	assert.Nil(err)
+
+	resp, err := http.DefaultClient.Do(req)
+	assert.Nil(err)
+	defer resp.Body.Close()
+
+	bs, err := io.ReadAll(resp.Body)
+	assert.Nil(err)
+	assert.GreaterOrEqual(resp.StatusCode, 200)
+	assert.Less(resp.StatusCode, 300)
+	assert.Equal(int(length), len(bs))
+	assert.Equal(content[offset:offset+length], bs)
+}
+
 func testPresignStat(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignStat(path, time.Hour)
 	assert.Nil(err)
@@ -112,10 +145,28 @@ func testPresignStat(assert *require.Assertions, op *opendal.Operator, fixture *
 	assert.EqualValues(size, length)
 }
 
+func testPresignStatWithOverrideContentType(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	path, content, _ := fixture.NewFile()
+	contentType := "application/octet-stream"
+
+	_, err := op.Write(path, content)
+	assert.Nil(err)
+
+	req, err := op.PresignStat(path, time.Hour, opendal.StatWithOverrideContentType(contentType))
+	assert.Nil(err)
+
+	resp, err := http.DefaultClient.Do(req)
+	assert.Nil(err)
+	defer resp.Body.Close()
+	assert.Equal(http.StatusOK, resp.StatusCode)
+	assert.Equal(contentType, resp.Header.Get("Content-Type"))
+}
+
 func testPresignDelete(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignDelete(path, time.Hour)
 	assert.Nil(err)

@@ -1030,11 +1030,32 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
 
 /// Args for `rename` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpRename {}
+pub struct OpRename {
+    if_not_exists: bool,
+}
 
 impl OpRename {
-    /// Create a new `OpMove`.
+    /// Create a new `OpRename`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the if_not_exists flag for the operation.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Get if_not_exists flag.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
+    }
+}
+
+impl From<options::RenameOptions> for OpRename {
+    fn from(value: options::RenameOptions) -> Self {
+        Self {
+            if_not_exists: value.if_not_exists,
+        }
     }
 }

@@ -103,10 +103,10 @@ impl Builder for UpyunBuilder {
 
     /// Builds the backend and returns the result of UpyunBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket.
         if self.config.bucket.is_empty() {
@@ -115,7 +115,7 @@ impl Builder for UpyunBuilder {
                 .with_context("service", UPYUN_SCHEME));
         }
 
-        debug!("backend use bucket {}", &self.config.bucket);
+        debug!("backend use bucket {}", self.config.bucket);
 
         let operator = match &self.config.operator {
             Some(operator) => Ok(operator.clone()),

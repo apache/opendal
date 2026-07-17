@@ -149,7 +149,11 @@ impl Layer for TracingLayer {
         let transport = HttpTransporter::new(TracingHttpTransport {
             inner: inner.http_transport().clone(),
         });
-        inner.with_http_transport(transport)
+        let executor = Executor::with(TracingExecutor {
+            inner: inner.executor().clone().into_inner(),
+        });
+
+        inner.with_http_transport(transport).with_executor(executor)
     }
 }
 
@@ -173,6 +177,21 @@ impl HttpTransport for TracingHttpTransport {
         // Keep response body polling inside the same HTTP fetch span.
         let body = body.map_inner(|s| Box::new(TracingStream { inner: s, span }));
         Ok(http::Response::from_parts(parts, body))
+    }
+}
+
+struct TracingExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl Execute for TracingExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        self.inner
+            .execute(Box::pin(f.instrument(Span::current())) as BoxedStaticFuture<()>)
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
     }
 }
 

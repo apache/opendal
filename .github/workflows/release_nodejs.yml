@@ -49,7 +49,7 @@ env:
 
 jobs:
   build:
-    name: stable - ${{ matrix.settings.target }} - node@20
+    name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
@@ -104,7 +104,7 @@ jobs:
             features: services-all
             build: pnpm build
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 8
@@ -112,7 +112,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Install
@@ -177,7 +177,7 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 8
@@ -185,7 +185,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Install dependencies
@@ -204,7 +204,7 @@ jobs:
 
       - name: Update npm
         # Trusted publishing requires npm CLI version 11.5.1 or later.
-        run: npm install -g npm@latest
+        run: npm install -g npm@12
 
       - name: Add LICENSE & NOTICE
         # Set working directory to root to copy LICENSE & NOTICE

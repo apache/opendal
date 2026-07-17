@@ -420,7 +420,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -496,7 +496,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -646,12 +646,7 @@ impl S3Core {
         self.send(ctx, req).await
     }
 
-    pub async fn s3_delete_object(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: &OpDelete,
-    ) -> Result<Response<Buffer>> {
+    pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -682,6 +677,16 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
+        Ok(req)
+    }
+
+    pub async fn s3_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
+        let req = self.s3_delete_object_request(path, args)?;
         self.send(ctx, req).await
     }
 
@@ -765,6 +770,9 @@ impl S3Core {
             .extension(Operation::Copy)
             .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
+            // AWS S3 accepts CopyObject without Content-Length, but some S3-compatible
+            // providers, such as NetApp, require `Content-Length: 0` for its empty body.
+            .header(CONTENT_LENGTH, 0)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

@@ -61,7 +61,7 @@ impl oio::PageList for DbfsLister {
         for status in decoded_response.files {
             let entry: oio::Entry = match status.is_dir {
                 true => {
-                    let normalized_path = format!("{}/", &status.path);
+                    let normalized_path = format!("{}/", status.path);
                     let mut meta = Metadata::new(EntryMode::DIR);
                     meta.set_last_modified(Timestamp::from_millisecond(status.modification_time)?);
                     oio::Entry::new(&normalized_path, meta)

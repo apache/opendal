@@ -43,8 +43,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -52,11 +53,15 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/cpp"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/cpp"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Build Cpp binding && Run tests
         working-directory: "bindings/cpp"

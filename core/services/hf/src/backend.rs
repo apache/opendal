@@ -51,10 +51,10 @@ impl HfBuilder {
     ///
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
-        if !repo_type.is_empty() {
-            if let Ok(rt) = HfRepoType::parse(repo_type) {
-                self.config.repo_type = Some(rt);
-            }
+        if !repo_type.is_empty()
+            && let Ok(rt) = HfRepoType::parse(repo_type)
+        {
+            self.config.repo_type = Some(rt);
         }
         self
     }
@@ -116,11 +116,19 @@ impl HfBuilder {
     ///
     /// - `xet`: uses the XET protocol for downloads (default).
     /// - `http`: plain HTTP download, following the redirect from the server.
+    ///
+    /// When this is not set explicitly, the download mode is resolved from the
+    /// `HF_HUB_DISABLE_XET` environment variable (the same variable used by
+    /// `huggingface_hub`): if it is set to a non-empty value, the mode is forced
+    /// to `http`; otherwise it defaults to `xet`. An explicit value set here
+    /// always takes precedence over the environment variable.
+    ///
+    /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub fn download_mode(mut self, mode: &str) -> Self {
-        if !mode.is_empty() {
-            if let Ok(m) = HfDownloadMode::parse(mode) {
-                self.config.download_mode = Some(m);
-            }
+        if !mode.is_empty()
+            && let Ok(m) = HfDownloadMode::parse(mode)
+        {
+            self.config.download_mode = Some(m);
         }
         self
     }
@@ -144,6 +152,20 @@ impl HfBuilder {
             .unwrap_or_else(|| "https://huggingface.co".to_string())
     }
 
+    /// Resolve the download mode: an explicit config value wins; otherwise a set,
+    /// non-empty HF_HUB_DISABLE_XET (a huggingface_hub env var) forces http; default Xet.
+    fn hf_download_mode(&self) -> HfDownloadMode {
+        if let Some(mode) = self.config.download_mode {
+            return mode;
+        }
+        if let Ok(val) = std::env::var("HF_HUB_DISABLE_XET")
+            && !val.is_empty()
+        {
+            return HfDownloadMode::Http;
+        }
+        HfDownloadMode::default()
+    }
+
     fn hf_home() -> Option<PathBuf> {
         if let Ok(h) = std::env::var("HF_HOME") {
             return Some(PathBuf::from(h));
@@ -161,15 +183,15 @@ impl HfBuilder {
         if let Some(t) = self.config.token.clone() {
             return Some(t);
         }
-        if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN") {
-            if !val.is_empty() {
-                return None;
-            }
+        if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN")
+            && !val.is_empty()
+        {
+            return None;
         }
-        if let Ok(t) = std::env::var("HF_TOKEN") {
-            if !t.is_empty() {
-                return Some(t);
-            }
+        if let Ok(t) = std::env::var("HF_TOKEN")
+            && !t.is_empty()
+        {
+            return Some(t);
         }
         let token_path = if let Ok(p) = std::env::var("HF_TOKEN_PATH") {
             Some(PathBuf::from(p))
@@ -187,36 +209,36 @@ impl Builder for HfBuilder {
     type Config = HfConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
+        let download_mode = self.hf_download_mode();
 
         let repo_type = self.config.repo_type.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "repo_type is required")
                 .with_operation("Builder::build")
                 .with_context("service", HF_SCHEME)
         })?;
-        debug!("backend use repo_type: {:?}", &repo_type);
+        debug!("backend use repo_type: {:?}", repo_type);
 
         let repo_id = self.config.repo_id.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "repo_id is required")
                 .with_operation("Builder::build")
                 .with_context("service", HF_SCHEME)
         })?;
-        debug!("backend use repo_id: {}", &repo_id);
+        debug!("backend use repo_id: {}", repo_id);
 
         let revision = match &self.config.revision {
             Some(revision) => revision.clone(),
             None => "main".to_string(),
         };
-        debug!("backend use revision: {}", &revision);
+        debug!("backend use revision: {}", revision);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root: {}", &root);
+        debug!("backend use root: {}", root);
         debug!("backend use token: {}", token.is_some());
-        debug!("backend use endpoint: {}", &endpoint);
-        let download_mode = self.config.download_mode.unwrap_or_default();
+        debug!("backend use endpoint: {}", endpoint);
         debug!("backend use download_mode: {:?}", download_mode);
 
         let info = ServiceInfo::new(HF_SCHEME, "", "");
@@ -539,6 +561,40 @@ mod tests {
         let result = HfBuilder::default().hf_endpoint();
         unsafe { std::env::remove_var("HF_ENDPOINT") };
         assert_eq!(result, "https://env.example.com");
+    }
+
+    #[test]
+    fn hf_download_mode_defaults_to_xet() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(HfBuilder::default().hf_download_mode(), HfDownloadMode::Xet);
+    }
+
+    #[test]
+    fn hf_download_mode_disable_xet_env_forces_http() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_HUB_DISABLE_XET", "1") };
+        let mode = HfBuilder::default().hf_download_mode();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(mode, HfDownloadMode::Http);
+    }
+
+    #[test]
+    fn hf_download_mode_config_takes_priority_over_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_HUB_DISABLE_XET", "1") };
+        let mode = HfBuilder::default().download_mode("xet").hf_download_mode();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(mode, HfDownloadMode::Xet);
+    }
+
+    #[test]
+    fn hf_download_mode_empty_env_keeps_xet() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_HUB_DISABLE_XET", "") };
+        let mode = HfBuilder::default().hf_download_mode();
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(mode, HfDownloadMode::Xet);
     }
 
     #[test]

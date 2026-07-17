@@ -92,24 +92,36 @@ impl Operator {
     }
 
     pub async fn read(&self, path: String) -> anyhow::Result<Vec<u8>> {
-        let buf = self.async_op.read(&path).await.map_err(|e| anyhow::anyhow!(e))?;
+        let buf = self
+            .async_op
+            .read(&path)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(buf.to_vec())
     }
 
     #[frb(sync)]
     pub fn read_sync(&self, path: String) -> anyhow::Result<Vec<u8>> {
-        let buf = self.blocking_op.read(&path).map_err(|e| anyhow::anyhow!(e))?;
+        let buf = self
+            .blocking_op
+            .read(&path)
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(buf.to_vec())
     }
 
     pub async fn write(&self, path: String, data: Vec<u8>) -> anyhow::Result<()> {
-        self.async_op.write(&path, data).await.map_err(|e| anyhow::anyhow!(e))?;
+        self.async_op
+            .write(&path, data)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(())
     }
 
     #[frb(sync)]
     pub fn write_sync(&self, path: String, data: Vec<u8>) -> anyhow::Result<()> {
-        self.blocking_op.write(&path, data).map_err(|e| anyhow::anyhow!(e))?;
+        self.blocking_op
+            .write(&path, data)
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(())
     }
 }

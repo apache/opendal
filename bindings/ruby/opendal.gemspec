@@ -65,8 +65,12 @@ Gem::Specification.new do |spec|
   # the unpacked files when Bundler loads this gemspec from an installed gem.
   spec.files = Dir.chdir(__dir__) do
     git_files = tracked_files_or_glob.call(__dir__).reject do |f|
-      f.start_with?(*%w[.bundle/ gems/ pkg/ target/ tmp/ .git/ vendor/]) || f.end_with?(*%w[.log .lock .tmp .bak]) || f == "."
+      f.start_with?(*%w[.bundle/ gems/ pkg/ target/ tmp/ .git/ vendor/]) ||
+        f.end_with?(*%w[.log .tmp .bak]) ||
+        (f.end_with?(".lock") && f != "Cargo.lock") ||
+        f == "."
     end
+    git_files |= ["Cargo.lock"] if File.file?("Cargo.lock")
 
     # When building release package, include core directory files for rake build
     distributed_core_dir = "core"
@@ -93,7 +97,7 @@ Gem::Specification.new do |spec|
   # Exclude non-Ruby files from RDoc to prevent parsing errors
   spec.rdoc_options = ["--exclude", "Cargo\\..*", "--exclude", "core/", "--exclude", "\\.rs$"]
 
-  spec.requirements = ["Rust >= 1.85"]
+  spec.requirements = ["Rust >= 1.91"]
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life

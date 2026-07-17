@@ -404,7 +404,7 @@ impl S3Builder {
         self
     }
 
-    /// Disable list objects v2 so that opendal will not use the older
+    /// Disable list objects v2 so that opendal will fall back to the older
     /// List Objects V1 to list objects.
     ///
     /// By default, OpenDAL uses List Objects V2 to list objects. However,
@@ -725,7 +725,7 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let S3Builder {
             mut config,
@@ -738,7 +738,7 @@ impl Builder for S3Builder {
         }
 
         let root = normalize_root(&config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket name.
         let bucket = if Self::is_bucket_valid(&config) {
@@ -749,7 +749,7 @@ impl Builder for S3Builder {
                     .with_context("service", S3_SCHEME),
             )
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let default_storage_class = match &config.default_storage_class {
             None => None,
@@ -1006,6 +1006,7 @@ impl Builder for S3Builder {
                     presign_stat: true,
                     presign_read: true,
                     presign_write: true,
+                    presign_delete: true,
 
                     shared: true,
 
@@ -1209,10 +1210,7 @@ impl Service for S3Backend {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
+            PresignOperation::Delete(v) => self.core.s3_delete_object_request(path, &v),
             _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -1359,6 +1357,61 @@ mod tests {
         assert_eq!(
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_presign_stat_encodes_version_id() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .skip_signature()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpStat::default().with_version("a+b/c=d%25&e");
+        let args = OpPresign::new(op, Duration::from_secs(3600));
+        let ctx = OperationContext::new();
+        let presigned = backend
+            .presign(&ctx, "test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.uri().to_string(),
+            "https://s3.us-east-1.amazonaws.com/test/test.txt?versionId=a%2Bb/c%3Dd%2525%26e"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_encodes_version_id() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .skip_signature()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpRead::default().with_version("a+b/c=d%25&e");
+        let args = OpPresign::new(
+            PresignOperation::Read(BytesRange::default(), op),
+            Duration::from_secs(3600),
+        );
+        let ctx = OperationContext::new();
+        let presigned = backend
+            .presign(&ctx, "test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.uri().to_string(),
+            "https://s3.us-east-1.amazonaws.com/test/test.txt?versionId=a%2Bb/c%3Dd%2525%26e"
         );
     }
 }

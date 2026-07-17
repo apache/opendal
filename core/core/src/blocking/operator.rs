@@ -193,11 +193,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_stat(path, expire))
     }
 
+    /// Create a presigned request for stat with additional options.
+    pub fn presign_stat_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::StatOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_stat_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for read.
     ///
     /// See [`Operator::presign_read`] for more details.
     pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_read(path, expire))
+    }
+
+    /// Create a presigned request for read with additional options.
+    pub fn presign_read_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::ReadOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_read_options(&path, expire, opts).await })?
     }
 
     /// Create a presigned request for write.
@@ -207,11 +231,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_write(path, expire))
     }
 
+    /// Create a presigned request for write with additional options.
+    pub fn presign_write_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::WriteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_write_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for delete.
     ///
     /// See [`Operator::presign_delete`] for more details.
     pub fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_delete(path, expire))
+    }
+
+    /// Create a presigned request for delete with additional options.
+    pub fn presign_delete_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::DeleteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_delete_options(&path, expire, opts).await })?
     }
 
     /// Get given path's metadata.
@@ -559,7 +607,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
     ///
     /// # Examples
     ///
@@ -574,10 +622,34 @@ impl Operator {
     /// # }
     /// ```
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        self.rename_options(from, to, options::RenameOptions::default())
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::RenameOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::blocking;
+    /// use opendal_core::options::RenameOptions;
+    /// use opendal_core::Result;
+    ///
+    /// fn rename_with_options(op: blocking::Operator) -> Result<()> {
+    ///     let mut opts = RenameOptions::default();
+    ///     opts.if_not_exists = true;
+    ///     op.rename_options("path/to/file", "path/to/file2", opts)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn rename_options(&self, from: &str, to: &str, opts: options::RenameOptions) -> Result<()> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.rename(&from, &to).await })?
+        self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
     }
 
     /// Delete given path.

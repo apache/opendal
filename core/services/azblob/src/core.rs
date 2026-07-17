@@ -422,7 +422,7 @@ impl AzblobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=appendblock", &self.build_path_url(path));
+        let url = format!("{}?comp=appendblock", self.build_path_url(path));
 
         let mut req = Request::put(&url)
             .header(CONTENT_LENGTH, size)
@@ -576,7 +576,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
+        let url = format!("{}?comp=blocklist", self.build_path_url(path));
 
         let req = Request::put(&url);
 
@@ -626,7 +626,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpCopy,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
+        let url = format!("{}?comp=blocklist", self.build_path_url(path));
 
         let mut req = Request::put(&url);
 
@@ -1169,20 +1169,19 @@ mod error {
         };
 
         // If there is no body here, fill with error code.
-        if message.is_empty() {
-            if let Some(code) = parts
+        if message.is_empty()
+            && let Some(code) = parts
                 .headers
                 .get("x-ms-error-code")
                 .and_then(|v| v.to_str().ok())
-            {
-                message = format!(
-                    "{:?}",
-                    AzblobError {
-                        code: code.to_string(),
-                        ..Default::default()
-                    }
-                );
-            }
+        {
+            message = format!(
+                "{:?}",
+                AzblobError {
+                    code: code.to_string(),
+                    ..Default::default()
+                }
+            );
         }
 
         let mut err = Error::new(kind, &message);

@@ -123,13 +123,6 @@ end
 directory "lib"
 
 extension_sources = FileList["Cargo.toml", "build.rs", "src/**/*.rs"]
-# CargoBuilder invokes `cargo rustc --locked`, but Cargo.lock is not tracked
-# for this binding. Model it as a generated file so Rake creates it only for
-# tasks that need the native extension build.
-file "Cargo.lock" => "Cargo.toml" do
-  sh ENV.fetch("CARGO", "cargo"), "generate-lockfile", "--manifest-path", "Cargo.toml"
-end
-
 file EXTENSION_PATH => ["lib", "Cargo.lock", *extension_sources] do
   original_verbose = Gem.configuration.verbose
   # `:loud` enables RubyGems' highest verbosity and prints the exact Cargo

@@ -78,7 +78,7 @@ impl oio::PageList for WebdavLister {
                 .unwrap_or(&res.href)
                 .to_string();
 
-            let meta = parse_propstat(&res.propstat)?;
+            let meta = parse_propstats(&res.propstat)?;
 
             // Append `/` to path if it's a dir
             if !path.ends_with('/') && meta.is_dir() {

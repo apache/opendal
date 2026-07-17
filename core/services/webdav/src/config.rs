@@ -23,7 +23,7 @@ use serde::Serialize;
 use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct WebdavConfig {
@@ -75,6 +75,39 @@ pub struct WebdavConfig {
     ///
     /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
+    /// Enable conditional read support.
+    ///
+    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
+    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
+    /// `If-Unmodified-Since` to the server when callers provide them.
+    ///
+    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
+    /// in PROPFIND or don't honor these headers on GET. Setting this to
+    /// `false` drops the four `read_with_if_*` capabilities, so calls like
+    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
+    /// locally instead of being silently ignored by the server.
+    ///
+    /// Default: true
+    pub enable_conditional_read: bool,
+}
+
+#[allow(deprecated)]
+impl Default for WebdavConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: None,
+            username: None,
+            password: None,
+            token: None,
+            root: None,
+            disable_copy: false,
+            disable_create_dir: false,
+            enable_user_metadata: false,
+            user_metadata_prefix: None,
+            user_metadata_uri: None,
+            enable_conditional_read: true,
+        }
+    }
 }
 
 impl Debug for WebdavConfig {
@@ -86,6 +119,7 @@ impl Debug for WebdavConfig {
             .field("disable_create_dir", &self.disable_create_dir)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
+            .field("enable_conditional_read", &self.enable_conditional_read)
             .finish_non_exhaustive()
     }
 }

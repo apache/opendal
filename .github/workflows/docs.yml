@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -78,14 +78,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: rust-docs
+          name: rust-documentation
           path: ./core/target/doc
 
   build-java-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v5
         with:
@@ -99,14 +99,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: java-docs
+          name: binding-java-documentation
           path: ./bindings/java/target/site/apidocs
 
   build-nodejs-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
         with:
@@ -134,14 +134,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: nodejs-docs
+          name: binding-nodejs-documentation
           path: ./bindings/nodejs/docs
 
   build-python-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
@@ -166,14 +166,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: python-docs
+          name: binding-python-documentation
           path: ./bindings/python/site
 
   build-ruby-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -194,14 +194,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: ruby-docs
+          name: binding-ruby-documentation
           path: ./bindings/ruby/doc
 
   build-c-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -218,14 +218,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: C-docs
+          name: binding-c-documentation
           path: ./bindings/c/docs/doxygen/html
 
   build-lua-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup lua-ldoc
         run: sudo apt-get install lua-ldoc
@@ -237,14 +237,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: lua-docs
+          name: binding-lua-documentation
           path: ./bindings/lua/doc/
 
   build-haskell-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Haskell build tools
         run: |
@@ -262,7 +262,7 @@ jobs:
           cabal update
 
       - name: Setup cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           cache-name: cache-cabal
         with:
@@ -285,14 +285,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: haskell-docs
+          name: binding-haskell-documentation
           path: ./bindings/haskell/doc/
 
   build-cpp-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -314,17 +314,17 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: cpp-docs
+          name: binding-cpp-documentation
           path: ./bindings/cpp/build/docs_doxygen/html
 
   build-ocaml-doc:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Cache Dune build artifacts
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: bindings/ocaml/_build
           key: ${{ runner.os }}-dune-doc-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}
@@ -350,14 +350,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: ocaml-docs
+          name: binding-ocaml-documentation
           path: ./bindings/ocaml/_build/default/_doc/_html
 
   build-object-store-opendal-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -373,14 +373,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: object-store-opendal-docs
+          name: integration-object-store-opendal-documentation
           path: ./integrations/object_store/target/doc
 
   build-dav-server-opendalfs-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -397,14 +397,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: dav-server-opendalfs-docs
+          name: integration-dav-server-opendalfs-documentation
           path: ./integrations/dav-server/target/doc
 
   build-unftp-sbe-opendal-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -420,14 +420,14 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: unftp-sbe-opendal-docs
+          name: integration-unftp-sbe-opendal-documentation
           path: ./integrations/unftp-sbe/target/doc
 
   build-parquet-opendal-doc:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -443,7 +443,7 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
-          name: object-parquet-docs
+          name: integration-object-parquet-documentation
           path: ./integrations/parquet/target/doc
 
   build-website:
@@ -465,115 +465,82 @@ jobs:
       - build-dav-server-opendalfs-doc
       - build-unftp-sbe-opendal-doc
       - build-parquet-opendal-doc
+    defaults:
+      run:
+        working-directory: "website"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
         with:
-          version: 8
+          # Follow website/package.json packageManager field
+          version: 11.8.0
           run_install: false
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version-file: "website/.node-version"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
 
       - name: Corepack
-        working-directory: website
-        run: npm i -g --force corepack && corepack enable
-
-      - name: Download rust docs
-        uses: actions/download-artifact@v8
-        with:
-          name: rust-docs
-          path: ./website/static/docs/rust
-
-      - name: Download nodejs docs
-        uses: actions/download-artifact@v8
-        with:
-          name: nodejs-docs
-          path: ./website/static/docs/nodejs
-
-      - name: Download python docs
-        uses: actions/download-artifact@v8
-        with:
-          name: python-docs
-          path: ./website/static/docs/python
-
-      - name: Download ruby docs
-        uses: actions/download-artifact@v8
-        with:
-          name: ruby-docs
-          path: ./website/static/docs/ruby
-
-      - name: Download java docs
-        uses: actions/download-artifact@v8
-        with:
-          name: java-docs
-          path: ./website/static/docs/java
-
-      - name: Download C docs
-        uses: actions/download-artifact@v8
-        with:
-          name: C-docs
-          path: ./website/static/docs/c
-
-      - name: Download lua docs
-        uses: actions/download-artifact@v8
-        with:
-          name: lua-docs
-          path: ./website/static/docs/lua
-
-      - name: Download haskell docs
-        uses: actions/download-artifact@v8
-        with:
-          name: haskell-docs
-          path: ./website/static/docs/haskell
-
-      - name: Download cpp docs
-        uses: actions/download-artifact@v8
-        with:
-          name: cpp-docs
-          path: ./website/static/docs/cpp
-
-      - name: Download ocaml docs
-        uses: actions/download-artifact@v8
-        with:
-          name: ocaml-docs
-          path: ./website/static/docs/ocaml
-
-      - name: Download object-store-opendal docs
-        uses: actions/download-artifact@v8
-        with:
-          name: object-store-opendal-docs
-          path: ./website/static/docs/object-store-opendal
-
-      - name: Download dav-server-opendalfs docs
-        uses: actions/download-artifact@v8
-        with:
-          name: dav-server-opendalfs-docs
-          path: ./website/static/docs/dav-server-opendalfs
-
-      - name: Download unftp-sbe-opendal docs
-        uses: actions/download-artifact@v8
-        with:
-          name: unftp-sbe-opendal-docs
-          path: ./website/static/docs/unftp-sbe-opendal
+        run: npm install -g --force corepack && corepack enable
 
       - name: Install Dependencies
-        working-directory: website
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        working-directory: website
-        run: pnpm build
+      - name: Download documentations
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-documentation"
+          path: website/static/docs/
 
-      - name: Copy asf file
-        run: cp .asf.yaml ./website/build/.asf.yaml
+      - name: Organize documentations
+        run: |
+          # Useful for debugging
+          ls -al static/docs/
+
+          # Becasue `website/static/docs/` maps to `/docs/` on website, we want to organize paths
+          mv static/docs/rust-documentation/ static/docs/rust/
+          mv static/docs/binding-java-documentation/ static/docs/java/
+          mv static/docs/binding-nodejs-documentation/ static/docs/nodejs/
+          mv static/docs/binding-python-documentation/ static/docs/python/
+          mv static/docs/binding-ruby-documentation/ static/docs/ruby/
+          mv static/docs/binding-c-documentation/ static/docs/c/
+          mv static/docs/binding-lua-documentation/ static/docs/lua/
+          mv static/docs/binding-haskell-documentation/ static/docs/haskell/
+          mv static/docs/binding-cpp-documentation/ static/docs/cpp/
+          mv static/docs/binding-ocaml-documentation/ static/docs/ocaml/
+
+          mkdir -p static/docs/integrations/object_store/target
+          mv static/docs/integration-object-store-opendal-documentation/ static/docs/integrations/object_store/target/doc
+
+          mkdir -p static/docs/integrations/dav-server/target
+          mv static/docs/integration-dav-server-opendalfs-documentation/ static/docs/integrations/dav-server/target/doc
+
+          mkdir -p static/docs/integrations/unftp-sbe/target
+          mv static/docs/integration-unftp-sbe-opendal-documentation/ static/docs/integrations/unftp-sbe/target/doc
+
+          mkdir -p static/docs/integrations/parquet/target
+          mv static/docs/integration-object-parquet-documentation/ static/docs/integrations/parquet/target/doc
+
+          # Useful for debugging
+          ls -al static/docs/
+
+      - name: Cache website build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            website/node_modules/.cache/
+          key: website-build-artifacts-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}-v1
+
+      - name: Build
+        run: |
+          pnpm build
+          cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4.1.0
@@ -587,18 +554,20 @@ jobs:
           force_orphan: true
 
       - name: Clear build
-        run: rm -rf ./website/build
+        run: rm -rf ./build
 
       - name: Build for staging version
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         working-directory: website
-        run: pnpm build
+        run: |
+          pnpm build
+          cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_STAGING: true
 
       - name: Copy asf file
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
-        run: cp .asf.yaml ./website/build/.asf.yaml
+        run: cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
 
       - name: Prepare staged name
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
@@ -617,11 +586,12 @@ jobs:
 
       - name: Clear build
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
-        run: rm -rf ./website/build
+        run: rm -rf ./build
 
       - name: Build for nightlies with tagged version
-        working-directory: website
-        run: pnpm build
+        run: |
+          pnpm build
+          cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           # Keep this same with the remote_path below
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-release-${{ github.ref_name }}/
@@ -642,15 +612,16 @@ jobs:
           chmod 0600 "${HOME}/.ssh/nightlies_rsync"
           rsync -avzr \
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
-            website/build/ \
+            build/ \
             "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ github.ref_name }}/"
 
       - name: Clear build
-        run: rm -rf ./website/build
+        run: rm -rf ./build
 
       - name: Build for nightlies with stable version
-        working-directory: website
-        run: pnpm build
+        run: |
+          pnpm build
+          cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
@@ -669,5 +640,5 @@ jobs:
           chmod 0600 "${HOME}/.ssh/nightlies_rsync"
           rsync -avzr --delete \
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
-            website/build/ \
+            build/ \
             "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-stable/"

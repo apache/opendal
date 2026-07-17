@@ -55,23 +55,24 @@ clean:
 stub-gen: setup
     @echo "{{ BOLD }}--- Generating Python type stubs ---{{ NORMAL }}"
     @cargo run --quiet --manifest-path=../../dev/Cargo.toml -- generate -l python
-    @cargo run --quiet --bin stub_gen
-    @echo "{{ BOLD }}--- Formatting and fixing generated stubs ---{{ NORMAL }}"
-    -@bash -c 'shopt -s globstar; uv run ruff check **/*.pyi --fix --unsafe-fixes --silent || true'
+    @uv run maturin develop --generate-stubs
+    ## This is temporary till the functionalities land in pyo3-introspection. ref: https://github.com/PyO3/pyo3/issues/5137
+    @echo "{{ BOLD }}--- Post processing generated stubs ---{{ NORMAL }}"
+    @uv run python scripts/postprocess_stubs.py
     @just fmt
 
 # Compile and produce a release wheel with optimizations
 [group('release')]
 build-release *args: stub-gen
     @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
-    @uv run maturin build -m ./Cargo.toml --profile release --strip --release --out dist {{ args }}
+    @uv run maturin build --manifest-path ./Cargo.toml --profile release --strip --release --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the release wheel in the current venv
 [group('release')]
 install-release *args: stub-gen
     @echo "{{ BOLD }}--- Installing release wheel ---{{ NORMAL }}"
-    @uv run maturin develop -m ./Cargo.toml --profile release --strip --release {{ args }}
+    @uv run maturin develop --manifest-path ./Cargo.toml --profile release --strip --release {{ args }}
 
 # Build and install the release wheel in the current venv
 [group('release')]
@@ -85,20 +86,20 @@ bench: install-release
 [group('release')]
 sdist *args: stub-gen
     @echo "{{ BOLD }}--- Building source distribution without compiling ---{{ NORMAL }}"
-    @uv run maturin sdist -m ./Cargo.toml --out dist {{ args }}
+    @uv run maturin sdist --manifest-path ./Cargo.toml --out dist {{ args }}
 
 # Compile and produce a development wheel
 [group('dev')]
 build-dev *args: stub-gen
     @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
-    @uv run maturin build -m ./Cargo.toml --out dist {{ args }}
+    @uv run maturin build --manifest-path ./Cargo.toml --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the development wheel in the current venv
 [group('dev')]
 install-dev *args: stub-gen
     @echo "{{ BOLD }}--- Installing development wheel ---{{ NORMAL }}"
-    @uv run maturin develop -m ./Cargo.toml {{ args }}
+    @uv run maturin develop --manifest-path ./Cargo.toml {{ args }}
 
 # Run tests
 [group('dev')]
@@ -118,6 +119,8 @@ lint: setup
     @cargo clippy -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
+    @echo "{{ BOLD }}--- Running Python type checker (ty) ---{{ NORMAL }}"
+    @uv run ty check
 
 # Format all code (Rust, Python, etc.)
 [group('lint')]
@@ -126,6 +129,8 @@ fmt: setup
     @cargo fmt --all
     @echo "{{ BOLD }}--- Formatting Python ---{{ NORMAL }}"
     @uv run ruff format --quiet
+    ## Fixes generated stubs
+    @uv run ruff check --unsafe-fixes --fix --silent
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
     @hawkeye format --config ../../licenserc.toml --fail-if-updated false
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"

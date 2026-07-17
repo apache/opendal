@@ -47,7 +47,7 @@ jobs:
       BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -57,10 +57,14 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/ruby"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/ruby"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Run lint
         working-directory: bindings/ruby
@@ -74,7 +78,7 @@ jobs:
       BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ruby/setup-ruby@v1
         with:

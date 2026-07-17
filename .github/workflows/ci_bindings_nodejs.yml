@@ -54,7 +54,7 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -75,6 +75,10 @@ jobs:
 
       - name: Check format
         run: pnpm exec prettier --check .
+
+      # Useful for debugging
+      - name: Print Clippy version
+        run: cargo clippy --version
 
       - name: Check Clippy
         run: cargo clippy -- -D warnings

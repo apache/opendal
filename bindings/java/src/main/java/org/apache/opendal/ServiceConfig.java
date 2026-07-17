@@ -1575,6 +1575,10 @@ public interface ServiceConfig {
     class Hf implements ServiceConfig {
         /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
+         * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
+         * environment variable: a non-empty value forces <code>http</code>, otherwise it
+         * defaults to <code>xet</code>. An explicit value here takes precedence.</p>
+         * <p>See <a href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet">https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet</a>.</p>
          */
         public final String downloadMode;
         /**
@@ -3867,6 +3871,19 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
+         * <p>Enable conditional read support.</p>
+         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
+         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
+         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
+         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
+         * in PROPFIND or don't honor these headers on GET. Setting this to
+         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
+         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
+         * locally instead of being silently ignored by the server.</p>
+         * <p>Default: true</p>
+         */
+        public final Boolean enableConditionalRead;
+        /**
          * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
          *
          * @deprecated WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.
@@ -3921,6 +3938,9 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (enableConditionalRead != null) {
+                map.put("enable_conditional_read", String.valueOf(enableConditionalRead));
             }
             if (enableUserMetadata != null) {
                 map.put("enable_user_metadata", String.valueOf(enableUserMetadata));

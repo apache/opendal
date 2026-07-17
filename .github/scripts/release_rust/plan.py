@@ -31,6 +31,7 @@ PUBLISH_GLOBS = (
     "core/Cargo.toml",
     "core/core/Cargo.toml",
     "core/testkit/Cargo.toml",
+    "core/http-transports/*/Cargo.toml",
     "core/layers/*/Cargo.toml",
     "core/services/*/Cargo.toml",
     "integrations/*/Cargo.toml",

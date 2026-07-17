@@ -60,15 +60,15 @@ impl Configurator for OnedriveConfig {
     fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                let normalized = match root.split_once('/') {
-                    Some((_, rest)) if !rest.is_empty() => rest.to_string(),
-                    _ => root.to_string(),
-                };
-                if !normalized.is_empty() {
-                    map.insert("root".to_string(), normalized);
-                }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            let normalized = match root.split_once('/') {
+                Some((_, rest)) if !rest.is_empty() => rest.to_string(),
+                _ => root.to_string(),
+            };
+            if !normalized.is_empty() {
+                map.insert("root".to_string(), normalized);
             }
         }
 

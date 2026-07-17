@@ -38,75 +38,119 @@ export const codeSamples = [
     id: "rust",
     label: "Rust",
     language: "rust",
-    install: "$ cargo add opendal",
+    install: "$ cargo add [opendal](/docs/core)",
     code: `use opendal::services::S3;
 use opendal::Operator;
 
-// Configure a backend once, then use one Operator.
+// Configure a backend once, then use one operator.
 let builder = S3::default().bucket("data");
-let op = Operator::new(builder)?.finish();
+let operator = Operator::new(builder)?.finish();
 
-op.write("hello.txt", "Hello, World!").await?;
-let bytes = op.read("hello.txt").await?;`,
-  },
-  {
-    id: "python",
-    label: "Python",
-    language: "python",
-    install: "$ pip install opendal",
-    code: `import opendal
-
-# Configure a backend once, then use one Operator.
-op = opendal.Operator("s3", bucket="data")
-
-op.write("hello.txt", b"Hello, World!")
-data = op.read("hello.txt")`,
-  },
-  {
-    id: "go",
-    label: "Go",
-    language: "go",
-    install: "$ go get github.com/apache/opendal/bindings/go",
-    code: `import (
-    "github.com/apache/opendal-go-services/s3"
-    opendal "github.com/apache/opendal/bindings/go"
-)
-
-// Configure a backend once, then use one Operator.
-opts := opendal.OperatorOptions{"bucket": "data"}
-op, _ := opendal.NewOperator(s3.Scheme, opts)
-
-op.Write("hello.txt", []byte("Hello, World!"))
-data, _ := op.Read("hello.txt")`,
+operator.write("hello.txt", "Hello, World!").await?;
+let bytes = operator.read("hello.txt").await?;`,
   },
   {
     id: "java",
     label: "Java",
     language: "java",
-    install: "org.apache.opendal:opendal-java",
+    install: "[org.apache.opendal:opendal-java](/docs/bindings/java)",
     code: `import org.apache.opendal.AsyncOperator;
 import java.util.Map;
 
-// Configure a backend once, then use one Operator.
-var conf = Map.of("bucket", "data");
-try (var op = AsyncOperator.of("s3", conf)) {
-    op.write("hello.txt", "Hello, World!").join();
-    byte[] data = op.read("hello.txt").join();
+// Configure a backend once, then use one operator.
+var config = Map.of("bucket", "data");
+try (var operator = AsyncOperator.of("s3", config)) {
+    operator.write("hello.txt", "Hello, World!").join();
+    byte[] data = operator.read("hello.txt").join();
 }`,
+  },
+  {
+    id: "python",
+    label: "Python",
+    language: "python",
+    install: "$ pip install [opendal](/docs/bindings/python)",
+    code: `import opendal
+
+# Configure a backend once, then use one operator.
+operator = opendal.Operator("s3", bucket="data")
+
+operator.write("hello.txt", b"Hello, World!")
+data = operator.read("hello.txt")`,
   },
   {
     id: "node",
     label: "Node.js",
     language: "javascript",
-    install: "$ npm install opendal",
+    install: "$ npm install [opendal](/docs/bindings/nodejs)",
     code: `import { Operator } from "opendal";
 
-// Configure a backend once, then use one Operator.
-const op = new Operator("s3", { bucket: "data" });
+// Configure a backend once, then use one operator.
+const operator = new Operator("s3", { bucket: "data" });
 
-await op.write("hello.txt", "Hello, World!");
-const data = await op.read("hello.txt");`,
+await operator.write("hello.txt", "Hello, World!");
+const data = await operator.read("hello.txt");`,
   },
+  {
+    id: "ruby",
+    label: "Ruby",
+    language: "ruby",
+    install: "$ gem install [opendal](/docs/bindings/ruby)",
+    code: `require "opendal"
+
+# Configure a backend once, then use one operator.
+operator = OpenDAL::Operator.new("s3", { "bucket" => "data" })
+
+operator.write("hello.txt", "Hello, World!")
+data = operator.read("hello.txt")`,
+  },
+  {
+    id: "go",
+    label: "Go",
+    language: "go",
+    install: "$ go get [github.com/apache/opendal/bindings/go](/docs/bindings/go)",
+    code: `import (
+    "github.com/apache/opendal-go-services/s3"
+    opendal "github.com/apache/opendal/bindings/go"
+)
+
+// Configure a backend once, then use one operator.
+opts := opendal.OperatorOptions{"bucket": "data"}
+op, _ := opendal.NewOperator(s3.Scheme, opts)
+
+operator.Write("hello.txt", []byte("Hello, World!"))
+data, _ := operator.Read("hello.txt")`,
+  },
+  {
+    "id": "c",
+    "label": "C",
+    "language": "c",
+    "install": "[opendal-c](/docs/bindings/c)",
+    "code": `#include <opendal.h>
+
+od_operator_options_t *options = od_operator_options_new();
+od_operator_options_set(options, "bucket", "data");
+od_operator_t *operator = od_operator_new("s3", options);
+
+od_operator_write(operator, "hello.txt", "Hello, World!", 13);
+
+char *data = NULL;
+size_t size = 0;
+od_operator_read(operator, "hello.txt", &data, &size);`
+  },
+  {
+    "id": "cpp",
+    "label": "C++",
+    "language": "cpp",
+    "install": "[opendal-cpp](/docs/bindings/cpp)",
+    "code": `#include <opendal.hpp>
+
+opendal::Operator operator("s3", {{"bucket", "data"}});
+
+std::string content = "Hello, World!";
+operator.Write("hello.txt", content);
+
+auto result = operator.Read("hello.txt");`
+  }
 ];
 
 export const valueProps = [
@@ -144,13 +188,13 @@ export const capabilityThemes = [
     title: "Read in parallel",
     blurb: "Fetch a byte range, or a whole object in concurrent chunks.",
     doc: opDoc("read_with"),
-    code: `let op = Operator::new(S3::default().bucket("data"))?.finish();
+    code: `let operator = Operator::new(S3::default().bucket("data"))?.finish();
 
 // Read just the bytes you need.
-let head = op.read_with("logs/today").range(0..64 * 1024).await?;
+let head = operator.read_with("logs/today").range(0..64 * 1024).await?;
 
 // Or pull a large object in parallel chunks.
-let full = op
+let object = operator
     .read_with("big.parquet")
     .concurrent(8)
     .chunk(8 * 1024 * 1024)
@@ -160,54 +204,54 @@ let full = op
     title: "Upload in parts",
     blurb: "Stream writes of any size as concurrent, multipart uploads.",
     doc: opDoc("writer_with"),
-    code: `let op = Operator::new(S3::default().bucket("data"))?.finish();
+    code: `let operator = Operator::new(S3::default().bucket("data"))?.finish();
 
 // Open a multipart writer with 8 concurrent parts.
-let mut w = op
+let mut writer = operator
     .writer_with("big.bin")
     .concurrent(8)
     .chunk(8 * 1024 * 1024)
     .await?;
 
 // Stream any number of buffers; close flushes the rest.
-w.write(part_one).await?;
-w.write(part_two).await?;
-w.close().await?;`,
+writer.write(part_one).await?;
+writer.write(part_two).await?;
+writer.close().await?;`,
   },
   {
     title: "Recover from failure",
     blurb: "Resume on retry, write atomically, and pin a version.",
     doc: `${RS}/layers/struct.RetryLayer.html`,
     code: `// Retries automatically resume interrupted transfers.
-let op = Operator::new(S3::default().bucket("data"))?
+let operator = Operator::new(S3::default().bucket("data"))?
     .layer(RetryLayer::new())
     .finish();
 
 // Create only if absent.
-op.write_with("once.json", data).if_not_exists(true).await?;
+operator.write_with("once.json", data).if_not_exists(true).await?;
 // Read only if unchanged.
-let doc = op.read_with("doc").if_match(etag).await?;
+let doc = operator.read_with("doc").if_match(etag).await?;
 // Pin an exact version.
-let pinned = op.read_with("doc").version(version_id).await?;`,
+let pinned = operator.read_with("doc").version(version_id).await?;`,
   },
   {
     title: "Work with files",
     blurb: "Inspect, list, move, and share — without moving bytes.",
     doc: opDoc("list_with"),
     code: `// Inspect a file without downloading it.
-let meta = op.stat("report.csv").await?;
+let meta = operator.stat("report.csv").await?;
 // List a prefix, recursing lazily through the tree.
-let mut entries = op.lister_with("logs/").recursive(true).await?;
+let mut entries = operator.lister_with("logs/").recursive(true).await?;
 while let Some(entry) = entries.try_next().await? {
     println!("{}", entry.path());
 }
 // Copy on the server — no download.
-op.copy("draft.md", "final.md").await?;
+operator.copy("draft.md", "final.md").await?;
 // Recursively delete a subtree.
-op.delete_with("tmp/").recursive(true).await?;
+operator.delete_with("tmp/").recursive(true).await?;
 // Presign a temporary, shareable URL.
 let ttl = Duration::from_secs(3600);
-let url = op.presign_read("report.csv", ttl).await?;`,
+let url = operator.presign_read("report.csv", ttl).await?;`,
   },
 ];
 
@@ -362,7 +406,7 @@ export const layers = [
 
 // Exponential backoff with jitter; interrupted
 // reads and writes resume where they left off.
-let op = op.layer(
+let operator = operator.layer(
     RetryLayer::new().with_max_times(5).with_jitter(),
 );`,
   },
@@ -374,7 +418,7 @@ let op = op.layer(
 use std::time::Duration;
 
 // Abort operations that stall past a deadline.
-let op = op.layer(
+let operator = operator.layer(
     TimeoutLayer::new()
         .with_timeout(Duration::from_secs(10)),
 );`,
@@ -387,7 +431,7 @@ let op = op.layer(
 
 // Structured logs for every operation, via the
 // standard log crate facade.
-let op = op.layer(LoggingLayer::default());`,
+let operator = operator.layer(LoggingLayer::default());`,
   },
   {
     name: "TracingLayer",
@@ -397,7 +441,7 @@ let op = op.layer(LoggingLayer::default());`,
 
 // One span per operation, into whatever
 // tracing subscriber your app installs.
-let op = op.layer(TracingLayer::new());`,
+let operator = operator.layer(TracingLayer::new());`,
   },
   {
     name: "MetricsLayer",
@@ -407,7 +451,7 @@ let op = op.layer(TracingLayer::new());`,
 
 // Latency and throughput via the metrics crate
 // facade — plug in any exporter you like.
-let op = op.layer(MetricsLayer::default());`,
+let operator = operator.layer(MetricsLayer::default());`,
   },
   {
     name: "PrometheusLayer",
@@ -418,7 +462,7 @@ let op = op.layer(MetricsLayer::default());`,
 // Register operation metrics into a Prometheus
 // registry you already expose.
 let registry = prometheus::default_registry();
-let op = op.layer(
+let operator = operator.layer(
     PrometheusLayer::builder().register(registry)?,
 );`,
   },
@@ -430,7 +474,7 @@ let op = op.layer(
 
 // Cap how many operations hit the backend at once —
 // back-pressure for the whole Operator.
-let op = op.layer(ConcurrentLimitLayer::new(1024));`,
+let operator = operator.layer(ConcurrentLimitLayer::new(1024));`,
   },
   {
     name: "ThrottleLayer",
@@ -440,7 +484,7 @@ let op = op.layer(ConcurrentLimitLayer::new(1024));`,
 
 // Token-bucket bandwidth limit: ~10 MiB/s steady,
 // with headroom to burst for short spikes.
-let op = op.layer(ThrottleLayer::new(
+let operator = operator.layer(ThrottleLayer::new(
     10 * 1024 * 1024,
     32 * 1024 * 1024,
 ));`,

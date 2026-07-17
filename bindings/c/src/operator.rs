@@ -259,8 +259,8 @@ pub unsafe extern "C" fn opendal_operator_new_with_layers(
 /// It is **safe** under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
-/// * The `bytes` provided has valid byte in the `data` field and the `len` field is set
-///   correctly.
+/// * If `bytes.len` is greater than 0, `bytes.data` must point to at least
+///   `bytes.len` valid bytes. If `bytes.len` is 0, `bytes.data` must be NULL.
 ///
 /// # Panic
 ///
@@ -275,6 +275,10 @@ pub unsafe extern "C" fn opendal_operator_write(
     let path = std::ffi::CStr::from_ptr(path)
         .to_str()
         .expect("malformed path");
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
+    };
     match op.deref().write(path, bytes) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
@@ -298,9 +302,80 @@ pub unsafe extern "C" fn opendal_operator_write_with(
     } else {
         (&*opts).into()
     };
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => return opendal_error::new(e),
+    };
     match op.deref().write_options(path, bytes, opts) {
         Ok(_) => std::ptr::null_mut(),
         Err(e) => opendal_error::new(e),
+    }
+}
+
+/// \brief Blocking write raw bytes to `path`, returning the written object's metadata.
+///
+/// Like `opendal_operator_write_with`, but on success returns the metadata of the
+/// just-written object (e.g. etag, version, last modified) instead of discarding it.
+/// A NULL `opts` is treated as the default options, behaving like a plain write.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path where the data will be written
+/// @param bytes The data to write
+/// @param opts The write options, or NULL to use the defaults
+/// @see opendal_operator
+/// @see opendal_write_options
+/// @see opendal_result_write
+/// @return Returns opendal_result_write, containing the metadata and an opendal_error.
+/// If the operation succeeds, the `meta` field holds the metadata and the `error` field
+/// is null. Otherwise, the `meta` will be null and the `error` will be set correspondingly.
+///
+/// \note The returned metadata must be freed with opendal_metadata_free().
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+/// * The `bytes` provided has valid byte in the `data` field and the `len` field is set
+///   correctly.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_write_with_metadata(
+    op: &opendal_operator,
+    path: *const c_char,
+    bytes: &opendal_bytes,
+    opts: *const opendal_write_options,
+) -> opendal_result_write {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let bytes = match bytes.to_buffer() {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return opendal_result_write {
+                meta: std::ptr::null_mut(),
+                error: opendal_error::new(e),
+            }
+        }
+    };
+    match op.deref().write_options(path, bytes, opts) {
+        Ok(m) => opendal_result_write {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_write {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -466,6 +541,68 @@ pub unsafe extern "C" fn opendal_operator_reader(
         .to_str()
         .expect("malformed path");
     let reader = match op.deref().reader(path) {
+        Ok(reader) => reader,
+        Err(err) => {
+            return opendal_result_operator_reader {
+                reader: std::ptr::null_mut(),
+                error: opendal_error::new(err),
+            };
+        }
+    };
+
+    match reader.into_std_read(..) {
+        Ok(reader) => opendal_result_operator_reader {
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_operator_reader {
+            reader: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
+/// \brief Blocking create a reader for the specified path with options.
+///
+/// This function prepares a reader, applying the conditional, version and
+/// concurrency options carried by `opts`. A NULL `opts` is treated as the
+/// default options, behaving like `opendal_operator_reader`.
+///
+/// @param op The opendal_operator created previously
+/// @param path The designated path where the reader will be used
+/// @param opts The reader options, or NULL to use the defaults
+/// @see opendal_operator
+/// @see opendal_reader_options
+/// @see opendal_result_operator_reader
+/// @return Returns opendal_result_operator_reader, containing a reader and an opendal_error.
+/// If the operation succeeds, the `reader` field holds a valid reader and the `error` field
+/// is null. Otherwise, the `reader` will be null and the `error` will be set correspondingly.
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_reader_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_reader_options,
+) -> opendal_result_operator_reader {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = if opts.is_null() {
+        core::options::ReaderOptions::default()
+    } else {
+        (&*opts).into()
+    };
+    let reader = match op.deref().reader_options(path, opts) {
         Ok(reader) => reader,
         Err(err) => {
             return opendal_result_operator_reader {
@@ -1305,5 +1442,100 @@ pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut o
         opendal_error::new(err)
     } else {
         std::ptr::null_mut()
+    }
+}
+
+/// \brief Blocking create a copier to copy a file from `src` to `dest`.
+///
+/// The returned copier is used to complete a long-running copy operation. Call
+/// `opendal_copier_next` repeatedly to make progress, and `opendal_copier_free`
+/// to release it once finished.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @see opendal_operator
+/// @see opendal_copier
+/// @see opendal_result_operator_copier
+/// @return opendal_result_operator_copier, containing a copier and an opendal_error.
+/// If the operation succeeds, the `copier` field holds a valid copier and the `error`
+/// field is null. Otherwise, the `copier` will be null and the `error` will be set
+/// correspondingly.
+///
+/// # Safety
+///
+/// * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the
+///   end of the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copier(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> opendal_result_operator_copier {
+    assert!(!src.is_null());
+    assert!(!dest.is_null());
+    let src = std::ffi::CStr::from_ptr(src)
+        .to_str()
+        .expect("malformed src");
+    let dest = std::ffi::CStr::from_ptr(dest)
+        .to_str()
+        .expect("malformed dest");
+    match op.deref().copier(src, dest) {
+        Ok(copier) => opendal_result_operator_copier {
+            copier: Box::into_raw(Box::new(opendal_copier::new(copier))),
+            error: std::ptr::null_mut(),
+        },
+        Err(err) => opendal_result_operator_copier {
+            copier: std::ptr::null_mut(),
+            error: opendal_error::new(err),
+        },
+    }
+}
+
+/// \brief Blocking create a copier to copy a file from `src` to `dest` with options.
+///
+/// This is the same as `opendal_operator_copier` but accepts an `opendal_copy_options`
+/// to control the behavior, e.g. `concurrent` or `chunk`. Pass NULL to use defaults.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @param opts The options for the copy operation; pass NULL to use defaults
+/// @see opendal_operator_copier
+/// @see opendal_copy_options
+/// @return opendal_result_operator_copier, containing a copier and an opendal_error.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copier_with(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    opts: *const opendal_copy_options,
+) -> opendal_result_operator_copier {
+    assert!(!src.is_null());
+    assert!(!dest.is_null());
+    let src = std::ffi::CStr::from_ptr(src)
+        .to_str()
+        .expect("malformed src");
+    let dest = std::ffi::CStr::from_ptr(dest)
+        .to_str()
+        .expect("malformed dest");
+    let copy_opts = if opts.is_null() {
+        core::options::CopyOptions::default()
+    } else {
+        core::options::CopyOptions::from(&*opts)
+    };
+    match op.deref().copier_options(src, dest, copy_opts) {
+        Ok(copier) => opendal_result_operator_copier {
+            copier: Box::into_raw(Box::new(opendal_copier::new(copier))),
+            error: std::ptr::null_mut(),
+        },
+        Err(err) => opendal_result_operator_copier {
+            copier: std::ptr::null_mut(),
+            error: opendal_error::new(err),
+        },
     }
 }

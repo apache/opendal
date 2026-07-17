@@ -58,16 +58,19 @@ pub use presign::opendal_presigned_request;
 pub use presign::opendal_result_presign;
 
 mod result;
+pub use result::opendal_result_copier_next;
 pub use result::opendal_result_exists;
 pub use result::opendal_result_is_exist;
 pub use result::opendal_result_list;
 pub use result::opendal_result_lister_next;
+pub use result::opendal_result_operator_copier;
 pub use result::opendal_result_operator_new;
 pub use result::opendal_result_operator_reader;
 pub use result::opendal_result_operator_writer;
 pub use result::opendal_result_read;
 pub use result::opendal_result_reader_read;
 pub use result::opendal_result_stat;
+pub use result::opendal_result_write;
 pub use result::opendal_result_writer_write;
 
 mod types;
@@ -77,6 +80,7 @@ pub use types::opendal_delete_options;
 pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
 pub use types::opendal_read_options;
+pub use types::opendal_reader_options;
 pub use types::opendal_stat_options;
 pub use types::opendal_write_options;
 pub use types::opendal_write_user_metadata_pair;
@@ -89,3 +93,6 @@ pub use reader::opendal_reader;
 
 mod writer;
 pub use writer::opendal_writer;
+
+mod copier;
+pub use copier::opendal_copier;

@@ -340,16 +340,16 @@ impl oio::Delete for RouteDeleter {
 
     async fn close(&mut self) -> Result<()> {
         let mut first_err = None;
-        if let Some(deleter) = self.default_deleter.as_mut() {
-            if let Err(err) = deleter.close().await {
-                first_err = Some(err);
-            }
+        if let Some(deleter) = self.default_deleter.as_mut()
+            && let Err(err) = deleter.close().await
+        {
+            first_err = Some(err);
         }
         for deleter in self.target_deleters.iter_mut().flatten() {
-            if let Err(err) = deleter.close().await {
-                if first_err.is_none() {
-                    first_err = Some(err);
-                }
+            if let Err(err) = deleter.close().await
+                && first_err.is_none()
+            {
+                first_err = Some(err);
             }
         }
 

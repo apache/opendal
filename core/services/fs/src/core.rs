@@ -224,7 +224,20 @@ impl FsCore {
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
 
-        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
+        tokio::fs::copy(&from, &to)
+            .await
+            .map_err(new_std_io_error)?;
+
+        // only *nix supports `write_with_user_metadata`
+        #[cfg(unix)]
+        {
+            if let Ok(user_meta) = Self::get_user_metadata(&from)
+                && !user_meta.is_empty()
+            {
+                Self::set_user_metadata(&to, &user_meta)?;
+            }
+        }
+
         Ok(())
     }
 
@@ -272,12 +285,11 @@ impl FsCore {
         for attr in attrs {
             let attr_name = attr.to_string_lossy();
             // Only read xattr in the "user." namespace and strip the prefix
-            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX) {
-                if let Ok(Some(value)) = xattr::get(path, &attr) {
-                    if let Ok(v) = String::from_utf8(value) {
-                        user_metadata.insert(key.to_string(), v);
-                    }
-                }
+            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX)
+                && let Ok(Some(value)) = xattr::get(path, &attr)
+                && let Ok(v) = String::from_utf8(value)
+            {
+                user_metadata.insert(key.to_string(), v);
             }
         }
 
@@ -321,3 +333,35 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_fs_backend_copy_preserves_user_metadata() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let src = "src_meta.txt";
+        let dst = "dst_meta.txt";
+
+        let src_path = root.join(src);
+        let dst_path = root.join(dst);
+
+        std::fs::File::create(&src_path).unwrap();
+
+        let mut meta = HashMap::new();
+        meta.insert("key".to_string(), "preserved123".to_string());
+        FsCore::set_user_metadata(&src_path, &meta).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.copy(src, dst).await.unwrap();
+
+        let got = FsCore::get_user_metadata(&dst_path).unwrap();
+        assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
+    }
+}

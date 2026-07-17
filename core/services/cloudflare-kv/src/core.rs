@@ -153,10 +153,10 @@ impl CloudflareKvCore {
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/keys", self.url_prefix());
         let mut url = QueryPairsWriter::new(&url);
-        if let Some(cursor) = cursor {
-            if !cursor.is_empty() {
-                url = url.push("cursor", &cursor);
-            }
+        if let Some(cursor) = cursor
+            && !cursor.is_empty()
+        {
+            url = url.push("cursor", &cursor);
         }
         url = url.push("limit", &limit.unwrap_or(1000).to_string());
         url = url.push("prefix", &percent_encode_path(prefix));

@@ -340,15 +340,15 @@ impl Service for RedisBackend {
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            let bs = self.core.get(&p).await?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+            match self.core.len(&p).await? {
+                Some(len) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(len as u64),
                 )),
                 None => Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             }
         }
     }
+
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<RedisReader> = {
             Ok(oio::StreamReader::new(RedisReader::new(

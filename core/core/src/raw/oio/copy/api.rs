@@ -134,10 +134,10 @@ impl Copy for OneShotCopier {
             .set_persistent());
         }
 
-        if self.fut.is_none() {
-            if let Some(factory) = self.factory.as_mut() {
-                self.fut = Some(factory());
-            }
+        if self.fut.is_none()
+            && let Some(factory) = self.factory.as_mut()
+        {
+            self.fut = Some(factory());
         }
 
         if let Some(fut) = self.fut.take() {

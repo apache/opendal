@@ -31,13 +31,13 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-fastrace = "0.7.16"
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+fastrace = { version = "0.7.18" }
+opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0"
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
-opendal-core = { path = "../../core", version = "0.57.0" }
+opendal-core = { path = "../../core", version = "0.58.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

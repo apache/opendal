@@ -53,6 +53,12 @@ pub struct HfConfig {
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
     /// Download mode. Either `xet` (default) or `http`.
+    ///
+    /// When unset, the mode is resolved from the `HF_HUB_DISABLE_XET`
+    /// environment variable: a non-empty value forces `http`, otherwise it
+    /// defaults to `xet`. An explicit value here takes precedence.
+    ///
+    /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
 }
 
@@ -81,18 +87,18 @@ impl opendal_core::Configurator for HfConfig {
         // OperatorUri splits "hf://datasets/user/repo@rev/path" into
         // name="datasets" and root="user/repo@rev/path".
         let mut path = String::new();
-        if let Some(name) = uri.name() {
-            if !name.is_empty() {
-                path.push_str(name);
-            }
+        if let Some(name) = uri.name()
+            && !name.is_empty()
+        {
+            path.push_str(name);
         }
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                if !path.is_empty() {
-                    path.push('/');
-                }
-                path.push_str(root);
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            if !path.is_empty() {
+                path.push('/');
             }
+            path.push_str(root);
         }
 
         let download_mode = opts

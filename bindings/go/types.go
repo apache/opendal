@@ -63,6 +63,15 @@ var (
 		}[0],
 	}
 
+	typeResultWrite = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultList = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -104,6 +113,25 @@ var (
 		Elements: &[]*ffi.Type{
 			&ffi.TypePointer,
 			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
+	typeResultOperatorCopier = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
+	typeResultCopierNext = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer, // size (usize)
+			&ffi.TypeUint8,   // has_next (bool)
+			&ffi.TypePointer, // error
 			nil,
 		}[0],
 	}
@@ -300,6 +328,19 @@ type resultWriterWrite struct {
 	error *opendalError
 }
 
+type opendalCopier struct{}
+
+type resultOperatorCopier struct {
+	copier *opendalCopier
+	error  *opendalError
+}
+
+type resultCopierNext struct {
+	size     uint
+	has_next uint8
+	error    *opendalError
+}
+
 type resultReaderRead struct {
 	size  uint
 	error *opendalError
@@ -316,6 +357,11 @@ type resultIsExist struct {
 }
 
 type resultStat struct {
+	meta  *opendalMetadata
+	error *opendalError
+}
+
+type resultWrite struct {
 	meta  *opendalMetadata
 	error *opendalError
 }
@@ -366,6 +412,8 @@ type opendalListOptions struct{}
 type opendalDeleteOptions struct{}
 
 type opendalReadOptions struct{}
+
+type opendalReaderOptions struct{}
 
 type opendalCopyOptions struct{}
 

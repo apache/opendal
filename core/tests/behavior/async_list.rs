@@ -81,7 +81,7 @@ pub async fn test_check(op: Operator) -> Result<()> {
 pub async fn test_list_dir(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
+    debug!("Generate a random file: {}", path);
     let (content, size) = gen_bytes(op.info().capability());
 
     op.write(&path, content).await.expect("write must succeed");
@@ -106,7 +106,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 /// List prefix should return newly created file.
 pub async fn test_list_prefix(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
+    debug!("Generate a random file: {}", path);
     let (content, _) = gen_bytes(op.info().capability());
 
     op.write(&path, content).await.expect("write must succeed");

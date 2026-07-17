@@ -24,8 +24,8 @@ edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.85"
-version = "0.47.2"
+rust-version = "1.91"
+version = "0.47.3"
 
 [features]
 default = [
@@ -61,6 +61,7 @@ services-all = [
   'services-gdrive',
   'services-goosefs',
   'services-gridfs',
+  'services-hdfs-native',
   'services-hf',
   'services-ipfs',
   'services-koofr',
@@ -189,16 +190,8 @@ abi3 = ["pyo3/abi3-py311"]
 [target.'cfg(not(windows))'.features]
 services-all = ["services-sftp"]
 
-# Conditionally include hdfs-native only on non-arm targets
-[target.'cfg(not(target_arch = "arm"))'.features]
-services-all = ["services-hdfs-native"]
-
-[[bin]]
-doc = false
-name = "stub_gen"
-
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 doc = false
 name = "_opendal"
 
@@ -212,9 +205,12 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-mime-guess",
 ] }
-pyo3 = { version = "0.29.0", features = ["generate-import-lib", "jiff-02"] }
+pyo3 = { version = "0.29.0", features = [
+  "experimental-inspect",
+  "generate-import-lib",
+  "jiff-02",
+] }
 pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
-pyo3-stub-gen = { version = "0.23" }
 tokio = "1"
 
 [profile.release]

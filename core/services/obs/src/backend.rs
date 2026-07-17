@@ -135,7 +135,7 @@ impl Builder for ObsBuilder {
     type Config = ObsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -147,7 +147,7 @@ impl Builder for ObsBuilder {
                     .with_context("service", OBS_SCHEME),
             ),
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
@@ -174,7 +174,7 @@ impl Builder for ObsBuilder {
                 (host, false)
             }
         };
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
@@ -206,6 +206,8 @@ impl Builder for ObsBuilder {
 
             read_with_if_match: true,
             read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
 
             write: true,
             write_can_empty: true,
@@ -250,7 +252,7 @@ impl Builder for ObsBuilder {
                 capability,
                 bucket,
                 root,
-                endpoint: format!("{}://{}", &scheme, &endpoint),
+                endpoint: format!("{}://{}", scheme, endpoint),
                 signer,
             }),
         })

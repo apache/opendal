@@ -126,7 +126,7 @@ impl Builder for SwiftBuilder {
 
     /// Build a SwiftBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -146,7 +146,7 @@ impl Builder for SwiftBuilder {
                 ));
             }
         };
-        debug!("backend use endpoint: {}", &endpoint);
+        debug!("backend use endpoint: {}", endpoint);
 
         let container = match self.config.container {
             Some(container) => container,
@@ -205,6 +205,7 @@ impl Builder for SwiftBuilder {
 
                     list: true,
                     list_with_recursive: true,
+                    list_with_start_after: true,
 
                     presign: has_temp_url_key,
                     presign_stat: has_temp_url_key,
@@ -325,6 +326,7 @@ impl Service for SwiftBackend {
                 path.to_string(),
                 args.recursive(),
                 args.limit(),
+                args.start_after().map(String::from),
             );
 
             Ok(oio::PageLister::new(l))

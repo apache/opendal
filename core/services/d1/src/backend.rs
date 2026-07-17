@@ -249,10 +249,9 @@ impl Service for D1Backend {
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            let bs = self.core.get(ctx, &p).await?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+            match self.core.get_length(ctx, &p).await? {
+                Some(length) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(length as u64),
                 )),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in d1")),
             }

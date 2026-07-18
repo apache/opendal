@@ -43,10 +43,6 @@ runs:
         OPENDAL_GOOSEFS_MASTER_ADDR=127.0.0.1:9200
         OPENDAL_GOOSEFS_ROOT=/
         OPENDAL_GOOSEFS_WRITE_TYPE=must_cache
-        # Disable the GooseFS SDK's FileInfoCache (default TTL 30s) so
-        # behavior tests observe fresh metadata immediately after
-        # write/delete/rename instead of a stale cached snapshot.
-        GOOSEFS_FILE_INFO_CACHE_TTL_MS=0
         EOF
     # -----------------------------------------------------------------------
     # Post-setup diagnostics (only on failure).

@@ -233,10 +233,6 @@ impl GoosefsCore {
         let full = self.full_path(path);
         let ctx = self.ctx().await?;
         let master = ctx.acquire_master();
-        // A3 consistency: mirror the SDK's `BaseFileSystem::delete`, which
-        // drops the cached `FileInfo` for `path` so a subsequent open sees
-        // NotFound (or fresh state) instead of a 30s-TTL stale snapshot.
-        // No-op when the opt-in cache is disabled.
         ctx.invalidate_file_info(&full);
         match master.delete(&full, false).await {
             Ok(()) => Ok(()),
@@ -257,21 +253,6 @@ impl GoosefsCore {
         let ctx = self.ctx().await?;
         let master = ctx.acquire_master();
 
-        // A3 consistency: the SDK's `FileSystemContext` keeps an opt-in
-        // `FileInfoCache` (default TTL 30s) so that repeated `get_status`
-        // calls on the same path skip the Master round-trip. Every
-        // write/delete/rename issued through the SDK's own
-        // `BaseFileSystem` / `GoosefsFileWriter` invalidates that cache
-        // for the affected paths — otherwise a reader opening `to` right
-        // after an overwrite would serve the *stale* cached `FileInfo`
-        // (and therefore the stale block ids → stale bytes).
-        //
-        // OpenDAL's temp-and-rename writer goes through this
-        // `GoosefsCore::rename` path directly (it does NOT use
-        // `BaseFileSystem::rename`), so it is on us to preserve the
-        // contract: drop any cached `FileInfo` for both endpoints before
-        // and after the move. `invalidate_file_info` is a no-op when the
-        // cache is disabled, so this is cheap on the common path.
         ctx.invalidate_file_info(&src);
         ctx.invalidate_file_info(&dst);
 

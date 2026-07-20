@@ -597,15 +597,19 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
-    pub async fn gcs_initiate_multipart_upload(
+    pub fn gcs_initiate_multipart_upload_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         op: &OpWrite,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/{}/{}?uploads",
+            self.endpoint,
+            self.bucket,
+            gcs_percent_encode_path(&p)
+        );
 
         let mut builder = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
@@ -642,10 +646,16 @@ impl GcsCore {
             }
         }
 
-        let req = builder
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+        builder.body(Buffer::new()).map_err(new_request_build_error)
+    }
 
+    pub async fn gcs_initiate_multipart_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        op: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let req = self.gcs_initiate_multipart_upload_request(path, op)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1014,6 +1024,28 @@ mod tests {
         assert!(
             read_uri.contains("odfs%2Fw%2Fx.parquet") && !read_uri.contains("%252F"),
             "read request must single-encode path, got: {read_uri}"
+        );
+    }
+
+    /// Multipart initiation must percent-encode the object path exactly once,
+    /// including characters such as `/`, spaces and `#`.
+    #[test]
+    fn test_initiate_multipart_upload_single_encodes_path() {
+        let core = build_test_core("/");
+
+        let uri = core
+            .gcs_initiate_multipart_upload_request("odfs/w x#1.parquet", &OpWrite::default())
+            .expect("build initiate request")
+            .uri()
+            .to_string();
+
+        assert!(
+            uri.contains("/odfs%2Fw%20x%231.parquet?uploads"),
+            "initiate request must single-encode path, got: {uri}"
+        );
+        assert!(
+            !uri.contains("%252F"),
+            "initiate request must not double-encode path, got: {uri}"
         );
     }
 

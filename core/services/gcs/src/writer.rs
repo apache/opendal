@@ -23,7 +23,6 @@ use http::StatusCode;
 use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
-use super::core::gcs_percent_encode_path;
 use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -46,17 +45,18 @@ impl GcsWriter {
             op,
         }
     }
+
+    fn insert_object_request(&self, size: u64, body: Buffer) -> Result<http::Request<Buffer>> {
+        // Forward the raw path; the core request builder percent-encodes once.
+        self.core
+            .gcs_insert_object_request(&self.path, Some(size), &self.op, body)
+    }
 }
 
 impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
-        let req = self.core.gcs_insert_object_request(
-            &gcs_percent_encode_path(&self.path),
-            Some(size),
-            &self.op,
-            body,
-        )?;
+        let req = self.insert_object_request(size, body)?;
 
         let req = self.core.sign(&self.ctx, req).await?;
 
@@ -77,11 +77,7 @@ impl oio::MultipartWrite for GcsWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .gcs_initiate_multipart_upload(
-                &self.ctx,
-                &gcs_percent_encode_path(&self.path),
-                &self.op,
-            )
+            .gcs_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
             .await?;
 
         if !resp.status().is_success() {
@@ -167,5 +163,41 @@ impl oio::MultipartWrite for GcsWriter {
             StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::super::core::build_test_core;
+    use super::*;
+
+    /// Regression test for the GCS writer double-encoding bug: the writer must
+    /// forward the raw path so the core builder encodes it exactly once.
+    #[test]
+    fn test_writer_does_not_double_encode_path() {
+        let core = Arc::new(build_test_core("/"));
+        let writer = GcsWriter::new(
+            core,
+            OperationContext::default(),
+            "odfs/w/x.parquet",
+            OpWrite::default(),
+        );
+
+        let uri = writer
+            .insert_object_request(0, Buffer::new())
+            .expect("build insert request")
+            .uri()
+            .to_string();
+
+        assert!(
+            uri.contains("name=odfs%2Fw%2Fx.parquet"),
+            "path must be single-encoded, got: {uri}"
+        );
+        assert!(
+            !uri.contains("%252F"),
+            "path must not be double-encoded, got: {uri}"
+        );
     }
 }

@@ -25,11 +25,11 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `CapabilityCheckLayer` validates every operation against service capabilities.
+/// `CapabilityCheckLayer` validates optional operation arguments against service capabilities.
 ///
-/// Like `CorrectnessChecker`, this layer validates operation arguments before it
-/// calls the underlying service. It returns an error when the service does not
-/// support those arguments.
+/// Similar to `CorrectnessChecker`, this layer verifies selected optional arguments for write,
+/// copy, and list operations against the capabilities of the underlying service. If an argument is
+/// not supported, an error is returned directly.
 ///
 /// # Notes
 ///

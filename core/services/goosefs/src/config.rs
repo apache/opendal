@@ -45,7 +45,7 @@ pub struct GoosefsConfig {
     /// `PollingMasterInquireClient` to discover the Primary Master automatically.
     ///
     /// Resolution precedence at `build()` time (highest → lowest), following
-    /// `goosefs-sdk` `docs/CLIENT_CONFIGURATION.md` §1:
+    /// [goosefs-sdk `docs/CLIENT_CONFIGURATION.md`](https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md) §1:
     ///   1. This field (when set on the builder / OpenDAL config map)
     ///   2. `GOOSEFS_MASTER_ADDR` environment variable
     ///   3. `goosefs.master.rpc.addresses` / `goosefs.master.hostname` in

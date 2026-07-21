@@ -1000,7 +1000,7 @@ pub struct OpRename {
     /// Whether the rename should fail when the destination already exists.
     ///
     /// If `true`, the rename succeeds only when the destination does not exist.
-    /// If `false`, the rename uses its normal overwrite semantics.
+    /// If `false`, the rename uses OpenDAL's default overwrite behavior.
     if_not_exists: bool,
 }
 
@@ -1013,12 +1013,13 @@ impl OpRename {
     /// Set whether the rename should fail when the destination already exists.
     ///
     /// If `true`, the rename succeeds only when the destination does not exist.
-    /// If `false`, the rename uses its normal overwrite semantics.
+    /// If `false`, the rename uses OpenDAL's default overwrite behavior.
     ///
     /// ## Service Implementation
     ///
-    /// A service might return `ErrorKind::Unsupported` if it cannot enforce
-    /// `if_not_exists`.
+    /// Check [`Capability::rename_with_if_not_exists`] before setting this to
+    /// `true`. A service might return `ErrorKind::Unsupported` if it cannot
+    /// enforce the condition.
     pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
         self.if_not_exists = if_not_exists;
         self

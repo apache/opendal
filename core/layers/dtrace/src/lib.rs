@@ -29,9 +29,10 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use probe::probe_lazy;
 
-/// Support User Statically-Defined Tracing(aka USDT) on Linux
+/// `DtraceLayer` supports User Statically-Defined Tracing (USDT) on Linux.
 ///
-/// This layer is an experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
+/// Enable this experimental layer with `features = ["layers-dtrace"]` in
+/// `Cargo.toml`.
 ///
 /// For now we have following probes:
 ///

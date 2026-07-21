@@ -441,7 +441,7 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     }
 }
 
-/// The metrics layer for opendal.
+/// `MetricsLayer` records OpenDAL operation metrics.
 #[derive(Clone, Debug)]
 pub struct MetricsLayer<I: MetricsIntercept> {
     interceptor: I,

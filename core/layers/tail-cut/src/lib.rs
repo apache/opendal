@@ -227,13 +227,12 @@ struct TailCutConfig {
     max_deadline: Duration,
 }
 
-/// Layer that automatically cancels long-tail requests.
+/// `TailCutLayer` monitors request latency and cancels requests that run
+/// significantly slower than the historical baseline (for example, slower than
+/// P95).
 ///
-/// This layer monitors request latency distribution and cancels requests that are
-/// significantly slower than the historical baseline (e.g., slower than P95).
-///
-/// This layer should be created via [`TailCutLayer::builder()`] and can be
-/// cloned to share statistics across multiple operators.
+/// Create this layer with [`TailCutLayer::builder()`]. Clone it to share
+/// statistics across multiple operators.
 ///
 /// # Examples
 ///

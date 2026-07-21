@@ -30,7 +30,8 @@ use globset::GlobSetBuilder;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Route operations to different operators by matching paths with glob patterns.
+/// `RouteLayer` routes operations to different operators by matching paths with
+/// glob patterns.
 #[derive(Clone, Debug)]
 pub struct RouteLayer {
     router: Arc<RouteRouter>,

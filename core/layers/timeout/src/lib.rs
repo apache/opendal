@@ -27,11 +27,11 @@ use std::time::Duration;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add timeouts to operations to avoid slow or unexpectedly hanging work.
+/// `TimeoutLayer` adds deadlines to operations so slow or stalled work cannot
+/// hang indefinitely.
 ///
-/// For example, a dead connection could hang a database SQL query. `TimeoutLayer`
-/// will break this connection and return an error so users can handle it by
-/// retrying or reporting it.
+/// For example, a dead connection could stall a database query. `TimeoutLayer`
+/// interrupts the operation and returns an error that users can retry or report.
 ///
 /// # Notes
 ///
@@ -114,9 +114,9 @@ use opendal_core::*;
 ///
 /// For example, a user's TCP connection could enter the
 /// [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die)
-/// state. In this state, no IO event will be emitted, so the runtime will never
-/// poll the future again. From the application side, this future hangs until the
-/// connection is closed after reaching the Linux
+/// state. In this state, the connection emits no IO events, so the runtime never
+/// polls the future again. The future hangs until Linux closes the connection
+/// after it reaches the
 /// [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html)
 /// limit.
 #[derive(Clone, Debug)]

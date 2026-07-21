@@ -138,13 +138,17 @@ impl Code for FoyerValue {
     }
 }
 
-/// Hybrid cache layer for OpenDAL that uses [foyer](https://github.com/foyer-rs/foyer) for caching.
+/// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-/// - `write`: [`FoyerLayer`] will write to the foyer hybrid cache after the service's write operation is completed.
-/// - `read`: [`FoyerLayer`] will first check the foyer hybrid cache for the data. If the data is not found, it will perform the read operation on the service and cache the result.
-/// - `delete`: [`FoyerLayer`] will remove the data from the foyer hybrid cache regardless of whether the service's delete operation is successful.
-/// - Other operations: [`FoyerLayer`] will not cache the results of other operations, such as `list`, `copy`, `rename`, etc. They will be passed through to the underlying service without caching.
+///
+/// - `write`: [`FoyerLayer`] caches data after the service completes the write.
+/// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
+///   from the service and caches the result.
+/// - `delete`: [`FoyerLayer`] removes cached data whether or not the service
+///   successfully deletes the object.
+/// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
+///   and `rename` to the service without caching their results.
 ///
 /// # Examples
 ///
@@ -169,7 +173,8 @@ impl Code for FoyerValue {
 ///
 /// # Note
 ///
-/// If the object version is enabled, the foyer cache layer will treat the objects with same path but different versions as different objects.
+/// When object versioning is enabled, `FoyerLayer` treats objects with the same
+/// path but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,

@@ -30,17 +30,19 @@ impl OperatorInfo {
         Self { info, capability }
     }
 
-    /// Scheme of operator.
+    /// Return the operator's scheme.
     pub fn scheme(&self) -> &'static str {
         self.info.scheme()
     }
 
-    /// Root of operator, will be in format like `/path/to/dir/`.
+    /// Return the operator's root in a format like `/path/to/dir/`.
     pub fn root(&self) -> String {
         self.info.root().to_string()
     }
 
-    /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
+    /// Return the operator's name.
+    ///
+    /// The name can be empty if the service has no namespace concept.
     ///
     /// For example:
     ///
@@ -50,7 +52,7 @@ impl OperatorInfo {
         self.info.name().to_string()
     }
 
-    /// Get effective capability of operator.
+    /// Return the operator's effective capabilities.
     pub fn capability(&self) -> Capability {
         self.capability
     }

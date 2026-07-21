@@ -67,9 +67,10 @@ impl GoosefsBuilder {
     /// When provided here it **overrides** any address discovered from
     /// `goosefs-site.properties` or `GOOSEFS_MASTER_ADDR`. When left unset
     /// the builder falls back to the SDK's auto-discovery chain
-    /// (defaults → properties → env) — see `goosefs-sdk`
-    /// `docs/CLIENT_CONFIGURATION.md` §1. `build()` fails with
-    /// `ConfigInvalid` only if **no** source supplies a master address.
+    /// (defaults → properties → env) — see
+    /// [goosefs-sdk `docs/CLIENT_CONFIGURATION.md`](https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md)
+    /// §1. `build()` fails with `ConfigInvalid` only if **no** source
+    /// supplies a master address.
     pub fn master_addr(mut self, addr: &str) -> Self {
         if !addr.is_empty() {
             self.config.master_addr = Some(addr.to_string());
@@ -137,7 +138,8 @@ impl Builder for GoosefsBuilder {
         //
         // We follow the same priority chain that `FileSystemContext::connect`
         // (and its `ConfigRefresher`) uses — see
-        // `docs/CLIENT_CONFIGURATION.md` §1 "Configuration Loading Priority":
+        // https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md
+        // §1 "Configuration Loading Priority":
         //
         //   defaults  <  goosefs-site.properties  <  GOOSEFS_* env vars
         //
@@ -274,14 +276,16 @@ impl Builder for GoosefsBuilder {
                     read: true,
                     write: true,
                     write_can_multi: true,
-                    // GooseFS createFile fails with AlreadyExists if file exists,
-                    // which naturally provides if_not_exists semantics.
-                    // Lance Dataset relies on this for manifest commit safety.
+                    // Authoritative Create: write-via-temp then
+                    // GoosefsCore::rename(..., if_not_exists=true), backed by Master
+                    // no-replace rename. Not CreateFile on the final path
+                    // (writes go to .opendal.tmp.*).
                     write_with_if_not_exists: true,
                     create_dir: true,
                     delete: true,
                     list: true,
                     rename: true,
+                    rename_with_if_not_exists: true,
                     shared: true,
                     ..Default::default()
                 },
@@ -385,9 +389,9 @@ impl Service for GoosefsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        self.core.rename(from, to).await?;
+        self.core.rename(from, to, args.if_not_exists()).await?;
         Ok(RpRename::default())
     }
 
@@ -442,6 +446,21 @@ mod tests {
         assert!(
             err.to_string().contains("master_addr is empty"),
             "unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn test_capability_rename_with_if_not_exists() {
+        let backend = GoosefsBuilder::default()
+            .root("/data")
+            .master_addr("127.0.0.1:9200")
+            .build()
+            .expect("build");
+        let cap = backend.capability();
+        assert!(cap.write_with_if_not_exists);
+        assert!(
+            cap.rename_with_if_not_exists,
+            "rename_with_if_not_exists must be declared for Create publish"
         );
     }
 }

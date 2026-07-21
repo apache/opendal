@@ -303,6 +303,14 @@ impl<T> CheckWrapper<T> {
             ));
         }
 
+        if args.if_match().is_some() && !self.capability.delete_with_if_match {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Delete,
+                "if_match",
+            ));
+        }
+
         Ok(())
     }
 }

@@ -32,6 +32,18 @@ pub struct DeleteOptions {
     /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
     ///   will be removed.
     pub recursive: bool,
+    /// Sets the condition that delete will succeed only if the existing
+    /// object has the given ETag.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::delete_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the delete will only succeed when the existing object's
+    ///   ETag matches the given value.
+    pub if_match: Option<String>,
 }
 
 /// Options for list operations.

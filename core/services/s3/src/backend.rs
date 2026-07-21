@@ -976,6 +976,7 @@ impl Builder for S3Builder {
                     delete: true,
                     delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
                     delete_with_version: true,
+                    delete_with_if_match: true,
 
                     copy: true,
                     copy_can_multi: true,

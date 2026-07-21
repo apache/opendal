@@ -513,6 +513,12 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete recursively.
     pub recursive: Option<bool>,
+    /**
+     * Sets if-match condition for this operation.
+     * If file exists and its etag does not match, an error of kind
+     * `ConditionNotMatch` will be returned.
+     */
+    pub if_match: Option<String>,
 }
 
 impl From<DeleteOptions> for opendal::options::DeleteOptions {
@@ -520,6 +526,7 @@ impl From<DeleteOptions> for opendal::options::DeleteOptions {
         Self {
             version: value.version,
             recursive: value.recursive.unwrap_or_default(),
+            if_match: value.if_match,
         }
     }
 }

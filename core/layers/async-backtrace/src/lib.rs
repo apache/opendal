@@ -25,11 +25,12 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add Efficient, logical 'stack' traces of async functions for the underlying services.
+/// `AsyncBacktraceLayer` records efficient logical stack traces for asynchronous
+/// service operations.
 ///
 /// # Async Backtrace
 ///
-/// async-backtrace allows developers to get a stack trace of the async functions.
+/// `async-backtrace` lets developers inspect the stack traces of asynchronous functions.
 /// Read more about [async-backtrace](https://docs.rs/async-backtrace/latest/async_backtrace/)
 ///
 /// # Examples

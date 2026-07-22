@@ -32,7 +32,8 @@ use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 
-/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
+/// `OtelTraceLayer` traces every operation with
+/// [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
 ///
 /// # Examples
 ///

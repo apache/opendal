@@ -52,21 +52,16 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
     }
 }
 
-/// Add concurrent request limit.
+/// `ConcurrentLimitLayer` controls how many concurrent requests OpenDAL can send
+/// to a storage service.
 ///
-/// # Notes
-///
-/// Users can control how many concurrent connections could be established
-/// between OpenDAL and underlying storage services.
-///
-/// All operators wrapped by this layer will share a common semaphore. This
-/// allows you to reuse the same layer across multiple operators, ensuring
-/// that the total number of concurrent requests across the entire
-/// application does not exceed the limit.
+/// Operators that reuse the same [`ConcurrentLimitLayer`] instance share a
+/// semaphore. This lets an application enforce one total concurrent-request
+/// limit across multiple operators.
 ///
 /// # Examples
 ///
-/// Add a concurrent limit layer to the operator:
+/// The following example adds a concurrent limit layer to an operator:
 ///
 /// ```no_run
 /// # use opendal_core::services;

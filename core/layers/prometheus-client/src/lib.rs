@@ -35,7 +35,8 @@ use prometheus_client::registry::Metric;
 use prometheus_client::registry::Registry;
 use prometheus_client::registry::Unit;
 
-/// Add [prometheus-client](https://docs.rs/prometheus-client) metrics for OpenDAL operations and HTTP fetches.
+/// `PrometheusClientLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [prometheus-client](https://docs.rs/prometheus-client).
 ///
 /// # Prometheus Metrics
 ///

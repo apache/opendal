@@ -44,14 +44,14 @@ use crate::*;
 
 /// Buffer is a wrapper of contiguous `Bytes` and non-contiguous `[Bytes]`.
 ///
-/// We designed buffer to allow underlying storage to return non-contiguous bytes. For example,
-/// http based storage like s3 could generate non-contiguous bytes by stream.
+/// Buffer supports non-contiguous bytes that a storage service returns. For example,
+/// HTTP-based services such as S3 can produce non-contiguous bytes while streaming.
 ///
 /// ## Features
 ///
 /// - [`Buffer`] can be used as [`Buf`], [`Iterator`], [`Stream`] directly.
 /// - [`Buffer`] is cheap to clone like [`Bytes`], only update reference count, no allocation.
-/// - [`Buffer`] is vectorized write friendly, you can convert it to [`IoSlice`] for vectored write.
+/// - Convert [`Buffer`] to [`IoSlice`] for vectored writes.
 ///
 /// ## Examples
 ///
@@ -246,7 +246,7 @@ impl Buffer {
 
     /// Returns a slice of self for the provided range.
     ///
-    /// This will increment the reference count for the underlying memory and return a new Buffer handle set to the slice.
+    /// This increments the reference count for the underlying memory and returns a new Buffer handle for the slice.
     ///
     /// This operation is O(1).
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Self {

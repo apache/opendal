@@ -34,7 +34,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_layer_observe_metrics_common as observe;
 
-/// Add [fastmetrics](https://docs.rs/fastmetrics/) metrics for OpenDAL operations and HTTP fetches.
+/// `FastmetricsLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [fastmetrics](https://docs.rs/fastmetrics/).
 ///
 /// # Fastmetrics Metrics
 ///

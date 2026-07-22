@@ -31,16 +31,17 @@ use opendal_core::*;
 
 static LOGGING_TARGET: &str = "opendal::services";
 
-/// Add [log](https://docs.rs/log/) for every operation.
+/// `LoggingLayer` records every operation with
+/// [log](https://docs.rs/log/).
 ///
 /// # Logging
 ///
-/// - OpenDAL will log in a structured way.
-/// - Every operation will start with a `started` log entry.
-/// - Every operation will finish with the following status:
-///   - `succeeded`: the operation is successful, but might have more to take.
-///   - `finished`: the whole operation is finished.
-///   - `failed`: the operation returns an error.
+/// - OpenDAL emits structured logs.
+/// - Every operation starts with a `started` log entry.
+/// - Every operation ends with one of the following statuses:
+///   - `succeeded`: The operation succeeded but might have more work to perform.
+///   - `finished`: The whole operation finished.
+///   - `failed`: The operation returned an error.
 /// - The default log level for expected errors is `Warn`.
 /// - The default log level for unexpected errors is `Error`.
 ///
@@ -61,7 +62,7 @@ static LOGGING_TARGET: &str = "opendal::services";
 ///
 /// # Output
 ///
-/// OpenDAL is using [`log`](https://docs.rs/log/latest/log/) for logging internally.
+/// OpenDAL uses [`log`](https://docs.rs/log/latest/log/) internally.
 ///
 /// To enable logging output, please set `RUST_LOG`:
 ///

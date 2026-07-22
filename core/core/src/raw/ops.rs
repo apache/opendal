@@ -20,6 +20,7 @@
 //! By using ops, users can add more context for operation.
 
 use crate::BytesRange;
+use crate::Checksum;
 use crate::options;
 use crate::raw::*;
 
@@ -689,6 +690,7 @@ pub struct OpWrite {
     if_none_match: Option<String>,
     if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
+    checksum: Option<Checksum>,
 }
 
 impl OpWrite {
@@ -816,6 +818,17 @@ impl OpWrite {
     pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
         self.user_metadata.as_ref()
     }
+
+    /// Set a precomputed checksum for this write operation.
+    pub fn with_checksum(mut self, checksum: Checksum) -> Self {
+        self.checksum = Some(checksum);
+        self
+    }
+
+    /// Get the precomputed checksum from the op.
+    pub fn checksum(&self) -> Option<&Checksum> {
+        self.checksum.as_ref()
+    }
 }
 
 /// Arguments for `writer` operation.
@@ -867,6 +880,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 if_none_match: value.if_none_match,
                 if_not_exists: value.if_not_exists,
                 user_metadata: value.user_metadata,
+                checksum: value.checksum,
             },
             OpWriter { chunk: value.chunk },
         )

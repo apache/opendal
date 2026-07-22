@@ -125,6 +125,28 @@ fn format_crc32c_iter(body: Buffer) -> String {
     BASE64_STANDARD.encode(crc.to_be_bytes())
 }
 
+/// Attach a user-supplied checksum to a request as the matching
+/// `x-amz-checksum-*` header, base64-encoding the raw digest bytes.
+fn insert_user_checksum_header(
+    req: http::request::Builder,
+    checksum: &Checksum,
+) -> Result<http::request::Builder> {
+    let header = match checksum.algorithm() {
+        opendal_core::ChecksumAlgorithm::Crc32c => "x-amz-checksum-crc32c",
+        opendal_core::ChecksumAlgorithm::Sha1 => "x-amz-checksum-sha1",
+        opendal_core::ChecksumAlgorithm::Sha256 => "x-amz-checksum-sha256",
+        opendal_core::ChecksumAlgorithm::Crc64Nvme => "x-amz-checksum-crc64nvme",
+        algorithm => {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                format!("checksum algorithm {algorithm:?} is not supported by S3"),
+            ));
+        }
+    };
+
+    Ok(req.header(header, BASE64_STANDARD.encode(checksum.value())))
+}
+
 impl Debug for S3Core {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("S3Core")
@@ -574,9 +596,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Calculate Checksum.
-        if let Some(checksum) = self.calculate_checksum(&body) {
-            // Set Checksum header.
+        // Prefer a user-supplied checksum, otherwise compute one if configured.
+        if let Some(checksum) = args.checksum() {
+            req = insert_user_checksum_header(req, checksum)?;
+        } else if let Some(checksum) = self.calculate_checksum(&body) {
             req = self.insert_checksum_header(req, &checksum);
         }
 
@@ -1595,6 +1618,18 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_insert_user_checksum_header() {
+        // The raw digest bytes are base64-encoded into the matching header.
+        let checksum = Checksum::sha256(Bytes::from_static(&[0x01, 0x02, 0x03]));
+        let req = insert_user_checksum_header(Request::put("https://example.com"), &checksum)
+            .expect("sha256 is supported")
+            .body(())
+            .unwrap();
+
+        assert_eq!(req.headers().get("x-amz-checksum-sha256").unwrap(), "AQID");
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

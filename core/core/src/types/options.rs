@@ -17,6 +17,7 @@
 
 //! Options module provides options definitions for operations.
 
+use crate::Checksum;
 use crate::raw::Timestamp;
 use crate::types::BytesRange;
 use std::collections::HashMap;
@@ -528,6 +529,23 @@ pub struct WriteOptions {
     /// - Lower operation costs
     /// - Better utilize network bandwidth
     pub chunk: Option<usize>,
+
+    /// Sets a precomputed checksum to verify the integrity of this write.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_checksum`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the checksum is sent alongside the data and the service
+    ///   rejects the write when the received data does not match.
+    /// - The checksum applies to the whole object. Services that fall back to
+    ///   multipart uploads cannot apply a whole-object checksum and will return
+    ///   an error; keep such writes within a single request (for example by
+    ///   raising the chunk size and disabling concurrency).
+    /// - If not supported, the value is ignored.
+    pub checksum: Option<Checksum>,
 }
 
 /// Options for copy operations.

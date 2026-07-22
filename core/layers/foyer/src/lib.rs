@@ -141,12 +141,12 @@ impl Code for FoyerValue {
 /// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-///
 /// - `write`: [`FoyerLayer`] caches data after the service completes the write.
 /// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
 ///   from the service and caches the result.
-/// - `delete`: [`FoyerLayer`] removes cached data whether or not the service
-///   successfully deletes the object.
+/// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
+///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
+///   deleter is closed, so the data remains invalidated if closing the deleter fails.
 /// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
 ///   and `rename` to the service without caching their results.
 ///

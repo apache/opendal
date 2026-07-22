@@ -19,23 +19,25 @@
 
 """Typed service configurations.
 
-Each ``*Config`` is a :class:`typing.TypedDict` describing one OpenDAL service.
-The ``scheme`` key is a :class:`typing.Literal` that binds the dict to its
-service, so a static type checker rejects a wrong scheme, a missing required
-key, an unknown/misspelled key, and a wrong value type.
+Each `*Config` is a `TypedDict` describing one OpenDAL service. The `scheme`
+key is a `Literal` that binds the dict to its service, so a static type checker
+rejects a wrong scheme, a missing required key, an unknown/misspelled key, and
+a wrong value type.
 
 Build a config with the call form or an annotated variable, then pass it to
-:meth:`opendal.Operator.from_config` / :meth:`opendal.AsyncOperator.from_config`::
+`Operator.from_config` / `AsyncOperator.from_config`:
 
-    from opendal import Operator
-    from opendal.config import S3Config
+```python
+from opendal import Operator
+from opendal.config import S3Config
 
-    op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
+op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
 
-    config: S3Config = {"scheme": "s3", "bucket": "b"}
-    op = Operator.from_config(config)
+config: S3Config = {"scheme": "s3", "bucket": "b"}
+op = Operator.from_config(config)
+```
 
-``ServiceConfig`` is the discriminated union of every ``*Config``; ``from_config``
+`ServiceConfig` is the discriminated union of every `*Config`; `from_config`
 accepts it, so a single signature type-checks every service.
 """
 
@@ -49,10 +51,10 @@ if TYPE_CHECKING:
 
 
 class AliyunDriveConfig(TypedDict):
-    """Configuration for the ``aliyun-drive`` service."""
+    """Configuration for the `aliyun-drive` service."""
 
     scheme: Required[Literal["aliyun-drive"]]
-    """The service scheme; fixed to ``"aliyun-drive"``."""
+    """The service scheme; fixed to `"aliyun-drive"`."""
     access_token: NotRequired[str]
     """The access_token of this backend.  Solution for client-only purpose. #4733  Required if no client_id, client_secret and refresh_token are provided."""
     client_id: NotRequired[str]
@@ -68,10 +70,10 @@ class AliyunDriveConfig(TypedDict):
 
 
 class AlluxioConfig(TypedDict):
-    """Configuration for the ``alluxio`` service."""
+    """Configuration for the `alluxio` service."""
 
     scheme: Required[Literal["alluxio"]]
-    """The service scheme; fixed to ``"alluxio"``."""
+    """The service scheme; fixed to `"alluxio"`."""
     endpoint: NotRequired[str]
     """endpoint of this backend.  Endpoint must be full uri, mostly like `http://127.0.0.1:39999`."""
     root: NotRequired[str | os.PathLike[str]]
@@ -79,10 +81,10 @@ class AlluxioConfig(TypedDict):
 
 
 class AzblobConfig(TypedDict):
-    """Configuration for the ``azblob`` service."""
+    """Configuration for the `azblob` service."""
 
     scheme: Required[Literal["azblob"]]
-    """The service scheme; fixed to ``"azblob"``."""
+    """The service scheme; fixed to `"azblob"`."""
     account_key: NotRequired[str]
     """The account key of Azblob service backend."""
     account_name: NotRequired[str]
@@ -108,10 +110,10 @@ class AzblobConfig(TypedDict):
 
 
 class AzdlsConfig(TypedDict):
-    """Configuration for the ``azdls`` service."""
+    """Configuration for the `azdls` service."""
 
     scheme: Required[Literal["azdls"]]
-    """The service scheme; fixed to ``"azdls"``."""
+    """The service scheme; fixed to `"azdls"`."""
     account_key: NotRequired[str]
     """Account key of this backend. - required for shared_key authentication"""
     account_name: NotRequired[str]
@@ -137,10 +139,10 @@ class AzdlsConfig(TypedDict):
 
 
 class AzfileConfig(TypedDict):
-    """Configuration for the ``azfile`` service."""
+    """Configuration for the `azfile` service."""
 
     scheme: Required[Literal["azfile"]]
-    """The service scheme; fixed to ``"azfile"``."""
+    """The service scheme; fixed to `"azfile"`."""
     account_key: NotRequired[str]
     """The account key for azfile."""
     account_name: NotRequired[str]
@@ -156,10 +158,10 @@ class AzfileConfig(TypedDict):
 
 
 class B2Config(TypedDict):
-    """Configuration for the ``b2`` service."""
+    """Configuration for the `b2` service."""
 
     scheme: Required[Literal["b2"]]
-    """The service scheme; fixed to ``"b2"``."""
+    """The service scheme; fixed to `"b2"`."""
     application_key: NotRequired[str]
     """applicationKey of this backend.  - If application_key is set, we will take user's input first. - If not, we will try to load it from environment."""
     application_key_id: NotRequired[str]
@@ -173,19 +175,19 @@ class B2Config(TypedDict):
 
 
 class CacacheConfig(TypedDict):
-    """Configuration for the ``cacache`` service."""
+    """Configuration for the `cacache` service."""
 
     scheme: Required[Literal["cacache"]]
-    """The service scheme; fixed to ``"cacache"``."""
+    """The service scheme; fixed to `"cacache"`."""
     datadir: NotRequired[str]
     """That path to the cacache data directory."""
 
 
 class CloudflareKvConfig(TypedDict):
-    """Configuration for the ``cloudflare-kv`` service."""
+    """Configuration for the `cloudflare-kv` service."""
 
     scheme: Required[Literal["cloudflare-kv"]]
-    """The service scheme; fixed to ``"cloudflare-kv"``."""
+    """The service scheme; fixed to `"cloudflare-kv"`."""
     account_id: NotRequired[str]
     """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
     api_token: NotRequired[str]
@@ -199,10 +201,10 @@ class CloudflareKvConfig(TypedDict):
 
 
 class CosConfig(TypedDict):
-    """Configuration for the ``cos`` service."""
+    """Configuration for the `cos` service."""
 
     scheme: Required[Literal["cos"]]
-    """The service scheme; fixed to ``"cos"``."""
+    """The service scheme; fixed to `"cos"`."""
     bucket: NotRequired[str]
     """Bucket of this backend."""
     disable_config_load: NotRequired[bool]
@@ -222,19 +224,19 @@ class CosConfig(TypedDict):
 
 
 class DashmapConfig(TypedDict):
-    """Configuration for the ``dashmap`` service."""
+    """Configuration for the `dashmap` service."""
 
     scheme: Required[Literal["dashmap"]]
-    """The service scheme; fixed to ``"dashmap"``."""
+    """The service scheme; fixed to `"dashmap"`."""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
 
 
 class DropboxConfig(TypedDict):
-    """Configuration for the ``dropbox`` service."""
+    """Configuration for the `dropbox` service."""
 
     scheme: Required[Literal["dropbox"]]
-    """The service scheme; fixed to ``"dropbox"``."""
+    """The service scheme; fixed to `"dropbox"`."""
     access_token: NotRequired[str]
     """access token for dropbox."""
     client_id: NotRequired[str]
@@ -248,10 +250,10 @@ class DropboxConfig(TypedDict):
 
 
 class FsConfig(TypedDict):
-    """Configuration for the ``fs`` service."""
+    """Configuration for the `fs` service."""
 
     scheme: Required[Literal["fs"]]
-    """The service scheme; fixed to ``"fs"``."""
+    """The service scheme; fixed to `"fs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """tmp dir for atomic write"""
     root: NotRequired[str | os.PathLike[str]]
@@ -259,10 +261,10 @@ class FsConfig(TypedDict):
 
 
 class FtpConfig(TypedDict):
-    """Configuration for the ``ftp`` service."""
+    """Configuration for the `ftp` service."""
 
     scheme: Required[Literal["ftp"]]
-    """The service scheme; fixed to ``"ftp"``."""
+    """The service scheme; fixed to `"ftp"`."""
     endpoint: NotRequired[str]
     """endpoint of this backend"""
     password: NotRequired[str]
@@ -274,10 +276,10 @@ class FtpConfig(TypedDict):
 
 
 class GcsConfig(TypedDict):
-    """Configuration for the ``gcs`` service."""
+    """Configuration for the `gcs` service."""
 
     scheme: Required[Literal["gcs"]]
-    """The service scheme; fixed to ``"gcs"``."""
+    """The service scheme; fixed to `"gcs"`."""
     allow_anonymous: NotRequired[bool]
     """Allow opendal to send requests without signing when credentials are not loaded. [Deprecated since 0.57.0] Please use `skip_signature` instead of `allow_anonymous`"""
     bucket: Required[str]
@@ -309,10 +311,10 @@ class GcsConfig(TypedDict):
 
 
 class GdriveConfig(TypedDict):
-    """Configuration for the ``gdrive`` service."""
+    """Configuration for the `gdrive` service."""
 
     scheme: Required[Literal["gdrive"]]
-    """The service scheme; fixed to ``"gdrive"``."""
+    """The service scheme; fixed to `"gdrive"`."""
     access_token: NotRequired[str]
     """Access token for gdrive."""
     client_id: NotRequired[str]
@@ -326,10 +328,10 @@ class GdriveConfig(TypedDict):
 
 
 class GhacConfig(TypedDict):
-    """Configuration for the ``ghac`` service."""
+    """Configuration for the `ghac` service."""
 
     scheme: Required[Literal["ghac"]]
-    """The service scheme; fixed to ``"ghac"``."""
+    """The service scheme; fixed to `"ghac"`."""
     endpoint: NotRequired[str]
     """The endpoint for ghac service."""
     root: NotRequired[str | os.PathLike[str]]
@@ -341,10 +343,10 @@ class GhacConfig(TypedDict):
 
 
 class GoosefsConfig(TypedDict):
-    """Configuration for the ``goosefs`` service."""
+    """Configuration for the `goosefs` service."""
 
     scheme: Required[Literal["goosefs"]]
-    """The service scheme; fixed to ``"goosefs"``."""
+    """The service scheme; fixed to `"goosefs"`."""
     auth_type: NotRequired[str]
     """Authentication type.  Supported values: `"nosasl"`, `"simple"`. Default: `"simple"` — PLAIN SASL with username. `"nosasl"` — skip authentication entirely."""
     auth_username: NotRequired[str]
@@ -362,10 +364,10 @@ class GoosefsConfig(TypedDict):
 
 
 class GridfsConfig(TypedDict):
-    """Configuration for the ``gridfs`` service."""
+    """Configuration for the `gridfs` service."""
 
     scheme: Required[Literal["gridfs"]]
-    """The service scheme; fixed to ``"gridfs"``."""
+    """The service scheme; fixed to `"gridfs"`."""
     bucket: NotRequired[str]
     """The bucket name of the MongoDB GridFs service to read/write."""
     chunk_size: NotRequired[int]
@@ -379,10 +381,10 @@ class GridfsConfig(TypedDict):
 
 
 class HdfsNativeConfig(TypedDict):
-    """Configuration for the ``hdfs-native`` service."""
+    """Configuration for the `hdfs-native` service."""
 
     scheme: Required[Literal["hdfs-native"]]
-    """The service scheme; fixed to ``"hdfs-native"``."""
+    """The service scheme; fixed to `"hdfs-native"`."""
     enable_append: NotRequired[bool]
     """Deprecated: HDFS Native append capability is enabled by default. [Deprecated since 0.57.0] HDFS Native append capability is enabled by default and this option is no longer needed."""
     name_node: NotRequired[str]
@@ -394,10 +396,10 @@ class HdfsNativeConfig(TypedDict):
 
 
 class HfConfig(TypedDict):
-    """Configuration for the ``hf`` service."""
+    """Configuration for the `hf` service."""
 
     scheme: Required[Literal["hf"]]
-    """The service scheme; fixed to ``"hf"``."""
+    """The service scheme; fixed to `"hf"`."""
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
     endpoint: NotRequired[str]
@@ -415,10 +417,10 @@ class HfConfig(TypedDict):
 
 
 class HttpConfig(TypedDict):
-    """Configuration for the ``http`` service."""
+    """Configuration for the `http` service."""
 
     scheme: Required[Literal["http"]]
-    """The service scheme; fixed to ``"http"``."""
+    """The service scheme; fixed to `"http"`."""
     endpoint: NotRequired[str]
     """endpoint of this backend"""
     password: NotRequired[str]
@@ -432,10 +434,10 @@ class HttpConfig(TypedDict):
 
 
 class IpfsConfig(TypedDict):
-    """Configuration for the ``ipfs`` service."""
+    """Configuration for the `ipfs` service."""
 
     scheme: Required[Literal["ipfs"]]
-    """The service scheme; fixed to ``"ipfs"``."""
+    """The service scheme; fixed to `"ipfs"`."""
     endpoint: NotRequired[str]
     """IPFS gateway endpoint."""
     root: NotRequired[str | os.PathLike[str]]
@@ -443,10 +445,10 @@ class IpfsConfig(TypedDict):
 
 
 class IpmfsConfig(TypedDict):
-    """Configuration for the ``ipmfs`` service."""
+    """Configuration for the `ipmfs` service."""
 
     scheme: Required[Literal["ipmfs"]]
-    """The service scheme; fixed to ``"ipmfs"``."""
+    """The service scheme; fixed to `"ipmfs"`."""
     endpoint: NotRequired[str]
     """Endpoint for ipfs."""
     root: NotRequired[str | os.PathLike[str]]
@@ -454,10 +456,10 @@ class IpmfsConfig(TypedDict):
 
 
 class KoofrConfig(TypedDict):
-    """Configuration for the ``koofr`` service."""
+    """Configuration for the `koofr` service."""
 
     scheme: Required[Literal["koofr"]]
-    """The service scheme; fixed to ``"koofr"``."""
+    """The service scheme; fixed to `"koofr"`."""
     email: Required[str]
     """Koofr email."""
     endpoint: Required[str]
@@ -469,10 +471,10 @@ class KoofrConfig(TypedDict):
 
 
 class MemcachedConfig(TypedDict):
-    """Configuration for the ``memcached`` service."""
+    """Configuration for the `memcached` service."""
 
     scheme: Required[Literal["memcached"]]
-    """The service scheme; fixed to ``"memcached"``."""
+    """The service scheme; fixed to `"memcached"`."""
     connection_pool_max_size: NotRequired[int]
     """The maximum number of connections allowed.  default is 10"""
     default_ttl: NotRequired[str]
@@ -488,19 +490,19 @@ class MemcachedConfig(TypedDict):
 
 
 class MemoryConfig(TypedDict):
-    """Configuration for the ``memory`` service."""
+    """Configuration for the `memory` service."""
 
     scheme: Required[Literal["memory"]]
-    """The service scheme; fixed to ``"memory"``."""
+    """The service scheme; fixed to `"memory"`."""
     root: NotRequired[str | os.PathLike[str]]
     """root of the backend."""
 
 
 class MiniMokaConfig(TypedDict):
-    """Configuration for the ``mini-moka`` service."""
+    """Configuration for the `mini-moka` service."""
 
     scheme: Required[Literal["mini-moka"]]
-    """The service scheme; fixed to ``"mini-moka"``."""
+    """The service scheme; fixed to `"mini-moka"`."""
     max_capacity: NotRequired[int]
     """Sets the max capacity of the cache.  Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)"""
     root: NotRequired[str | os.PathLike[str]]
@@ -512,10 +514,10 @@ class MiniMokaConfig(TypedDict):
 
 
 class MokaConfig(TypedDict):
-    """Configuration for the ``moka`` service."""
+    """Configuration for the `moka` service."""
 
     scheme: Required[Literal["moka"]]
-    """The service scheme; fixed to ``"moka"``."""
+    """The service scheme; fixed to `"moka"`."""
     max_capacity: NotRequired[int]
     """Sets the max capacity of the cache.  Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)"""
     name: NotRequired[str]
@@ -529,10 +531,10 @@ class MokaConfig(TypedDict):
 
 
 class MongodbConfig(TypedDict):
-    """Configuration for the ``mongodb`` service."""
+    """Configuration for the `mongodb` service."""
 
     scheme: Required[Literal["mongodb"]]
-    """The service scheme; fixed to ``"mongodb"``."""
+    """The service scheme; fixed to `"mongodb"`."""
     collection: NotRequired[str]
     """collection of this backend"""
     connection_string: NotRequired[str]
@@ -548,10 +550,10 @@ class MongodbConfig(TypedDict):
 
 
 class MysqlConfig(TypedDict):
-    """Configuration for the ``mysql`` service."""
+    """Configuration for the `mysql` service."""
 
     scheme: Required[Literal["mysql"]]
-    """The service scheme; fixed to ``"mysql"``."""
+    """The service scheme; fixed to `"mysql"`."""
     connection_string: NotRequired[str]
     """This connection string is used to connect to the mysql service. There are url based formats.  The format of connect string resembles the url format of the mysql client. The format is: `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`  - `mysql://user@localhost` - `mysql://user:password@localhost` - `mysql://user:password@localhost:3306` - `mysql://user:password@localhost:3306/db`  For more information, please refer to <https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html>."""
     key_field: NotRequired[str]
@@ -565,10 +567,10 @@ class MysqlConfig(TypedDict):
 
 
 class ObsConfig(TypedDict):
-    """Configuration for the ``obs`` service."""
+    """Configuration for the `obs` service."""
 
     scheme: Required[Literal["obs"]]
-    """The service scheme; fixed to ``"obs"``."""
+    """The service scheme; fixed to `"obs"`."""
     access_key_id: NotRequired[str]
     """Access key id for obs."""
     bucket: NotRequired[str]
@@ -584,10 +586,10 @@ class ObsConfig(TypedDict):
 
 
 class OnedriveConfig(TypedDict):
-    """Configuration for the ``onedrive`` service."""
+    """Configuration for the `onedrive` service."""
 
     scheme: Required[Literal["onedrive"]]
-    """The service scheme; fixed to ``"onedrive"``."""
+    """The service scheme; fixed to `"onedrive"`."""
     access_token: NotRequired[str]
     """Microsoft Graph API (also OneDrive API) access token"""
     client_id: NotRequired[str]
@@ -603,10 +605,10 @@ class OnedriveConfig(TypedDict):
 
 
 class OssConfig(TypedDict):
-    """Configuration for the ``oss`` service."""
+    """Configuration for the `oss` service."""
 
     scheme: Required[Literal["oss"]]
-    """The service scheme; fixed to ``"oss"``."""
+    """The service scheme; fixed to `"oss"`."""
     access_key_id: NotRequired[str]
     """Access key id for oss.  - this field if it's `is_some` - env value: `ALIBABA_CLOUD_ACCESS_KEY_ID`"""
     access_key_secret: NotRequired[str]
@@ -654,10 +656,10 @@ class OssConfig(TypedDict):
 
 
 class PersyConfig(TypedDict):
-    """Configuration for the ``persy`` service."""
+    """Configuration for the `persy` service."""
 
     scheme: Required[Literal["persy"]]
-    """The service scheme; fixed to ``"persy"``."""
+    """The service scheme; fixed to `"persy"`."""
     datafile: NotRequired[str]
     """That path to the persy data file. The directory in the path must already exist."""
     index: NotRequired[str]
@@ -667,10 +669,10 @@ class PersyConfig(TypedDict):
 
 
 class PostgresqlConfig(TypedDict):
-    """Configuration for the ``postgresql`` service."""
+    """Configuration for the `postgresql` service."""
 
     scheme: Required[Literal["postgresql"]]
-    """The service scheme; fixed to ``"postgresql"``."""
+    """The service scheme; fixed to `"postgresql"`."""
     connection_string: NotRequired[str]
     """The URL should be with a scheme of either `postgres://` or `postgresql://`.  - `postgresql://user@localhost` - `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10` - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write` - `postgresql:///mydb?user=user&host=/var/lib/postgresql`  For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>."""
     key_field: NotRequired[str]
@@ -684,10 +686,10 @@ class PostgresqlConfig(TypedDict):
 
 
 class RedbConfig(TypedDict):
-    """Configuration for the ``redb`` service."""
+    """Configuration for the `redb` service."""
 
     scheme: Required[Literal["redb"]]
-    """The service scheme; fixed to ``"redb"``."""
+    """The service scheme; fixed to `"redb"`."""
     datadir: NotRequired[str]
     """path to the redb data directory."""
     root: NotRequired[str | os.PathLike[str]]
@@ -697,10 +699,10 @@ class RedbConfig(TypedDict):
 
 
 class RedisConfig(TypedDict):
-    """Configuration for the ``redis`` service."""
+    """Configuration for the `redis` service."""
 
     scheme: Required[Literal["redis"]]
-    """The service scheme; fixed to ``"redis"``."""
+    """The service scheme; fixed to `"redis"`."""
     cluster_endpoints: NotRequired[str]
     """network address of the Redis cluster service. Can be "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381", e.g.  default is None"""
     connection_pool_max_size: NotRequired[int]
@@ -720,10 +722,10 @@ class RedisConfig(TypedDict):
 
 
 class S3Config(TypedDict):
-    """Configuration for the ``s3`` service."""
+    """Configuration for the `s3` service."""
 
     scheme: Required[Literal["s3"]]
-    """The service scheme; fixed to ``"s3"``."""
+    """The service scheme; fixed to `"s3"`."""
     access_key_id: NotRequired[str]
     """access_key_id of this backend.  - If access_key_id is set, we will take user's input first. - If not, we will try to load it from environment."""
     allow_anonymous: NotRequired[bool]
@@ -793,10 +795,10 @@ class S3Config(TypedDict):
 
 
 class SeafileConfig(TypedDict):
-    """Configuration for the ``seafile`` service."""
+    """Configuration for the `seafile` service."""
 
     scheme: Required[Literal["seafile"]]
-    """The service scheme; fixed to ``"seafile"``."""
+    """The service scheme; fixed to `"seafile"`."""
     endpoint: NotRequired[str]
     """endpoint address of this backend."""
     password: NotRequired[str]
@@ -810,10 +812,10 @@ class SeafileConfig(TypedDict):
 
 
 class SftpConfig(TypedDict):
-    """Configuration for the ``sftp`` service."""
+    """Configuration for the `sftp` service."""
 
     scheme: Required[Literal["sftp"]]
-    """The service scheme; fixed to ``"sftp"``."""
+    """The service scheme; fixed to `"sftp"`."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -829,10 +831,10 @@ class SftpConfig(TypedDict):
 
 
 class SledConfig(TypedDict):
-    """Configuration for the ``sled`` service."""
+    """Configuration for the `sled` service."""
 
     scheme: Required[Literal["sled"]]
-    """The service scheme; fixed to ``"sled"``."""
+    """The service scheme; fixed to `"sled"`."""
     datadir: NotRequired[str]
     """That path to the sled data directory."""
     root: NotRequired[str | os.PathLike[str]]
@@ -842,10 +844,10 @@ class SledConfig(TypedDict):
 
 
 class SqliteConfig(TypedDict):
-    """Configuration for the ``sqlite`` service."""
+    """Configuration for the `sqlite` service."""
 
     scheme: Required[Literal["sqlite"]]
-    """The service scheme; fixed to ``"sqlite"``."""
+    """The service scheme; fixed to `"sqlite"`."""
     connection_string: NotRequired[str]
     """Set the connection_string of the sqlite service.  This connection string is used to connect to the sqlite service.  The format of connect string resembles the url format of the sqlite client:  - `sqlite::memory:` - `sqlite:data.db` - `sqlite://data.db`  For more information, please visit <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>."""
     key_field: NotRequired[str]
@@ -859,10 +861,10 @@ class SqliteConfig(TypedDict):
 
 
 class SwiftConfig(TypedDict):
-    """Configuration for the ``swift`` service."""
+    """Configuration for the `swift` service."""
 
     scheme: Required[Literal["swift"]]
-    """The service scheme; fixed to ``"swift"``."""
+    """The service scheme; fixed to `"swift"`."""
     container: NotRequired[str]
     """The container for Swift."""
     endpoint: NotRequired[str]
@@ -878,10 +880,10 @@ class SwiftConfig(TypedDict):
 
 
 class TosConfig(TypedDict):
-    """Configuration for the ``tos`` service."""
+    """Configuration for the `tos` service."""
 
     scheme: Required[Literal["tos"]]
-    """The service scheme; fixed to ``"tos"``."""
+    """The service scheme; fixed to `"tos"`."""
     access_key_id: NotRequired[str]
     """access_key_id of this backend.  - If access_key_id is set, we will take user's input first. - If not, we will try to load it from environment."""
     bucket: Required[str]
@@ -903,10 +905,10 @@ class TosConfig(TypedDict):
 
 
 class UpyunConfig(TypedDict):
-    """Configuration for the ``upyun`` service."""
+    """Configuration for the `upyun` service."""
 
     scheme: Required[Literal["upyun"]]
-    """The service scheme; fixed to ``"upyun"``."""
+    """The service scheme; fixed to `"upyun"`."""
     bucket: Required[str]
     """bucket address of this backend."""
     operator: NotRequired[str]
@@ -918,10 +920,10 @@ class UpyunConfig(TypedDict):
 
 
 class VercelArtifactsConfig(TypedDict):
-    """Configuration for the ``vercel-artifacts`` service."""
+    """Configuration for the `vercel-artifacts` service."""
 
     scheme: Required[Literal["vercel-artifacts"]]
-    """The service scheme; fixed to ``"vercel-artifacts"``."""
+    """The service scheme; fixed to `"vercel-artifacts"`."""
     access_token: NotRequired[str]
     """The access token for Vercel."""
     endpoint: NotRequired[str]
@@ -933,10 +935,10 @@ class VercelArtifactsConfig(TypedDict):
 
 
 class VercelBlobConfig(TypedDict):
-    """Configuration for the ``vercel-blob`` service."""
+    """Configuration for the `vercel-blob` service."""
 
     scheme: Required[Literal["vercel-blob"]]
-    """The service scheme; fixed to ``"vercel-blob"``."""
+    """The service scheme; fixed to `"vercel-blob"`."""
     root: NotRequired[str | os.PathLike[str]]
     """root of this backend.  All operations will happen under this root."""
     token: NotRequired[str]
@@ -944,10 +946,10 @@ class VercelBlobConfig(TypedDict):
 
 
 class WebdavConfig(TypedDict):
-    """Configuration for the ``webdav`` service."""
+    """Configuration for the `webdav` service."""
 
     scheme: Required[Literal["webdav"]]
-    """The service scheme; fixed to ``"webdav"``."""
+    """The service scheme; fixed to `"webdav"`."""
     disable_copy: NotRequired[bool]
     """Deprecated: WebDAV copy capability is enabled by default. [Deprecated since 0.57.0] WebDAV copy capability is enabled by default and this option is no longer needed."""
     disable_create_dir: NotRequired[bool]
@@ -973,10 +975,10 @@ class WebdavConfig(TypedDict):
 
 
 class WebhdfsConfig(TypedDict):
-    """Configuration for the ``webhdfs`` service."""
+    """Configuration for the `webhdfs` service."""
 
     scheme: Required[Literal["webhdfs"]]
-    """The service scheme; fixed to ``"webhdfs"``."""
+    """The service scheme; fixed to `"webhdfs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """atomic_write_dir of this backend"""
     delegation: NotRequired[str]
@@ -992,10 +994,10 @@ class WebhdfsConfig(TypedDict):
 
 
 class YandexDiskConfig(TypedDict):
-    """Configuration for the ``yandex-disk`` service."""
+    """Configuration for the `yandex-disk` service."""
 
     scheme: Required[Literal["yandex-disk"]]
-    """The service scheme; fixed to ``"yandex-disk"``."""
+    """The service scheme; fixed to `"yandex-disk"`."""
     access_token: Required[str]
     """yandex disk oauth access_token."""
     root: NotRequired[str | os.PathLike[str]]
@@ -1054,7 +1056,7 @@ ServiceConfig = (
     | WebhdfsConfig
     | YandexDiskConfig
 )
-"""Discriminated union of every service configuration, keyed on ``scheme``."""
+"""Discriminated union of every service configuration, keyed on `scheme`."""
 
 __all__ = [
     "ServiceConfig",

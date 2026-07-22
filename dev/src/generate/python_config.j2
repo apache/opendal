@@ -37,23 +37,25 @@ under the License.
 
 """Typed service configurations.
 
-Each ``*Config`` is a :class:`typing.TypedDict` describing one OpenDAL service.
-The ``scheme`` key is a :class:`typing.Literal` that binds the dict to its
-service, so a static type checker rejects a wrong scheme, a missing required
-key, an unknown/misspelled key, and a wrong value type.
+Each `*Config` is a `TypedDict` describing one OpenDAL service. The `scheme`
+key is a `Literal` that binds the dict to its service, so a static type checker
+rejects a wrong scheme, a missing required key, an unknown/misspelled key, and
+a wrong value type.
 
 Build a config with the call form or an annotated variable, then pass it to
-:meth:`opendal.Operator.from_config` / :meth:`opendal.AsyncOperator.from_config`::
+`Operator.from_config` / `AsyncOperator.from_config`:
 
-    from opendal import Operator
-    from opendal.config import S3Config
+```python
+from opendal import Operator
+from opendal.config import S3Config
 
-    op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
+op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
 
-    config: S3Config = {"scheme": "s3", "bucket": "b"}
-    op = Operator.from_config(config)
+config: S3Config = {"scheme": "s3", "bucket": "b"}
+op = Operator.from_config(config)
+```
 
-``ServiceConfig`` is the discriminated union of every ``*Config``; ``from_config``
+`ServiceConfig` is the discriminated union of every `*Config`; `from_config`
 accepts it, so a single signature type-checks every service.
 """
 
@@ -67,10 +69,10 @@ if TYPE_CHECKING:
 
 {% for name in srvs %}
 class {{ service_to_pascal(name) }}Config(TypedDict):
-    """Configuration for the ``{{ snake_to_kebab_case(name) }}`` service."""
+    """Configuration for the `{{ snake_to_kebab_case(name) }}` service."""
 
     scheme: Required[Literal["{{ snake_to_kebab_case(name) }}"]]
-    """The service scheme; fixed to ``"{{ snake_to_kebab_case(name) }}"``."""
+    """The service scheme; fixed to `"{{ snake_to_kebab_case(name) }}"`."""
 {%- for field in srvs[name].config %}
     {%- set base_type = make_config_field_type(field) %}
     {%- set doc = make_config_field_doc(field) %}
@@ -90,7 +92,7 @@ ServiceConfig = (
 {% if loop.first %}    {{ service_to_pascal(name) }}Config{% else %}    | {{ service_to_pascal(name) }}Config{% endif %}
 {%- endfor %}
 )
-"""Discriminated union of every service configuration, keyed on ``scheme``."""
+"""Discriminated union of every service configuration, keyed on `scheme`."""
 
 __all__ = [
     "ServiceConfig",

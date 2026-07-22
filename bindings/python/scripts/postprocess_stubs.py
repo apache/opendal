@@ -52,6 +52,7 @@ SUBMODULES = (
 IMPORTS = {
     "operator": (
         "import collections.abc\n"
+        "from .config import ServiceConfig\n"
         "from .file import AsyncFile\n"
         "from .services import Scheme\n"
         "from .types import Entry, PresignedRequest\n"

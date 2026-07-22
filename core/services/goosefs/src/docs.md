@@ -10,6 +10,7 @@ This service can be used to:
 - [x] list
 - [ ] copy
 - [x] rename
+- [x] rename (if_not_exists)
 - [ ] presign
 
 ## Notes
@@ -23,6 +24,8 @@ Features:
 - **Block-level I/O**: Data reads/writes go through block-level gRPC bidirectional streaming.
 - **Consistent hash routing**: Worker selection uses consistent hashing on block IDs.
 - **All WriteTypes**: Supports MUST_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH.
+- **Conditional Create**: `write_with_if_not_exists` publishes via Master no-replace
+  rename (`rename_with_if_not_exists`); destination is never deleted on the Create path.
 
 ## Configuration
 

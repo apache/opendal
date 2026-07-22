@@ -33,7 +33,8 @@ use prometheus::register_histogram_vec_with_registry;
 use prometheus::register_int_counter_vec_with_registry;
 use prometheus::register_int_gauge_vec_with_registry;
 
-/// Add [prometheus](https://docs.rs/prometheus) metrics for OpenDAL operations and HTTP fetches.
+/// `PrometheusLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [prometheus](https://docs.rs/prometheus).
 ///
 /// # Prometheus Metrics
 ///

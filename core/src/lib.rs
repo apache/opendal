@@ -32,11 +32,23 @@ pub extern crate opendal_testkit as tests;
 /// This function is safe to call multiple times. It registers enabled services
 /// and installs the default HTTP transport when the corresponding feature is
 /// enabled.
+///
+/// # Process-wide HTTP transport
+///
+/// When `auto-register-services` is enabled, a process constructor calls this
+/// function before `main`. If a default HTTP transport feature is also enabled,
+/// that transport occupies the process-wide default because
+/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+///
+/// Applications that need to install their own process-wide transport should
+/// disable `auto-register-services`, call [`init_default_registry`] explicitly
+/// when URI-based construction is needed, and install the transport themselves.
+/// Per-operator transports can be configured regardless of this setting.
 pub fn install_default() {
     init_default_registry();
 
     #[cfg(feature = "http-transport-reqwest")]
-    HttpTransporter::install_default(opendal_http_transport_reqwest::ReqwestTransport::default());
+    opendal_http_transport_reqwest::install_default();
 }
 
 /// Initialize the global [`OperatorRegistry`] with enabled services.

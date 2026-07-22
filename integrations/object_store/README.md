@@ -33,7 +33,7 @@ Add the following dependencies to your `Cargo.toml` with correct version:
 
 ```toml
 [dependencies]
-object_store = "0.11.0"
+object_store = "0.14.1"
 object_store_opendal =  "xxx"   # see the latest version above
 opendal = { version = "xxx", features = ["services-s3"] }  # see the latest version above
 ```
@@ -45,7 +45,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use object_store::path::Path;
-use object_store::ObjectStore;
+use object_store::ObjectStoreExt;
 use object_store_opendal::OpendalStore;
 use opendal::services::S3;
 use opendal::{Builder, Operator};
@@ -85,75 +85,6 @@ async fn main() {
     assert_eq!(content, bytes);
 }
 ```
-
-### 2. querying data in a S3 bucket using DataFusion
-
-Add the following dependencies to your `Cargo.toml` with correct version:
-
-```toml
-[dependencies]
-object_store = "0.13.1"
-object_store_opendal = "xxx" # see the latest version above
-opendal = { version = "xxx", features = ["services-s3"] } # see the latest version above
-datafusion = "53.0.0"
-url = "2.5.2"
-```
-
-Build `OpendalStore` via `opendal::Operator` and register it to `DataFusion`:
-
-```rust
-use datafusion::error::DataFusionError;
-use datafusion::error::Result;
-use datafusion::prelude::*;
-use opendal::services::S3;
-use opendal::Operator;
-use std::sync::Arc;
-use url::Url;
-
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let ctx = SessionContext::new();
-
-    // Configure OpenDAL for S3
-    let region = "my_region";
-    let bucket_name = "my_bucket";
-    let builder = S3::default()
-        .endpoint("my_endpoint")
-        .bucket(bucket_name)
-        .region(region)
-        .access_key_id("my_access_key")
-        .secret_access_key("my_secret_key");
-    let op = Operator::new(builder).map_err(|err| DataFusionError::External(Box::new(err)))?;
-    let store = object_store_opendal::OpendalStore::new(op);
-
-    // Register the object store
-    let path = format!("s3://{bucket_name}");
-    let s3_url = Url::parse(&path).unwrap();
-    ctx.register_object_store(&s3_url, Arc::new(store));
-
-    // Register CSV file as a table
-    let path = format!("s3://{bucket_name}/csv/data.csv");
-    ctx.register_csv("trips", &path, CsvReadOptions::default())
-        .await?;
-
-    // Execute the query
-    let df = ctx.sql("SELECT * FROM trips LIMIT 10").await?;
-    // Print the results
-    df.show().await?;
-
-    // Dynamic query using the file path directly
-    let ctx = ctx.enable_url_table();
-    let df = ctx
-        .sql(format!(r#"SELECT * FROM '{}' LIMIT 10"#, path).as_str())
-        .await?;
-    // Print the results
-    df.show().await?;
-
-    Ok(())
-}
-```
-
 
 ## WASM support
 

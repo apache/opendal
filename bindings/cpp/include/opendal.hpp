@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "data_structure.hpp"
+#include "layer.hpp"
 
 namespace opendal {
 
@@ -53,9 +54,11 @@ class Operator {
    *
    * @param scheme The scheme of the operator, same as the name of rust doc
    * @param config The configuration of the operator, same as the service doc
+   * @param options Optional layers to apply during construction
    */
   Operator(std::string_view scheme,
-           const std::unordered_map<std::string, std::string> &config = {});
+           const std::unordered_map<std::string, std::string> &config = {},
+           std::vector<std::unique_ptr<OperatorOption>> options = {});
 
   // Disable copy and assign
   Operator(const Operator &) = delete;

@@ -49,7 +49,8 @@ const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
-/// Add [hotpath](https://docs.rs/hotpath/) profiling for every operation.
+/// `HotpathLayer` profiles every operation with
+/// [hotpath](https://docs.rs/hotpath/).
 ///
 /// # Notes
 ///

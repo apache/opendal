@@ -29,7 +29,8 @@ use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
 
-/// Add [opentelemetry::metrics] for OpenDAL operations and HTTP fetches.
+/// `OtelMetricsLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [opentelemetry::metrics].
 ///
 /// This layer records operation metrics from OpenDAL API calls and HTTP metrics
 /// from requests made through OpenDAL's HTTP fetcher.

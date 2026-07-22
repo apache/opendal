@@ -46,6 +46,7 @@ nav:
       - AsyncFile: api/async_file.md
       - AsyncOperator: api/async_operator.md
       - Capability: api/capability.md
+      - Config: api/config.md
       - Exceptions: api/exceptions.md
       - File: api/file.md
       - Layers: api/layers.md

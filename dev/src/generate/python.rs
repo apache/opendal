@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{ConfigType, Services, sorted_services};
+use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
@@ -36,20 +36,35 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
+    env.add_template("python_config", include_str!("python_config.j2"))?;
     env.add_function("snake_to_kebab_case", snake_to_kebab_case);
     env.add_function("service_to_feature", service_to_feature);
     env.add_function("service_to_pascal", service_to_pascal);
     env.add_function("make_python_type", make_python_type);
     env.add_function("make_pydoc_param_header", make_pydoc_param_header);
     env.add_function("make_pydoc_param", make_pydoc_param);
-    let tmpl = env.get_template("python")?;
+    env.add_function("make_config_field_type", make_config_field_type);
+    env.add_function("make_config_field_doc", make_config_field_doc);
+    env.add_function("config_field_is_required", config_field_is_required);
 
+    // Generate the `Scheme` enum (Rust).
+    let tmpl = env.get_template("python")?;
     let output = workspace_dir.join("bindings/python/src/services.rs");
     let mut rendered = tmpl.render(context! { srvs => srvs })?;
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }
     fs::write(output, rendered)?;
+
+    // Generate the typed service config TypedDicts (Python).
+    let tmpl = env.get_template("python_config")?;
+    let output = workspace_dir.join("bindings/python/python/opendal/config.py");
+    let mut rendered = tmpl.render(context! { srvs => srvs })?;
+    if !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+    fs::write(output, rendered)?;
+
     Ok(())
 }
 
@@ -227,6 +242,99 @@ pub fn make_pydoc_param(
     Ok(format_text(&desc_parts.join(". "), 20, 72)
         .trim_end()
         .to_string())
+}
+
+/// Field names that denote a local filesystem path, for which the generated
+/// config item type is widened to accept `os.PathLike[str]` in addition to
+/// `str`. Kept intentionally small and explicit.
+fn is_path_like_field(name: &str) -> bool {
+    matches!(name, "root" | "atomic_write_dir")
+}
+
+/// Render the Python type annotation for a generated `TypedDict` item.
+///
+/// Returns only the *base* value type (no `Required[...]`/`NotRequired[...]`
+/// wrapper — the template applies that based on `config_field_is_required`).
+/// Curated path-like `String` fields are widened to `str | os.PathLike[str]`.
+fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    Ok(match field.value {
+        ConfigType::Bool => "bool".to_string(),
+        // Duration is typed `str` (a humantime string, e.g. "5s"). See #7887:
+        // core cannot yet deserialize Duration config fields from strings.
+        ConfigType::Duration => "str".to_string(),
+        ConfigType::Usize
+        | ConfigType::U64
+        | ConfigType::I64
+        | ConfigType::U32
+        | ConfigType::U16 => "int".to_string(),
+        ConfigType::Vec => "list[str]".to_string(),
+        ConfigType::HashMap => "dict[str, str]".to_string(),
+        ConfigType::String => {
+            if is_path_like_field(&field.name) {
+                "str | os.PathLike[str]".to_string()
+            } else {
+                "str".to_string()
+            }
+        }
+    })
+}
+
+/// Whether a generated `TypedDict` item is `Required[...]`.
+///
+/// The base `TypedDict` is declared `total=False`, so every item is optional
+/// (`NotRequired`) unless it is a required core field. `bool` flags are always
+/// treated as optional, matching the Java binding and historical stub-gen.
+fn config_field_is_required(field: ViaDeserialize<Config>) -> Result<bool, minijinja::Error> {
+    Ok(!field.optional && field.value != ConfigType::Bool)
+}
+
+/// Render the field docstring body, ready to embed in a `"""..."""` docstring.
+///
+/// Returns an empty string when there is nothing to document (the template then
+/// omits the docstring). Backslashes and `"""` runs are escaped, and a trailing
+/// `"` is escaped so it cannot merge with the closing delimiter.
+fn make_config_field_doc(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+    let mut parts = Vec::new();
+    let comments = field.comments.trim();
+    if !comments.is_empty() {
+        let normalized = comments.replace('\n', " ");
+        if !normalized.is_empty() {
+            parts.push(normalized);
+        }
+    }
+
+    match field.value {
+        ConfigType::Duration => parts.push(
+            "A human readable duration string, e.g. \"5s\" (see \
+             https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."
+                .to_string(),
+        ),
+        ConfigType::Vec => {
+            parts.push("A list of strings; serialized as a \",\" separated value.".to_string())
+        }
+        _ => {}
+    }
+
+    if let Some(deprecated) = &field.deprecated {
+        parts.push(format!(
+            "[Deprecated since {}] {}",
+            deprecated.since,
+            deprecated.note.trim()
+        ));
+    }
+
+    Ok(escape_docstring(&parts.join(" ")))
+}
+
+/// Make a string safe to place inside a Python triple-quoted docstring.
+fn escape_docstring(text: &str) -> String {
+    let mut out = text.replace('\\', "\\\\").replace(r#"""""#, r#"\"\"\""#);
+    // A docstring body ending in `"` would merge with the closing `"""`.
+    if out.ends_with('"') {
+        out.pop();
+        out.push_str("\\\"");
+    }
+    out
 }
 
 fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {

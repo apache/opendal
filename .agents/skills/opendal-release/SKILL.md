@@ -16,7 +16,7 @@ The primary repository runbook is `website/community/release/release.md`. The sp
 - Use `gh` for GitHub PRs, issues, discussions, checks, and Actions logs.
 - Do not use web search for repository state. Query live GitHub, SVN, Nexus, crates.io, PyPI, npm, and Maven URLs directly.
 - Do not claim any step succeeded until the external system confirms it.
-- Do not reuse an RC tag after `main` advances. Preserve the old RC and increment the RC number.
+- Treat an RC as bound to its signed tag, target commit, and generated artifacts. Do not create a new RC merely because `main` advances after tagging.
 - Do not assume bindings or integrations share the top-level OpenDAL version. Each released binding or integration can have its own version.
 - Do not start a public vote with broken links, open Maven staging, missing SVN artifacts, or incomplete required workflows.
 - Do not conflate Nexus `Close` before voting with Nexus `Release` after the vote passes.
@@ -76,7 +76,7 @@ If a release fails before `official-release`, abandon that RC, clean up wrong st
    - `opendal_version`: final release version, for example `0.56.0`.
    - `release_version`: RC version, for example `0.56.0-rc.4`.
    - Package-specific versions from `dev/src/release/package.rs`.
-   - Existing RC numbers. If `main` advanced after the latest RC, use the next RC number.
+   - Existing RC numbers. Use the next RC number only when the previous RC is intentionally abandoned because artifacts or release gates failed, the vote failed, or the release manager explicitly wants a new commit included.
 
 ## Bump And Release Notes
 
@@ -119,7 +119,7 @@ git tag -v "v${release_version}"
 git push "${apache_remote}" "v${release_version}"
 ```
 
-If a new commit lands after an RC tag and before the release is final, do not move the tag. Create the next RC tag.
+If a new commit lands after an RC tag and before the release is final, do not move the tag. Continue with the existing RC unless the release manager explicitly wants that commit included or the existing RC artifacts, release gates, or vote fail. In those cases, create the next RC tag at the intended commit.
 
 ## Required CI Gate
 
@@ -301,6 +301,7 @@ Issue `apache/opendal#7435` tracks automating the RC pre-vote close step.
 Run this checklist immediately before creating the vote discussion:
 
 - RC tag exists and points to the intended commit.
+- A newer `main` SHA does not invalidate an existing RC by itself; the vote is on the RC tag and uploaded artifacts.
 - Required RC workflows are `completed/success`.
 - `dist/dev/opendal/${release_version}/` exists and contains all generated source artifacts.
 - The artifact filenames in `dist/dev` match the package-specific versions from `dev/src/release/package.rs`.

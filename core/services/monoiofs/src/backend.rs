@@ -107,7 +107,7 @@ impl Service for MonoiofsBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let meta = self
             .core
             .dispatch(move || monoio::fs::metadata(path))
@@ -128,7 +128,7 @@ impl Service for MonoiofsBackend {
         Ok(RpStat::new(m))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         Ok(oio::PositionReader::new(MonoiofsPositionReader::new(
             self.core.clone(),
             path,
@@ -163,7 +163,7 @@ impl Service for MonoiofsBackend {
         to: &str,
         _args: OpRename,
     ) -> Result<RpRename> {
-        let from = self.core.prepare_path(from)?;
+        let from = self.core.root_join(from)?;
         // ensure file exists
         self.core
             .dispatch({
@@ -186,7 +186,7 @@ impl Service for MonoiofsBackend {
         path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         self.core
             .dispatch(move || monoio::fs::create_dir_all(path))
             .await
@@ -203,7 +203,7 @@ impl Service for MonoiofsBackend {
         _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
-        let from = self.core.prepare_path(from)?;
+        let from = self.core.root_join(from)?;
         let to = to.to_string();
 
         let copier = oio::OneShotCopier::new(async move {

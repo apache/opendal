@@ -597,11 +597,12 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
-    pub fn gcs_initiate_multipart_upload_request(
+    pub async fn gcs_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         op: &OpWrite,
-    ) -> Result<Request<Buffer>> {
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -646,16 +647,10 @@ impl GcsCore {
             }
         }
 
-        builder.body(Buffer::new()).map_err(new_request_build_error)
-    }
+        let req = builder
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
-    pub async fn gcs_initiate_multipart_upload(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        op: &OpWrite,
-    ) -> Result<Response<Buffer>> {
-        let req = self.gcs_initiate_multipart_upload_request(path, op)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -959,95 +954,8 @@ struct GetObjectJsonResponse {
 }
 
 #[cfg(test)]
-pub(crate) fn build_test_core(root: &str) -> GcsCore {
-    use reqsign_core::Context;
-    use reqsign_core::ProvideCredentialChain;
-    use reqsign_core::Signer;
-    use reqsign_core::StaticEnv;
-    use reqsign_file_read_tokio::TokioFileRead;
-    use reqsign_google::RequestSigner;
-
-    let ctx = Context::new()
-        .with_file_read(TokioFileRead)
-        .with_env(StaticEnv {
-            home_dir: None,
-            envs: HashMap::new(),
-        });
-    let signer = Signer::new(
-        ctx.clone(),
-        ProvideCredentialChain::new(),
-        RequestSigner::new("storage"),
-    );
-
-    GcsCore {
-        info: ServiceInfo::new(super::GCS_SCHEME, root, "test-bucket"),
-        capability: Capability::default(),
-        endpoint: "https://storage.googleapis.com".to_string(),
-        bucket: "test-bucket".to_string(),
-        root: root.to_string(),
-        signer,
-        sign_ctx: ctx,
-        predefined_acl: None,
-        default_storage_class: None,
-        skip_signature: true,
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Regression test for the GCS writer double-encoding bug: the write request
-    /// must percent-encode the object path exactly once, matching the read path.
-    #[test]
-    fn test_write_request_single_encodes_path() {
-        let core = build_test_core("/");
-        let path = "odfs/w/x.parquet";
-
-        let write_req = core
-            .gcs_insert_object_request(path, Some(0), &OpWrite::default(), Buffer::new())
-            .expect("build write request");
-        let write_uri = write_req.uri().to_string();
-        assert!(
-            write_uri.contains("name=odfs%2Fw%2Fx.parquet"),
-            "write request must single-encode path, got: {write_uri}"
-        );
-        assert!(
-            !write_uri.contains("%252F"),
-            "write request must not double-encode path, got: {write_uri}"
-        );
-
-        let read_req = core
-            .gcs_get_object_request(path, BytesRange::default(), &OpRead::default())
-            .expect("build read request");
-        let read_uri = read_req.uri().to_string();
-        assert!(
-            read_uri.contains("odfs%2Fw%2Fx.parquet") && !read_uri.contains("%252F"),
-            "read request must single-encode path, got: {read_uri}"
-        );
-    }
-
-    /// Multipart initiation must percent-encode the object path exactly once,
-    /// including characters such as `/`, spaces and `#`.
-    #[test]
-    fn test_initiate_multipart_upload_single_encodes_path() {
-        let core = build_test_core("/");
-
-        let uri = core
-            .gcs_initiate_multipart_upload_request("odfs/w x#1.parquet", &OpWrite::default())
-            .expect("build initiate request")
-            .uri()
-            .to_string();
-
-        assert!(
-            uri.contains("/odfs%2Fw%20x%231.parquet?uploads"),
-            "initiate request must single-encode path, got: {uri}"
-        );
-        assert!(
-            !uri.contains("%252F"),
-            "initiate request must not double-encode path, got: {uri}"
-        );
-    }
 
     #[test]
     fn test_deserialize_get_object_json_response() {

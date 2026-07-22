@@ -106,7 +106,8 @@ void Operator::Destroy() noexcept {
 }
 
 Operator::Operator(std::string_view scheme,
-                   const std::unordered_map<std::string, std::string> &config) {
+                   const std::unordered_map<std::string, std::string> &config,
+                   std::vector<std::unique_ptr<OperatorOption>> options) {
   auto rust_map = rust::Vec<ffi::HashMapValue>();
   rust_map.reserve(config.size());
 
@@ -114,7 +115,15 @@ Operator::Operator(std::string_view scheme,
     rust_map.push_back({utils::rust_string(k), utils::rust_string(v)});
   }
 
-  operator_ = ffi::new_operator(utils::rust_str(scheme), rust_map);
+  auto layers = ffi::layer_builder_new();
+  FfiLayerBuilderMutator mutator(*layers);
+  for (const auto &option : options) {
+    if (option != nullptr) {
+      option->ApplyTo(mutator);
+    }
+  }
+
+  operator_ = ffi::new_operator(utils::rust_str(scheme), rust_map, *layers);
 }
 
 Operator::~Operator() noexcept { Destroy(); }

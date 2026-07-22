@@ -26,12 +26,12 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an Instrument await-tree for actor-based applications to the underlying services.
+/// `AwaitTreeLayer` instruments service operations for actor-based applications.
 ///
 /// # AwaitTree
 ///
-/// await-tree allows developers to dump this execution tree at runtime,
-/// with the span of each Future annotated by instrument_await.
+/// `await-tree` lets developers dump the execution tree at runtime and annotates
+/// each future's span with `instrument_await`.
 /// Read more about [await-tree](https://docs.rs/await-tree/latest/await_tree/)
 ///
 /// # Examples

@@ -1404,7 +1404,7 @@ public interface ServiceConfig {
          * <p>When multiple addresses are provided, the client uses
          * <code>PollingMasterInquireClient</code> to discover the Primary Master automatically.</p>
          * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
-         * <code>goosefs-sdk</code> <code>docs/CLIENT_CONFIGURATION.md</code> §1:</p>
+         * <a href="https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md">goosefs-sdk <code>docs/CLIENT_CONFIGURATION.md</code></a> §1:</p>
          * <ol>
          * <li>This field (when set on the builder / OpenDAL config map)</li>
          * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>

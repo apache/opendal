@@ -39,7 +39,7 @@ impl oio::Write for HdfsNativeWriter {
         let len = buf.len() as u64;
 
         for bs in buf.by_ref() {
-            self.f.write(bs).await.map_err(parse_hdfs_error)?;
+            self.f.write_bytes(bs).await.map_err(parse_hdfs_error)?;
         }
 
         self.size += len;

@@ -18,13 +18,13 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-/// Operation is the name of the operation that is being performed.
+/// Identifies the operation being performed.
 ///
-/// Most operations can be mapped to the methods of the `Access` trait,
-/// but we modify the names to make them more readable and clear for users.
+/// Most variants map to methods on the `Access` trait, although some names
+/// differ to improve readability.
 ///
-/// The same operation might have different meanings and costs in different
-/// storage services.
+/// An operation might have different meanings and costs depending on a
+/// storage service.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Operation {

@@ -93,7 +93,7 @@ impl Builder for FtpBuilder {
     type Config = FtpConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("ftp backend build started: {:?}", &self);
+        debug!("ftp backend build started: {:?}", self);
         let endpoint = match &self.config.endpoint {
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
             Some(v) => v,

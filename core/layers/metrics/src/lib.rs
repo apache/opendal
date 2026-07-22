@@ -28,11 +28,12 @@ use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
 
-/// Add [metrics](https://docs.rs/metrics/) for every operation.
+/// `MetricsLayer` records every operation with
+/// [metrics](https://docs.rs/metrics/).
 ///
 /// # Metrics
 ///
-/// We provide several metrics, please see the documentation of [`observe`] module.
+/// The [`observe`] module documents the metrics this layer records.
 ///
 /// # Notes
 ///
@@ -57,7 +58,7 @@ use opendal_layer_observe_metrics_common as observe;
 ///
 /// # Output
 ///
-/// OpenDAL is using [`metrics`](https://docs.rs/metrics/latest/metrics/) for metrics internally.
+/// OpenDAL uses [`metrics`](https://docs.rs/metrics/latest/metrics/) internally.
 ///
 /// To enable metrics output, please enable one of the exporters that `metrics` supports.
 ///

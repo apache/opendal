@@ -231,7 +231,9 @@ impl GoosefsCore {
 
     pub async fn delete(&self, path: &str) -> Result<()> {
         let full = self.full_path(path);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
+        ctx.invalidate_file_info(&full);
         match master.delete(&full, false).await {
             Ok(()) => Ok(()),
             Err(e) => {
@@ -245,29 +247,37 @@ impl GoosefsCore {
         }
     }
 
-    pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
+    /// Rename `from` → `to`.
+    ///
+    /// When `if_not_exists` is true this is the authoritative publish step for
+    /// `write_with_if_not_exists` (Lance `PutMode::Create`). Conflict detection
+    /// is GooseFS Master no-replace rename
+    /// (`DefaultFileSystemMaster.renameInternal` → `FileAlreadyExistsException`
+    /// → gRPC ALREADY_EXISTS), reached via `MasterClient::rename`. Not a prior
+    /// `get_status`. Destination must never be deleted when `if_not_exists` is
+    /// true.
+    ///
+    /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
+    /// contract for rename:
+    ///
+    /// 1. Destination parent directory is created on demand.
+    /// 2. If the destination exists as a file and `if_not_exists` is false,
+    ///    overwrite by deleting it first. Never delete when `if_not_exists`
+    ///    is true (that would destroy Master no-replace and re-introduce
+    ///    TOCTOU overwrite).
+    /// 3. If the destination exists as a directory, surface `IsADirectory`.
+    ///
+    /// Source NotFound is reported by the underlying `rename` RPC, so we
+    /// don't pre-stat the source.
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
         let src = self.full_path(from);
         let dst = self.full_path(to);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
 
-        // Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's
-        // behavior contract for rename (see `rename_test.go::testRenameNested`
-        // and `testRenameOverwrite`):
-        //
-        //   1. Destination parent directory is created on demand
-        //      (`testRenameNested` writes to `<uuid>/<uuid>/<uuid>` without
-        //      mkdir'ing intermediate levels first; S3-style backends treat
-        //      this as implicit, fs-style backends must emulate it).
-        //   2. If the destination exists as a file, overwrite by deleting
-        //      it first (`testRenameOverwrite`). GooseFS `rename` itself
-        //      would otherwise return AlreadyExists.
-        //   3. If the destination exists as a directory, surface
-        //      IsADirectory — matches the error code the behavior tests
-        //      assert in `testRenameTargetDir`.
-        //
-        // Source NotFound is reported by the underlying `rename` RPC
-        // (`testRenameNonExistingSource` expects `NotFound`), so we don't
-        // pre-stat the source.
+        ctx.invalidate_file_info(&src);
+        ctx.invalidate_file_info(&dst);
+
         match master.get_status(&dst).await {
             Ok(info) => {
                 if info.folder.unwrap_or(false) {
@@ -279,9 +289,19 @@ impl GoosefsCore {
                     .with_context("from", from)
                     .with_context("to", to));
                 }
-                // Destination is an existing file — delete it so the
-                // subsequent rename can overwrite atomically at the
-                // master level.
+                if if_not_exists {
+                    // Fast-path only. Authoritative race check is master.rename
+                    // below (AlreadyExists → ConditionNotMatch).
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "target path already exists while if_not_exists is set",
+                    )
+                    .with_context("service", super::GOOSEFS_SCHEME)
+                    .with_context("from", from)
+                    .with_context("to", to));
+                }
+                // Overwrite path ONLY. Master rename rejects existing dst;
+                // delete first so overwrite can proceed.
                 master.delete(&dst, false).await.map_err(parse_error)?;
             }
             Err(goosefs_sdk::error::Error::NotFound { .. }) => {
@@ -299,7 +319,29 @@ impl GoosefsCore {
             Err(e) => return Err(parse_error(e)),
         }
 
-        master.rename(&src, &dst).await.map_err(parse_error)
+        match master.rename(&src, &dst).await {
+            Ok(()) => {
+                // Same inode id moved (Master RenameEntry.setId(srcInode.getId()))
+                // — not a fresh inode. Drop any cached FileInfo so a reader
+                // opening `dst` immediately after sees current metadata.
+                ctx.invalidate_file_info(&src);
+                ctx.invalidate_file_info(&dst);
+                Ok(())
+            }
+            // Authoritative TOCTOU close: concurrent winner published between
+            // get_status and this RPC. Master FileAlreadyExistsException →
+            // gRPC ALREADY_EXISTS → SDK Error::AlreadyExists.
+            Err(goosefs_sdk::error::Error::AlreadyExists { .. }) if if_not_exists => {
+                Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "target path already exists while if_not_exists is set",
+                )
+                .with_context("service", super::GOOSEFS_SCHEME)
+                .with_context("from", from)
+                .with_context("to", to))
+            }
+            Err(e) => Err(parse_error(e)),
+        }
     }
 
     // ── Data I/O Operations ──────────────────────────────────
@@ -476,6 +518,11 @@ impl GoosefsCore {
             && let Ok(ts) = Timestamp::from_millisecond(mtime)
         {
             metadata.set_last_modified(ts);
+        }
+        // GooseFS Master rename preserves the same inode id; use it as etag
+        // for cache keys / checkout short-circuit (not commit conflict detection).
+        if let Some(fid) = info.file_id {
+            metadata.set_etag(&fid.to_string());
         }
         metadata
     }

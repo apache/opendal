@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Operator's API will be split into different mods.
+//! This module organizes the `Operator` API into several submodules.
 
 #[allow(clippy::module_inception)]
 mod operator;

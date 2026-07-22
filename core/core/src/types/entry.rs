@@ -18,7 +18,9 @@
 use crate::raw::*;
 use crate::*;
 
-/// Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
+/// `Entry` represents an entry's path and metadata.
+///
+/// [`Lister`] and [`BlockingLister`] return `Entry` values.
 #[derive(Clone, Debug)]
 pub struct Entry {
     /// Path of this entry.

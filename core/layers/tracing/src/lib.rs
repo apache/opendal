@@ -35,7 +35,8 @@ use tracing::Level;
 use tracing::Span;
 use tracing::span;
 
-/// Add [tracing](https://docs.rs/tracing/) for every operation.
+/// `TracingLayer` traces every operation with
+/// [tracing](https://docs.rs/tracing/).
 ///
 /// # Examples
 ///

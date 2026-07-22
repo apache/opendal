@@ -196,7 +196,7 @@ impl DbfsCore {
 
         let url = format!(
             "{}/api/2.0/dbfs/get-status?path={}",
-            &self.endpoint,
+            self.endpoint,
             percent_encode_path(&p)
         );
 

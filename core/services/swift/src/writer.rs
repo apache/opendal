@@ -129,7 +129,7 @@ impl oio::MultipartWrite for SwiftWriter {
                     .core
                     .slo_segment_path(&self.path, upload_id, part.part_number);
                 SloManifestEntry {
-                    path: format!("{}/{}", &self.core.container, segment),
+                    path: format!("{}/{}", self.core.container, segment),
                     etag: part.etag.trim_matches('"').to_string(),
                     size_bytes: part.size.unwrap_or(0),
                 }

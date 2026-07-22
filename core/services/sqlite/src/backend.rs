@@ -188,7 +188,6 @@ impl SqliteBackend {
             stat: true,
             write_can_empty: true,
             list: false,
-            shared: false,
             ..Default::default()
         };
 

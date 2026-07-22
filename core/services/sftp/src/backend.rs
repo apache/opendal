@@ -124,7 +124,7 @@ impl Builder for SftpBuilder {
     type Config = SftpConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("sftp backend build started: {:?}", &self);
+        debug!("sftp backend build started: {:?}", self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -192,7 +192,7 @@ impl Builder for SftpBuilder {
             known_hosts_strategy,
         ));
 
-        debug!("sftp backend finished: {:?}", &self);
+        debug!("sftp backend finished: {:?}", self);
         Ok(SftpBackend { core })
     }
 }

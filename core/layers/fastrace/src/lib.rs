@@ -27,9 +27,10 @@ use fastrace::prelude::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add [fastrace](https://docs.rs/fastrace/) for every operation.
+/// `FastraceLayer` traces every operation with
+/// [fastrace](https://docs.rs/fastrace/).
 ///
-/// The layer creates spans for service calls and for deferred operation bodies
+/// It creates spans for service calls and deferred operation bodies
 /// such as readers, writers, listers, deleters, and copiers.
 ///
 /// # Examples

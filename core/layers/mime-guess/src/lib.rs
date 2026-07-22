@@ -25,29 +25,26 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// A layer that can automatically set `Content-Type` based on the file extension in the path.
+/// `MimeGuessLayer` sets `Content-Type` from a path's file extension.
 ///
 /// # MimeGuess
 ///
 /// This layer uses [mime_guess](https://crates.io/crates/mime_guess) to automatically
 /// set `Content-Type` based on the file extension in the operation path.
 ///
-/// However, please note that this layer will not overwrite the `content_type` you manually set,
-/// nor will it overwrite the `content_type` provided by backend services.
+/// The layer preserves any `content_type` that callers or services set.
 ///
-/// A simple example is that for object storage backends, when you call `stat`, the backend will
-/// provide `content_type` information, and `mime_guess` will not be called, but will use
-/// the `content_type` provided by the backend.
+/// For example, object storage services often return `content_type` from `stat`.
+/// In that case, the layer keeps the service's value and skips MIME guessing.
 ///
-/// But if you use the [Fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html) backend to call `stat`, the backend will
-/// not provide `content_type` information, and our `mime_guess` will be called to provide you with
-/// appropriate `content_type` information.
+/// The [Fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html)
+/// service might omit `content_type` from `stat`, so the layer derives a value
+/// from the path's extension.
 ///
-/// Another thing to note is that using this layer does not necessarily mean that the result will 100%
-/// contain `content_type` information. If the extension of your path is custom or an uncommon type,
-/// the returned result will still not contain `content_type` information (the specific condition here is
-/// when [mime_guess::from_path::first_raw](https://docs.rs/mime_guess/latest/mime_guess/struct.MimeGuess.html#method.first_raw)
-/// returns `None`).
+/// The layer cannot infer every custom or uncommon extension. It leaves
+/// `content_type` empty when
+/// [mime_guess::from_path::first_raw](https://docs.rs/mime_guess/latest/mime_guess/struct.MimeGuess.html#method.first_raw)
+/// returns `None`.
 ///
 /// # Examples
 ///

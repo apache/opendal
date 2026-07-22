@@ -422,7 +422,7 @@ impl AzblobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=appendblock", &self.build_path_url(path));
+        let url = format!("{}?comp=appendblock", self.build_path_url(path));
 
         let mut req = Request::put(&url)
             .header(CONTENT_LENGTH, size)
@@ -576,7 +576,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
+        let url = format!("{}?comp=blocklist", self.build_path_url(path));
 
         let req = Request::put(&url);
 
@@ -626,7 +626,7 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpCopy,
     ) -> Result<Request<Buffer>> {
-        let url = format!("{}?comp=blocklist", &self.build_path_url(path));
+        let url = format!("{}?comp=blocklist", self.build_path_url(path));
 
         let mut req = Request::put(&url);
 

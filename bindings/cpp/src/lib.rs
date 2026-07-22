@@ -17,9 +17,15 @@
 
 #[cfg(feature = "async")]
 mod r#async;
+mod layer;
 mod lister;
 mod reader;
 mod types;
+
+#[cfg(feature = "testing")]
+mod test_support;
+
+pub use layer::LayerBuilder;
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -130,9 +136,25 @@ mod ffi {
         type Operator;
         type Reader;
         type Lister;
+        type LayerBuilder;
+
+        fn layer_builder_new() -> Box<LayerBuilder>;
+        fn add_timeout(self: &mut LayerBuilder, timeout_ns: u64, io_timeout_ns: u64);
+        fn add_retry(
+            self: &mut LayerBuilder,
+            jitter: bool,
+            factor: f32,
+            min_delay_ns: u64,
+            max_delay_ns: u64,
+            max_times: u64,
+        );
 
         // cxx::UniquePtr isn't yet supported in stable Rust. We'll adopt it once support becomes available
-        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<*mut Operator>;
+        fn new_operator(
+            scheme: &str,
+            configs: Vec<HashMapValue>,
+            layers: &LayerBuilder,
+        ) -> Result<*mut Operator>;
         unsafe fn delete_operator(op: *mut Operator);
 
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
@@ -154,12 +176,34 @@ mod ffi {
 
         unsafe fn delete_lister(lister: *mut Lister);
         fn next(self: &mut Lister) -> Result<OptionalEntry>;
+
+        #[cfg(feature = "testing")]
+        fn new_test_hanging_operator(layers: &LayerBuilder) -> Result<*mut Operator>;
+        #[cfg(feature = "testing")]
+        fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator>;
+        #[cfg(feature = "testing")]
+        fn test_retryable_attempt_count() -> u64;
     }
 }
 
 pub struct Operator(od::blocking::Operator);
 
-fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Operator> {
+fn into_blocking_operator(op: od::Operator) -> Result<Operator> {
+    let runtime =
+        tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
+    let _guard = runtime.enter();
+    Ok(Operator(od::blocking::Operator::new(op)?))
+}
+
+fn layer_builder_new() -> Box<LayerBuilder> {
+    Box::new(LayerBuilder::new())
+}
+
+fn new_operator(
+    scheme: &str,
+    configs: Vec<ffi::HashMapValue>,
+    layers: &LayerBuilder,
+) -> Result<*mut Operator> {
     let map: HashMap<String, String> = configs
         .into_iter()
         .map(|value| (value.key, value.value))
@@ -167,16 +211,28 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Op
 
     od::init_default_registry();
 
-    let runtime =
-        tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
-    let _guard = runtime.enter();
-
     let op = od::Operator::via_iter(scheme, map)?;
-    let op = od::blocking::Operator::new(op)?;
+    let op = layers.apply(op);
+    let op = into_blocking_operator(op)?;
 
-    let op = Box::into_raw(Box::new(Operator(op)));
+    let op = Box::into_raw(Box::new(op));
 
     Ok(op)
+}
+
+#[cfg(feature = "testing")]
+fn new_test_hanging_operator(layers: &LayerBuilder) -> Result<*mut Operator> {
+    test_support::new_hanging_operator(layers)
+}
+
+#[cfg(feature = "testing")]
+fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator> {
+    test_support::new_retryable_operator(layers)
+}
+
+#[cfg(feature = "testing")]
+fn test_retryable_attempt_count() -> u64 {
+    test_support::retryable_attempt_count() as u64
 }
 
 unsafe fn delete_operator(op: *mut Operator) {

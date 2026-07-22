@@ -171,8 +171,6 @@ impl Builder for CloudflareKvBuilder {
                     delete: true,
                     delete_max_size: Some(10000),
 
-                    shared: false,
-
                     ..Default::default()
                 },
             }),

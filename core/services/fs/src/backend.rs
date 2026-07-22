@@ -67,7 +67,7 @@ impl Builder for FsBuilder {
     type Config = FsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = match self.config.root.map(PathBuf::from) {
             Some(root) => Ok(root),

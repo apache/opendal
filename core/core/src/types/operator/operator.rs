@@ -32,9 +32,37 @@ use crate::*;
 /// For more details about the `Operator`, refer to the concepts section in the
 /// crate documentation.
 ///
-/// `Operator` is immutable: methods that change layers, HTTP transport, or
+/// ## Immutability
+///
+/// `Operator` is immutable: methods that change layers, the HTTP transport, or the
 /// executor return a new operator. Existing clones and in-flight operations keep
-/// using the service stack and operation context they already hold.
+/// using the service stack and operation context they already hold. For example,
+/// a lister created before the operator is changed continues to use the previous
+/// configuration.
+///
+/// ### Example
+///
+/// ```
+/// use futures::TryStreamExt;
+/// use opendal_core::services::Memory;
+/// use opendal_core::{OperationContext, Operator, Result};
+///
+/// async fn example() -> Result<()> {
+///     let op = Operator::new(Memory::default())?;
+///     let mut lister = op.lister("/").await?;
+///
+///     // Replacing the context returns a new operator.
+///     let new_op = op.with_context(OperationContext::new());
+///     let _ = new_op.list("/").await?;
+///
+///     // The existing lister still uses the context it captured from `op`.
+///     while let Some(entry) = lister.try_next().await? {
+///         println!("{}", entry.path());
+///     }
+///
+///     Ok(())
+/// }
+/// ```
 ///
 /// Internally, an operator keeps base providers and composed dispatch state:
 ///
@@ -106,7 +134,8 @@ use crate::*;
 ///
 /// ## Operate
 ///
-/// After the operator is built and the layers are added, users can start operating the storage.
+/// After building an operator with the desired configuration and layers, users
+/// can start operating on storage.
 ///
 /// The operator is `Send`, `Sync`, and `Clone`. It holds immutable handles, and
 /// storage operation APIs only take a `&self` reference, making it safe to share

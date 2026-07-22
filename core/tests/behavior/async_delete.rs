@@ -246,26 +246,47 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     op.write(path.as_str(), content)
         .await
         .expect("write must success");
-    let meta = op.stat(path.as_str()).await.expect("stat must success");
-    let version = meta.version().expect("must have version");
+    let first_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let first_version = first_meta.version().expect("must have version");
+
+    op.write(path.as_str(), b"second version".to_vec())
+        .await
+        .expect("write must success");
+    let second_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let second_version = second_meta.version().expect("must have version");
+    assert_ne!(first_version, second_version);
 
     op.delete(path.as_str()).await.expect("delete must success");
     assert!(!op.exists(path.as_str()).await?);
 
-    // After a simple delete, the data can still be accessed using its version.
+    // After a simple delete, both versions can still be accessed using their versions.
     let meta = op
         .stat_with(path.as_str())
-        .version(version)
+        .version(first_version)
         .await
         .expect("stat must success");
-    assert_eq!(version, meta.version().expect("must have version"));
+    assert_eq!(first_version, meta.version().expect("must have version"));
+    let meta = op
+        .stat_with(path.as_str())
+        .version(second_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(second_version, meta.version().expect("must have version"));
 
-    // After deleting with the version, the data is removed permanently
+    // After deleting with the version, the data is removed permanently.
     op.delete_with(path.as_str())
-        .version(version)
+        .version(first_version)
         .await
         .expect("delete must success");
-    let ret = op.stat_with(path.as_str()).version(version).await;
+    let ret = op.stat_with(path.as_str()).version(first_version).await;
+    assert!(ret.is_err());
+    assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
+
+    op.delete_with(path.as_str())
+        .version(second_version)
+        .await
+        .expect("delete must success");
+    let ret = op.stat_with(path.as_str()).version(second_version).await;
     assert!(ret.is_err());
     assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
 

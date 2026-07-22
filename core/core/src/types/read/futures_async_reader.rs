@@ -54,6 +54,25 @@ pub struct FuturesAsyncReader {
 /// Safety: FuturesAsyncReader only exposes `&mut self` to the outside world,
 unsafe impl Sync for FuturesAsyncReader {}
 
+impl std::fmt::Debug for FuturesAsyncReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let info = self.ctx.accessor().info();
+        let root = info.root();
+
+        f.debug_struct("FuturesAsyncReader")
+            .field("scheme", &info.scheme())
+            .field("root", &root)
+            .field("path", &self.ctx.path())
+            .field("args", self.ctx.args())
+            .field("options", self.ctx.options())
+            .field("start", &self.start)
+            .field("end", &self.end)
+            .field("pos", &self.pos)
+            .field("buffered", &self.buf.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl FuturesAsyncReader {
     /// NOTE: don't allow users to create FuturesAsyncReader directly.
     ///
@@ -215,8 +234,10 @@ mod tests {
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
-        let v = FuturesAsyncReader::new(ctx, 4..8);
+        fn assert_reader_traits<T: std::fmt::Debug + Unpin + MaybeSend + Sync + 'static>(_: &T) {}
 
+        let v = FuturesAsyncReader::new(ctx, 4..8);
+        assert_reader_traits(&v);
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
         Ok(())
     }

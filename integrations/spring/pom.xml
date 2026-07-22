@@ -41,7 +41,7 @@
 
         <!-- dependency -->
         <lombok.version>1.18.42</lombok.version>
-        <opendal.version>0.48.2</opendal.version>
+        <opendal.version>0.50.0</opendal.version>
         <spring-boot.version>4.0.3</spring-boot.version>
 
         <!-- plugin -->

@@ -32,7 +32,7 @@ all-features = true
 
 [dependencies]
 mea = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 surrealdb = { version = "3", features = ["protocol-http"] }
 

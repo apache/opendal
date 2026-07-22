@@ -33,7 +33,7 @@ all-features = true
 [dependencies]
 bytes = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false, features = [
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false, features = [
   "internal-tokio-rt",
 ] }
 serde = { workspace = true, features = ["derive"] }

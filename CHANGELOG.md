@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.58.1] - 2026-07-24
+
+### Added
+* feat(bindings/python): add from_uri constructor for Operator and AsyncOperator by @chitralverma in https://github.com/apache/opendal/pull/7869
+* feat(core): enable presign delete by @anandubey in https://github.com/apache/opendal/pull/7386
+* feat(core): expose registered schemes via OperatorRegistry::schemes by @chitralverma in https://github.com/apache/opendal/pull/7908
+* feat(binding/go): Add Copier by @FrankYang0529 in https://github.com/apache/opendal/pull/7732
+* feat(binding/cpp): add retry and timeout layer to cpp binding by @dentiny in https://github.com/apache/opendal/pull/7915
+* feat(integrations/parquet): upgrade Arrow and Parquet to 59 by @Xuanwo in https://github.com/apache/opendal/pull/7934
+* feat(bindings/python): typed service configs via TypedDict by @chitralverma in https://github.com/apache/opendal/pull/7937
+* feat(core): not translate to "interrupted" std IO error by @dentiny in https://github.com/apache/opendal/pull/7940
+
+### Changed
+* refactor(bindings/python): split layers into a package for extensibility by @chitralverma in https://github.com/apache/opendal/pull/7878
+
+### Fixed
+* fix(bindings/python): validate RetryLayer numeric inputs by @chitralverma in https://github.com/apache/opendal/pull/7879
+* fix(integrations/dav-server): depend only on opendal-core by @ngg in https://github.com/apache/opendal/pull/7876
+* fix(services/s3): encode version id for stat and read by @QuakeWang in https://github.com/apache/opendal/pull/7886
+* fix(bindings/ruby): release ruby source package include Cargo.lock by @erickguan in https://github.com/apache/opendal/pull/7891
+* fix: CI prints clippy version and clippy fix by @erickguan in https://github.com/apache/opendal/pull/7895
+* fix(s3): set content length for copy object by @ByteBaker in https://github.com/apache/opendal/pull/7884
+* fix(bindings/python): enable hdfs-native on arm by @chitralverma in https://github.com/apache/opendal/pull/7911
+* fix(goosefs): pin goosefs SDK by @erickguan in https://github.com/apache/opendal/pull/7917
+* fix(bindings/java): incorrect Java declarations by @robd003 in https://github.com/apache/opendal/pull/7906
+* fix: defer default reqwest client initialization by @Xuanwo in https://github.com/apache/opendal/pull/7925
+* fix(dev): sync parquet release version to 0.9.0 by @chitralverma in https://github.com/apache/opendal/pull/7936
+* fix(services/gcs): stop double-encoding object paths in writer by @chitralverma in https://github.com/apache/opendal/pull/7927
+* Revert "fix(services/gcs): stop double-encoding object paths in writer" by @erickguan in https://github.com/apache/opendal/pull/7943
+
+### Docs
+* docs(python): fix broken Python API reference links (404) by @chitralverma in https://github.com/apache/opendal/pull/7872
+* docs(python): fix duplicated headings on layers and types API pages by @chitralverma in https://github.com/apache/opendal/pull/7880
+* doc: use plain prose and active tone for bindings by @erickguan in https://github.com/apache/opendal/pull/7902
+* doc: polish website layout and consistency by @erickguan in https://github.com/apache/opendal/pull/7907
+* docs(website): add publications page for papers using OpenDAL by @Shaurya2k06 in https://github.com/apache/opendal/pull/7914
+* docs: clarify default HTTP transport ownership by @Xuanwo in https://github.com/apache/opendal/pull/7924
+* docs: treat release candidates as tag-bound by @Xuanwo in https://github.com/apache/opendal/pull/7874
+* docs: polish inline documentations by @erickguan in https://github.com/apache/opendal/pull/7930
+* docs: correct layer behavior descriptions by @erickguan in https://github.com/apache/opendal/pull/7932
+
+### CI
+* ci: include http transports in rust release plan by @Xuanwo in https://github.com/apache/opendal/pull/7901
+* ci: upgrade nodejs release to npm 12 by @Xuanwo in https://github.com/apache/opendal/pull/7900
+* fix(ci): use NuGet login action instead of manual login nuget by @Fatorin in https://github.com/apache/opendal/pull/7903
+* ci: Fix Haskell CI cabal index update by @dentiny in https://github.com/apache/opendal/pull/7941
+
+### Chore
+* chore(deps): bump bytes from 1.12.0 to 1.12.1 in /core in the http-serialization-utils group across 1 directory by @dependabot[bot] in https://github.com/apache/opendal/pull/7892
+* chore(deps): bump the others group across 1 directory with 6 updates by @dependabot[bot] in https://github.com/apache/opendal/pull/7893
+* chore(deps): upgrade hdfs-native to 0.14 by @chitralverma in https://github.com/apache/opendal/pull/7910
+* chore(goosefs): bump goosefs-sdk to 0.1.8 by @XuQianJin-Stars in https://github.com/apache/opendal/pull/7929
+* chore: include license and notice files in published crates by @ankane in https://github.com/apache/opendal/pull/7931
+* chore(deps): upgrade object_store to 0.14.1 by @Xuanwo in https://github.com/apache/opendal/pull/7935
+
+### New Contributors
+* @anandubey made their first contribution in https://github.com/apache/opendal/pull/7386
+* @ByteBaker made their first contribution in https://github.com/apache/opendal/pull/7884
+* @Shaurya2k06 made their first contribution in https://github.com/apache/opendal/pull/7914
+* @robd003 made their first contribution in https://github.com/apache/opendal/pull/7906
+* @ankane made their first contribution in https://github.com/apache/opendal/pull/7931
+
+**Full Changelog**: https://github.com/apache/opendal/compare/v0.58.0...v0.58.1
+
 ## [v0.58.0] - 2026-07-07
 
 ### Breaking Changes

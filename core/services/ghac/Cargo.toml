@@ -35,8 +35,8 @@ bytes = { workspace = true }
 ghac = { version = "0.3.0", default-features = false }
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
-opendal-service-azblob = { path = "../azblob", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
+opendal-service-azblob = { path = "../azblob", version = "0.58.1", default-features = false }
 prost = { version = "0.14.3", default-features = false }
 reqsign-azure-storage = { version = "3.0.1", default-features = false }
 reqsign-core = { version = "3.0.1", default-features = false }

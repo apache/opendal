@@ -1,3 +1,9 @@
+# Upgrade to v0.9
+
+## Bump Arrow and Parquet versions to v59
+
+`parquet_opendal` now requires `arrow` and `parquet` version 59.0.0 or higher.
+
 # Upgrade to v0.8
 
 ## Bump arrow version to v58

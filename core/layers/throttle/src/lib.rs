@@ -32,14 +32,13 @@ use governor::state::NotKeyed;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add a bandwidth rate limiter to the underlying services.
+/// `ThrottleLayer` limits bandwidth for storage services.
 ///
 /// # Throttle
 ///
-/// There are several algorithms when it come to rate limiting techniques.
-/// This throttle layer uses Generic Cell Rate Algorithm (GCRA) provided by
+/// This layer uses the Generic Cell Rate Algorithm (GCRA) from
 /// [Governor](https://docs.rs/governor/latest/governor/index.html).
-/// By setting the `bandwidth` and `burst`, we can control the byte flow rate of underlying services.
+/// Set `bandwidth` and `burst` to control the service's byte-flow rate.
 ///
 /// # Note
 ///

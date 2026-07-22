@@ -27,7 +27,7 @@ use std::vec::IntoIter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an immutable in-memory index for underlying storage services.
+/// `ImmutableIndexLayer` adds an immutable in-memory index to a storage service.
 ///
 /// Especially useful for services without list capability like HTTP.
 ///

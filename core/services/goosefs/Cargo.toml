@@ -32,10 +32,7 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-# Keep this exact until a fixed release is available: 0.1.6 calls `CString::new`
-# in its io_uring cache store without importing `std::ffi::CString`. Bindings do
-# not commit lockfiles and otherwise resolve that broken release in CI.
-goosefs-sdk = "=0.1.5"
+goosefs-sdk = "0.1.8"
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }

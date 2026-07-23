@@ -54,10 +54,17 @@ jobs:
         run: |
           export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
           echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          mkdir -p "${HOME}/.cabal"
+          cat > "${HOME}/.cabal/config" <<'EOF'
+          repository hackage-direct
+            url: https://hackage.haskell.org/
+            secure: False
+          active-repositories: hackage-direct
+          EOF
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
           ghcup install ghc 9.4.8 --set
           ghcup install cabal --set
-          cabal update
+          cabal update --ignore-project
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       # Useful for debugging
@@ -115,10 +122,17 @@ jobs:
         run: |
           export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
           echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          mkdir -p "${HOME}/.cabal"
+          cat > "${HOME}/.cabal/config" <<'EOF'
+          repository hackage-direct
+            url: https://hackage.haskell.org/
+            secure: False
+          active-repositories: hackage-direct
+          EOF
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set
-          cabal update
+          cabal update --ignore-project
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Restore haskell cache

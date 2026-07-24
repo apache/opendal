@@ -1,6 +1,6 @@
 - Proposal Name: `limited_read`
 - Start Date: 2026-07-24
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#7945](https://github.com/apache/opendal/pull/7945)
 - Tracking Issue: [apache/opendal#7938](https://github.com/apache/opendal/issues/7938)
 
 # Summary

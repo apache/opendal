@@ -18,6 +18,7 @@ This service can be used to:
 - `bucket`: Set the container name for backend.
 - `endpoint`: Set the endpoint for backend.
 - `region`: Set the region for backend.
+- `profile`: Set the AWS profile for the default credential provider chain.
 - `access_key_id`: Set the access_key_id for backend.
 - `secret_access_key`: Set the secret_access_key for backend.
 - `session_token`: Set the session_token for backend.

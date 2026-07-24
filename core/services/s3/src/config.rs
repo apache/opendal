@@ -94,6 +94,17 @@ pub struct S3Config {
     #[serde(alias = "aws_region")]
     pub region: Option<String>,
 
+    /// AWS profile used by the default credential provider chain.
+    ///
+    /// This profile takes precedence over the `AWS_PROFILE` environment
+    /// variable and applies to shared AWS config and credentials files, SSO,
+    /// and `credential_process`.
+    ///
+    /// <!-- @group Credentials -->
+    /// <!-- @example development -->
+    #[serde(alias = "aws_profile")]
+    pub profile: Option<String>,
+
     /// access_key_id of this backend.
     ///
     /// - If access_key_id is set, we will take user's input first.
@@ -367,6 +378,7 @@ mod tests {
             "secret_access_key": "test-secret",
             "region": "us-west-2",
             "endpoint": "https://s3.amazonaws.com",
+            "profile": "development",
             "session_token": "test-token"
         }"#;
 
@@ -379,6 +391,7 @@ mod tests {
             config.endpoint,
             Some("https://s3.amazonaws.com".to_string())
         );
+        assert_eq!(config.profile, Some("development".to_string()));
         assert_eq!(config.session_token, Some("test-token".to_string()));
     }
 
@@ -390,6 +403,7 @@ mod tests {
             "aws_secret_access_key": "test-secret",
             "aws_region": "us-west-2",
             "aws_endpoint": "https://s3.amazonaws.com",
+            "aws_profile": "staging",
             "aws_session_token": "test-token"
         }"#;
 
@@ -402,6 +416,7 @@ mod tests {
             config.endpoint,
             Some("https://s3.amazonaws.com".to_string())
         );
+        assert_eq!(config.profile, Some("staging".to_string()));
         assert_eq!(config.session_token, Some("test-token".to_string()));
     }
 

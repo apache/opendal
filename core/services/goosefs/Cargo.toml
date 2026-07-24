@@ -34,12 +34,12 @@ all-features = true
 bytes = { workspace = true }
 goosefs-sdk = "0.1.8"
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true }
 
 [dev-dependencies]
-opendal = { path = "../..", version = "0.58.0", features = [
+opendal = { path = "../..", version = "0.58.1", features = [
   "services-goosefs",
 ] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

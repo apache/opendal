@@ -54,6 +54,12 @@ pub struct ListOptions {
     pub versions: bool,
     /// Include delete markers when supported by version-aware backends; default `false`.
     pub deleted: bool,
+    /// Filter entries with a Unix shell style glob pattern.
+    ///
+    /// Pattern matching is delegated to the underlying service when
+    /// [`Capability::list_with_glob`] is set; otherwise a client-side layer
+    /// (e.g. `GlobLayer`) is required.
+    pub glob: Option<String>,
 }
 
 /// Options for read operations.

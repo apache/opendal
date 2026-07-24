@@ -233,6 +233,7 @@ impl From<ListOptions> for ocore::options::ListOptions {
             recursive: opts.recursive.unwrap_or(false),
             versions: opts.versions.unwrap_or(false),
             deleted: opts.deleted.unwrap_or(false),
+            ..Default::default()
         }
     }
 }

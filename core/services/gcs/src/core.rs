@@ -605,12 +605,7 @@ impl GcsCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}?uploads",
-            self.endpoint,
-            self.bucket,
-            gcs_percent_encode_path(&p)
-        );
+        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
 
         let mut builder = Request::post(&url)
             .header(CONTENT_LENGTH, 0)

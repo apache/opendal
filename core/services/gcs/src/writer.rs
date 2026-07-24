@@ -23,6 +23,7 @@ use http::StatusCode;
 use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
+use super::core::gcs_percent_encode_path;
 use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -50,10 +51,12 @@ impl GcsWriter {
 impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
-        // Forward the raw path; the core request builder percent-encodes once.
-        let req = self
-            .core
-            .gcs_insert_object_request(&self.path, Some(size), &self.op, body)?;
+        let req = self.core.gcs_insert_object_request(
+            &gcs_percent_encode_path(&self.path),
+            Some(size),
+            &self.op,
+            body,
+        )?;
 
         let req = self.core.sign(&self.ctx, req).await?;
 
@@ -74,7 +77,11 @@ impl oio::MultipartWrite for GcsWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .gcs_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
+            .gcs_initiate_multipart_upload(
+                &self.ctx,
+                &gcs_percent_encode_path(&self.path),
+                &self.op,
+            )
             .await?;
 
         if !resp.status().is_success() {

@@ -119,7 +119,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
+    let path = format!("nested/{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
     op.write(&path, content).await?;

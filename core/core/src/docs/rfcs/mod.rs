@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Limited Read
+#[doc = include_str!("7945_limited_read.md")]
+pub mod rfc_7945_limited_read {}
+
 /// Rename If Not Exists
 #[doc = include_str!("7818_rename_if_not_exists.md")]
 pub mod rfc_7818_rename_if_not_exists {}

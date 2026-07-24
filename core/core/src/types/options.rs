@@ -562,6 +562,61 @@ pub struct CopyOptions {
     ///   destination object's ETag matches the given value.
     pub if_match: Option<String>,
 
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object currently has the given ETag.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the source
+    ///   object's ETag matches the given value.
+    pub source_if_match: Option<String>,
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object's ETag does not match the given value.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_if_none_match`] before using this
+    /// feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the source
+    ///   object's ETag does not match the given value.
+    pub source_if_none_match: Option<String>,
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object has been modified after the given timestamp.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_if_modified_since`] before using
+    /// this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the source
+    ///   object has been modified after the given timestamp.
+    pub source_if_modified_since: Option<Timestamp>,
+
+    /// Sets the condition that copy operation will succeed only if the source
+    /// object has not been modified after the given timestamp.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_source_if_unmodified_since`] before using
+    /// this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed when the source
+    ///   object has not been modified after the given timestamp.
+    pub source_if_unmodified_since: Option<Timestamp>,
+
     /// Copy from a specific source object version.
     ///
     /// ### Capability

@@ -1313,6 +1313,18 @@ pub struct opendal_copy_options {
     pub if_not_exists: bool,
     /// If-Match condition; NULL means unset.
     pub if_match: *const c_char,
+    /// Source If-Match condition; NULL means unset.
+    pub source_if_match: *const c_char,
+    /// Source If-None-Match condition; NULL means unset.
+    pub source_if_none_match: *const c_char,
+    /// Whether `source_if_modified_since` has been set.
+    pub has_source_if_modified_since: bool,
+    /// Source If-Modified-Since condition, in Unix milliseconds.
+    pub source_if_modified_since: i64,
+    /// Whether `source_if_unmodified_since` has been set.
+    pub has_source_if_unmodified_since: bool,
+    /// Source If-Unmodified-Since condition, in Unix milliseconds.
+    pub source_if_unmodified_since: i64,
     /// Source version; NULL means unset.
     pub source_version: *const c_char,
     /// Whether `source_content_length_hint` has been set.
@@ -1361,6 +1373,52 @@ impl opendal_copy_options {
     ) {
         if !opts.is_null() {
             (*opts).if_match = if_match;
+        }
+    }
+
+    /// \brief Set Source If-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_if_match(
+        opts: *mut opendal_copy_options,
+        source_if_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).source_if_match = source_if_match;
+        }
+    }
+
+    /// \brief Set Source If-None-Match.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_if_none_match(
+        opts: *mut opendal_copy_options,
+        source_if_none_match: *const c_char,
+    ) {
+        if !opts.is_null() {
+            (*opts).source_if_none_match = source_if_none_match;
+        }
+    }
+
+    /// \brief Set Source If-Modified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_if_modified_since(
+        opts: *mut opendal_copy_options,
+        source_if_modified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_source_if_modified_since = true;
+            (*opts).source_if_modified_since = source_if_modified_since;
+        }
+    }
+
+    /// \brief Set Source If-Unmodified-Since, in Unix milliseconds.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_copy_options_set_source_if_unmodified_since(
+        opts: *mut opendal_copy_options,
+        source_if_unmodified_since: i64,
+    ) {
+        if !opts.is_null() {
+            (*opts).has_source_if_unmodified_since = true;
+            (*opts).source_if_unmodified_since = source_if_unmodified_since;
         }
     }
 
@@ -1416,6 +1474,12 @@ impl Default for opendal_copy_options {
         Self {
             if_not_exists: false,
             if_match: std::ptr::null(),
+            source_if_match: std::ptr::null(),
+            source_if_none_match: std::ptr::null(),
+            has_source_if_modified_since: false,
+            source_if_modified_since: 0,
+            has_source_if_unmodified_since: false,
+            source_if_unmodified_since: 0,
             source_version: std::ptr::null(),
             has_source_content_length_hint: false,
             source_content_length_hint: 0,
@@ -1431,6 +1495,16 @@ impl From<&opendal_copy_options> for options::CopyOptions {
         Self {
             if_not_exists: value.if_not_exists,
             if_match: unsafe { optional_cstr(value.if_match) },
+            source_if_match: unsafe { optional_cstr(value.source_if_match) },
+            source_if_none_match: unsafe { optional_cstr(value.source_if_none_match) },
+            source_if_modified_since: value
+                .has_source_if_modified_since
+                .then(|| Timestamp::from_millisecond(value.source_if_modified_since).ok())
+                .flatten(),
+            source_if_unmodified_since: value
+                .has_source_if_unmodified_since
+                .then(|| Timestamp::from_millisecond(value.source_if_unmodified_since).ok())
+                .flatten(),
             source_version: unsafe { optional_cstr(value.source_version) },
             source_content_length_hint: value
                 .has_source_content_length_hint

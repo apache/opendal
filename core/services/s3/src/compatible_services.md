@@ -89,17 +89,25 @@ To connect to COS, we need to set:
 
 [Tigris](https://www.tigrisdata.com/) is a globally distributed S3-compatible object storage service.
 
+> Tigris serves data from the region nearest to the requester through a single global endpoint, and charges no egress fees.
+
 To connect to Tigris, we need to set:
 
-- `endpoint`: The endpoint of Tigris, for example: `https://fly.storage.tigris.dev`
+- `endpoint`: The endpoint of Tigris: `https://t3.storage.dev`
 - `region`: The region of Tigris. Please set it to `auto`.
 - `bucket`: The bucket name of Tigris.
 
+Credentials are standard S3 access keys, provided via `access_key_id`/`secret_access_key` or the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` environment variables. See [Tigris S3 SDK docs](https://www.tigrisdata.com/docs/sdks/s3/) for details.
+
 ```rust,ignore
-builder.endpoint("https://fly.storage.tigris.dev");
+builder.endpoint("https://t3.storage.dev");
 builder.region("auto");
 builder.bucket("<bucket_name>");
 ```
+
+> `https://fly.storage.tigris.dev` is a legacy endpoint that still works, but `https://t3.storage.dev` is the current one.
+
+Tigris buckets support zero-copy [snapshots and forks](https://www.tigrisdata.com/docs/snapshots-and-forks/). A forked bucket is a regular bucket, so it can be read and written through OpenDAL like any other — useful for testing against production data without copying it.
 
 ### Wasabi Object Storage
 

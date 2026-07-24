@@ -1,6 +1,6 @@
 - Proposal Name: `s3_provider_presets`
 - Start Date: 2026-07-24
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#7948](https://github.com/apache/opendal/pull/7948)
 - Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary

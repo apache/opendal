@@ -121,7 +121,7 @@ services-github = [
   "opendal/services-github",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-goosefs = [
-  "opendal/services-goosefs"
+  "opendal/services-goosefs",
 ] # FIXME EXCLUDED: armhf build failure because of tokiofs dependency
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = [

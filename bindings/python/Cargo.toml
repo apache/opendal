@@ -45,14 +45,10 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: services-all is the feature we use to build PyPI wheels.
-# When enabling or disabling services, update the `enabled_service` function in
-# dev/src/generate/python.rs to match it.
-services-all = ["services-all-except-goosefs", "services-goosefs"]
-
-# Fix for release_python.yml. goosefs-sdk requires io-uring, which doesn't provide prebuilt bindings for armv7.
-# We will improve features with per-service build.
-services-all-except-goosefs = [
+# NOTE: this is the feature we used to build pypi wheels.
+# When enable or disable some features,
+# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
+services-all = [
   'default',
   'services-aliyun-drive',
   'services-alluxio',
@@ -63,6 +59,7 @@ services-all-except-goosefs = [
   'services-dropbox',
   'services-ftp',
   'services-gdrive',
+  'services-goosefs',
   'services-gridfs',
   'services-hdfs-native',
   'services-hf',

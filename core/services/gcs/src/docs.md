@@ -12,6 +12,14 @@ This service can be used to:
 - [ ] rename
 - [x] presign
 
+## Conditional Writes
+
+GCS has no ETag-based conditional write API. `write_with_if_match` and `write_with_if_none_match`
+are implemented on top of GCS's generation-number conditional parameters
+(`ifGenerationMatch` / `ifGenerationNotMatch`) instead. Pass the object's generation number,
+obtained via `Metadata::version()` from a prior `stat`/`read`/`list`, rather than a literal ETag
+(`Metadata::etag()` is not usable here).
+
 ## Configuration
 
 - `root`: Set the work directory for backend

@@ -278,8 +278,32 @@ impl GcsCore {
         // Makes the operation conditional on whether the object's current generation
         // matches the given value. Setting to 0 makes the operation succeed only if
         // there are no live versions of the object.
+        //
+        // GCS has no ETag-based conditional write, so `if_match`/`if_none_match` are
+        // repurposed to carry the object's generation number (as exposed via
+        // `Metadata::version()`) instead of a literal ETag.
         if op.if_not_exists() {
             write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        } else if let Some(v) = op.if_match() {
+            let generation: i64 = v.parse().map_err(|e| {
+                Error::new(
+                    ErrorKind::Unsupported,
+                    "if_match value must be a valid GCS object generation number, see Metadata::version()",
+                )
+                .set_source(e)
+            })?;
+            write!(&mut url, "&ifGenerationMatch={generation}").unwrap();
+        }
+
+        if let Some(v) = op.if_none_match() {
+            let generation: i64 = v.parse().map_err(|e| {
+                Error::new(
+                    ErrorKind::Unsupported,
+                    "if_none_match value must be a valid GCS object generation number, see Metadata::version()",
+                )
+                .set_source(e)
+            })?;
+            write!(&mut url, "&ifGenerationNotMatch={generation}").unwrap();
         }
 
         let mut req = Request::post(&url);

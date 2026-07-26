@@ -357,6 +357,8 @@ impl Builder for GcsBuilder {
             write_with_content_type: true,
             write_with_content_encoding: true,
             write_with_user_metadata: true,
+            write_with_if_match: true,
+            write_with_if_none_match: true,
             write_with_if_not_exists: true,
 
             // The min multipart size of Gcs is 5 MiB.

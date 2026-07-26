@@ -159,9 +159,13 @@ jobs:
         run: |
           uv sync --group docs
 
+      - name: Convert example notebooks to Markdown
+        working-directory: bindings/python
+        run: uv run jupyter nbconvert --to markdown docs/examples/*.ipynb
+
       - name: Build Docs
         working-directory: bindings/python
-        run: uv run mkdocs build
+        run: uv run zensical build
 
       - name: Upload docs
         uses: actions/upload-artifact@v7

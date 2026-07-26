@@ -66,7 +66,7 @@ stub-gen: setup
 build-release *args: stub-gen
     @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
     @uv run maturin build --manifest-path ./Cargo.toml --profile release --strip --release --out dist {{ args }}
-    @uv run mkdocs build
+    @just docs-build
 
 # Build and install the release wheel in the current venv
 [group('release')]
@@ -93,7 +93,7 @@ sdist *args: stub-gen
 build-dev *args: stub-gen
     @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
     @uv run maturin build --manifest-path ./Cargo.toml --out dist {{ args }}
-    @uv run mkdocs build
+    @just docs-build
 
 # Build and install the development wheel in the current venv
 [group('dev')]
@@ -106,6 +106,28 @@ install-dev *args: stub-gen
 test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
+
+# ==============================================================================
+# Documentation
+# ==============================================================================
+
+# Convert the example notebooks to Markdown so Zensical can render them
+[group('docs')]
+docs-notebooks: setup
+    @echo "{{ BOLD }}--- Converting example notebooks to Markdown ---{{ NORMAL }}"
+    @uv run jupyter nbconvert --to markdown docs/examples/*.ipynb
+
+# Build the documentation site into site/
+[group('docs')]
+docs-build *args: docs-notebooks
+    @echo "{{ BOLD }}--- Building docs ---{{ NORMAL }}"
+    @uv run zensical build {{ args }}
+
+# Serve the documentation site locally with live reload
+[group('docs')]
+docs-serve *args: docs-notebooks
+    @echo "{{ BOLD }}--- Serving docs ---{{ NORMAL }}"
+    @uv run zensical serve {{ args }}
 
 # ==============================================================================
 # Code Quality & Formatting

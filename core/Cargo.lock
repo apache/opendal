@@ -9151,7 +9151,8 @@ dependencies = [
 [[package]]
 name = "reqsign-aliyun-oss"
 version = "3.1.2"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c0f9f69a519dd6958c4b43606bb8e1278cdc76d611fc8fed4b796eee548dc0f"
 dependencies = [
  "anyhow",
  "form_urlencoded",
@@ -9167,7 +9168,8 @@ dependencies = [
 [[package]]
 name = "reqsign-aws-v4"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc883bc56889f3e4a419265c87facea222a921debc5c6f15c7fd8b68ec4b36b2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -9188,7 +9190,8 @@ dependencies = [
 [[package]]
 name = "reqsign-azure-storage"
 version = "3.1.1"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ebd8524185ce9c64063e3095f83968acfa90922f00c601a4a0f3aca15b077e"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9208,7 +9211,8 @@ dependencies = [
 [[package]]
 name = "reqsign-core"
 version = "3.2.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e38b44697c60a823705ccef85cb04d8e0527c9d16ed7c58bf1c6395bdd24ceb"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9231,7 +9235,8 @@ dependencies = [
 [[package]]
 name = "reqsign-file-read-tokio"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "688ff0ae421b8d4b92b53fdafaf53df2de28f428a9962edcf21702990b26f74b"
 dependencies = [
  "anyhow",
  "reqsign-core",
@@ -9241,7 +9246,8 @@ dependencies = [
 [[package]]
 name = "reqsign-google"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a96da0b579b846d358090cb06b9e3c2ad1375529efbe3e0c45f96bd7bcf043ea"
 dependencies = [
  "form_urlencoded",
  "http 1.4.2",
@@ -9258,7 +9264,8 @@ dependencies = [
 [[package]]
 name = "reqsign-huaweicloud-obs"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f2c702fcce7067977f4a00d34d7ec2517fea75a80698b6cd5b352a903553773"
 dependencies = [
  "anyhow",
  "http 1.4.2",
@@ -9270,7 +9277,8 @@ dependencies = [
 [[package]]
 name = "reqsign-tencent-cos"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6497dd9f6e3d1349b420521484099b284f95e8d3a65f088fccef42493a7b644"
 dependencies = [
  "anyhow",
  "http 1.4.2",
@@ -9284,7 +9292,8 @@ dependencies = [
 [[package]]
 name = "reqsign-volcengine-tos"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c#b1f72c17caa20ead87a20ffb2d2ba92266fe2f7c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4335f949a3fd8b53867fd716dac97fbd545e45bcaed44343796517f2e19cd609"
 dependencies = [
  "anyhow",
  "http 1.4.2",

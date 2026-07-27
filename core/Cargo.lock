@@ -151,7 +151,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -162,7 +162,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1110,7 +1110,7 @@ dependencies = [
  "quote",
  "regex",
  "rustc-hash 2.1.2",
- "shlex",
+ "shlex 1.3.0",
  "syn 2.0.118",
 ]
 
@@ -1475,14 +1475,14 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.61"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d16d90359e986641506914ba71350897565610e87ce0ad9e6f28569db3dd5c6d"
+checksum = "5add81bb678e6cb321aff7fa0dc7689ad82b112dbc032cea19f91d6b8e3582b9"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
  "libc",
- "shlex",
+ "shlex 2.0.1",
 ]
 
 [[package]]
@@ -1681,7 +1681,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2647,7 +2647,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2993,7 +2993,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3739,7 +3739,7 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.2.1",
+ "windows-link 0.1.3",
  "windows-result 0.4.1",
 ]
 
@@ -4658,7 +4658,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -6111,7 +6111,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8755,7 +8755,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls 0.23.40",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -8793,7 +8793,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -9153,7 +9153,8 @@ dependencies = [
 [[package]]
 name = "reqsign-aliyun-oss"
 version = "3.1.2"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c0f9f69a519dd6958c4b43606bb8e1278cdc76d611fc8fed4b796eee548dc0f"
 dependencies = [
  "anyhow",
  "form_urlencoded",
@@ -9169,7 +9170,8 @@ dependencies = [
 [[package]]
 name = "reqsign-aws-v4"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc883bc56889f3e4a419265c87facea222a921debc5c6f15c7fd8b68ec4b36b2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -9190,7 +9192,8 @@ dependencies = [
 [[package]]
 name = "reqsign-azure-storage"
 version = "3.1.1"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ebd8524185ce9c64063e3095f83968acfa90922f00c601a4a0f3aca15b077e"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9210,7 +9213,8 @@ dependencies = [
 [[package]]
 name = "reqsign-command-execute-tokio"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abc7d03c76a4d849a872d6fee4b6217b5e47a1234d1b8c65833779f200f2c953"
 dependencies = [
  "reqsign-core",
  "tokio",
@@ -9219,7 +9223,8 @@ dependencies = [
 [[package]]
 name = "reqsign-core"
 version = "3.2.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e38b44697c60a823705ccef85cb04d8e0527c9d16ed7c58bf1c6395bdd24ceb"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9242,7 +9247,8 @@ dependencies = [
 [[package]]
 name = "reqsign-file-read-tokio"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "688ff0ae421b8d4b92b53fdafaf53df2de28f428a9962edcf21702990b26f74b"
 dependencies = [
  "anyhow",
  "reqsign-core",
@@ -9252,7 +9258,8 @@ dependencies = [
 [[package]]
 name = "reqsign-google"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a96da0b579b846d358090cb06b9e3c2ad1375529efbe3e0c45f96bd7bcf043ea"
 dependencies = [
  "form_urlencoded",
  "http 1.4.2",
@@ -9269,7 +9276,8 @@ dependencies = [
 [[package]]
 name = "reqsign-huaweicloud-obs"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f2c702fcce7067977f4a00d34d7ec2517fea75a80698b6cd5b352a903553773"
 dependencies = [
  "anyhow",
  "http 1.4.2",
@@ -9281,7 +9289,8 @@ dependencies = [
 [[package]]
 name = "reqsign-tencent-cos"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6497dd9f6e3d1349b420521484099b284f95e8d3a65f088fccef42493a7b644"
 dependencies = [
  "anyhow",
  "http 1.4.2",
@@ -9295,7 +9304,8 @@ dependencies = [
 [[package]]
 name = "reqsign-volcengine-tos"
 version = "3.0.3"
-source = "git+https://github.com/apache/opendal-reqsign?rev=478f4c42713ab90e8a817e0fc4fa0d7469bfce06#478f4c42713ab90e8a817e0fc4fa0d7469bfce06"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4335f949a3fd8b53867fd716dac97fbd545e45bcaed44343796517f2e19cd609"
 dependencies = [
  "anyhow",
  "http 1.4.2",
@@ -9715,7 +9725,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9807,7 +9817,7 @@ dependencies = [
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9994,7 +10004,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b55fb86dfd3a2f5f76ea78310a88f96c4ea21a3031f8d212443d56123fd0521"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -10216,6 +10226,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
 name = "sif-itree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10375,7 +10391,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -11162,7 +11178,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -11183,7 +11199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12501,7 +12517,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

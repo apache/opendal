@@ -297,63 +297,66 @@ Content:
 ```
 Hello, Apache OpenDAL Community,
 
-This is a call for a vote to release Apache OpenDAL version ${opendal_version}.
+This is a call for a vote to release Apache OpenDAL ${opendal_version},
+based on release candidate v${release_version}.
 
-The tag to be voted on is v${release_version}.
+We are voting on release v${release_version}.
 
-The release candidate source packages:
+Release candidate source packages:
 
 https://dist.apache.org/repos/dist/dev/opendal/${release_version}/
 
-Keys to verify the release candidate:
+Keys used to verify the signatures:
 
 https://downloads.apache.org/opendal/KEYS
 
-Git tag for the release:
+Release candidate Git tag:
 
 https://github.com/apache/opendal/releases/tag/v${release_version}
 
-Maven staging repo:
+Maven staging repository:
 
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
 
-Pypi testing repo:
+Python packages on TestPyPI:
 
 https://test.pypi.org/project/opendal/
 
-Website staged:
+Staged website:
 
 https://opendal-v${release_version | replace('.', '-')}.staged.apache.org/
 
-Please download, verify, and test.
+Please download, verify, and test the release candidate.
 
-The VOTE will be open for at least 72 hours and until the necessary
-number of votes are reached.
+The vote will remain open for at least 72 hours and until the required
+number of binding votes is reached.
 
+```markdown
 - [ ] +1 approve
 - [ ] +0 no opinion
-- [ ] -1 disapprove with the reason
+- [ ] -1 disapprove the release. Please explain why.
 
-To learn more about apache opendal, please see https://opendal.apache.org/
+Verification checklist:
 
-Checklist for reference:
-
-- [ ] Download links are valid.
-- [ ] Checksums and signatures.
-- [ ] LICENSE/NOTICE files exist
-- [ ] No unexpected binary files
-- [ ] All source files have ASF headers
-- [ ] Can compile from source
+- [ ] Download links work.
+- [ ] Checksums and signatures are valid.
+- [ ] LICENSE and NOTICE files are present.
+- [ ] Source packages contain no unexpected binary files.
+- [ ] Source files include ASF license headers.
+- [ ] Source builds successfully.
+```
 
 Use our verify.py to assist in the verify process:
 
-    svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
-    cd opendal-dev
-    curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
+    svn checkout https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dist-${release_version}
+    cd opendal-dist-${release_version}
+    curl --silent --show-error --location https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py --output verify.py
     python verify.py
 
-Thanks
+For more information about Apache OpenDAL, visit:
+https://opendal.apache.org/
 
+Thanks,
 ${name}
 ```
 
@@ -399,7 +402,6 @@ Non-Binding votes:
 Vote thread: ${vote_thread_url}
 
 Thanks
-
 ${name}
 ```
 

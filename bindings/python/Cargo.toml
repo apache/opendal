@@ -59,7 +59,6 @@ services-all = [
   'services-dropbox',
   'services-ftp',
   'services-gdrive',
-  'services-goosefs',
   'services-gridfs',
   'services-hdfs-native',
   'services-hf',
@@ -121,7 +120,9 @@ services-ghac = ["opendal/services-ghac"]
 services-github = [
   "opendal/services-github",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
-services-goosefs = ["opendal/services-goosefs"]
+services-goosefs = [
+  "opendal/services-goosefs",
+] # FIXME EXCLUDED: armhf build failure because of tokiofs dependency
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = [
   "opendal/services-hdfs",

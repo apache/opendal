@@ -1408,7 +1408,7 @@ dependencies = [
  "md-5",
  "mea",
  "percent-encoding",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-core",
  "serde",
  "serde_json",
@@ -1495,7 +1495,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1515,7 +1515,7 @@ dependencies = [
  "mea",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1532,7 +1532,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1555,7 +1555,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-tencent-cos",
@@ -1584,7 +1584,7 @@ dependencies = [
  "log",
  "opendal-core",
  "percent-encoding",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-google",
@@ -1641,7 +1641,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-huaweicloud-obs",
@@ -1656,7 +1656,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-aliyun-oss",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1674,7 +1674,7 @@ dependencies = [
  "log",
  "md-5",
  "opendal-core",
- "quick-xml 0.41.0",
+ "quick-xml",
  "reqsign-aws-v4",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1692,7 +1692,7 @@ dependencies = [
  "log",
  "mea",
  "opendal-core",
- "quick-xml 0.41.0",
+ "quick-xml",
  "serde",
 ]
 
@@ -1913,16 +1913,6 @@ dependencies = [
  "wasi",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.40.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
-dependencies = [
- "memchr",
- "serde",
 ]
 
 [[package]]
@@ -2176,9 +2166,9 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "reqsign-aliyun-oss"
-version = "3.1.0"
+version = "3.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "372266b4733756738eeb199a98188037d27a0989980e2600ae7ce1faf00a867d"
+checksum = "9c0f9f69a519dd6958c4b43606bb8e1278cdc76d611fc8fed4b796eee548dc0f"
 dependencies = [
  "anyhow",
  "form_urlencoded",
@@ -2193,9 +2183,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-aws-v4"
-version = "3.0.1"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b75624bd8a466e37ddc0a7b6c33ac859a85347c153a916e1dd9d0b68338f74a"
+checksum = "cc883bc56889f3e4a419265c87facea222a921debc5c6f15c7fd8b68ec4b36b2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2204,7 +2194,7 @@ dependencies = [
  "http",
  "log",
  "percent-encoding",
- "quick-xml 0.40.1",
+ "quick-xml",
  "reqsign-core",
  "rust-ini",
  "serde",
@@ -2215,9 +2205,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-azure-storage"
-version = "3.0.1"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62b96928e73ad984de1d99e382749d09e5dab7dd707b767974f7e40aa926b82f"
+checksum = "a6ebd8524185ce9c64063e3095f83968acfa90922f00c601a4a0f3aca15b077e"
 dependencies = [
  "anyhow",
  "base64",
@@ -2236,14 +2226,13 @@ dependencies = [
 
 [[package]]
 name = "reqsign-core"
-version = "3.0.1"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5fa5cb48808693614d1701fcd3db0b30fa292e0f18e122ae068b6d32eaeed3f"
+checksum = "7e38b44697c60a823705ccef85cb04d8e0527c9d16ed7c58bf1c6395bdd24ceb"
 dependencies = [
  "anyhow",
  "base64",
  "bytes",
- "form_urlencoded",
  "futures",
  "hex",
  "hmac 0.13.0",
@@ -2261,9 +2250,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-file-read-tokio"
-version = "3.0.1"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a4b6f3a3fd29ffcc99a90aec585a65217783badfd73acddf847b63ae683bda9"
+checksum = "688ff0ae421b8d4b92b53fdafaf53df2de28f428a9962edcf21702990b26f74b"
 dependencies = [
  "anyhow",
  "reqsign-core",
@@ -2272,9 +2261,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-google"
-version = "3.0.1"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb215d0876a18b6bd9cdd380b589e5292aaa638ca15266de794b1122d898b6b2"
+checksum = "a96da0b579b846d358090cb06b9e3c2ad1375529efbe3e0c45f96bd7bcf043ea"
 dependencies = [
  "form_urlencoded",
  "http",
@@ -2290,9 +2279,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-huaweicloud-obs"
-version = "3.0.1"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1136b31eb7202016d8bbb9445bc3e9ee81e7040736f0dae749a8b2b31d738c9"
+checksum = "3f2c702fcce7067977f4a00d34d7ec2517fea75a80698b6cd5b352a903553773"
 dependencies = [
  "anyhow",
  "http",
@@ -2303,9 +2292,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-tencent-cos"
-version = "3.0.1"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84110aabba799fbcd48b3abb51fbbff4749f879252e5806b6f5d0cbe0fef6abb"
+checksum = "f6497dd9f6e3d1349b420521484099b284f95e8d3a65f088fccef42493a7b644"
 dependencies = [
  "anyhow",
  "http",

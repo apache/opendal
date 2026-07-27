@@ -40,8 +40,8 @@ behavior explicitly:
 
 - A service crate exports a builder that implements `opendal_core::Builder`.
   Pass the configured builder to `Operator::new`.
-- A layer crate exports a type that implements `opendal_core::Layer`. Pass the
-  configured layer to `Operator::layer`.
+- A layer crate exports a type that implements `opendal_core::raw::Layer`. Pass
+  the configured layer to `Operator::layer`.
 - An HTTP transport crate exports an `opendal_core::HttpTransport`
   implementation. Wrap it in `HttpTransporter` and place it in the operator's
   `OperationContext`.
@@ -54,7 +54,7 @@ cargo add opendal-core opendal-service-s3 opendal-layer-retry
 cargo add opendal-http-transport-reqwest
 ```
 
-```rust
+```rust,ignore
 use opendal_core::HttpTransporter;
 use opendal_core::OperationContext;
 use opendal_core::Operator;

@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,35 +12,14 @@ This service can be used to:
 - [ ] rename
 - [x] presign
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
 
-- `root`: Set the work dir for backend.
-- `bucket`: Set the container name for backend.
-- `endpoint`: Set the endpoint for backend.
-- `region`: Set the region for backend.
-- `access_key_id`: Set the access_key_id for backend.
-- `secret_access_key`: Set the secret_access_key for backend.
-- `session_token`: Set the session_token for backend.
-- `default_storage_class`: Set the default storage_class for backend.
-- `server_side_encryption`: Set the server_side_encryption for backend.
-- `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
-- `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
-- `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
-- `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
-- `disable_config_load`: Disable aws config load from env.
-- `enable_virtual_host_style`: Enable virtual host style.
-- `enable_request_payer`: Enable the request payer for backend.
-- `skip_signature`: Skip loading credentials and signing requests.
-- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
-- `batch_max_operations`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
-- `delete_max_size`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
-- `disable_stat_with_override`: Deprecated. S3 stat override capabilities are enabled by default and this option is no longer needed.
-- `disable_write_with_if_match`: Deprecated. S3 write with If-Match capability is enabled by default and this option is no longer needed.
-- `enable_versioning`: Deprecated. S3 versioning capability is enabled by default and this option is no longer needed.
-- `enable_write_with_append`: Deprecated. S3 append capability is enabled by default and this option is no longer needed.
-- `default_acl`: Define the default access control list (ACL) when creating a new object. Note that some s3 services like minio do not support this option.
-
-Refer to [`S3Builder`]'s public API docs for more information.
+Use [`crate::S3Config`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Temporary security credentials
 

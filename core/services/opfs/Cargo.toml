@@ -30,6 +30,8 @@ version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
+default-target = "wasm32-unknown-unknown"
+targets = ["wasm32-unknown-unknown"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3.77"

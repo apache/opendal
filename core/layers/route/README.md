@@ -37,6 +37,16 @@ fn add_layer(operator: Operator, layer: RouteLayer) -> Operator {
 Construct and configure `layer` as described in the API documentation before
 composing it with an operator.
 
+## Routing semantics
+
+- Routes are evaluated in the order they are added. The first matching glob
+  wins.
+- Paths that match no route continue through the operator wrapped by the
+  layer.
+- Copy and rename select a service from the source path. The layer does not
+  transfer data between two routed services.
+- Batched deletes route each path independently.
+
 ## Documentation
 
 - [Rust API documentation](https://docs.rs/opendal-layer-route)

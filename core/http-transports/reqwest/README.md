@@ -117,7 +117,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 ] }
 ```
 
-```rust
+```rust,ignore
 use std::time::Duration;
 
 use opendal::HttpTransporter;
@@ -148,7 +148,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 ] }
 ```
 
-```rust
+```rust,ignore
 use opendal::HttpTransporter;
 use opendal::ReqwestTransport;
 
@@ -183,7 +183,7 @@ rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "1"
 ```
 
-```rust
+```rust,ignore
 use opendal::HttpTransporter;
 use opendal::ReqwestTransport;
 
@@ -219,6 +219,6 @@ for the target-specific limitations.
 
 ## License and Trademarks
 
-Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

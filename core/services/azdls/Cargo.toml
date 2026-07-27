@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Azure Data Lake Storage Gen2 service implementation"
 name = "opendal-service-azdls"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

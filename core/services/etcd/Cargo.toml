@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Etcd service implementation"
 name = "opendal-service-etcd"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

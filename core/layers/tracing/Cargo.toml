@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL tracing layer"
 name = "opendal-layer-tracing"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

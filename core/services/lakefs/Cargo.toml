@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL lakeFS service implementation"
 name = "opendal-service-lakefs"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

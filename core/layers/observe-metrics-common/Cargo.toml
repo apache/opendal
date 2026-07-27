@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL observe metrics common components"
 name = "opendal-layer-observe-metrics-common"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

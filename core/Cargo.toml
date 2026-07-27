@@ -63,6 +63,7 @@ uuid = { version = "1", default-features = false }
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"
+readme = "README.md"
 
 authors = { workspace = true }
 categories = { workspace = true }

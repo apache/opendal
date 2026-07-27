@@ -73,6 +73,7 @@ impl OpendalFile {
             let w = op
                 .writer_with(&path)
                 .append(options.append)
+                .if_not_exists(options.create_new)
                 .await
                 .map_err(convert_error)?
                 .into_futures_async_write();

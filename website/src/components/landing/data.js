@@ -298,6 +298,7 @@ export const usedBy = [
   { name: "Paimon Rust", icon: "/img/users/paimon-rust.png", href: "https://github.com/apache/paimon-rust" },
   { name: "zino", icon: "/img/users/zino.png", href: "https://github.com/zino-rs/zino" },
   { name: "kunobi-kache", icon: "/img/users/kunobi-kache.png", href: "https://github.com/kunobi-ninja/kache" },
+  { name: "AgentENV", icon: "/img/users/agentenv.png", href: "https://github.com/kvcache-ai/AgentENV" },
 ];
 
 // Where people add their own project (PR to the users list).

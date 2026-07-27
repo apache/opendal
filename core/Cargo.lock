@@ -869,7 +869,7 @@ dependencies = [
  "http 0.2.12",
  "http 1.4.2",
  "http-body 0.4.6",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "pin-project-lite",
  "pin-utils",
  "tokio",
@@ -906,7 +906,7 @@ dependencies = [
  "http 0.2.12",
  "http 1.4.2",
  "http-body 0.4.6",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "itoa",
  "num-integer",
@@ -980,7 +980,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "itoa",
  "matchit 0.8.4",
@@ -1021,7 +1021,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "mime",
  "pin-project-lite",
@@ -1064,6 +1064,12 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "base64"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
 
 [[package]]
 name = "base64-simd"
@@ -4475,9 +4481,9 @@ dependencies = [
 
 [[package]]
 name = "http-body"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
+checksum = "ca2a8f2913ee65f60facd6a5905613afaa448497a0230cc41ce022d93290bc2c"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -4492,7 +4498,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "pin-project-lite",
 ]
 
@@ -4559,7 +4565,7 @@ dependencies = [
  "futures-core",
  "h2 0.4.14",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "httparse",
  "httpdate",
  "itoa",
@@ -4654,7 +4660,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "hyper 1.9.0",
  "ipnet",
  "libc",
@@ -6445,7 +6451,7 @@ name = "opendal-core"
 version = "0.58.1"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "futures",
  "http 1.4.2",
@@ -6519,7 +6525,7 @@ dependencies = [
  "bytes",
  "futures",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "opendal-core",
  "reqwest 0.13.4",
 ]
@@ -6811,7 +6817,7 @@ dependencies = [
 name = "opendal-service-azblob"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "http 1.4.2",
  "log",
@@ -6833,7 +6839,7 @@ dependencies = [
 name = "opendal-service-azdls"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "http 1.4.2",
  "log",
@@ -6964,7 +6970,7 @@ dependencies = [
 name = "opendal-service-dbfs"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "http 1.4.2",
  "log",
@@ -7108,7 +7114,7 @@ dependencies = [
 name = "opendal-service-github"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "http 1.4.2",
  "log",
@@ -7172,7 +7178,7 @@ dependencies = [
 name = "opendal-service-hf"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "futures",
  "hf-xet",
@@ -7450,7 +7456,7 @@ dependencies = [
 name = "opendal-service-s3"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "crc-fast",
  "http 1.4.2",
@@ -7534,7 +7540,7 @@ dependencies = [
 name = "opendal-service-swift"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "hmac 0.13.0",
  "http 1.4.2",
@@ -7580,7 +7586,7 @@ dependencies = [
 name = "opendal-service-upyun"
 version = "0.58.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.0",
  "bytes",
  "hmac 0.13.0",
  "http 1.4.2",
@@ -9325,7 +9331,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
  "hyper-rustls 0.27.9",
@@ -9366,7 +9372,7 @@ dependencies = [
  "futures-util",
  "h2 0.4.14",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
  "hyper-rustls 0.27.9",
@@ -10026,9 +10032,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
  "serde_derive",
@@ -10046,29 +10052,29 @@ dependencies = [
 
 [[package]]
 name = "serde_core"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "serde_json"
-version = "1.0.150"
+version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
  "indexmap 2.14.0",
  "itoa",
@@ -11637,7 +11643,7 @@ dependencies = [
  "bytes",
  "h2 0.4.14",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
  "hyper-timeout 0.5.2",
@@ -11754,7 +11760,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "http 1.4.2",
- "http-body 1.0.1",
+ "http-body 1.1.0",
  "pin-project-lite",
  "tower 0.5.3",
  "tower-layer",
@@ -12110,9 +12116,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.23.4"
+version = "1.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
+checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",

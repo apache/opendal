@@ -22,6 +22,23 @@ use super::PythonLayer;
 use crate::*;
 use opendal::Operator;
 
+/// Parse a timeout given in seconds into a [`Duration`].
+///
+/// Rejects non-positive, non-finite, or out-of-range values. A zero timeout
+/// is rejected because it would make every operation time out immediately.
+fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
+    if !secs.is_finite() || secs <= 0.0 {
+        return Err(ConfigInvalid::new_err(format!(
+            "{name} must be a positive, finite number of seconds"
+        )));
+    }
+    Duration::try_from_secs_f64(secs).map_err(|_| {
+        ConfigInvalid::new_err(format!(
+            "{name} must be a positive, finite number of seconds"
+        ))
+    })
+}
+
 /// A layer that adds timeouts to operations.
 ///
 /// Timeouts prevent slow or stalled work from hanging indefinitely, for
@@ -50,12 +67,14 @@ impl TimeoutLayer {
     /// ----------
     /// timeout : Optional[float]
     ///     Timeout (in seconds) for control operations like ``stat`` and
-    ///     ``delete``. Must be finite and non-negative. Defaults to
-    ///     ``60.0``.
+    ///     ``delete``. Must be a positive, finite number. A value of ``0``
+    ///     is rejected because it would make every operation time out
+    ///     immediately. Defaults to ``60.0``.
     /// io_timeout : Optional[float]
     ///     Timeout (in seconds) for IO operations like ``read`` and
-    ///     ``write``. Must be finite and non-negative. Defaults to
-    ///     ``10.0``.
+    ///     ``write``. Must be a positive, finite number. A value of ``0``
+    ///     is rejected because it would make every operation time out
+    ///     immediately. Defaults to ``10.0``.
     ///
     /// Returns
     /// -------
@@ -70,17 +89,11 @@ impl TimeoutLayer {
     fn new(timeout: Option<f64>, io_timeout: Option<f64>) -> PyResult<PyClassInitializer<Self>> {
         let mut timeout_layer = ocore::layers::TimeoutLayer::default();
         if let Some(timeout) = timeout {
-            let timeout = Duration::try_from_secs_f64(timeout).map_err(|_| {
-                ConfigInvalid::new_err("timeout must be a finite, non-negative number of seconds")
-            })?;
+            let timeout = parse_timeout_secs("timeout", timeout)?;
             timeout_layer = timeout_layer.with_timeout(timeout);
         }
         if let Some(io_timeout) = io_timeout {
-            let io_timeout = Duration::try_from_secs_f64(io_timeout).map_err(|_| {
-                ConfigInvalid::new_err(
-                    "io_timeout must be a finite, non-negative number of seconds",
-                )
-            })?;
+            let io_timeout = parse_timeout_secs("io_timeout", io_timeout)?;
             timeout_layer = timeout_layer.with_io_timeout(io_timeout);
         }
 

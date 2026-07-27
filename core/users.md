@@ -13,3 +13,5 @@
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - [rustic](https://github.com/rustic-rs/rustic): Fast, encrypted, and deduplicated backups powered by Rust
+- [kunobi-kache](https://github.com/kunobi-ninja/kache): Zero-copy, content-addressed Rust build cache for Rust, C/C++ and more.
+

@@ -59,6 +59,19 @@ tokio = { version = "1.52", default-features = false }
 url = "2.5"
 uuid = { version = "1", default-features = false }
 
+[patch.crates-io]
+# Keep reqsign crates on one commit until the profile-selection APIs are formally released.
+reqsign-aliyun-oss = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-aws-v4 = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-azure-storage = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-command-execute-tokio = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-core = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-file-read-tokio = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-google = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-huaweicloud-obs = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-tencent-cos = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+reqsign-volcengine-tos = { git = "https://github.com/apache/opendal-reqsign", rev = "478f4c42713ab90e8a817e0fc4fa0d7469bfce06" }
+
 [package]
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]

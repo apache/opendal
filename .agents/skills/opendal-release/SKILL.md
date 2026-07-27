@@ -142,11 +142,13 @@ enable `trustpub_only` for every existing crate. This workflow audits but never
 changes established crates, and it fails if that migration is incomplete.
 Complete the migration before using the OIDC-only release workflow.
 
-Repository administrators must configure the `rust-bootstrap` GitHub
-environment with PMC required reviewers and the
-`CARGO_REGISTRY_BOOTSTRAP_TOKEN` secret. The token must have only `publish-new`
-and `trusted-publishing` endpoint scopes, with crate scopes restricted to
-OpenDAL package names. Never expose this token to the normal release workflow.
+ASF Infrastructure provisions the `rust-bootstrap` GitHub environment from
+`.asf.yaml` with PMC required reviewers, self-review disabled, and a `main`-only
+deployment policy. A PMC release manager must add the
+`CARGO_REGISTRY_BOOTSTRAP_TOKEN` environment secret. The token must have only
+`publish-new` and `trusted-publishing` endpoint scopes, with crate scopes
+restricted to OpenDAL package names. Never expose this token to the normal
+release workflow.
 
 If the Rust publish plan gains another crate after a successful reservation
 run, run the helper again at the release manager's chosen time.

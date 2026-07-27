@@ -144,11 +144,13 @@ to reserve. Run the helper again if a later `main` commit adds another planned
 crate. Do not create the RC tag until every name in the current publish plan has
 passed the workflow.
 
-Repository administrators must configure the `rust-bootstrap` GitHub
-environment with PMC required reviewers and a
-`CARGO_REGISTRY_BOOTSTRAP_TOKEN` secret. The crates.io token must have only the
-`publish-new` and `trusted-publishing` endpoint scopes and OpenDAL-specific crate
-scopes. The normal Rust release workflow must not have access to this token.
+ASF Infrastructure provisions the `rust-bootstrap` GitHub environment from
+`.asf.yaml` with PMC required reviewers, self-review disabled, and a `main`-only
+deployment policy. A PMC release manager must add a
+`CARGO_REGISTRY_BOOTSTRAP_TOKEN` environment secret. The crates.io token must
+have only the `publish-new` and `trusted-publishing` endpoint scopes and
+OpenDAL-specific crate scopes. The normal Rust release workflow must not have
+access to this token.
 
 ### Push release candidate tag
 

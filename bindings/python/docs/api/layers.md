@@ -26,3 +26,9 @@ This page documents all layers in OpenDAL.
       heading: "opendal.layers.MimeGuessLayer"
       heading_level: 2
       show_source: false
+
+::: opendal.layers.TimeoutLayer
+    options:
+      heading: "opendal.layers.TimeoutLayer"
+      heading_level: 2
+      show_source: false

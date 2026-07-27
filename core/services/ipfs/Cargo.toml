@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL IPFS service implementation"
 name = "opendal-service-ipfs"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

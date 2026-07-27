@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL mime-guess layer"
 name = "opendal-layer-mime-guess"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL koofr service implementation"
 name = "opendal-service-koofr"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

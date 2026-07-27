@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL immutable-index layer"
 name = "opendal-layer-immutable-index"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

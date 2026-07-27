@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL OPFS service implementation"
 name = "opendal-service-opfs"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

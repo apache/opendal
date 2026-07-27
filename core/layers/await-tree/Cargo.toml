@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL await-tree layer"
 name = "opendal-layer-await-tree"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL timeout layer"
 name = "opendal-layer-timeout"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

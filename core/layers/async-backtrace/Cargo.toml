@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL async-backtrace layer"
 name = "opendal-layer-async-backtrace"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

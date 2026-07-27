@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL concurrent limit layer"
 name = "opendal-layer-concurrent-limit"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

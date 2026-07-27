@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Moka service implementation"
 name = "opendal-service-moka"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

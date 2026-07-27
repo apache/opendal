@@ -26,11 +26,13 @@ mod capability_override;
 mod concurrent_limit;
 mod mime_guess;
 mod retry;
+mod timeout;
 
 pub use capability_override::CapabilityOverrideLayer;
 pub use concurrent_limit::ConcurrentLimitLayer;
 pub use mime_guess::MimeGuessLayer;
 pub use retry::RetryLayer;
+pub use timeout::TimeoutLayer;
 
 use opendal::Operator;
 use pyo3::prelude::*;
@@ -41,6 +43,14 @@ pub trait PythonLayer: Send + Sync {
     fn layer(&self, op: Operator) -> Operator;
 }
 
-/// Layers are used to intercept the operations on the underlying storage.
+/// Base class for all layers.
+///
+/// A layer wraps an operator to intercept operations on the underlying
+/// storage, adding behavior such as retries, timeouts, concurrency limits,
+/// or content-type detection.
+///
+/// This class is not meant to be instantiated directly. Use a concrete
+/// subclass such as `RetryLayer` or `TimeoutLayer` and apply it with
+/// `Operator.layer` or `AsyncOperator.layer`.
 #[pyclass(module = "opendal.layers", subclass)]
 pub struct Layer(pub Box<dyn PythonLayer>);

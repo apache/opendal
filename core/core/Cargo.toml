@@ -62,7 +62,6 @@ services-memory = []
 
 [lib]
 bench = false
-doctest = false
 
 [dependencies]
 # Required dependencies

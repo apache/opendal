@@ -1,7 +1,8 @@
 # Apache OpenDAL™ Foyer Service
 
-`opendal-service-foyer` provides a storage backend backed by the Foyer hybrid cache for
-applications built with Apache OpenDAL™.
+`opendal-service-foyer` provides a volatile storage backend backed by the Foyer
+hybrid cache for applications built with Apache OpenDAL™. Foyer can evict data
+when the cache is full, so do not use this service for persistent storage.
 
 ## Use through `opendal`
 

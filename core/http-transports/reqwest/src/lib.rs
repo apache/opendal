@@ -15,55 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Reqwest based HTTP transport for Apache OpenDAL.
-//!
-//! # TLS backends
-//!
-//! Enable one of the following Cargo features to compile reqwest TLS support.
-//! The `default` feature enables `rustls`.
-//!
-//! - **`native-tls`** — Platform TLS links against the OS TLS library:
-//!    - Windows: SChannel
-//!    - macOS: Secure Transport
-//!    - Linux: OpenSSL, requires system development packages
-//!
-//! - **`rustls`** — [Rustls](https://crates.io/crates/rustls) configured by
-//!   reqwest with its default crypto provider and platform certificate
-//!   verification. Pure-Rust TLS stack, no system TLS dependency.
-//!
-//! - **`rustls-no-provider`** — Rustls without a built-in crypto provider.
-//!   You must install a [`rustls::crypto::CryptoProvider`] before building a
-//!   client. Use this when you want to bring your own provider
-//!   (e.g., a FIPS-certified module).
-//!
-//! In application or language binding builds, prefer selecting a single backend
-//! feature. In workspace or `--all-features` builds, Cargo may enable multiple
-//! backend features via feature unification; build a [`reqwest::Client`] with
-//! reqwest's TLS configuration methods and pass it to [`ReqwestTransport::new`]
-//! to force the backend you want.
-//!
-//! On wasm targets, reqwest uses the Fetch API instead of hyper. TLS is provided
-//! by the host environment, so native TLS backend features do not select a TLS
-//! stack there.
-//!
-//! # Custom reqwest client
-//!
-//! ```
-//! use std::time::Duration;
-//!
-//! use opendal_core::HttpTransporter;
-//! use opendal_http_transport_reqwest::ReqwestTransport;
-//!
-//! # fn build() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = reqwest::Client::builder()
-//!     .tls_backend_rustls()
-//!     .connect_timeout(Duration::from_secs(10))
-//!     .build()?;
-//! let transport = ReqwestTransport::new(client);
-//! let _transport = HttpTransporter::new(transport);
-//! # Ok(())
-//! # }
-//! ```
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
 
 use std::fmt::{Debug, Formatter};
 use std::future;

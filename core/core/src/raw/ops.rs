@@ -1017,7 +1017,7 @@ impl OpRename {
     ///
     /// ## Service Implementation
     ///
-    /// Check [`Capability::rename_with_if_not_exists`] before setting this to
+    /// Check [`crate::Capability::rename_with_if_not_exists`] before setting this to
     /// `true`. A service might return `ErrorKind::Unsupported` if it cannot
     /// enforce the condition.
     pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {

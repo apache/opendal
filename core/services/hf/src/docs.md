@@ -11,7 +11,7 @@ This service supports two storage backends:
 
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -23,17 +23,14 @@ This service can be used to:
 - [ ] rename
 - [ ] presign
 
-## Configurations
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
-- `repo_type`: The type of the repository. One of `model`, `dataset`, `space`, or `bucket`.
-- `repo_id`: The id of the repository.
-- `revision`: The revision of the repository. Only applicable for git-based repo types (`model`, `dataset`, `space`).
-- `root`: Set the work directory for backend.
-- `token`: The token for accessing the repository. Required for write operations.
-- `endpoint`: The Hub base URL. Default is `https://huggingface.co`. Can also be set via the `HF_ENDPOINT` environment variable.
-- `download_mode`: How files are downloaded. One of `xet` (default) or `http`. When unset, a non-empty `HF_HUB_DISABLE_XET` environment variable forces `http`.
+## Configuration
 
-Refer to [`HfBuilder`]'s public API docs for more information.
+Use [`crate::HfConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Examples
 
@@ -82,11 +79,13 @@ async fn main() -> Result<()> {
 ### Via URI
 
 ```rust,no_run
-use opendal_core::Operator;
-use opendal_core::Result;
+use opendal_core::{Operator, OperatorRegistry, Result};
+use opendal_service_hf::register_hf_service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    register_hf_service(OperatorRegistry::get());
+
     // Git-based dataset
     let op = Operator::from_uri((
         "hf://datasets/username/my-dataset@main",

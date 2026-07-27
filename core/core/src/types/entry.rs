@@ -20,7 +20,7 @@ use crate::*;
 
 /// `Entry` represents an entry's path and metadata.
 ///
-/// [`Lister`] and [`BlockingLister`] return `Entry` values.
+/// [`Lister`] and [`crate::blocking::Lister`] return `Entry` values.
 #[derive(Clone, Debug)]
 pub struct Entry {
     /// Path of this entry.

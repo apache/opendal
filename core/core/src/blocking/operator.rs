@@ -282,7 +282,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -334,7 +335,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -711,11 +713,13 @@ impl Operator {
         self.handle.block_on(self.op.delete_try_iter(try_iter))
     }
 
-    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    /// Create a [`blocking::Deleter`] to continuously remove content from
+    /// storage.
     ///
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
-    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    /// Use [`blocking::Deleter`] directly for more control over the deletion
+    /// process.
     pub fn deleter(&self) -> Result<blocking::Deleter> {
         blocking::Deleter::create(
             self.handle.clone(),
@@ -839,7 +843,8 @@ impl Operator {
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
+    /// This function creates a new [`blocking::Lister`]; dropping it stops
+    /// listing.
     ///
     /// # Semantics
     ///

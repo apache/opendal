@@ -15,16 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Foyer service implementation for Apache OpenDAL.
-//!
-//! Foyer is a high-performance hybrid cache library that supports both
-//! in-memory and on-disk caching. This service provides foyer as a
-//! volatile KV storage backend, similar to using Redis as a cache.
-//!
-//! Note: Data stored in foyer may be evicted when the cache is full.
-//! Do not use this service for persistent storage.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
 mod backend;
@@ -44,7 +37,7 @@ use opendal_core::Buffer;
 pub use backend::FoyerBuilder as Foyer;
 pub use config::FoyerConfig;
 
-/// Default scheme for foyer service.
+/// URI scheme used for service registration and scheme-driven construction.
 pub const FOYER_SCHEME: &str = "foyer";
 
 /// [`FoyerKey`] is a key for the foyer cache.
@@ -121,7 +114,12 @@ impl Code for FoyerValue {
     }
 }
 
-/// Register this service into the given registry.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 pub fn register_foyer_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Foyer>(FOYER_SCHEME);
 }

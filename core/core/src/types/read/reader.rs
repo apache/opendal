@@ -331,7 +331,8 @@ impl Reader {
     /// BufferStream is a zero-cost abstraction. It doesn't involve extra copy of data.
     /// It will return underlying [`Buffer`] directly.
     ///
-    /// The [`Buffer`] this stream yields can be seen as an iterator of [`Bytes`].
+    /// The [`Buffer`] this stream yields can be seen as an iterator of
+    /// [`bytes::Bytes`].
     ///
     /// # Inputs
     ///

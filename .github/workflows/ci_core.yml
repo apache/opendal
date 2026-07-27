@@ -51,9 +51,20 @@ jobs:
           distribution: zulu
           java-version: 25
 
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Cargo doc
         working-directory: core
-        run: cargo doc --lib --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: >-
+            -D rustdoc::broken_intra_doc_links
+            -D rustdoc::invalid_rust_codeblocks
+            -D rustdoc::bare_urls
+        run: |
+          cargo doc --workspace --lib --no-deps --all-features
+          cargo doc --package opendal-service-opfs --lib --no-deps --all-features \
+            --target wasm32-unknown-unknown
 
   check_clippy:
     runs-on: ubuntu-latest

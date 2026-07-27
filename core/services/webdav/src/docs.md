@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] create_dir
 - [x] stat
@@ -12,6 +12,9 @@ This service can be used to:
 - [x] rename
 - [ ] ~~presign~~
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Notes
 
 Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
@@ -19,12 +22,9 @@ Users can use `webdav` to connect those services.
 
 ## Configuration
 
-- `endpoint`: set the endpoint for webdav
-- `root`: Set the work directory for backend
-- `disable_copy`: Deprecated. WebDAV copy capability is enabled by default and this option is no longer needed.
-- `enable_user_metadata`: Deprecated. WebDAV user metadata capability is enabled by default. Use `CapabilityOverrideLayer` to override `write_with_user_metadata` for endpoints without PROPPATCH support.
-
-You can refer to [`WebdavBuilder`]'s docs for more information
+Use [`crate::WebdavConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

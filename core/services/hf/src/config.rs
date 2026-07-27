@@ -50,7 +50,7 @@ pub struct HfConfig {
     pub token: Option<String>,
     /// Endpoint of the Hugging Face Hub.
     ///
-    /// Default is "https://huggingface.co".
+    /// The default is `https://huggingface.co`.
     pub endpoint: Option<String>,
     /// Download mode. Either `xet` (default) or `http`.
     ///

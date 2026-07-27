@@ -63,7 +63,17 @@ class ConcurrentLimitLayer(Layer):
         """
 
 class Layer:
-    """Layers are used to intercept the operations on the underlying storage."""
+    """
+    Base class for all layers.
+
+    A layer wraps an operator to intercept operations on the underlying
+    storage, adding behavior such as retries, timeouts, concurrency limits,
+    or content-type detection.
+
+    This class is not meant to be instantiated directly. Use a concrete
+    subclass such as `RetryLayer` or `TimeoutLayer` and apply it with
+    `Operator.layer` or `AsyncOperator.layer`.
+    """
 
 @final
 class MimeGuessLayer(Layer):

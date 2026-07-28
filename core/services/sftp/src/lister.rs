@@ -17,7 +17,7 @@
 
 use std::collections::VecDeque;
 
-use russh_sftp::protocol::FileAttributes;
+use russh_sftp::protocol::{FileAttributes, FileMode};
 
 use super::core::SftpSessionRef;
 use super::core::close_handle_detached;
@@ -38,6 +38,8 @@ pub struct SftpLister {
     handle: String,
     prefix: String,
     buffer: VecDeque<(String, FileAttributes)>,
+    /// Whether the directory's own entry still has to be emitted.
+    emit_self: bool,
     finished: bool,
 }
 
@@ -62,8 +64,33 @@ impl SftpLister {
             handle,
             prefix,
             buffer: VecDeque::new(),
+            emit_self: true,
             finished: false,
         }
+    }
+
+    /// Builds the entry for the directory being listed.
+    ///
+    /// The metadata comes from the open handle rather than a `.` entry:
+    /// OpenSSH on Windows omits `.` and `..` from `readdir` altogether, so a
+    /// listing that relied on them would silently drop the directory itself.
+    async fn self_entry(&self) -> Entry {
+        let attrs = match self.conn.session.fstat(self.handle.as_str()).await {
+            Ok(attrs) => attrs.attrs,
+            Err(_) => {
+                let mut attrs = FileAttributes::default();
+                attrs.set_type(FileMode::DIR);
+                attrs
+            }
+        };
+
+        let path = if self.prefix.is_empty() {
+            "/"
+        } else {
+            self.prefix.as_str()
+        };
+
+        Entry::new(path, to_metadata(&attrs))
     }
 
     /// Pulls the next batch of entries, returning `false` once the server
@@ -99,6 +126,11 @@ impl SftpLister {
 
 impl oio::List for SftpLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
+        if self.emit_self {
+            self.emit_self = false;
+            return Ok(Some(self.self_entry().await));
+        }
+
         loop {
             let Some((filename, attrs)) = self.buffer.pop_front() else {
                 if self.fill().await? {
@@ -107,17 +139,9 @@ impl oio::List for SftpLister {
                 return Ok(None);
             };
 
-            if filename == ".." {
+            // Emitted up front from the handle, so both are dropped here.
+            if filename == "." || filename == ".." {
                 continue;
-            }
-
-            if filename == "." {
-                let path = if self.prefix.is_empty() {
-                    "/"
-                } else {
-                    self.prefix.as_str()
-                };
-                return Ok(Some(Entry::new(path, to_metadata(&attrs))));
             }
 
             let path = format!(

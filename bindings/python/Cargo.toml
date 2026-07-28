@@ -25,8 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.91"
-# PyPI and TestPyPI disallow re-upload the same version of a package distribution.
-# During Release Candidate releases or public releases, always bump the version.
+# Release candidate builds derive prerelease versions from tags in release_python.yml.
 version = "0.47.5"
 
 [features]

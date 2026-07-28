@@ -230,6 +230,7 @@ impl SftpCore {
         let path = path.trim_start_matches('/');
 
         if self.root.is_empty() {
+            let path = path.trim_end_matches('/');
             if path.is_empty() {
                 return ".".to_string();
             }
@@ -239,6 +240,15 @@ impl SftpCore {
         let mut buf = String::with_capacity(self.root.len() + path.len());
         buf.push_str(&self.root);
         buf.push_str(path);
+
+        // A trailing separator carries no meaning in SFTP, and OpenSSH on
+        // Windows rejects such a path outright instead of reporting that it
+        // does not exist, which turns a missing directory into an opaque
+        // failure.
+        while buf.len() > 1 && buf.ends_with('/') {
+            buf.pop();
+        }
+
         buf
     }
 
@@ -747,11 +757,18 @@ mod tests {
         let rooted = core("/upload/");
         assert_eq!(rooted.abs_path("a/b.txt"), "/upload/a/b.txt");
         assert_eq!(rooted.abs_path("/a/b.txt"), "/upload/a/b.txt");
-        assert_eq!(rooted.abs_path(""), "/upload/");
+
+        // Trailing separators are dropped; OpenSSH on Windows rejects them.
+        assert_eq!(rooted.abs_path("a/b/"), "/upload/a/b");
+        assert_eq!(rooted.abs_path(""), "/upload");
 
         // An empty root keeps paths relative to the login directory.
         let rootless = core("");
         assert_eq!(rootless.abs_path("a/b.txt"), "a/b.txt");
+        assert_eq!(rootless.abs_path("a/b/"), "a/b");
         assert_eq!(rootless.abs_path(""), ".");
+
+        // The server root must survive normalisation.
+        assert_eq!(core("/").abs_path(""), "/");
     }
 }

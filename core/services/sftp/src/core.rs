@@ -60,6 +60,7 @@ const MAX_CONCURRENT_HANDSHAKES: usize = 4;
 ///
 /// Each attempt counts against the server's `MaxAuthTries`, which defaults to
 /// six in OpenSSH and drops the connection once exceeded.
+#[cfg(unix)]
 const MAX_AGENT_IDENTITIES: usize = 4;
 
 /// Specifies how `SftpBackend` validates the remote host key.

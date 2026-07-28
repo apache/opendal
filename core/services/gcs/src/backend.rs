@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use log::debug;
 use reqsign_core::Context;
@@ -332,9 +333,10 @@ impl Builder for GcsBuilder {
         }
 
         let sign_ctx = ctx;
+        let credential_provider = Arc::new(credential_chain);
         let signer = Signer::new(
             sign_ctx.clone(),
-            credential_chain,
+            credential_provider.clone(),
             RequestSigner::new("storage").with_scope(&scope),
         );
 
@@ -406,8 +408,10 @@ impl Builder for GcsBuilder {
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
-                signer,
+                signer: RwLock::new(signer),
+                credential_provider,
                 sign_ctx,
+                scope,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 skip_signature,

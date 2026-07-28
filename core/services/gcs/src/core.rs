@@ -18,12 +18,15 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 use bytes::Buf;
 use bytes::Bytes;
 use constants::*;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -34,8 +37,9 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::{Context, Signer};
+use reqsign_core::{Context, ProvideCredentialChain, Signer};
 use reqsign_google::Credential;
+use reqsign_google::RequestSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -63,8 +67,10 @@ pub struct GcsCore {
     pub bucket: String,
     pub root: String,
 
-    pub signer: Signer<Credential>,
+    pub signer: RwLock<Signer<Credential>>,
+    pub credential_provider: Arc<ProvideCredentialChain<Credential>>,
     pub sign_ctx: Context,
+    pub scope: String,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -84,11 +90,23 @@ impl Debug for GcsCore {
 
 impl GcsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
-        )
+        self.signer
+            .read()
+            .expect("lock poisoned")
+            .clone()
+            .with_context(
+                self.sign_ctx
+                    .clone()
+                    .with_http_send(ctx.http_transport().clone()),
+            )
+    }
+
+    fn invalidate_signer(&self) {
+        *self.signer.write().expect("lock poisoned") = Signer::new(
+            self.sign_ctx.clone(),
+            self.credential_provider.clone(),
+            RequestSigner::new("storage").with_scope(&self.scope),
+        );
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
@@ -148,7 +166,11 @@ impl GcsCore {
         ctx: &OperationContext,
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
-        ctx.http_transport().send(req).await
+        let resp = ctx.http_transport().send(req).await?;
+        if !self.skip_signature && resp.status() == StatusCode::UNAUTHORIZED {
+            self.invalidate_signer();
+        }
+        Ok(resp)
     }
 }
 
@@ -956,16 +978,68 @@ struct GetObjectJsonResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::stream;
+    use http::HeaderValue;
+    use reqsign_core::ProvideCredential;
     use reqsign_core::ProvideCredentialChain;
     use reqsign_google::RequestSigner;
+    use reqsign_google::Token;
     use reqsign_google::TokenCredentialProvider;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    #[derive(Debug)]
+    struct SequenceTokenProvider {
+        tokens: Mutex<VecDeque<String>>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl ProvideCredential for SequenceTokenProvider {
+        type Credential = Credential;
+
+        async fn provide_credential(
+            &self,
+            _ctx: &Context,
+        ) -> reqsign_core::Result<Option<Self::Credential>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(self
+                .tokens
+                .lock()
+                .expect("lock poisoned")
+                .pop_front()
+                .map(|access_token| {
+                    Credential::with_token(Token {
+                        access_token,
+                        expires_at: None,
+                    })
+                }))
+        }
+    }
+
+    #[derive(Debug)]
+    struct UnauthorizedTransport;
+
+    impl HttpTransport for UnauthorizedTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            Ok(Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(HttpBody::new(stream::empty(), Some(0)))
+                .expect("response must build"))
+        }
+    }
 
     #[tokio::test]
     async fn test_insert_object_signing_preserves_wire_uri() {
         let sign_ctx = Context::new();
+        let credential_provider = Arc::new(
+            ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
+        );
         let signer = Signer::new(
             sign_ctx.clone(),
-            ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
+            credential_provider.clone(),
             RequestSigner::new("storage"),
         );
 
@@ -975,8 +1049,10 @@ mod tests {
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
-            signer,
+            signer: RwLock::new(signer),
+            credential_provider,
             sign_ctx,
+            scope: String::new(),
             predefined_acl: None,
             default_storage_class: None,
             skip_signature: false,
@@ -1004,6 +1080,61 @@ mod tests {
             .expect("request must sign");
 
         assert_eq!(signed.uri(), &original_uri);
+    }
+
+    #[tokio::test]
+    async fn test_unauthorized_response_invalidates_cached_credential() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = SequenceTokenProvider {
+            tokens: Mutex::new(["token-1".to_string(), "token-2".to_string()].into()),
+            calls: calls.clone(),
+        };
+        let sign_ctx = Context::new();
+        let credential_provider = Arc::new(ProvideCredentialChain::new().push(provider));
+        let signer = Signer::new(
+            sign_ctx.clone(),
+            credential_provider.clone(),
+            RequestSigner::new("storage"),
+        );
+        let core = GcsCore {
+            info: ServiceInfo::new("gcs", "/", "test-bucket"),
+            capability: Capability::default(),
+            endpoint: "https://storage.googleapis.com".to_string(),
+            bucket: "test-bucket".to_string(),
+            root: "/".to_string(),
+            signer: RwLock::new(signer),
+            credential_provider,
+            sign_ctx,
+            scope: String::new(),
+            predefined_acl: None,
+            default_storage_class: None,
+            skip_signature: false,
+        };
+        let ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(UnauthorizedTransport));
+
+        let req = Request::get("https://storage.googleapis.com/test-bucket/object")
+            .body(Buffer::new())
+            .expect("request must build");
+        let signed = core.sign(&ctx, req).await.expect("request must sign");
+        assert_eq!(
+            signed.headers().get(http::header::AUTHORIZATION),
+            Some(&HeaderValue::from_static("Bearer token-1"))
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let resp = core.send(&ctx, signed).await.expect("request must be sent");
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        let req = Request::get("https://storage.googleapis.com/test-bucket/object")
+            .body(Buffer::new())
+            .expect("request must build");
+        let signed = core.sign(&ctx, req).await.expect("request must re-sign");
+        assert_eq!(
+            signed.headers().get(http::header::AUTHORIZATION),
+            Some(&HeaderValue::from_static("Bearer token-2"))
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 
     #[test]
@@ -1243,6 +1374,7 @@ mod error {
             StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
                 (ErrorKind::ConditionNotMatch, false)
             }
+            StatusCode::UNAUTHORIZED => (ErrorKind::Unexpected, true),
             StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
@@ -1303,6 +1435,16 @@ mod error {
             assert_eq!(out.error.errors[0].message, "Login Required");
             assert_eq!(out.error.errors[0].location_type, "header");
             assert_eq!(out.error.errors[0].location, "Authorization");
+        }
+
+        #[test]
+        fn test_unauthorized_error_is_temporary() {
+            let resp = Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(Buffer::new())
+                .expect("response must build");
+
+            assert!(parse_error(resp).is_temporary());
         }
     }
 }

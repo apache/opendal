@@ -7064,6 +7064,7 @@ version = "0.58.1"
 dependencies = [
  "async-trait",
  "bytes",
+ "futures",
  "http 1.4.2",
  "log",
  "opendal-core",

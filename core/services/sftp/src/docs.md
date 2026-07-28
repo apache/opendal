@@ -23,6 +23,29 @@ accepted values, defaults, and environment interaction.
 
 For security reasons, it doesn't support password login. Use SSH key-based authentication (e.g., configure your public key on the server via `ssh-copy-id` and provide the private key here).
 
+### Authentication
+
+`SftpBackend` authenticates with a public key, in this order:
+
+1. The private key at `key`, when set.
+2. The SSH agent advertised by `SSH_AUTH_SOCK`, on Unix.
+3. `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`, and `~/.ssh/id_rsa`.
+
+Setting `key` disables the fallbacks, so an unusable key fails instead of
+silently authenticating as a different identity.
+
+### Host key verification
+
+`known_hosts_strategy` selects how the remote host key is checked against
+`~/.ssh/known_hosts`:
+
+- `strict` (default): the key must already be recorded and match. This
+  corresponds to `ssh -o StrictHostKeyChecking=yes`.
+- `add`: an unknown key is accepted and recorded, while a changed key is
+  rejected. This corresponds to `ssh -o StrictHostKeyChecking=accept-new`.
+- `accept`: any key is accepted without being recorded. This corresponds to
+  `ssh -o StrictHostKeyChecking=no`.
+
 ## Example
 
 ### Via Builder

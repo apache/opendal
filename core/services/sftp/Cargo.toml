@@ -41,7 +41,7 @@ log = { workspace = true }
 russh = "0.62.4"
 russh-sftp = "2.3.0"
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 
 [dev-dependencies]
 anyhow = "1.0"

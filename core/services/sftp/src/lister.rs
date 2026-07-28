@@ -20,6 +20,7 @@ use std::collections::VecDeque;
 use russh_sftp::protocol::FileAttributes;
 
 use super::core::SftpSessionRef;
+use super::core::close_handle_detached;
 use super::core::is_eof;
 use super::core::parse_sftp_error;
 use super::core::to_metadata;
@@ -38,6 +39,18 @@ pub struct SftpLister {
     prefix: String,
     buffer: VecDeque<(String, FileAttributes)>,
     finished: bool,
+}
+
+impl Drop for SftpLister {
+    fn drop(&mut self) {
+        if self.finished {
+            return;
+        }
+
+        // `list_with_limit` callers routinely stop before the directory ends,
+        // so the handle has to be released here too.
+        close_handle_detached(self.conn.session.clone(), std::mem::take(&mut self.handle));
+    }
 }
 
 impl SftpLister {
@@ -69,7 +82,11 @@ impl SftpLister {
             Err(e) if is_eof(&e) => {
                 self.finished = true;
                 // Release the directory handle as soon as the listing ends.
-                let _ = self.conn.session.close(self.handle.as_str()).await;
+                let _ = self
+                    .conn
+                    .session
+                    .close(std::mem::take(&mut self.handle))
+                    .await;
                 Ok(false)
             }
             Err(e) => {

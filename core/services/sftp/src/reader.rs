@@ -21,6 +21,7 @@ use russh_sftp::protocol::{FileAttributes, OpenFlags};
 use super::backend::*;
 use super::core::PIPELINE_DEPTH;
 use super::core::SftpSessionRef;
+use super::core::close_handle_detached;
 use super::core::is_eof;
 use super::core::is_not_found;
 use super::core::is_sftp_failure;
@@ -44,6 +45,14 @@ pub struct SftpReadStream {
     /// Remaining bytes to read when the caller asked for a bounded range.
     remaining: Option<u64>,
     finished: bool,
+}
+
+impl Drop for SftpReadStream {
+    fn drop(&mut self) {
+        // A ranged or abandoned read never reaches EOF, so the remote handle
+        // has to be released here rather than at the end of the stream.
+        close_handle_detached(self.conn.session.clone(), std::mem::take(&mut self.handle));
+    }
 }
 
 impl SftpReadStream {

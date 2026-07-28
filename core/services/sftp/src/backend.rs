@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use log::debug;
+use russh_sftp::client::RawSftpSession;
 use russh_sftp::client::error::Error as SftpClientError;
 use russh_sftp::extensions::HardlinkExtension;
 use russh_sftp::protocol::{FileAttributes, OpenFlags, Packet, StatusCode};
@@ -28,7 +29,9 @@ use super::core::KnownHostsStrategy;
 use super::core::PIPELINE_DEPTH;
 use super::core::POSIX_RENAME;
 use super::core::SftpCore;
+use super::core::close_handle_detached;
 use super::core::is_eof;
+use super::core::is_sftp_failure;
 use super::core::is_sftp_protocol_error;
 use super::core::parse_sftp_error;
 use super::core::to_metadata;
@@ -198,6 +201,81 @@ impl Builder for SftpBuilder {
     }
 }
 
+/// Copies a remote file through the client, keeping several reads and writes
+/// in flight.
+///
+/// SFTP has no server-side copy, so the payload has to make the round trip.
+async fn stream_copy(
+    session: &Arc<RawSftpSession>,
+    src: &str,
+    dst: &str,
+    chunk: u64,
+) -> Result<()> {
+    let mut offset = 0u64;
+
+    loop {
+        let reads = (0..PIPELINE_DEPTH).map(|i| {
+            let session = session.clone();
+            let src = src.to_string();
+            let at = offset + i as u64 * chunk;
+            async move { session.read(src, at, chunk as u32).await }
+        });
+
+        let mut writes = Vec::with_capacity(PIPELINE_DEPTH);
+        let mut consumed = 0u64;
+        let mut eof = false;
+
+        for (i, result) in futures::future::join_all(reads)
+            .await
+            .into_iter()
+            .enumerate()
+        {
+            let data = match result {
+                Ok(data) => data.data,
+                Err(e) if is_eof(&e) => {
+                    eof = true;
+                    break;
+                }
+                Err(e) => return Err(parse_sftp_error(e)),
+            };
+
+            let len = data.len() as u64;
+            if len == 0 {
+                eof = true;
+                break;
+            }
+
+            let session = session.clone();
+            let dst = dst.to_string();
+            let at = offset + i as u64 * chunk;
+            writes.push(async move { session.write(dst, at, data).await });
+            consumed += len;
+
+            // A short read leaves a gap, so the rest of this batch is dropped
+            // and re-requested from the corrected offset on the next pass.
+            if len < chunk {
+                break;
+            }
+        }
+
+        futures::future::try_join_all(writes)
+            .await
+            .map_err(parse_sftp_error)?;
+
+        if consumed == 0 {
+            break;
+        }
+
+        offset += consumed;
+
+        if eof {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 pub struct SftpBackend {
     pub core: Arc<SftpCore>,
@@ -310,7 +388,7 @@ impl Service for SftpBackend {
 
             let core = &backend.core;
             let conn = core.connect().await?;
-            let session = &conn.session;
+            let session = conn.session.clone();
 
             let src = session
                 .open(
@@ -321,74 +399,29 @@ impl Service for SftpBackend {
                 .await
                 .map_err(parse_sftp_error)?
                 .handle;
-            let dst = session
+
+            let dst = match session
                 .open(
                     core.abs_path(&to),
                     OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
                     FileAttributes::default(),
                 )
                 .await
-                .map_err(parse_sftp_error)?;
-            let dst = dst.handle;
+            {
+                Ok(handle) => handle.handle,
+                Err(e) => {
+                    close_handle_detached(session, src);
+                    return Err(parse_sftp_error(e));
+                }
+            };
 
-            // SFTP has no server-side copy, so stream the payload through the
-            // client, keeping several reads and writes in flight.
             let chunk = conn.read_len.min(conn.write_len) as u64;
-            let mut offset = 0u64;
-            'copy: loop {
-                let reads = (0..PIPELINE_DEPTH).map(|i| {
-                    let session = session.clone();
-                    let src = src.clone();
-                    let at = offset + i as u64 * chunk;
-                    async move { session.read(src, at, chunk as u32).await }
-                });
+            let result = stream_copy(&session, &src, &dst, chunk).await;
 
-                let mut writes = Vec::with_capacity(PIPELINE_DEPTH);
-                let mut done = false;
-                for (i, result) in futures::future::join_all(reads)
-                    .await
-                    .into_iter()
-                    .enumerate()
-                {
-                    let data = match result {
-                        Ok(data) => data.data,
-                        Err(e) if is_eof(&e) => {
-                            done = true;
-                            break;
-                        }
-                        Err(e) => return Err(parse_sftp_error(e)),
-                    };
-
-                    let len = data.len() as u64;
-                    if len == 0 {
-                        done = true;
-                        break;
-                    }
-
-                    let session = session.clone();
-                    let dst = dst.clone();
-                    let at = offset + i as u64 * chunk;
-                    writes.push(async move { session.write(dst, at, data).await });
-
-                    if len < chunk {
-                        done = true;
-                        break;
-                    }
-                }
-
-                let written = writes.len() as u64;
-                futures::future::try_join_all(writes)
-                    .await
-                    .map_err(parse_sftp_error)?;
-
-                if done || written == 0 {
-                    break 'copy;
-                }
-                offset += written * chunk;
-            }
-
-            let _ = session.close(src).await;
-            session.close(dst).await.map_err(parse_sftp_error)?;
+            // Release both handles regardless of how the transfer ended.
+            close_handle_detached(session.clone(), src);
+            close_handle_detached(session, dst);
+            result?;
 
             Ok(Metadata::default())
         }))
@@ -443,13 +476,23 @@ impl Service for SftpBackend {
                 }
             }
         } else {
-            // Fall back to removing the destination first, matching the
-            // overwrite semantics callers expect from `rename`.
-            let _ = conn.session.remove(to.clone()).await;
-            conn.session
-                .rename(from, to)
-                .await
-                .map_err(parse_sftp_error)?;
+            // Plain SFTP v3 `rename` refuses an existing destination. Try it
+            // first and only clear the destination once it is the thing in the
+            // way, so a missing or unreadable source cannot destroy the target.
+            match conn.session.rename(from.clone(), to.clone()).await {
+                Ok(_) => {}
+                Err(e) if is_sftp_failure(&e) => {
+                    conn.session
+                        .remove(to.clone())
+                        .await
+                        .map_err(parse_sftp_error)?;
+                    conn.session
+                        .rename(from, to)
+                        .await
+                        .map_err(parse_sftp_error)?;
+                }
+                Err(e) => return Err(parse_sftp_error(e)),
+            }
         }
 
         Ok(RpRename::default())

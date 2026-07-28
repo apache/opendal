@@ -56,6 +56,12 @@ pub const POSIX_RENAME: &str = "posix-rename@openssh.com";
 /// connections past ten), so growing the pool in a burst must be throttled.
 const MAX_CONCURRENT_HANDSHAKES: usize = 4;
 
+/// Number of agent identities tried before giving up.
+///
+/// Each attempt counts against the server's `MaxAuthTries`, which defaults to
+/// six in OpenSSH and drops the connection once exceeded.
+const MAX_AGENT_IDENTITIES: usize = 4;
+
 /// Specifies how `SftpBackend` validates the remote host key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnownHostsStrategy {
@@ -106,7 +112,15 @@ impl client::Handler for SshHandler {
                             self.port,
                             server_public_key,
                         ) {
-                            debug!("sftp failed to record host key in known_hosts: {err}");
+                            // Nothing was pinned, so every later connection also
+                            // takes this branch and `add` silently behaves like
+                            // `accept`. Surface it rather than hiding it.
+                            log::warn!(
+                                "sftp accepted host key for {}:{} but could not record it in known_hosts, \
+                                 so it will not be verified on future connections: {err}",
+                                self.host,
+                                self.port
+                            );
                         }
                         Ok(true)
                     }
@@ -346,7 +360,10 @@ impl Manager {
                 .map_err(parse_ssh_error)?
                 .flatten();
 
-            for identity in identities {
+            // Every attempt counts against the server's `MaxAuthTries` (6 by
+            // default), and exhausting it disconnects instead of reporting a
+            // clean authentication failure.
+            for identity in identities.into_iter().take(MAX_AGENT_IDENTITIES) {
                 let AgentIdentity::PublicKey { key, .. } = identity else {
                     continue;
                 };
@@ -445,6 +462,15 @@ impl ManageObject for Manager {
             if let Some(len) = limits.write_len {
                 write_len = clamp_chunk(len);
             }
+
+            // The server rejects a *serialized* packet larger than this, so the
+            // payload must leave room for the request header. OpenSSH reserves
+            // the same 1 KiB between its packet and read/write limits.
+            if let Some(packet_len) = limits.packet_len {
+                let budget = clamp_chunk(packet_len.saturating_sub(1024));
+                read_len = read_len.min(budget);
+                write_len = write_len.min(budget);
+            }
         }
 
         let session = Arc::new(session);
@@ -493,6 +519,22 @@ impl ManageObject for Manager {
 
 fn clamp_chunk(len: u64) -> u32 {
     len.min(MAX_CHUNK_SIZE as u64).max(1) as u32
+}
+
+/// Releases a server-side handle without awaiting the reply.
+///
+/// Handles are remote resources, so abandoning a reader, writer, or lister
+/// early must not leak them. `Drop` cannot await, so the close is dispatched
+/// onto the current runtime. Without a runtime the session is already being
+/// torn down, and the server releases the handle along with the channel.
+pub fn close_handle_detached(session: Arc<RawSftpSession>, handle: String) {
+    if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+        runtime.spawn(async move {
+            if let Err(err) = session.close(handle).await {
+                debug!("sftp failed to close handle: {err}");
+            }
+        });
+    }
 }
 
 fn default_user() -> Option<String> {
@@ -544,6 +586,9 @@ fn parse_endpoint(endpoint: &str) -> Result<(Option<String>, String, u16)> {
             None => 22,
         };
         (host.to_string(), port)
+    } else if host_port.matches(':').count() > 1 {
+        // An unbracketed IPv6 literal cannot be told apart from `host:port`.
+        return Err(invalid());
     } else {
         match host_port.rsplit_once(':') {
             Some((host, port)) => (
@@ -674,7 +719,9 @@ mod tests {
 
     #[test]
     fn test_parse_endpoint_invalid() {
-        for input in ["", "host:port", "[::1"] {
+        // An unbracketed IPv6 literal is ambiguous with `host:port` and must
+        // not be parsed as host ":" on port 1.
+        for input in ["", "host:port", "[::1", "::1", "fe80::1:22"] {
             assert!(
                 parse_endpoint(input).is_err(),
                 "endpoint must be rejected: {input}"

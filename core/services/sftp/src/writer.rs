@@ -19,6 +19,7 @@ use bytes::Buf;
 
 use super::core::PIPELINE_DEPTH;
 use super::core::SftpSessionRef;
+use super::core::close_handle_detached;
 use super::core::parse_sftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -34,6 +35,17 @@ pub struct SftpWriter {
     handle: String,
     offset: u64,
     closed: bool,
+}
+
+impl Drop for SftpWriter {
+    fn drop(&mut self) {
+        if self.closed {
+            return;
+        }
+
+        // An aborted write never calls `close`, so release the handle here.
+        close_handle_detached(self.conn.session.clone(), std::mem::take(&mut self.handle));
+    }
 }
 
 impl SftpWriter {

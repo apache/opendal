@@ -59,6 +59,10 @@ pub struct RedisConfig {
     /// default is db 0
     pub db: i64,
     /// The default ttl for put operations.
+    ///
+    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
+    /// (for example, `5m`) duration formats.
+    #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
 }
 
@@ -153,6 +157,14 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 0);
         assert_eq!(cfg.root.as_deref(), Some("app/data"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_iter_parses_default_ttl() -> Result<()> {
+        let cfg = RedisConfig::from_iter([("default_ttl".to_string(), "5s".to_string())])?;
+
+        assert_eq!(cfg.default_ttl, Some(Duration::from_secs(5)));
         Ok(())
     }
 

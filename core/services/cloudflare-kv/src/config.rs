@@ -34,6 +34,10 @@ pub struct CloudflareKvConfig {
     /// The namespace ID. Used as URI path parameter.
     pub namespace_id: Option<String>,
     /// The default ttl for write operations.
+    ///
+    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
+    /// (for example, `5m`) duration formats.
+    #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
 
     /// Root within this backend.
@@ -124,5 +128,13 @@ mod tests {
             OperatorUri::new("cloudflare-kv://acc123", Vec::<(String, String)>::new()).unwrap();
 
         assert!(CloudflareKvConfig::from_uri(&uri).is_err());
+    }
+
+    #[test]
+    fn from_iter_parses_default_ttl() {
+        let cfg = CloudflareKvConfig::from_iter([("default_ttl".to_string(), "PT1M".to_string())])
+            .unwrap();
+
+        assert_eq!(cfg.default_ttl, Some(Duration::from_secs(60)));
     }
 }

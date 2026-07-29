@@ -44,6 +44,10 @@ pub struct MemcachedConfig {
     /// Memcached password, optional.
     pub password: Option<String>,
     /// The default ttl for put operations.
+    ///
+    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
+    /// (for example, `5m`) duration formats.
+    #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
     /// The maximum number of connections allowed.
     ///
@@ -99,6 +103,14 @@ mod tests {
         let cfg = MemcachedConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("tcp://cache.local:11211"));
         assert_eq!(cfg.root.as_deref(), Some("app/session"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_iter_parses_default_ttl() -> Result<()> {
+        let cfg = MemcachedConfig::from_iter([("default_ttl".to_string(), "1500ms".to_string())])?;
+
+        assert_eq!(cfg.default_ttl, Some(Duration::from_millis(1500)));
         Ok(())
     }
 }

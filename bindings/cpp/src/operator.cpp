@@ -204,6 +204,10 @@ Reader Operator::GetReader(std::string_view path) {
   return operator_->reader(utils::rust_str(path));
 }
 
+Writer Operator::GetWriter(std::string_view path) {
+  return operator_->writer(utils::rust_str(path));
+}
+
 }  // namespace opendal
 opendal::Capability opendal::Operator::Info() {
   auto op_info = operator_->info();

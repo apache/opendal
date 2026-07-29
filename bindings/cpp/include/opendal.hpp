@@ -36,10 +36,12 @@ namespace ffi {
 class Operator;
 class Reader;
 class Lister;
+class Writer;
 }  // namespace ffi
 
 class Reader;
 class Lister;
+class Writer;
 
 /**
  * @class Operator
@@ -102,6 +104,7 @@ class Operator {
    * @return The reader of the data
    */
   Reader GetReader(std::string_view path);
+  Writer GetWriter(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -203,6 +206,35 @@ class Reader {
   void Destroy() noexcept;
 
   ffi::Reader *reader_{nullptr};
+};
+
+/**
+ * @class Writer
+ * @brief Writer is designed to write a sequence of byte buffers to an object.
+ *
+ * Call Close to commit the object. OpenDAL selects the service's appropriate
+ * implementation, including multipart uploads when supported.
+ */
+class Writer {
+ public:
+  Writer(Writer &&other) noexcept;
+
+  ~Writer() noexcept;
+
+  void Write(std::string_view data);
+
+  void Flush();
+
+  void Close();
+
+ private:
+  friend class Operator;
+
+  Writer(ffi::Writer *pointer) noexcept;
+
+  void Destroy() noexcept;
+
+  ffi::Writer *writer_{nullptr};
 };
 
 /**

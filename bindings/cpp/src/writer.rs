@@ -17,18 +17,15 @@
 
 use anyhow::Result;
 use opendal as od;
-use std::io::Write;
-
-pub struct Writer(pub od::blocking::StdWriter);
+pub struct Writer(pub od::blocking::Writer);
 
 impl Writer {
     pub fn write(&mut self, bs: Vec<u8>) -> Result<()> {
-        self.0.write_all(&bs)?;
+        self.0.write(bs)?;
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        self.0.flush()?;
         Ok(())
     }
 

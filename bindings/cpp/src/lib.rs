@@ -331,7 +331,7 @@ impl Operator {
     }
 
     fn writer(&self, path: &str) -> Result<*mut Writer> {
-        let writer = Box::into_raw(Box::new(Writer(self.0.writer(path)?.into_std_write())));
+        let writer = Box::into_raw(Box::new(Writer(self.0.writer(path)?)));
         Ok(writer)
     }
 

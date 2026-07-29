@@ -21,6 +21,7 @@ mod layer;
 mod lister;
 mod reader;
 mod types;
+mod writer;
 
 #[cfg(feature = "testing")]
 mod test_support;
@@ -34,6 +35,7 @@ use anyhow::Result;
 use lister::Lister;
 use opendal as od;
 use reader::Reader;
+use writer::Writer;
 
 static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -136,6 +138,7 @@ mod ffi {
         type Operator;
         type Reader;
         type Lister;
+        type Writer;
         type LayerBuilder;
 
         fn layer_builder_new() -> Box<LayerBuilder>;
@@ -168,11 +171,17 @@ mod ffi {
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<*mut Reader>;
         fn lister(self: &Operator, path: &str) -> Result<*mut Lister>;
+        fn writer(self: &Operator, path: &str) -> Result<*mut Writer>;
         fn info(self: &Operator) -> Result<Capability>;
 
         unsafe fn delete_reader(reader: *mut Reader);
         fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
+
+        unsafe fn delete_writer(writer: *mut Writer);
+        fn write(self: &mut Writer, bs: Vec<u8>) -> Result<()>;
+        fn flush(self: &mut Writer) -> Result<()>;
+        fn close(self: &mut Writer) -> Result<()>;
 
         unsafe fn delete_lister(lister: *mut Lister);
         fn next(self: &mut Lister) -> Result<OptionalEntry>;
@@ -251,6 +260,14 @@ unsafe fn delete_reader(reader: *mut Reader) {
     }
 }
 
+unsafe fn delete_writer(writer: *mut Writer) {
+    if !writer.is_null() {
+        unsafe {
+            drop(Box::from_raw(writer));
+        }
+    }
+}
+
 unsafe fn delete_lister(lister: *mut Lister) {
     if !lister.is_null() {
         unsafe {
@@ -311,6 +328,11 @@ impl Operator {
     fn lister(&self, path: &str) -> Result<*mut Lister> {
         let lister = Box::into_raw(Box::new(Lister(self.0.lister(path)?)));
         Ok(lister)
+    }
+
+    fn writer(&self, path: &str) -> Result<*mut Writer> {
+        let writer = Box::into_raw(Box::new(Writer(self.0.writer(path)?.into_std_write())));
+        Ok(writer)
     }
 
     fn info(&self) -> Result<ffi::Capability> {

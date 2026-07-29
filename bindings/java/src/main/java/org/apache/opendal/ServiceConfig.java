@@ -1583,7 +1583,7 @@ public interface ServiceConfig {
         public final String downloadMode;
         /**
          * <p>Endpoint of the Hugging Face Hub.</p>
-         * <p>Default is &quot;https://huggingface.co&quot;.</p>
+         * <p>The default is <code>https://huggingface.co</code>.</p>
          */
         public final String endpoint;
         /**

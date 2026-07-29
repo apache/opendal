@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenTelemetry trace layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 
 use opendal_core::raw::*;
@@ -32,8 +31,17 @@ use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 
-/// `OtelTraceLayer` traces every operation with
-/// [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
+/// `OtelTraceLayer` traces OpenDAL operations with
+/// [OpenTelemetry](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
+///
+/// The layer obtains the `opendal` tracer from OpenTelemetry's global tracer
+/// provider. Applications must install and configure that provider before
+/// issuing operations.
+///
+/// The layer creates spans for service metadata, create, read, write, copy,
+/// rename, stat, list, and presign calls. It carries read, write, and list
+/// contexts into their stateful I/O bodies. Delete calls currently pass through
+/// without creating a span.
 ///
 /// # Examples
 ///

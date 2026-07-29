@@ -40,7 +40,7 @@ impl Deleter {
     ///
     /// Also see:
     ///
-    /// - [`BlockingDeleter::delete_try_iter`]: delete an fallible iterator of paths.
+    /// - [`Deleter::delete_try_iter`]: delete a fallible iterator of paths.
     pub fn delete_iter<I, D>(&mut self, iter: I) -> Result<()>
     where
         I: IntoIterator<Item = D>,
@@ -53,7 +53,7 @@ impl Deleter {
     ///
     /// Also see:
     ///
-    /// - [`BlockingDeleter::delete_iter`]: delete an infallible iterator of paths.
+    /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
     pub fn delete_try_iter<I, D>(&mut self, try_iter: I) -> Result<()>
     where
         I: IntoIterator<Item = Result<D>>,

@@ -104,6 +104,54 @@ Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstu
 
 Running `python3 ./scripts/dependencies.py generate` to update the dependency list of every package.
 
+### Bootstrap Rust crate names
+
+During release preparation, wait until the intended Rust crate-name set is on
+`apache/opendal` `main`. The release manager chooses the exact reservation time,
+normally about three days before the planned release. At that time, check out
+the current `main` commit and run:
+
+```shell
+.agents/skills/opendal-release/scripts/bootstrap-rust-crates.sh
+```
+
+The helper dispatches the manual `Bootstrap Rust Crates` workflow without
+inputs. The workflow scans the Rust publish plan from the `main` commit that
+GitHub records as the run's `headSha`. The helper resolves that exact run,
+checks the `headSha`, and waits for it to finish. A PMC member must approve the
+protected `rust-bootstrap` environment on every run.
+
+The protected job authenticates ownership and audits every existing planned
+crate before it writes anything. Each established crate must already have
+`apache/opendal`, `release_rust.yml`, and the `release` environment as its only
+Trusted Publisher, with `trustpub_only` enabled. The workflow never modifies an
+established crate. For each missing name, it publishes a dependency-free
+`0.0.0` package, configures that Trusted Publisher, and enables
+`trustpub_only`. Reruns reconcile every placeholder. The protected authenticated
+audit runs even when there are no bootstrap candidates.
+
+The one-time migration of existing crates is a separate administrative task.
+Configure the same `apache/opendal`, `release_rust.yml`, and `release` publisher
+identity and enable `trustpub_only` for every existing crate. This workflow
+audits but never modifies established crates, and it fails if the migration is
+incomplete. Complete that migration before using the OIDC-only Rust release
+workflow.
+
+The `0.0.0` package is a namespace reservation, not an ASF software release or
+release artifact. crates.io exposes the reservation publicly, and publishing it
+is irreversible. The release manager decides when the names are stable enough
+to reserve. Run the helper again if a later `main` commit adds another planned
+crate. Do not create the RC tag until every name in the current publish plan has
+passed the workflow.
+
+ASF Infrastructure provisions the `rust-bootstrap` GitHub environment from
+`.asf.yaml` with PMC required reviewers, self-review disabled, and a `main`-only
+deployment policy. A PMC release manager must add a
+`CARGO_REGISTRY_BOOTSTRAP_TOKEN` environment secret. The crates.io token must
+have only the `publish-new` and `trusted-publishing` endpoint scopes and
+OpenDAL-specific crate scopes. The normal Rust release workflow must not have
+access to this token.
+
 ### Push release candidate tag
 
 After bump version PR gets merged, push the release candidate tag:
@@ -149,14 +197,10 @@ of calling `cargo publish` directly. The helper temporarily removes repo-local
 step, same-version dev dependencies and dev-only cycles can block the release
 even though they are not needed by downstream users.
 
-:::caution
-
-crates.io trusted publishing tokens cannot create new crates. If this release
-introduces a new crate name, make sure a crates.io token that is allowed to
-create crates is available as `CARGO_REGISTRY_TOKEN`, or publish the new crate
-manually before relying on trusted publishing.
-
-:::
+The normal workflow publishes only through Trusted Publishing. The helper
+fetches and revokes a fresh OIDC-derived crates.io token for every publish
+attempt, including attempts retried after a rate limit. New crate names must
+already exist from the reservation workflow.
 
 ## ASF Side
 
@@ -297,63 +341,66 @@ Content:
 ```
 Hello, Apache OpenDAL Community,
 
-This is a call for a vote to release Apache OpenDAL version ${opendal_version}.
+This is a call for a vote to release Apache OpenDAL ${opendal_version},
+based on release candidate v${release_version}.
 
-The tag to be voted on is v${release_version}.
+We are voting on release v${release_version}.
 
-The release candidate source packages:
+Release candidate source packages:
 
 https://dist.apache.org/repos/dist/dev/opendal/${release_version}/
 
-Keys to verify the release candidate:
+Keys used to verify the signatures:
 
 https://downloads.apache.org/opendal/KEYS
 
-Git tag for the release:
+Release candidate Git tag:
 
 https://github.com/apache/opendal/releases/tag/v${release_version}
 
-Maven staging repo:
+Maven staging repository:
 
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
 
-Pypi testing repo:
+Python packages on TestPyPI:
 
 https://test.pypi.org/project/opendal/
 
-Website staged:
+Staged website:
 
 https://opendal-v${release_version | replace('.', '-')}.staged.apache.org/
 
-Please download, verify, and test.
+Please download, verify, and test the release candidate.
 
-The VOTE will be open for at least 72 hours and until the necessary
-number of votes are reached.
+The vote will remain open for at least 72 hours and until the required
+number of binding votes is reached.
 
+```markdown
 - [ ] +1 approve
 - [ ] +0 no opinion
-- [ ] -1 disapprove with the reason
+- [ ] -1 disapprove the release. Please explain why.
 
-To learn more about apache opendal, please see https://opendal.apache.org/
+Verification checklist:
 
-Checklist for reference:
-
-- [ ] Download links are valid.
-- [ ] Checksums and signatures.
-- [ ] LICENSE/NOTICE files exist
-- [ ] No unexpected binary files
-- [ ] All source files have ASF headers
-- [ ] Can compile from source
+- [ ] Download links work.
+- [ ] Checksums and signatures are valid.
+- [ ] LICENSE and NOTICE files are present.
+- [ ] Source packages contain no unexpected binary files.
+- [ ] Source files include ASF license headers.
+- [ ] Source builds successfully.
+```
 
 Use our verify.py to assist in the verify process:
 
-    svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dev
-    cd opendal-dev
-    curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py -o verify.py
+    svn checkout https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dist-${release_version}
+    cd opendal-dist-${release_version}
+    curl --silent --show-error --location https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py --output verify.py
     python verify.py
 
-Thanks
+For more information about Apache OpenDAL, visit:
+https://opendal.apache.org/
 
+Thanks,
 ${name}
 ```
 
@@ -399,7 +446,6 @@ Non-Binding votes:
 Vote thread: ${vote_thread_url}
 
 Thanks
-
 ${name}
 ```
 

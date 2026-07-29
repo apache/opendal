@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,6 +12,7 @@ This service can be used to:
 - [ ] ~~rename~~
 - [ ] ~~presign~~
 
+
 ## Limitations
 
 Vercel Remote Cache stores build artifacts addressed by a hash of the task inputs.
@@ -21,13 +22,10 @@ Because of its append-only, hash-keyed design, it has the following limitations:
 - **Suffix Range Reads**: `read_with_suffix` is not declared because suffix range reads (`Range: bytes=-N`) have not been verified against the Vercel Remote Cache API. Full reads and standard range reads (`Range: bytes=X-Y`) are supported.
 
 ## Configuration
+=======
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
-- `access_token`: set the access_token for Rest API
-- `endpoint`: set the API endpoint (default: `https://api.vercel.com`)
-- `team_id`: optional Vercel team ID, appended as `teamId` query parameter
-- `team_slug`: optional Vercel team slug, appended as `slug` query parameter
-
-You can refer to [`VercelArtifactsBuilder`]'s docs for more information
 
 ## Example
 

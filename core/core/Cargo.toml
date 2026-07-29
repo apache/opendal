@@ -21,6 +21,7 @@ description = "Apache OpenDAL™: One Layer, All Storage."
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal-core"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -61,7 +62,6 @@ services-memory = []
 
 [lib]
 bench = false
-doctest = false
 
 [dependencies]
 # Required dependencies
@@ -76,7 +76,7 @@ md-5 = "0.11.0"
 mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-core = { version = "3.0.1", default-features = false, optional = true }
+reqsign-core = { version = "3.2.0", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }

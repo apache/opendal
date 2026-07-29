@@ -139,6 +139,16 @@ OPENDAL_TEST_F(OpenDALTest, ReaderTest) {
   EXPECT_EQ(reader_data, data);
 }
 
+OPENDAL_TEST_F(OpenDALTest, WriterTest) {
+  auto writer = op_.GetWriter("writer_test");
+  writer.Write("hello ");
+  writer.Write("world");
+  writer.Flush();
+  writer.Close();
+
+  EXPECT_EQ(op_.Read("writer_test"), "hello world");
+}
+
 OPENDAL_TEST_F(OpenDALTest, ListerTest) {
   std::string dir_path = "test_dir/";
   op_.CreateDir(dir_path);

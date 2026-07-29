@@ -342,27 +342,6 @@ class GhacConfig(TypedDict):
     """The version that used by cache."""
 
 
-class GoosefsConfig(TypedDict):
-    """Configuration for the `goosefs` service."""
-
-    scheme: Required[Literal["goosefs"]]
-    """The service scheme; fixed to `"goosefs"`."""
-    auth_type: NotRequired[str]
-    """Authentication type.  Supported values: `"nosasl"`, `"simple"`. Default: `"simple"` — PLAIN SASL with username. `"nosasl"` — skip authentication entirely."""
-    auth_username: NotRequired[str]
-    """Authentication username.  Used in SIMPLE mode as the login identity. Default: current OS user (`$USER` / `$USERNAME`)."""
-    block_size: NotRequired[int]
-    """Block size in bytes for new files (default: 64 MiB)."""
-    chunk_size: NotRequired[int]
-    """Chunk size in bytes for streaming RPCs (default: 1 MiB)."""
-    master_addr: NotRequired[str]
-    """Master address(es) in `host:port` format.  For single master: `"10.0.0.1:9200"` For HA (comma-separated): `"10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200"`  When multiple addresses are provided, the client uses `PollingMasterInquireClient` to discover the Primary Master automatically.  Resolution precedence at `build()` time (highest → lowest), following [goosefs-sdk `docs/CLIENT_CONFIGURATION.md`](https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md) §1: 1. This field (when set on the builder / OpenDAL config map) 2. `GOOSEFS_MASTER_ADDR` environment variable 3. `goosefs.master.rpc.addresses` / `goosefs.master.hostname` in `goosefs-site.properties`  `build()` fails with `ConfigInvalid` only when **none** of the above supplies a master address."""
-    root: NotRequired[str | os.PathLike[str]]
-    """Root path of this backend.  All operations will happen under this root. Default to `/` if not set."""
-    write_type: NotRequired[str]
-    """Default write type for new files.  Supported values: `"must_cache"`, `"cache_through"`, `"through"`, `"async_through"`. Default: `"must_cache"`."""
-
-
 class GridfsConfig(TypedDict):
     """Configuration for the `gridfs` service."""
 
@@ -403,7 +382,7 @@ class HfConfig(TypedDict):
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
     endpoint: NotRequired[str]
-    """Endpoint of the Hugging Face Hub.  Default is "https://huggingface.co"."""
+    """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
     repo_id: NotRequired[str]
     """Repo id of this backend.  This is required."""
     repo_type: NotRequired[str]
@@ -1021,7 +1000,6 @@ ServiceConfig = (
     | GcsConfig
     | GdriveConfig
     | GhacConfig
-    | GoosefsConfig
     | GridfsConfig
     | HdfsNativeConfig
     | HfConfig
@@ -1076,7 +1054,6 @@ __all__ = [
     "GcsConfig",
     "GdriveConfig",
     "GhacConfig",
-    "GoosefsConfig",
     "GridfsConfig",
     "HdfsNativeConfig",
     "HfConfig",

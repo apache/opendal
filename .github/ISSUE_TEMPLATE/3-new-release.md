@@ -25,6 +25,7 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Update docs
 - [ ] Generate dependencies list
 - [ ] Check Rust crates.io publish plan
+- [ ] Reserve and audit Rust crate names at the release manager's chosen time
 - [ ] Push release candidate tag to GitHub
 
 #### ASF Side

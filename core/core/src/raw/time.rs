@@ -35,6 +35,7 @@ pub use web_time::{Instant, SystemTime};
 #[serde(untagged)]
 enum ConfigDuration {
     Duration(Duration),
+    // String-backed config paths cannot provide Duration's structured serde representation.
     String(String),
 }
 

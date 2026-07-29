@@ -151,7 +151,9 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_layer_concurrent_limit(
         Operator op,
-        nuint permits
+        nuint permits,
+        nuint httpPermits,
+        [MarshalAs(UnmanagedType.I1)] bool hasHttpPermits
     );
 
     [LibraryImport(__DllName, EntryPoint = "operator_layer_capability_override", StringMarshalling = StringMarshalling.Utf8)]
@@ -167,6 +169,20 @@ internal partial class NativeMethods
         Operator op,
         ulong timeoutNanos,
         ulong ioTimeoutNanos
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_layer_throttle")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOperatorResult operator_layer_throttle(
+        Operator op,
+        uint bandwidth,
+        uint burst
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_layer_mime_guess")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOperatorResult operator_layer_mime_guess(
+        Operator op
     );
 
     #endregion

@@ -31,7 +31,8 @@ use crate::{
     },
     utils::{collect_options, require_callback, require_cstr, require_data_ptr, require_operator},
     validators::prelude::{
-        validate_concurrent_limit_options, validate_retry_options, validate_timeout_options,
+        validate_concurrent_limit_options, validate_retry_options, validate_throttle_options,
+        validate_timeout_options,
     },
 };
 
@@ -385,6 +386,10 @@ fn operator_layer_retry_inner(
 ///
 /// The current operator is not modified. Returned pointer must be released with
 /// `operator_free`.
+///
+/// `http_permits` limits concurrent HTTP requests independently of `permits`,
+/// which limits concurrent operations. It is read only when `has_http_permits`
+/// is true; otherwise the HTTP limit is left unset.
 /// # Safety
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
@@ -392,8 +397,11 @@ fn operator_layer_retry_inner(
 pub extern "C" fn operator_layer_concurrent_limit(
     op: *const opendal::Operator,
     permits: usize,
+    http_permits: usize,
+    has_http_permits: bool,
 ) -> OpendalOperatorResult {
-    match operator_layer_concurrent_limit_inner(op, permits) {
+    let http_permits = has_http_permits.then_some(http_permits);
+    match operator_layer_concurrent_limit_inner(op, permits, http_permits) {
         Ok(value) => OpendalOperatorResult::ok(value),
         Err(error) => OpendalOperatorResult::from_error(error),
     }
@@ -402,11 +410,16 @@ pub extern "C" fn operator_layer_concurrent_limit(
 fn operator_layer_concurrent_limit_inner(
     op: *const opendal::Operator,
     permits: usize,
+    http_permits: Option<usize>,
 ) -> Result<*mut c_void, OpenDALError> {
     let op = require_operator(op)?;
-    validate_concurrent_limit_options(permits)?;
+    validate_concurrent_limit_options(permits, http_permits)?;
 
-    let concurrent_limit = opendal::layers::ConcurrentLimitLayer::new(permits);
+    let mut concurrent_limit = opendal::layers::ConcurrentLimitLayer::new(permits);
+    if let Some(http_permits) = http_permits {
+        concurrent_limit = concurrent_limit.with_http_concurrent_limit(http_permits);
+    }
+
     Ok(Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as *mut c_void)
 }
 
@@ -473,6 +486,66 @@ fn operator_layer_timeout_inner(
         .with_io_timeout(Duration::from_nanos(io_timeout_nanos));
 
     Ok(Box::into_raw(Box::new(op.clone().layer(timeout))) as *mut c_void)
+}
+
+/// Create a new operator layered with throttle behavior.
+///
+/// The current operator is not modified. Returned pointer must be released with
+/// `operator_free`.
+///
+/// `bandwidth` is the maximum number of bytes allowed through per second, and
+/// `burst` is the maximum number of bytes allowed through at once. `burst` must
+/// exceed the largest possible operation size, otherwise that operation can
+/// never acquire enough quota to proceed.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_layer_throttle(
+    op: *const opendal::Operator,
+    bandwidth: u32,
+    burst: u32,
+) -> OpendalOperatorResult {
+    match operator_layer_throttle_inner(op, bandwidth, burst) {
+        Ok(value) => OpendalOperatorResult::ok(value),
+        Err(error) => OpendalOperatorResult::from_error(error),
+    }
+}
+
+fn operator_layer_throttle_inner(
+    op: *const opendal::Operator,
+    bandwidth: u32,
+    burst: u32,
+) -> Result<*mut c_void, OpenDALError> {
+    let op = require_operator(op)?;
+    validate_throttle_options(bandwidth, burst)?;
+
+    let throttle = opendal::layers::ThrottleLayer::new(bandwidth, burst);
+    Ok(Box::into_raw(Box::new(op.clone().layer(throttle))) as *mut c_void)
+}
+
+/// Create a new operator layered with MIME-guess behavior.
+///
+/// The current operator is not modified. Returned pointer must be released with
+/// `operator_free`.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_layer_mime_guess(op: *const opendal::Operator) -> OpendalOperatorResult {
+    match operator_layer_mime_guess_inner(op) {
+        Ok(value) => OpendalOperatorResult::ok(value),
+        Err(error) => OpendalOperatorResult::from_error(error),
+    }
+}
+
+fn operator_layer_mime_guess_inner(
+    op: *const opendal::Operator,
+) -> Result<*mut c_void, OpenDALError> {
+    let op = require_operator(op)?;
+
+    let mime_guess = opendal::layers::MimeGuessLayer::default();
+    Ok(Box::into_raw(Box::new(op.clone().layer(mime_guess))) as *mut c_void)
 }
 
 /// Duplicate an operator instance.

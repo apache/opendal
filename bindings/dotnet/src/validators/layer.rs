@@ -18,7 +18,8 @@
 use crate::error::OpenDALError;
 use crate::utils::config_invalid_error;
 use crate::validators::{
-    validate_non_zero_u64, validate_non_zero_usize, validate_positive_finite_f32,
+    validate_non_zero_u32, validate_non_zero_u64, validate_non_zero_usize,
+    validate_positive_finite_f32,
 };
 
 /// Validate retry layer options.
@@ -50,8 +51,25 @@ pub fn validate_timeout_options(
 }
 
 /// Validate concurrent-limit layer options.
-pub fn validate_concurrent_limit_options(permits: usize) -> Result<(), OpenDALError> {
+pub fn validate_concurrent_limit_options(
+    permits: usize,
+    http_permits: Option<usize>,
+) -> Result<(), OpenDALError> {
     validate_non_zero_usize(permits, "permits")?;
+    if let Some(http_permits) = http_permits {
+        validate_non_zero_usize(http_permits, "http_permits")?;
+    }
+
+    Ok(())
+}
+
+/// Validate throttle layer options.
+///
+/// `ThrottleLayer::new` asserts on zero values, and a panic across the `extern "C"`
+/// boundary aborts the process, so both values must be rejected here first.
+pub fn validate_throttle_options(bandwidth: u32, burst: u32) -> Result<(), OpenDALError> {
+    validate_non_zero_u32(bandwidth, "bandwidth")?;
+    validate_non_zero_u32(burst, "burst")?;
 
     Ok(())
 }

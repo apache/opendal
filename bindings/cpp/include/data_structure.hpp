@@ -128,13 +128,17 @@ class Metadata {
    * @brief Content MD5 hash
    * @return Optional MD5 hash string
    */
-  const std::optional<std::string>& ContentMd5() const { return content_md5; }
+  const std::optional<std::string>& ContentMd5() const {
+    return content_md5;
+  }
 
   /**
    * @brief Content type (MIME type)
    * @return Optional content type string
    */
-  const std::optional<std::string>& ContentType() const { return content_type; }
+  const std::optional<std::string>& ContentType() const {
+    return content_type;
+  }
 
   /**
    * @brief Content encoding
@@ -368,4 +372,4 @@ class Capability {
   bool presign_write;
   bool shared;
 };
-}  // namespace opendal
+}

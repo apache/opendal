@@ -297,4 +297,4 @@ TEST(OpenDALOptionsTest, StatOptions) {
   EXPECT_EQ(metadata.content_length, 5);
 }
 
-}  // namespace opendal::test
+} // namespace opendal::test

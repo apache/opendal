@@ -442,12 +442,10 @@ opendal::Capability opendal::Operator::Info() {
       .read = op_info.read,
       .read_with_if_match = op_info.read_with_if_match,
       .read_with_if_none_match = op_info.read_with_if_none_match,
-      .read_with_override_cache_control =
-          op_info.read_with_override_cache_control,
+      .read_with_override_cache_control = op_info.read_with_override_cache_control,
       .read_with_override_content_disposition =
           op_info.read_with_override_content_disposition,
-      .read_with_override_content_type =
-          op_info.read_with_override_content_type,
+      .read_with_override_content_type = op_info.read_with_override_content_type,
       .write = op_info.write,
       .write_can_multi = op_info.write_can_multi,
       .write_can_empty = op_info.write_can_empty,

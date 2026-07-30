@@ -133,7 +133,8 @@ class Operator {
    * @param path The path to check
    * @return true if the path exists, false otherwise
    */
-  [[deprecated("Use Exists() instead.")]] bool IsExist(std::string_view path);
+  [[deprecated("Use Exists() instead.")]]
+  bool IsExist(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -201,11 +202,11 @@ class Operator {
   Lister GetLister(std::string_view path, const ListOptions &options);
   Capability Info();
 
- private:
-  void Destroy() noexcept;
+  private:
+   void Destroy() noexcept;
 
-  ffi::Operator *operator_{nullptr};
-};
+   ffi::Operator *operator_{nullptr};
+ };
 
 /**
  * @class Reader
@@ -330,8 +331,7 @@ class ReaderStream : public std::istream {
                            std::ios_base::openmode which) override {
       if (dir == std::ios_base::cur && off == 0) {
         // tellg() case - return current position
-        return buffer_start_pos_ +
-               static_cast<std::streamoff>(gptr() - eback());
+        return buffer_start_pos_ + static_cast<std::streamoff>(gptr() - eback());
       }
 
       // Actual seek operation

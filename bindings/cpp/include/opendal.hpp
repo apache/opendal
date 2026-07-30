@@ -90,6 +90,15 @@ class Operator {
   std::string Read(std::string_view path);
 
   /**
+   * @brief Read data from the operator with extra options
+   *
+   * @param path The path of the data
+   * @param options The read options
+   * @return The data read from the operator
+   */
+  std::string Read(std::string_view path, const ReadOptions &options);
+
+  /**
    * @brief Write data to the operator
    *
    * @param path The path of the data
@@ -98,13 +107,25 @@ class Operator {
   void Write(std::string_view path, std::string_view data);
 
   /**
+   * @brief Write data to the operator with extra options
+   *
+   * @param path The path of the data
+   * @param data The data to write
+   * @param options The write options
+   */
+  void Write(std::string_view path, std::string_view data,
+             const WriteOptions &options);
+
+  /**
    * @brief Read data from the operator
    *
    * @param path The path of the data
    * @return The reader of the data
    */
   Reader GetReader(std::string_view path);
+  Reader GetReader(std::string_view path, const ReaderOptions &options);
   Writer GetWriter(std::string_view path);
+  Writer GetWriter(std::string_view path, const WriteOptions &options);
 
   /**
    * @brief Check if the path exists
@@ -112,8 +133,7 @@ class Operator {
    * @param path The path to check
    * @return true if the path exists, false otherwise
    */
-  [[deprecated("Use Exists() instead.")]]
-  bool IsExist(std::string_view path);
+  [[deprecated("Use Exists() instead.")]] bool IsExist(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -137,6 +157,8 @@ class Operator {
    * @param dst The destination path
    */
   void Copy(std::string_view src, std::string_view dst);
+  void Copy(std::string_view src, std::string_view dst,
+            const CopyOptions &options);
 
   /**
    * @brief Rename a file from src to dst.
@@ -145,6 +167,8 @@ class Operator {
    * @param dst The destination path
    */
   void Rename(std::string_view src, std::string_view dst);
+  void Rename(std::string_view src, std::string_view dst,
+              const RenameOptions &options);
 
   /**
    * @brief Remove a file or directory
@@ -152,6 +176,7 @@ class Operator {
    * @param path The path of the file or directory
    */
   void Remove(std::string_view path);
+  void Remove(std::string_view path, const DeleteOptions &options);
 
   /**
    * @brief Get the metadata of a file or directory
@@ -160,6 +185,7 @@ class Operator {
    * @return The metadata of the file or directory
    */
   Metadata Stat(std::string_view path);
+  Metadata Stat(std::string_view path, const StatOptions &options);
 
   /**
    * @brief List the entries of a directory
@@ -169,15 +195,17 @@ class Operator {
    * @return The entries of the directory
    */
   std::vector<Entry> List(std::string_view path);
+  std::vector<Entry> List(std::string_view path, const ListOptions &options);
 
   Lister GetLister(std::string_view path);
+  Lister GetLister(std::string_view path, const ListOptions &options);
   Capability Info();
- 
-  private:
-   void Destroy() noexcept;
- 
-   ffi::Operator *operator_{nullptr};
- };
+
+ private:
+  void Destroy() noexcept;
+
+  ffi::Operator *operator_{nullptr};
+};
 
 /**
  * @class Reader
@@ -302,7 +330,8 @@ class ReaderStream : public std::istream {
                            std::ios_base::openmode which) override {
       if (dir == std::ios_base::cur && off == 0) {
         // tellg() case - return current position
-        return buffer_start_pos_ + static_cast<std::streamoff>(gptr() - eback());
+        return buffer_start_pos_ +
+               static_cast<std::streamoff>(gptr() - eback());
       }
 
       // Actual seek operation

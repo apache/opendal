@@ -1585,6 +1585,10 @@ pub unsafe extern "C" fn operator_write_with_options_async(
     }
 }
 
+// Mirrors the `extern "C"` signature above, which clippy exempts because a C ABI
+// is not a design choice. This helper exists only to give that function a body it
+// can write with `?`.
+#[allow(clippy::too_many_arguments)]
 fn operator_write_with_options_async_inner(
     op: *const opendal::Operator,
     executor: *const c_void,

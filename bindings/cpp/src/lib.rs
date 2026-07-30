@@ -176,7 +176,8 @@ mod ffi {
 
         unsafe fn delete_reader(reader: *mut Reader);
         fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
-        fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
+        fn read_at(self: &Reader, buf: &mut [u8], offset: u64) -> Result<usize>;
+        fn seek(self: &mut Reader, offset: i64, dir: SeekFrom) -> Result<u64>;
 
         unsafe fn delete_writer(writer: *mut Writer);
         fn write(self: &mut Writer, bs: Vec<u8>) -> Result<()>;
@@ -317,10 +318,9 @@ impl Operator {
 
     fn reader(&self, path: &str) -> Result<*mut Reader> {
         let meta = self.0.stat(path)?;
-        let reader = Box::into_raw(Box::new(Reader(
-            self.0
-                .reader(path)?
-                .into_std_read(0..meta.content_length())?,
+        let reader = Box::into_raw(Box::new(Reader::new(
+            self.0.reader(path)?,
+            meta.content_length(),
         )));
         Ok(reader)
     }

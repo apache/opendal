@@ -114,6 +114,14 @@ OPENDAL_TEST_F(OpenDALTest, ReaderTest) {
   for (int i = 0; i < 100; ++i) {
     EXPECT_EQ(part_data[i], data[200 + i]);
   }
+
+  std::string positional_data(100, 0);
+  auto positional_read_size = reader.ReadAt(positional_data.data(), /*size=*/ 100, /*offset=*/500);
+  EXPECT_EQ(positional_read_size, 100);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 300);
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(positional_data[i], data[500 + i]);
+  }
   reader.Seek(0, std::ios::beg);
 
   // reader stream

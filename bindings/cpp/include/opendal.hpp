@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -195,6 +196,8 @@ class Reader {
   ~Reader() noexcept;
 
   std::streamsize Read(void *s, std::streamsize n);
+
+  std::streamsize ReadAt(void *s, std::streamsize n, uint64_t offset);
 
   std::streampos Seek(std::streamoff off, std::ios_base::seekdir way);
 

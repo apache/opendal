@@ -187,6 +187,18 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region Buffer
+
+    [LibraryImport(__DllName, EntryPoint = "buffer_copy_to")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial nuint buffer_copy_to(
+        IntPtr handle,
+        byte* destination,
+        nuint destinationLen
+    );
+
+    #endregion
+
     #region IO Operations
 
     #region Write
@@ -208,7 +220,8 @@ internal partial class NativeMethods
         Operator op,
         IntPtr executor,
         string path,
-        ByteBuffer data,
+        [In] byte[] data,
+        nuint len,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context

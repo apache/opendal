@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::{
-    byte_buffer::ByteBuffer,
+    buffer::OpendalBuffer,
     entry::into_entry_list_ptr,
     error::OpenDALError,
     executor::executor_or_default,
@@ -1305,7 +1305,7 @@ pub extern "C" fn operator_input_stream_read_next(
 
 fn operator_input_stream_read_next_inner(
     stream: *mut opendal::blocking::StdBytesIterator,
-) -> Result<ByteBuffer, OpenDALError> {
+) -> Result<OpendalBuffer, OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "input stream pointer is null",
@@ -1323,8 +1323,8 @@ fn operator_input_stream_read_next_inner(
                 err.to_string(),
             ))
         })?
-        .map(|v| ByteBuffer::from_vec(v.to_vec()))
-        .unwrap_or_else(ByteBuffer::empty);
+        .map(|v| OpendalBuffer::from_buffer(v.into()))
+        .unwrap_or_else(OpendalBuffer::empty);
 
     Ok(value)
 }
@@ -1564,20 +1564,21 @@ fn operator_write_with_options_inner(
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
-/// - `data.data` must be non-null and readable for `data.len` bytes when `data.len > 0`.
+/// - `data` must be non-null and readable for `len` bytes when `len > 0`.
 /// - `callback` must be a valid function pointer and remain callable until invoked.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn operator_write_with_options_async(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
-    data: ByteBuffer,
+    data: *const u8,
+    len: usize,
     options: *const opendal::options::WriteOptions,
     callback: Option<WriteCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_write_with_options_async_inner(
-        op, executor, path, data, options, callback, context,
+        op, executor, path, data, len, options, callback, context,
     ) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
@@ -1588,7 +1589,8 @@ fn operator_write_with_options_async_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
-    data: ByteBuffer,
+    data: *const u8,
+    len: usize,
     options: *const opendal::options::WriteOptions,
     callback: Option<WriteCallback>,
     context: i64,
@@ -1596,7 +1598,7 @@ fn operator_write_with_options_async_inner(
     let op = require_operator(op)?;
     let executor = executor_or_default(executor)?;
     let path = require_cstr(path, "path")?.to_string();
-    require_data_ptr(data.data.cast_const(), data.len)?;
+    require_data_ptr(data, len)?;
     let callback = require_callback(callback)?;
     let options = if options.is_null() {
         opendal::options::WriteOptions::default()
@@ -1604,10 +1606,12 @@ fn operator_write_with_options_async_inner(
         unsafe { (&*options).clone() }
     };
 
-    let payload = if data.len == 0 {
+    // Copied before the task is spawned, so the caller only has to keep its
+    // array alive for the duration of this call.
+    let payload = if len == 0 {
         Vec::new()
     } else {
-        unsafe { std::slice::from_raw_parts(data.data.cast_const(), data.len) }.to_vec()
+        unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
     };
 
     let op = op.clone();
@@ -1656,7 +1660,7 @@ fn operator_read_with_options_inner(
     executor: *const c_void,
     path: *const c_char,
     options: *const opendal::options::ReadOptions,
-) -> Result<ByteBuffer, OpenDALError> {
+) -> Result<OpendalBuffer, OpenDALError> {
     let op = require_operator(op)?;
     let executor = executor_or_default(executor)?;
     let path = require_cstr(path, "path")?;
@@ -1668,10 +1672,9 @@ fn operator_read_with_options_inner(
 
     let value = executor
         .block_on(op.read_options(path, options))
-        .map(|v| v.to_vec())
         .map_err(OpenDALError::from_opendal_error)?;
 
-    Ok(ByteBuffer::from_vec(value))
+    Ok(OpendalBuffer::from_buffer(value))
 }
 
 /// Read bytes from `path` asynchronously with options.
@@ -1722,7 +1725,7 @@ fn operator_read_with_options_async_inner(
         let result = op
             .read_options(&path, options)
             .await
-            .map(|v| ByteBuffer::from_vec(v.to_vec()))
+            .map(OpendalBuffer::from_buffer)
             .map_err(OpenDALError::from_opendal_error);
 
         callback(

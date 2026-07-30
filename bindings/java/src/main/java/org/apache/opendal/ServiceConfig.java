@@ -549,8 +549,6 @@ public interface ServiceConfig {
         public final String apiToken;
         /**
          * <p>The default ttl for write operations.</p>
-         * <p>String configurations accept ISO-8601 (for example, <code>PT5M</code>) and friendly
-         * (for example, <code>5m</code>) duration formats.</p>
          */
         public final Duration defaultTtl;
         /**
@@ -1896,8 +1894,6 @@ public interface ServiceConfig {
         public final Long connectionPoolMaxSize;
         /**
          * <p>The default ttl for put operations.</p>
-         * <p>String configurations accept ISO-8601 (for example, <code>PT5M</code>) and friendly
-         * (for example, <code>5m</code>) duration formats.</p>
          */
         public final Duration defaultTtl;
         /**
@@ -2821,8 +2817,6 @@ public interface ServiceConfig {
         public final long db;
         /**
          * <p>The default ttl for put operations.</p>
-         * <p>String configurations accept ISO-8601 (for example, <code>PT5M</code>) and friendly
-         * (for example, <code>5m</code>) duration formats.</p>
          */
         public final Duration defaultTtl;
         /**

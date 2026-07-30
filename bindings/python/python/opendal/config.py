@@ -193,7 +193,7 @@ class CloudflareKvConfig(TypedDict):
     api_token: NotRequired[str]
     """The token used to authenticate with CloudFlare."""
     default_ttl: NotRequired[str]
-    """The default ttl for write operations.  String configurations accept ISO-8601 (for example, `PT5M`) and friendly (for example, `5m`) duration formats. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    """The default ttl for write operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     namespace_id: NotRequired[str]
     """The namespace ID. Used as URI path parameter."""
     root: NotRequired[str | os.PathLike[str]]
@@ -457,7 +457,7 @@ class MemcachedConfig(TypedDict):
     connection_pool_max_size: NotRequired[int]
     """The maximum number of connections allowed.  default is 10"""
     default_ttl: NotRequired[str]
-    """The default ttl for put operations.  String configurations accept ISO-8601 (for example, `PT5M`) and friendly (for example, `5m`) duration formats. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     endpoint: NotRequired[str]
     """network address of the memcached service.  For example: "tcp://localhost:11211\""""
     password: NotRequired[str]
@@ -689,7 +689,7 @@ class RedisConfig(TypedDict):
     db: Required[int]
     """the number of DBs redis can take is unlimited  default is db 0"""
     default_ttl: NotRequired[str]
-    """The default ttl for put operations.  String configurations accept ISO-8601 (for example, `PT5M`) and friendly (for example, `5m`) duration formats. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     endpoint: NotRequired[str]
     """network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.  default is "tcp://127.0.0.1:6379\""""
     password: NotRequired[str]

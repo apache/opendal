@@ -59,9 +59,6 @@ pub struct RedisConfig {
     /// default is db 0
     pub db: i64,
     /// The default ttl for put operations.
-    ///
-    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
-    /// (for example, `5m`) duration formats.
     #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
 }

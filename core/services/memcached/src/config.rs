@@ -44,9 +44,6 @@ pub struct MemcachedConfig {
     /// Memcached password, optional.
     pub password: Option<String>,
     /// The default ttl for put operations.
-    ///
-    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
-    /// (for example, `5m`) duration formats.
     #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
     /// The maximum number of connections allowed.

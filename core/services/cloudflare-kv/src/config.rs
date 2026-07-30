@@ -34,9 +34,6 @@ pub struct CloudflareKvConfig {
     /// The namespace ID. Used as URI path parameter.
     pub namespace_id: Option<String>,
     /// The default ttl for write operations.
-    ///
-    /// String configurations accept ISO-8601 (for example, `PT5M`) and friendly
-    /// (for example, `5m`) duration formats.
     #[serde(default, deserialize_with = "deserialize_option_duration")]
     pub default_ttl: Option<Duration>,
 

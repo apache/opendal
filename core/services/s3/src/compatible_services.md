@@ -151,3 +151,26 @@ R2 has the following capability differences from S3:
 Ceph supports a RESTful API that is compatible with the basic data access model of the Amazon S3 API.
 
 For more information, refer: <https://docs.ceph.com/en/latest/radosgw/s3/>
+
+### SeaweedFS
+
+[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an open-source distributed storage system that serves an S3 API from its gateway.
+
+To connect to SeaweedFS, we need to set:
+
+- `endpoint`: The endpoint of the SeaweedFS S3 gateway, for example: `http://127.0.0.1:8333`
+- `region`: The region of SeaweedFS. SeaweedFS ignores it, so set it to `us-east-1` when a region is required.
+- `bucket`: The bucket name.
+
+```rust,ignore
+builder.endpoint("http://127.0.0.1:8333");
+builder.region("us-east-1");
+builder.bucket("<bucket_name>");
+```
+
+Credentials are standard S3 access keys. A gateway started without any configured identity accepts anonymous requests, so `allow_anonymous` also works.
+
+SeaweedFS has the following capability differences from S3:
+
+- `write_can_append`: SeaweedFS doesn't support appending to an existing object through the S3 API. Please override it to `false`.
+- Object versioning is per-bucket and off by default. Enable it with `PutBucketVersioning` before relying on the version capabilities, or override them to `false`.

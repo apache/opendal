@@ -338,7 +338,7 @@ Title:
 
 Content:
 
-```
+````
 Hello, Apache OpenDAL Community,
 
 This is a call for a vote to release Apache OpenDAL ${opendal_version},
@@ -402,7 +402,7 @@ https://opendal.apache.org/
 
 Thanks,
 ${name}
-```
+````
 
 Example: <https://github.com/apache/opendal/discussions/5211>
 

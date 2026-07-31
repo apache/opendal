@@ -44,8 +44,7 @@ pub struct MemcachedConfig {
     /// Memcached password, optional.
     pub password: Option<String>,
     /// The default ttl for put operations.
-    #[serde(default, deserialize_with = "deserialize_option_duration")]
-    pub default_ttl: Option<Duration>,
+    pub default_ttl: Option<SignedDuration>,
     /// The maximum number of connections allowed.
     ///
     /// default is 10
@@ -82,7 +81,10 @@ impl Configurator for MemcachedConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        MemcachedBuilder { config: self }
+        MemcachedBuilder {
+            config: self,
+            default_ttl: None,
+        }
     }
 }
 
@@ -107,7 +109,7 @@ mod tests {
     fn from_iter_parses_default_ttl() -> Result<()> {
         let cfg = MemcachedConfig::from_iter([("default_ttl".to_string(), "1500ms".to_string())])?;
 
-        assert_eq!(cfg.default_ttl, Some(Duration::from_millis(1500)));
+        assert_eq!(cfg.default_ttl, Some(SignedDuration::from_millis(1500)));
         Ok(())
     }
 }

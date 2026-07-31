@@ -18,9 +18,7 @@
 //! Time related utils.
 
 use crate::*;
-use jiff::SignedDuration;
-use serde::Deserialize;
-use serde::Deserializer;
+pub use jiff::SignedDuration;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
@@ -30,14 +28,6 @@ pub use std::time::{Duration, UNIX_EPOCH};
 pub use std::time::{Instant, SystemTime};
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub use web_time::{Instant, SystemTime};
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ConfigDuration {
-    Duration(Duration),
-    // String-backed config paths cannot provide Duration's structured serde representation.
-    String(String),
-}
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -264,7 +254,6 @@ impl SubAssign<Duration> for Timestamp {
     }
 }
 
-/// Convert an unsigned [`Duration`] into a jiff [`SignedDuration`].
 /// Parse a duration encoded either as ISO-8601 (e.g. `PT5M`) or friendly (e.g. `5m`).
 #[inline]
 pub fn signed_to_duration(value: &str) -> Result<Duration> {
@@ -272,7 +261,13 @@ pub fn signed_to_duration(value: &str) -> Result<Duration> {
         Error::new(ErrorKind::ConfigInvalid, "failed to parse duration").set_source(err)
     })?;
 
-    Duration::try_from(signed).map_err(|err| {
+    signed_duration_to_duration(signed)
+}
+
+/// Convert a jiff [`SignedDuration`] into an unsigned [`Duration`].
+#[inline]
+pub fn signed_duration_to_duration(value: SignedDuration) -> Result<Duration> {
+    Duration::try_from(value).map_err(|err| {
         Error::new(
             ErrorKind::ConfigInvalid,
             "duration must not be negative or overflow",
@@ -281,33 +276,9 @@ pub fn signed_to_duration(value: &str) -> Result<Duration> {
     })
 }
 
-/// Deserialize an optional [`Duration`] from either its serde representation or
-/// a string accepted by [`signed_to_duration`].
-pub fn deserialize_option_duration<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<Duration>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Option::<ConfigDuration>::deserialize(deserializer)?
-        .map(|value| match value {
-            ConfigDuration::Duration(value) => Ok(value),
-            ConfigDuration::String(value) => {
-                signed_to_duration(&value).map_err(serde::de::Error::custom)
-            }
-        })
-        .transpose()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[derive(Deserialize)]
-    struct TestDurationConfig {
-        #[serde(default, deserialize_with = "deserialize_option_duration")]
-        duration: Option<Duration>,
-    }
 
     fn test_time() -> Timestamp {
         Timestamp("2022-03-01T08:12:34Z".parse().unwrap())
@@ -340,15 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_option_duration() {
-        let friendly: TestDurationConfig =
-            serde_json::from_str(r#"{"duration":"1500ms"}"#).unwrap();
-        assert_eq!(friendly.duration, Some(Duration::from_millis(1500)));
-
-        let structured: TestDurationConfig =
-            serde_json::from_str(r#"{"duration":{"secs":5,"nanos":7}}"#).unwrap();
-        assert_eq!(structured.duration, Some(Duration::new(5, 7)));
-
-        assert!(serde_json::from_str::<TestDurationConfig>(r#"{"duration":"5"}"#).is_err());
+    fn test_signed_duration_to_duration_rejects_negative_values() {
+        assert!(signed_duration_to_duration(SignedDuration::from_secs(-1)).is_err());
     }
 }

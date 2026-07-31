@@ -34,8 +34,7 @@ pub struct CloudflareKvConfig {
     /// The namespace ID. Used as URI path parameter.
     pub namespace_id: Option<String>,
     /// The default ttl for write operations.
-    #[serde(default, deserialize_with = "deserialize_option_duration")]
-    pub default_ttl: Option<Duration>,
+    pub default_ttl: Option<SignedDuration>,
 
     /// Root within this backend.
     pub root: Option<String>,
@@ -95,7 +94,10 @@ impl opendal_core::Configurator for CloudflareKvConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        CloudflareKvBuilder { config: self }
+        CloudflareKvBuilder {
+            config: self,
+            default_ttl: None,
+        }
     }
 }
 
@@ -132,6 +134,6 @@ mod tests {
         let cfg = CloudflareKvConfig::from_iter([("default_ttl".to_string(), "PT1M".to_string())])
             .unwrap();
 
-        assert_eq!(cfg.default_ttl, Some(Duration::from_secs(60)));
+        assert_eq!(cfg.default_ttl, Some(SignedDuration::from_mins(1)));
     }
 }

@@ -1,0 +1,172 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use ::opendal as core;
+use std::ffi::c_void;
+use std::os::raw::c_char;
+
+use super::*;
+
+/// \brief opendal_deleter removes many paths from storage.
+///
+/// opendal_deleter queues paths and hands them to the service, using batch
+/// deletion when the service supports it. `opendal_deleter_delete` only queues a
+/// path: the delete may still be pending when the call returns, and it is
+/// `opendal_deleter_close` that flushes the queue and waits for every queued
+/// path to be removed. Treat a path as deleted only after
+/// `opendal_deleter_close` returns NULL.
+///
+/// Users construct a deleter by `opendal_operator_deleter` and release it with
+/// `opendal_deleter_free`.
+///
+/// @see opendal_operator_deleter()
+/// @see opendal_deleter_delete()
+/// @see opendal_deleter_close()
+#[repr(C)]
+pub struct opendal_deleter {
+    /// The pointer to the opendal::blocking::Deleter in the Rust code.
+    /// Only used to check whether the deleter is NULL.
+    inner: *mut c_void,
+}
+
+impl opendal_deleter {
+    fn deref_mut(&mut self) -> &mut core::blocking::Deleter {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { &mut *(self.inner as *mut core::blocking::Deleter) }
+    }
+}
+
+impl opendal_deleter {
+    pub(crate) fn new(deleter: core::blocking::Deleter) -> Self {
+        Self {
+            inner: Box::into_raw(Box::new(deleter)) as _,
+        }
+    }
+
+    /// \brief Queue `path` for deletion.
+    ///
+    /// The path is not necessarily removed when this function returns: call
+    /// `opendal_deleter_close` to flush the queue and wait for the deletions to
+    /// complete.
+    ///
+    /// @param path The designated path you want to delete
+    /// @return NULL if the path is queued, otherwise it contains the error code and
+    /// error message.
+    ///
+    /// # Safety
+    ///
+    /// * The memory pointed to by `path` must contain a valid nul terminator at the
+    ///   end of the string.
+    ///
+    /// # Panic
+    ///
+    /// * If the `path` points to NULL, this function panics
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_delete(
+        &mut self,
+        path: *const c_char,
+    ) -> *mut opendal_error {
+        assert!(!path.is_null());
+        let path = std::ffi::CStr::from_ptr(path)
+            .to_str()
+            .expect("malformed path");
+        match self.deref_mut().delete(path) {
+            Ok(()) => std::ptr::null_mut(),
+            Err(e) => opendal_error::new(e),
+        }
+    }
+
+    /// \brief Queue `path` for deletion with options.
+    ///
+    /// This is the same as `opendal_deleter_delete` but accepts an
+    /// `opendal_delete_options` to delete a specific version or to delete
+    /// recursively. Pass NULL to use defaults.
+    ///
+    /// @param path The designated path you want to delete
+    /// @param opts The options for this path; pass NULL to use defaults
+    /// @see opendal_delete_options
+    /// @return NULL if the path is queued, otherwise it contains the error code and
+    /// error message.
+    ///
+    /// # Safety
+    ///
+    /// * The memory pointed to by `path` must contain a valid nul terminator at the
+    ///   end of the string.
+    ///
+    /// # Panic
+    ///
+    /// * If the `path` points to NULL, this function panics
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_delete_with(
+        &mut self,
+        path: *const c_char,
+        opts: *const opendal_delete_options,
+    ) -> *mut opendal_error {
+        assert!(!path.is_null());
+        let path = std::ffi::CStr::from_ptr(path)
+            .to_str()
+            .expect("malformed path");
+        let delete_opts = if opts.is_null() {
+            core::options::DeleteOptions::default()
+        } else {
+            core::options::DeleteOptions::from(&*opts)
+        };
+
+        // DeleteInput is #[non_exhaustive], so it can only be built field by field.
+        let mut input = core::DeleteInput::default();
+        input.path = path.to_string();
+        input.version = delete_opts.version;
+        input.recursive = delete_opts.recursive;
+
+        match self.deref_mut().delete(input) {
+            Ok(()) => std::ptr::null_mut(),
+            Err(e) => opendal_error::new(e),
+        }
+    }
+
+    /// \brief Flush the deleter and wait until all queued paths are deleted.
+    ///
+    /// Call this before freeing the deleter to make sure the queued deletions
+    /// happened. The deleter stays usable after a successful close.
+    ///
+    /// @return NULL if all queued paths are deleted, otherwise it contains the error
+    /// code and error message.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_close(&mut self) -> *mut opendal_error {
+        match self.deref_mut().close() {
+            Ok(()) => std::ptr::null_mut(),
+            Err(e) => opendal_error::new(e),
+        }
+    }
+
+    /// \brief Free the heap memory used by the opendal_deleter.
+    ///
+    /// Freeing a deleter drops the queued paths that were never flushed: call
+    /// `opendal_deleter_close` first unless you mean to discard them.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_free(ptr: *mut opendal_deleter) {
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut core::blocking::Deleter));
+                // A use-after-free crashes on NULL instead of reading stale memory.
+                (*ptr).inner = std::ptr::null_mut();
+                drop(Box::from_raw(ptr));
+            }
+        }
+    }
+}

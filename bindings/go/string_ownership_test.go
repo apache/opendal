@@ -21,6 +21,7 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -1609,4 +1610,238 @@ func assertDeleteOptionsPointerFromArgs(t *testing.T, want *opendalDeleteOptions
 		t.Fatalf("delete option setter received %d arguments, want 2", len(aValues))
 	}
 	assertDeleteOptionsPointer(t, want, *(**opendalDeleteOptions)(aValues[0]))
+}
+
+func TestFfiDeleterSignatures(t *testing.T) {
+	// A mismatch here corrupts memory at runtime: nothing else checks the Go
+	// descriptors against the C signatures.
+	descriptors := []struct {
+		name       string
+		opts       ffiOpts
+		rType      *ffi.Type
+		aTypesLen  int
+		returnsErr bool
+	}{
+		{name: "ffiOperatorDeleter", opts: ffiOperatorDeleter.opts, rType: &typeResultOperatorDeleter, aTypesLen: 1},
+		{name: "ffiDeleterDelete", opts: ffiDeleterDelete.opts, rType: &ffi.TypePointer, aTypesLen: 2},
+		{name: "ffiDeleterDeleteWith", opts: ffiDeleterDeleteWith.opts, rType: &ffi.TypePointer, aTypesLen: 3},
+		{name: "ffiDeleterClose", opts: ffiDeleterClose.opts, rType: &ffi.TypePointer, aTypesLen: 1},
+		{name: "ffiDeleterFree", opts: ffiDeleterFree.opts, rType: &ffi.TypeVoid, aTypesLen: 1},
+	}
+	for _, tc := range descriptors {
+		if tc.opts.rType != tc.rType {
+			t.Fatalf("%s rType = %v, want %v", tc.name, tc.opts.rType, tc.rType)
+		}
+		if len(tc.opts.aTypes) != tc.aTypesLen {
+			t.Fatalf("%s aTypes len = %d, want %d", tc.name, len(tc.opts.aTypes), tc.aTypesLen)
+		}
+		for i, at := range tc.opts.aTypes {
+			if at != &ffi.TypePointer {
+				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", tc.name, i, at)
+			}
+		}
+	}
+}
+
+func TestDeleterDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	cOpts := &opendalDeleteOptions{}
+	var versionPtr *byte
+	var recursive bool
+	optionsFreed := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiDeleteOptionsNew.opts.sym, func() *opendalDeleteOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiDeleteOptionsFree.opts.sym, func(opts *opendalDeleteOptions) {
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		optionsFreed++
+	})
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetRecursive.opts.sym, func(opts *opendalDeleteOptions, value bool) {
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		recursive = value
+	})
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetVersion.opts.sym, ffiDeleteOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
+		assertDeleteOptionsPointerFromArgs(t, cOpts, aValues...)
+		versionPtr = *(**byte)(aValues[1])
+	}))
+	ctx = context.WithValue(ctx, ffiDeleterDeleteWith.opts.sym, func(d *opendalDeleter, path string, opts *opendalDeleteOptions) error {
+		if d != deleterInner {
+			t.Fatalf("deleter = %p, want %p", d, deleterInner)
+		}
+		if path != "file.txt" {
+			t.Fatalf("path = %q, want file.txt", path)
+		}
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		if !recursive {
+			t.Fatal("delete recursive = false, want true")
+		}
+		if got := BytePtrToString(versionPtr); got != "v1" {
+			t.Fatalf("delete version pointer = %q, want v1", got)
+		}
+		return nil
+	})
+
+	deleter := &Deleter{inner: deleterInner, ctx: ctx}
+	if err := deleter.Delete("file.txt", DeleteWithVersion("v1"), DeleteWithRecursive(true)); err != nil {
+		t.Fatalf("Delete with options failed: %v", err)
+	}
+	if optionsFreed != 1 {
+		t.Fatalf("delete options freed %d times, want 1", optionsFreed)
+	}
+}
+
+func TestDeleterCloseFlushesFreesAndBlocksReuse(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	closed := 0
+	freed := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiDeleterClose.opts.sym, func(d *opendalDeleter) error {
+		if d != deleterInner {
+			t.Fatalf("closed deleter = %p, want %p", d, deleterInner)
+		}
+		closed++
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiDeleterFree.opts.sym, func(d *opendalDeleter) {
+		if d != deleterInner {
+			t.Fatalf("freed deleter = %p, want %p", d, deleterInner)
+		}
+		freed++
+	})
+
+	deleter := &Deleter{inner: deleterInner, ctx: ctx}
+	if err := deleter.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if err := deleter.Close(); err != nil {
+		t.Fatalf("second Close failed: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("deleter closed %d times, want 1", closed)
+	}
+	if freed != 1 {
+		t.Fatalf("deleter freed %d times, want 1", freed)
+	}
+	if err := deleter.Delete("file.txt"); !errors.Is(err, ErrDeleterClosed) {
+		t.Fatalf("Delete after Close = %v, want ErrDeleterClosed", err)
+	}
+}
+
+func TestDeleterCloseFreesAfterFailedFlush(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	flushErr := errors.New("flush failed")
+	freed := 0
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiDeleterClose.opts.sym, func(*opendalDeleter) error { return flushErr })
+	ctx = context.WithValue(ctx, ffiDeleterFree.opts.sym, func(*opendalDeleter) { freed++ })
+
+	deleter := &Deleter{inner: deleterInner, ctx: ctx}
+	if err := deleter.Close(); !errors.Is(err, flushErr) {
+		t.Fatalf("Close = %v, want flush error", err)
+	}
+	if freed != 1 {
+		t.Fatalf("deleter freed %d times after failed flush, want 1", freed)
+	}
+}
+
+func TestRemoveQueuesEveryPathThenCloses(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	var deleted []string
+	closed := 0
+	freed := 0
+
+	ctx := newDeleterTestContext(t, deleterInner, &deleted, &closed, &freed, nil)
+
+	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
+	if err := op.Remove([]string{"a.txt", "b.txt", "c.txt"}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	want := []string{"a.txt", "b.txt", "c.txt"}
+	if len(deleted) != len(want) {
+		t.Fatalf("queued %v, want %v", deleted, want)
+	}
+	for i := range want {
+		if deleted[i] != want[i] {
+			t.Fatalf("queued[%d] = %q, want %q", i, deleted[i], want[i])
+		}
+	}
+	if closed != 1 || freed != 1 {
+		t.Fatalf("deleter closed %d times and freed %d times, want 1 and 1", closed, freed)
+	}
+}
+
+func TestRemoveReleasesDeleterWhenDeleteFails(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	var deleted []string
+	closed := 0
+	freed := 0
+	deleteErr := errors.New("delete failed")
+
+	ctx := newDeleterTestContext(t, deleterInner, &deleted, &closed, &freed, func(path string) error {
+		if path == "b.txt" {
+			return deleteErr
+		}
+		return nil
+	})
+
+	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
+	if err := op.Remove([]string{"a.txt", "b.txt", "c.txt"}); !errors.Is(err, deleteErr) {
+		t.Fatalf("Remove = %v, want delete error", err)
+	}
+	if len(deleted) != 2 {
+		t.Fatalf("queued %v, want the paths up to the failure", deleted)
+	}
+	if freed != 1 {
+		t.Fatalf("deleter freed %d times, want 1", freed)
+	}
+}
+
+func TestRemoveWithoutPathsSkipsDeleter(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ffiOperatorDeleter.opts.sym, func(*opendalOperator) (*opendalDeleter, error) {
+		t.Fatal("Remove(nil) created a deleter")
+		return nil, nil
+	})
+
+	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
+	if err := op.Remove(nil); err != nil {
+		t.Fatalf("Remove(nil) = %v, want nil", err)
+	}
+}
+
+func newDeleterTestContext(t *testing.T, inner *opendalDeleter, deleted *[]string, closed, freed *int, deleteFn func(string) error) context.Context {
+	t.Helper()
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ffiOperatorDeleter.opts.sym, func(op *opendalOperator) (*opendalDeleter, error) {
+		if op == nil {
+			t.Fatal("Deleter() passed nil operator")
+		}
+		return inner, nil
+	})
+	ctx = context.WithValue(ctx, ffiDeleterDelete.opts.sym, func(d *opendalDeleter, path string) error {
+		if d != inner {
+			t.Fatalf("deleter = %p, want %p", d, inner)
+		}
+		*deleted = append(*deleted, path)
+		if deleteFn != nil {
+			return deleteFn(path)
+		}
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiDeleterClose.opts.sym, func(d *opendalDeleter) error {
+		if d != inner {
+			t.Fatalf("closed deleter = %p, want %p", d, inner)
+		}
+		*closed++
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiDeleterFree.opts.sym, func(d *opendalDeleter) {
+		if d != inner {
+			t.Fatalf("freed deleter = %p, want %p", d, inner)
+		}
+		*freed++
+	})
+	return ctx
 }

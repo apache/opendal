@@ -36,9 +36,13 @@ func testsDelete(cap *opendal.Capability) []behaviorTest {
 		testDeleteEmptyDir,
 		testDeleteWithSpecialChars,
 		testDeleteNotExisting,
+		testDeleterDeleteFiles,
+		testDeleterDeleteNotExisting,
+		testRemoveFiles,
+		testRemoveNoPaths,
 	}
 	if cap.DeleteWithRecursive() {
-		tests = append(tests, testDeleteWithRecursive)
+		tests = append(tests, testDeleteWithRecursive, testDeleterDeleteWithRecursive)
 	}
 	if cap.DeleteWithVersion() {
 		tests = append(tests, testDeleteWithVersion)
@@ -110,6 +114,88 @@ func testDeleteWithRecursive(assert *require.Assertions, op *opendal.Operator, f
 	for _, p := range filePaths {
 		assert.False(op.IsExist(p))
 	}
+}
+
+func testDeleterDeleteFiles(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	var paths []string
+	for range 3 {
+		path, content, _ := fixture.NewFile()
+		_, err := op.Write(path, content)
+		assert.Nil(err, "write must succeed")
+		paths = append(paths, path)
+	}
+
+	deleter, err := op.Deleter()
+	assert.Nil(err, "create deleter must succeed")
+	for _, path := range paths {
+		assert.Nil(deleter.Delete(path), "queue delete must succeed")
+	}
+	// The deletions are only guaranteed to have happened once Close returns.
+	assert.Nil(deleter.Close(), "close deleter must succeed")
+
+	for _, path := range paths {
+		assert.False(op.IsExist(path))
+	}
+
+	// Close is idempotent, and a closed deleter rejects further paths.
+	assert.Nil(deleter.Close())
+	assert.NotNil(deleter.Delete(paths[0]))
+}
+
+func testDeleterDeleteNotExisting(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	deleter, err := op.Deleter()
+	assert.Nil(err, "create deleter must succeed")
+
+	assert.Nil(deleter.Delete(uuid.NewString()))
+	assert.Nil(deleter.Close())
+}
+
+func testDeleterDeleteWithRecursive(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	if !op.Info().GetCapability().CreateDir() {
+		return
+	}
+
+	dir := fixture.NewDirPath()
+	assert.Nil(op.CreateDir(dir), "create dir must succeed")
+
+	var filePaths []string
+	for i := range 3 {
+		path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%sfile-%d.txt", dir, i))
+		_, err := op.Write(path, content)
+		assert.Nil(err, "write must succeed")
+		filePaths = append(filePaths, path)
+	}
+
+	deleter, err := op.Deleter()
+	assert.Nil(err, "create deleter must succeed")
+	assert.Nil(deleter.Delete(dir, opendal.DeleteWithRecursive(true)))
+	assert.Nil(deleter.Close(), "close deleter must succeed")
+
+	assert.False(op.IsExist(dir))
+	for _, path := range filePaths {
+		assert.False(op.IsExist(path))
+	}
+}
+
+func testRemoveFiles(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	var paths []string
+	for range 3 {
+		path, content, _ := fixture.NewFile()
+		_, err := op.Write(path, content)
+		assert.Nil(err, "write must succeed")
+		paths = append(paths, path)
+	}
+
+	assert.Nil(op.Remove(paths), "remove must succeed")
+
+	for _, path := range paths {
+		assert.False(op.IsExist(path))
+	}
+}
+
+func testRemoveNoPaths(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	assert.Nil(op.Remove(nil))
+	assert.Nil(op.Remove([]string{}))
 }
 
 func testDeleteWithVersion(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {

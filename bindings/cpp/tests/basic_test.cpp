@@ -19,9 +19,9 @@
 
 #include <ctime>
 #include <random>
-#include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "framework/test_framework.hpp"
@@ -79,7 +79,7 @@ OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   op_.Write(list_file_path, data);
   auto entries = op_.List(dir_path);
   EXPECT_EQ(entries.size(), 2);
-  std::set<std::string> paths;
+  std::unordered_set<std::string> paths;
   for (const auto &entry : entries) {
     paths.insert(entry.path);
   }
@@ -167,7 +167,7 @@ OPENDAL_TEST_F(OpenDALTest, ListerTest) {
 
   auto lister = op_.GetLister("test_dir/");
 
-  std::set<std::string> paths;
+  std::unordered_set<std::string> paths;
   for (const auto &entry : lister) {
     paths.insert(entry.path);
   }
@@ -175,6 +175,134 @@ OPENDAL_TEST_F(OpenDALTest, ListerTest) {
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
   EXPECT_TRUE(paths.find(test1_path) != paths.end());
   EXPECT_TRUE(paths.find(test2_path) != paths.end());
+}
+
+TEST(OpenDALOptionsTest, ReadOptions) {
+  opendal::Operator op("memory");
+  op.Write("read_options", "0123456789");
+
+  opendal::ReadOptions options;
+  options.range = opendal::ReadRange::Range(2, 5);
+  EXPECT_EQ(op.Read("read_options", options), "234");
+
+  options.range = opendal::ReadRange::Offset(7);
+  EXPECT_EQ(op.Read("read_options", options), "789");
+
+  options.range = opendal::ReadRange::Suffix(2);
+  EXPECT_EQ(op.Read("read_options", options), "89");
+}
+
+TEST(OpenDALOptionsTest, ReaderOptions) {
+  opendal::Operator op("memory");
+  op.Write("reader_options", "0123456789");
+
+  opendal::ReaderOptions options;
+  options.content_length_hint = 10;
+  options.concurrent = 2;
+  options.chunk = 4;
+  options.prefetch = 1;
+
+  auto reader = op.GetReader("reader_options", options);
+  std::string data(4, 0);
+  EXPECT_EQ(reader.Read(data.data(), data.size()), 4);
+  EXPECT_EQ(data, "0123");
+}
+
+TEST(OpenDALOptionsTest, WriteOptions) {
+  opendal::Operator op("memory");
+
+  opendal::WriteOptions options;
+  options.cache_control = "max-age=60";
+  options.content_type = "text/plain";
+  options.content_disposition = "inline";
+  options.content_encoding = "identity";
+  options.user_metadata = std::unordered_map<std::string, std::string>{
+      {"owner", "cpp-test"},
+  };
+  options.if_not_exists = true;
+  options.concurrent = 2;
+  options.chunk = 1024;
+
+  op.Write("write_options", "hello", options);
+
+  auto metadata = op.Stat("write_options");
+  ASSERT_TRUE(metadata.cache_control.has_value());
+  EXPECT_EQ(*metadata.cache_control, "max-age=60");
+  ASSERT_TRUE(metadata.content_type.has_value());
+  EXPECT_EQ(*metadata.content_type, "text/plain");
+  ASSERT_TRUE(metadata.content_disposition.has_value());
+  EXPECT_EQ(*metadata.content_disposition, "inline");
+  ASSERT_TRUE(metadata.content_encoding.has_value());
+  EXPECT_EQ(*metadata.content_encoding, "identity");
+
+  EXPECT_THROW(op.Write("write_options", "overwrite", options), std::exception);
+}
+
+TEST(OpenDALOptionsTest, WriterOptions) {
+  opendal::Operator op("memory");
+
+  opendal::WriteOptions options;
+  options.content_type = "application/octet-stream";
+  options.chunk = 1024;
+
+  auto writer = op.GetWriter("writer_options", options);
+  writer.Write("hello ");
+  writer.Write("world");
+  writer.Close();
+
+  EXPECT_EQ(op.Read("writer_options"), "hello world");
+  auto metadata = op.Stat("writer_options");
+  ASSERT_TRUE(metadata.content_type.has_value());
+  EXPECT_EQ(*metadata.content_type, "application/octet-stream");
+}
+
+TEST(OpenDALOptionsTest, ListOptions) {
+  opendal::Operator op("memory");
+  op.CreateDir("list_options/");
+  op.CreateDir("list_options/nested/");
+  op.Write("list_options/nested/file", "hello");
+
+  opendal::ListOptions options;
+  options.recursive = true;
+  options.limit = 16;
+  options.start_after = "list_options/";
+  options.versions = true;
+  options.deleted = true;
+
+  auto entries = op.List("list_options/", options);
+  std::unordered_set<std::string> paths;
+  for (const auto &entry : entries) {
+    paths.insert(entry.path);
+  }
+  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+
+  auto lister = op.GetLister("list_options/", options);
+  paths.clear();
+  for (const auto &entry : lister) {
+    paths.insert(entry.path);
+  }
+  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+}
+
+TEST(OpenDALOptionsTest, DeleteOptions) {
+  opendal::Operator op("memory");
+  op.CreateDir("delete_options/");
+  op.Write("delete_options/file", "hello");
+
+  opendal::DeleteOptions options;
+  options.recursive = true;
+  op.Remove("delete_options/", options);
+
+  EXPECT_FALSE(op.Exists("delete_options/file"));
+}
+
+TEST(OpenDALOptionsTest, StatOptions) {
+  opendal::Operator op("memory");
+  op.Write("stat_options", "hello");
+
+  opendal::StatOptions stat_options;
+  auto metadata = op.Stat("stat_options", stat_options);
+  EXPECT_EQ(metadata.content_length, 5);
 }
 
 } // namespace opendal::test

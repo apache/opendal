@@ -27,7 +27,8 @@ use futures::AsyncSeekExt;
 
 use crate::*;
 
-/// StdReader is the adapter of [`Read`], [`Seek`] and [`BufRead`] for [`BlockingReader`][crate::BlockingReader].
+/// `StdReader` adapts a [`crate::blocking::Reader`] to [`Read`], [`Seek`], and
+/// [`BufRead`].
 ///
 /// Users can use this adapter in cases where they need to use [`Read`] or [`BufRead`] trait.
 ///

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL D1 service implementation"
 name = "opendal-service-d1"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

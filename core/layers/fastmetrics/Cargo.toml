@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL metrics layer using fastmetrics"
 name = "opendal-layer-fastmetrics"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

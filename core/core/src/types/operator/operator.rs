@@ -818,7 +818,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Extra Options
     ///
@@ -859,7 +860,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Streaming Write
     ///
@@ -914,7 +916,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Streaming Write
     ///
@@ -1044,7 +1047,8 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// # Examples
     ///
@@ -1098,7 +1102,8 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// # Examples
     ///

@@ -18,142 +18,9 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
 )]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
-//!
-//! OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
-//!
-//! # Quick Start
-//!
-//! OpenDAL's API entry points are [`Operator`] and [`blocking::Operator`]. All
-//! public APIs are accessible through the operator. To utilize OpenDAL, you
-//! need to:
-//!
-//! - [Init a service](#init-a-service)
-//! - [Compose layers](#compose-layers)
-//! - [Use operator](#use-operator)
-//!
-//! ## Init a service
-//!
-//! The first step is to pick a service and init it with a builder. All supported
-//! services could be found at [`services`].
-//!
-//! Let's take [`services::Memory`] as an example:
-//!
-//! ```no_run
-//! use opendal_core::services;
-//! use opendal_core::Operator;
-//! use opendal_core::Result;
-//!
-//! fn main() -> Result<()> {
-//!     // Pick a builder and configure it.
-//!     let builder = services::Memory::default();
-//!
-//!     // Init an operator
-//!     let op = Operator::new(builder)?;
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Compose layers
-//!
-//! The next setup is to compose layers. Layers are modules that provide extra
-//! features for every operation. All builtin layers could be found at [`layers`].
-//!
-//! Let's use [`layers::CapabilityOverrideLayer`] and a custom [`HttpTransporter`] as an example.
-//!
-//! ```no_run
-//! use opendal_core::layers::CapabilityOverrideLayer;
-//! use opendal_core::HttpTransporter;
-//! use opendal_core::OperationContext;
-//! use opendal_core::services;
-//! use opendal_core::Operator;
-//! use opendal_core::Result;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // Pick a builder and configure it.
-//!     let builder = services::Memory::default();
-//!
-//!     // Init an operator
-//!     let transport = HttpTransporter::default();
-//!     let op = Operator::new(builder)?
-//!         // Replace the base HTTP transport.
-//!         .with_context(OperationContext::new().with_http_transport(transport))
-//!         .layer(CapabilityOverrideLayer::new(|cap| cap));
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Use operator
-//!
-//! The final step is to use the operator. OpenDAL supports both async [`Operator`]
-//! and blocking [`blocking::Operator`]. Please pick the one that fits your use case.
-//!
-//! Every Operator API follows a consistent pattern. For example, consider the `read` operation:
-//!
-//! - [`Operator::read`]: Executes a read operation.
-//! - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
-//! - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
-//! - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
-//! - [`Operator::reader_with`]: Creates a reader with advanced options using the builder pattern.
-//! - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
-//!
-//! The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
-//! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
-//!
-//! ```no_run
-//! use opendal_core::options;
-//! use opendal_core::HttpTransporter;
-//! use opendal_core::OperationContext;
-//! use opendal_core::services;
-//! use opendal_core::Operator;
-//! use opendal_core::Result;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // Pick a builder and configure it.
-//!     let builder = services::Memory::default();
-//!
-//!     // Init an operator
-//!     let transport = HttpTransporter::default();
-//!     let op = Operator::new(builder)?
-//!         // Replace the base HTTP transport.
-//!         .with_context(OperationContext::new().with_http_transport(transport));
-//!
-//!     // Fetch this file's metadata
-//!     let meta = op.stat("hello.txt").await?;
-//!     let length = meta.content_length();
-//!
-//!     // Read data from `hello.txt` with options.
-//!     let bs = op
-//!         .read_with("hello.txt")
-//!         .range(0..8 * 1024 * 1024)
-//!         .chunk(1024 * 1024)
-//!         .concurrent(4)
-//!         .await?;
-//!
-//!     // The same to:
-//!     let bs = op
-//!         .read_options("hello.txt", options::ReadOptions {
-//!             range: (0..8 * 1024 * 1024).into(),
-//!             chunk: Some(1024 * 1024),
-//!             concurrent: 4,
-//!             ..Default::default()
-//!         })
-//!         .await?;
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! # Useful Links
-//!
-//! - [Concept][crate::docs::concepts]
-//! - [Internals][crate::docs::internals]
-//! - [Performance Guide][crate::docs::performance]
-
+#![cfg_attr(docsrs, doc(auto_cfg))]
 // Make sure all our public APIs have docs.
 #![deny(missing_docs)]
 
@@ -164,8 +31,6 @@ pub use types::*;
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
 #[cfg(feature = "blocking")]
 pub mod blocking;
-#[cfg(docsrs)]
-pub mod docs;
 pub mod layers;
 pub mod raw;
 pub mod services;

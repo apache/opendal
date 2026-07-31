@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL HDFS Native service implementation"
 name = "opendal-service-hdfs-native"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

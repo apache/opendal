@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Cloudflare KV service implementation"
 name = "opendal-service-cloudflare-kv"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

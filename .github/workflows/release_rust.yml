@@ -27,6 +27,7 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/bootstrap_rust_crates.yml"
       - ".github/workflows/release_rust.yml"
       - ".github/scripts/release_rust/**"
       - "core/testkit/Cargo.toml"
@@ -43,6 +44,8 @@ jobs:
       packages: ${{ steps.plan.outputs.packages }}
     steps:
       - uses: actions/checkout@v7
+      - name: Test release helpers
+        run: python3 -m unittest discover -s .github/scripts/release_rust -p "test_*.py"
       - name: Plan publish matrix
         id: plan
         run: python3 .github/scripts/release_rust/plan.py --github-output
@@ -51,7 +54,9 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
     needs: plan
     runs-on: ubuntu-latest
+    environment: release
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v7
@@ -69,11 +74,8 @@ jobs:
         with:
           need-rocksdb: true
           need-protoc: true
-      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18
-        id: auth
       - name: Publish Rust crates
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
         run: python3 .github/scripts/release_rust/publish.py

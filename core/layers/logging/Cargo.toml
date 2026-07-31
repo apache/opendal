@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL logging layer"
 name = "opendal-layer-logging"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

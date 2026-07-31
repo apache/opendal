@@ -16,11 +16,20 @@
 // under the License.
 
 #![cfg(target_arch = "wasm32")]
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
 
-/// Default scheme for opfs service.
+/// URI scheme used for service registration and scheme-driven construction.
 pub const OPFS_SCHEME: &str = "opfs";
 
-/// Register this service into the given registry.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 pub fn register_opfs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Opfs>(OPFS_SCHEME);
 }

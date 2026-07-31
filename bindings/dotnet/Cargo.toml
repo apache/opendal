@@ -40,7 +40,9 @@ opendal = { version = ">=0", path = "../../core", features = [
   # enabled layers
   "layers-concurrent-limit",
   "layers-logging",
+  "layers-mime-guess",
   "layers-retry",
+  "layers-throttle",
   "layers-timeout",
 
   # enabled services
@@ -103,6 +105,11 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-yandex-disk",
 ] }
 tokio = { version = "1.49.0", features = ["full"] }
+
+[dev-dependencies]
+# Only needed to build multi-part buffers in the buffer copy tests. Already an
+# indirect dependency through opendal, so this adds nothing to the shipped library.
+bytes = "1.12.1"
 
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954

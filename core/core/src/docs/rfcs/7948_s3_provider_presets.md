@@ -5,40 +5,29 @@
 
 # Summary
 
-Add provider presets for storage services implemented through the S3-compatible
-API. The initial presets are `r2` and `minio`. Each preset has its own URI
-scheme, configuration, and builder while reusing the S3 protocol
-implementation.
+Add first-class `r2` and `minio` services to `opendal-service-s3`. Each service
+has its own URI scheme, config type, and builder. Its config exposes only the
+connection, location, and authentication fields supported by that provider.
 
-A preset resolves provider-specific inputs into `S3Config`, wraps the S3 base
-service with the provider's identity and effective capabilities, and then lets
-`Operator::new` install its default layers. Existing `s3` construction and
-behavior remain unchanged.
+The provider builder validates those fields, converts them into an internal
+`S3Config`, and delegates requests to the existing S3 implementation. Existing
+`s3` construction and behavior remain unchanged.
 
 # Motivation
 
-S3-compatible providers share a protocol but not a complete configuration or
-capability contract. Users currently have to discover and repeat endpoint,
-region, addressing, multipart, and capability settings for every application
-and language binding. Missing a setting can make OpenDAL connect to the wrong
-endpoint or advertise an operation variant that the selected provider does not
-support.
+S3 wire compatibility does not imply AWS configuration compatibility. Today,
+an R2 or MinIO user must construct `s3` and know which endpoint, region, and
+AWS-oriented options are meaningful. The complete `S3Config` also advertises
+settings such as AssumeRole, request payer, storage classes, and AWS encryption
+options even when a provider does not support them.
 
-OpenDAL already owns the S3 request implementation, operator registry, and
-capability checks. It should also offer small, tested provider definitions for
-widely used S3-compatible services.
-
-The term *preset* is distinct from two existing concepts:
-
-- An alias maps another scheme to the same builder without changing semantics.
-- An AWS profile selects credentials from shared AWS configuration.
-
-A provider preset changes construction semantics and does not store
+Here, *preset* means predefined construction semantics, not a scheme alias or
+AWS credential profile. It neither exposes `S3Config` wholesale nor stores
 credentials.
 
 # Guide-level explanation
 
-Select Cloudflare R2 explicitly with the `r2` scheme:
+Select Cloudflare R2 with an account ID:
 
 ```rust
 let op = Operator::from_uri((
@@ -51,179 +40,215 @@ let op = Operator::from_uri((
 ))?;
 ```
 
-The URI authority remains the bucket and the path remains the OpenDAL root.
-`account_id` lets the preset derive the standard R2 endpoint. Credentials are
-passed as extra options rather than embedded in the URI so logs and diagnostics
-do not expose them.
-
-Select a MinIO deployment with the `minio` scheme:
+The URI authority is the bucket and the path is the OpenDAL root. The preset
+derives the documented
+[`https://<ACCOUNT_ID>.r2.cloudflarestorage.com`](https://developers.cloudflare.com/r2/get-started/s3/)
+endpoint and uses `auto` as the signing region. A jurisdiction may be supplied
+with `account_id`:
 
 ```rust
-let op = Operator::via_iter(
-    "minio",
+let op = Operator::from_uri((
+    "r2://data/root",
+    [
+        ("account_id", "example-account"),
+        ("jurisdiction", "eu"),
+    ],
+))?;
+```
+
+An R2 user may supply `endpoint` instead of `account_id` for a proxy, gateway,
+or test server. Supplying both is invalid, and `jurisdiction` is valid only
+with `account_id`.
+
+Select a MinIO deployment with its endpoint:
+
+```rust
+let op = Operator::from_uri((
+    "minio://data/root",
     [
         ("endpoint", "http://127.0.0.1:9000"),
-        ("bucket", "data"),
         ("access_key_id", "minioadmin"),
         ("secret_access_key", "minioadmin"),
     ],
-)?;
+))?;
 ```
 
-MinIO has no universal endpoint, so the preset requires one instead of falling
-back to the AWS S3 endpoint.
+MinIO has no universal endpoint, so `endpoint` is required. `region` is
+optional and defaults to `auto`; deployments that require a configured region
+can provide it explicitly.
 
-Provider selection is always explicit. OpenDAL does not infer a preset from an
-endpoint because custom domains, gateways, and proxies make that inference
-ambiguous. Users that need a provider-specific configuration outside the
-preset contract continue to use `s3`.
+Provider selection is explicit; OpenDAL does not infer it from a hostname.
+Unsupported fields such as `role_arn` fail during construction. Users who need
+the complete S3 configuration surface continue to use `s3`.
 
 # Reference-level explanation
 
-## Service registration
+## Public API and registration
 
-The `opendal-service-s3` crate exports `R2`, `R2Config`, `Minio`, and
-`MinioConfig` alongside `S3` and `S3Config`. Enabling `services-s3` registers
-all three schemes:
+The `opendal-service-s3` crate exports `R2`, `R2Config`, `R2_SCHEME`, `Minio`,
+`MinioConfig`, and `MINIO_SCHEME` alongside `S3`, `S3Config`, and `S3_SCHEME`.
+Enabling `services-s3` registers all three schemes:
 
 ```rust,ignore
-registry.register::<S3>("s3");
-registry.register::<R2>("r2");
-registry.register::<Minio>("minio");
+registry.register::<S3>(S3_SCHEME);
+registry.register::<R2>(R2_SCHEME);
+registry.register::<Minio>(MINIO_SCHEME);
 ```
 
-`Operator::from_uri` and `Operator::via_iter` therefore expose presets to every
-binding that uses scheme-based construction. Typed bindings may expose the
-matching provider config types without implementing provider logic outside
-Rust.
+Each provider implements the existing `Configurator` and `Builder` contracts.
+`Operator::from_uri`, `Operator::via_iter`, and `Operator::from_config`
+therefore work without changes to `OperatorRegistry`.
 
-## Configuration contract
+## Provider configuration
 
-Provider configs contain the common S3 fields plus provider-specific inputs.
-They resolve into `S3Config` with this precedence:
+Provider config types are independent structs. They do not embed or flatten
+`S3Config`.
 
-```text
-S3 defaults < preset defaults < explicit user values < provider validation
-```
+`R2Config` exposes:
 
-Preset defaults fill missing values only. Provider validation rejects
-combinations that would otherwise be ignored or produce an invalid request.
-For example, the R2 preset accepts either an explicit endpoint or an account ID
-from which it can derive an endpoint. An explicit endpoint cannot be combined
-with endpoint-derived fields such as jurisdiction.
+- `root`
+- `bucket`
+- `account_id`
+- `jurisdiction`
+- `endpoint`
+- `access_key_id`
+- `secret_access_key`
+- `session_token`
 
-The R2 preset owns endpoint derivation, its signing-region defaults, and its
-effective S3 capability reductions. The MinIO preset requires an endpoint,
-supplies `auto` when `region` is absent, and applies only provider-wide
-capability reductions. It does not infer bucket- or deployment-scoped features
-such as versioning. Common S3 credential configuration remains available to
-both.
+`MinioConfig` exposes:
 
-Preset-specific fields are consumed before constructing `S3Config`; they never
-become unknown S3 options. Validation errors use `ErrorKind::ConfigInvalid` and
-include the preset and field in the error context. Debug output must not include
-credentials.
+- `root`
+- `bucket`
+- `endpoint`
+- `region`
+- `access_key_id`
+- `secret_access_key`
+- `session_token`
+- `skip_signature`
+
+`bucket` is a required `String`, `skip_signature` is a `bool` that defaults to
+`false`, and every other listed field is an `Option<String>`. Both configs are
+non-exhaustive and use `#[serde(deny_unknown_fields)]`. Unknown or misspelled
+options therefore fail rather than silently adopting S3 defaults. Custom
+`Debug` implementations omit credentials and session tokens.
+
+Direct credentials require both `access_key_id` and `secret_access_key`.
+`session_token` requires that pair. Both
+[R2](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/) and
+[MinIO](https://min.io/docs/minio/linux/developers/security-token-service.html)
+support temporary credentials; the configs accept issued credentials but do
+not expose credential-issuance settings. When direct credentials are absent,
+the builders may load static credentials from the standard AWS environment
+variables or shared credential files. They do not use SSO, web identity,
+credential processes, ECS, EC2 metadata, or AssumeRole.
+`MinioConfig::skip_signature` explicitly selects anonymous requests and cannot
+be combined with direct credentials.
+
+These allowlists are public contracts. Additions require documented provider
+support and tests. S3-specific operation policy remains available through
+`S3Config`, not provider configs.
 
 ## Service construction
 
-A provider builder resolves its config, builds the normal S3 service, and wraps
-that service in an internal `S3PresetService`:
+Construction follows one path:
 
 ```text
 provider config
--> resolved S3Config
--> S3 service
--> S3PresetService
--> Operator default layers
+-> provider validation and defaults
+-> internal S3Config
+-> shared S3 builder
+-> S3 backend with provider scheme
 ```
 
-`S3PresetService` forwards every operation. It changes only:
+`R2Config::from_uri` and `MinioConfig::from_uri` map the URI authority to
+`bucket` and the path to `root`, then deserialize query or iterator options
+into their own fields.
 
-- `ServiceInfo::scheme`, which reports `r2` or `minio`; and
-- `Service::capability`, which reports the provider's effective capability.
+`R2Builder` requires exactly one of `account_id` and `endpoint`. With
+`account_id`, it accepts an optional `eu` or `fedramp`
+[jurisdiction](https://developers.cloudflare.com/r2/reference/data-location/)
+and derives `https://<ACCOUNT_ID>.<JURISDICTION>.r2.cloudflarestorage.com`; it
+omits the jurisdiction segment when no jurisdiction is set. It always sets the
+internal signing region to `auto` and prevents AWS-specific metadata lookup
+that is outside the R2 contract.
 
-The wrapper is part of the base service returned by the provider builder.
-`Operator::new` then installs `ErrorContextLayer`, `SimulateLayer`,
-`CompleteLayer`, and `CorrectnessCheckLayer` around it. This ordering ensures
-completion and correctness checks observe provider capabilities. Applying a
-capability override after constructing an `Operator` would only wrap the
-already-installed correctness layer and would not change the capability that
-the inner checker reads.
+`MinioBuilder` requires `endpoint`, forwards an explicit `region`, or uses
+`auto` when it is absent. It maps only its declared authentication fields.
 
-A preset may only remove capabilities or lower limits reported by S3. It cannot
-advertise a provider extension unless the shared S3 implementation actually
-implements that operation.
+Before delegation, each builder creates the restricted credential chain
+described above and passes it to the shared builder. This prevents the default
+AWS credential chain from reintroducing behavior omitted by the provider
+contract.
 
-## Capability maintenance
+Both builders create the shared S3 backend through a crate-private construction
+path that accepts the selected scheme. The backend uses that scheme in
+`ServiceInfo` and error context, so an R2 or MinIO operator identifies itself
+correctly without an operation-forwarding wrapper.
 
-Each preset keeps its capability transformation in one provider-owned
-function. Changes require an authoritative provider contract and a behavior
-test that exercises the preset rather than a manually configured `s3`
-operator. Provider behavior tests must verify operations whose capability is
-changed, not only the reported `Capability` value.
+The `S3Config` conversion remains private and does not widen provider
+deserialization or public APIs.
 
-Managed providers can evolve their S3 compatibility after an OpenDAL release.
-Updating a preset to match verified provider behavior is a correctness fix.
-Applications that require a frozen manual capability contract can continue to
-construct `s3` and apply their own configuration.
+## Error and validation contract
+
+Invalid combinations return `ErrorKind::ConfigInvalid` before a request is
+sent. Errors identify the provider and invalid field or field combination, but
+never include credential values.
+
+Provider validation includes:
+
+- A non-empty bucket.
+- The endpoint rules described above.
+- Valid R2 jurisdiction values.
+- Complete direct credential tuples.
+- No credentials when MinIO anonymous mode is selected.
 
 # Compatibility and migration
 
 This proposal adds schemes and types without changing `s3`. OpenDAL never
-reinterprets an existing S3 endpoint as a preset, so existing applications keep
-their construction, identity, and capabilities.
+reinterprets an existing S3 endpoint as a provider preset.
 
-An application can migrate a manual provider configuration by changing the
-scheme and deleting values supplied by the preset. Configuration for `r2` or
-`minio` fails as an unregistered scheme on older OpenDAL versions instead of
-silently falling back to S3.
+An application can migrate by changing `s3` to `r2` or `minio`, removing
+AWS-only options, and supplying the provider's required fields. Applications
+that depend on fields outside the provider contract keep using `s3` as an
+explicit escape hatch. Older OpenDAL versions reject the new schemes as
+unregistered instead of falling back to S3.
 
 # Drawbacks
 
-Built-in presets make OpenDAL responsible for tracking provider compatibility.
-Stale defaults or capability tables can be worse than documentation because
-applications rely on them at runtime. Every preset therefore needs an active
-owner, authoritative references, and continuous behavior coverage.
+The dedicated configs duplicate a small number of S3 connection and
+authentication fields. This duplication is intentional: it prevents shared
+implementation details from defining provider APIs.
 
-Provider schemes and config types also enlarge generated binding APIs. A
-self-hosted provider such as MinIO can vary by version and deployment, so its
-preset must remain conservative.
+Provider schemes and config types also enlarge generated binding APIs.
+Unit tests must cover field rejection, endpoint derivation, invalid credential
+tuples, redacted debug output, and scheme identity. Existing R2 and MinIO
+behavior fixtures must construct through the new schemes. MinIO deployments
+can vary, so its initial contract remains conservative and requires an
+endpoint.
 
 # Rationale and alternatives
 
-Registering `r2` or `minio` as aliases of `S3` would improve naming but could
-not supply defaults, validation, identity, or capabilities.
+Registering `r2` or `minio` as aliases of `S3` would improve naming but would
+retain the full AWS-oriented config surface and could not enforce
+provider-specific requirements.
 
-Adding a `profile` string to `S3Config` would mix provider selection with AWS
-credential profiles and accumulate provider branches inside `S3Builder`.
-Dedicated provider builders keep S3 provider-independent and give static and
-dynamic construction the same contract.
+Embedding or flattening `S3Config` into provider configs would make every S3
+field appear supported. A denylist would drift whenever `S3Config` grows. A
+small allowlist makes provider support explicit.
 
-Detecting providers from endpoints would make behavior depend on hostname
-shape and would fail for custom domains and compatible gateways. Explicit
-schemes keep provider semantics observable.
+Adding a provider discriminator to `S3Config` would accumulate provider
+branches inside `S3Builder` and give typed construction a weaker contract.
+Dedicated configs keep validation local while sharing the runtime.
 
-Separate provider crates would duplicate the S3 protocol implementation and
-create unnecessary feature and release boundaries. Presets belong in
-`opendal-service-s3` because they reuse that implementation without adding
-dependencies.
+Detecting providers from endpoints would fail for custom domains, gateways,
+and compatible test servers. Explicit schemes keep construction deterministic.
 
-A public generic preset trait is not required for the initial providers. The
-shared wrapper and resolver can remain internal until multiple implementations
-demonstrate a stable extension contract.
+Separate provider crates would add feature and release boundaries without a
+separate protocol implementation. The provider types belong in
+`opendal-service-s3` because their runtime is S3-compatible.
 
 # Prior art
 
 RFC-5444 introduced scheme-based `OperatorRegistry` construction and identified
-R2 configuration presets as a future extension. RFC-6707 introduced
-`CapabilityOverrideLayer` and identified curated S3-compatible profiles as a
-future use case. This proposal places the same capability transformation below
-the default correctness layer and gives each provider a first-class
-configuration contract.
-
-# Future possibilities
-
-Additional managed providers such as Tigris or Wasabi can add presets when
-their defaults and capability contract are backed by maintained behavior
-tests. A later RFC may expose application-defined presets through custom
-registries without adding credential storage to OpenDAL.
+R2 configuration presets as a future extension. This proposal makes those
+presets first-class provider contracts over a shared S3 runtime.

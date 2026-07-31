@@ -67,6 +67,71 @@ fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
+/// Convert a config value into the string form core's config deserializer
+/// consumes.
+///
+/// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
+/// `bool`, `int`, `os.PathLike`, and `list`/`tuple` of those (`,`-joined, as
+/// core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
+fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
+    // `str` before the list branch (a `str` is also a sequence); `bool` before
+    // `int` (a Python `bool` also extracts as `int`); `dict` before the list
+    // branch so a map is rejected rather than read as its keys.
+    if let Ok(s) = value.extract::<String>() {
+        Ok(s)
+    } else if let Ok(b) = value.extract::<bool>() {
+        Ok(if b { "true" } else { "false" }.to_string())
+    } else if let Ok(i) = value.extract::<i128>() {
+        Ok(i.to_string())
+    } else if value.cast::<PyDict>().is_ok() {
+        Err(Unsupported::new_err(
+            "a map-valued config field cannot be built via from_config; leave it unset",
+        ))
+    } else if let Ok(items) = value.extract::<Vec<Bound<PyAny>>>() {
+        let parts = items
+            .iter()
+            .map(config_value_to_string)
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(parts.join(","))
+    } else if let Ok(path) = value.extract::<PathBuf>() {
+        Ok(path.to_string_lossy().into_owned())
+    } else {
+        Err(Unsupported::new_err(
+            "unsupported config value type; pass a str, bool, int, os.PathLike, or list of those",
+        ))
+    }
+}
+
+/// Extract `(scheme, config_map)` from a typed service config dict.
+///
+/// A config is a plain `dict` (an `opendal.config.ServiceConfig`, e.g.
+/// `S3Config`) whose `scheme` key selects the service; every other pair becomes
+/// a config option, converted via [`config_value_to_string`].
+fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<String, String>)> {
+    let dict = config.cast::<PyDict>().map_err(|_| {
+        Unsupported::new_err(
+            "from_config expects an opendal.config.ServiceConfig \
+             (a dict with a 'scheme' key, e.g. S3Config(scheme=\"s3\", ...))",
+        )
+    })?;
+
+    let scheme = dict
+        .get_item("scheme")?
+        .ok_or_else(|| Unsupported::new_err("config is missing the required 'scheme' key"))?
+        .extract::<String>()?;
+
+    let mut map = HashMap::with_capacity(dict.len());
+    for (k, v) in dict.iter() {
+        let key = k.extract::<String>()?;
+        if key != "scheme" {
+            let value = config_value_to_string(&v)?;
+            map.insert(key, value);
+        }
+    }
+
+    Ok((scheme, map))
+}
+
 /// Rebuild a blocking [`Operator`] while unpickling.
 ///
 /// Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
@@ -188,6 +253,45 @@ impl Operator {
         Ok(Operator {
             core: build_blocking_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
+            __map: map,
+        })
+    }
+
+    /// Create a new blocking `Operator` from a typed service config.
+    ///
+    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+    /// ``scheme`` key selects the service, so a static type checker rejects a
+    /// wrong scheme, a missing required key, an unknown key, and a wrong value
+    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+    /// are converted to the string form core consumes.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service configuration such as ``opendal.config.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.config import S3Config
+    ///
+    /// op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config: "ServiceConfig"))]
+    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config)?;
+        let scheme = normalize_scheme(&scheme);
+
+        Ok(Operator {
+            core: build_blocking_operator(&scheme, map.clone())?,
+            __scheme: scheme,
             __map: map,
         })
     }
@@ -882,6 +986,45 @@ impl AsyncOperator {
         Ok(AsyncOperator {
             core: build_operator_from_uri(uri, map.clone())?,
             __scheme: uri.to_string(),
+            __map: map,
+        })
+    }
+
+    /// Create a new `AsyncOperator` from a typed service config.
+    ///
+    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+    /// ``scheme`` key selects the service, so a static type checker rejects a
+    /// wrong scheme, a missing required key, an unknown key, and a wrong value
+    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+    /// are converted to the string form core consumes.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service configuration such as ``opendal.config.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.config import S3Config
+    ///
+    /// op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config: "ServiceConfig"))]
+    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config)?;
+        let scheme = normalize_scheme(&scheme);
+
+        Ok(AsyncOperator {
+            core: build_operator(&scheme, map.clone())?,
+            __scheme: scheme,
             __map: map,
         })
     }

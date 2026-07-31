@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Aliyun OSS service implementation"
 name = "opendal-service-oss"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -34,13 +35,13 @@ all-features = true
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false, features = [
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false, features = [
   "reqsign",
 ] }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-aliyun-oss = { version = "3.1.0", default-features = false }
-reqsign-core = { version = "3.0.1", default-features = false }
-reqsign-file-read-tokio = { version = "3.0.1", default-features = false }
+reqsign-aliyun-oss = { version = "3.1.2", default-features = false }
+reqsign-core = { version = "3.2.0", default-features = false }
+reqsign-file-read-tokio = { version = "3.0.3", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

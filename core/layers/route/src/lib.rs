@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Route layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -30,7 +29,34 @@ use globset::GlobSetBuilder;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Route operations to different operators by matching paths with glob patterns.
+/// `RouteLayer` routes operations to different operators by matching paths
+/// against glob patterns.
+///
+/// Routes are evaluated in insertion order, and the first matching route wins.
+/// An unmatched path uses the operator wrapped by this layer. Copy and rename
+/// operations select a route from the source path, so this layer does not move
+/// data between two routed services. A batched delete routes each path
+/// independently.
+///
+/// [`OperatorInfo::capability`] continues to describe the wrapped operator; it
+/// does not aggregate the capabilities of route targets.
+///
+/// # Example
+///
+/// ```no_run
+/// use opendal_core::services::Memory;
+/// use opendal_core::{Operator, Result};
+/// use opendal_layer_route::RouteLayer;
+///
+/// fn build_operator() -> Result<Operator> {
+///     let archive = Operator::new(Memory::default())?;
+///     let routes = RouteLayer::builder()
+///         .route("archive/**", archive)
+///         .build()?;
+///
+///     Ok(Operator::new(Memory::default())?.layer(routes))
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct RouteLayer {
     router: Arc<RouteRouter>,
@@ -50,7 +76,10 @@ pub struct RouteLayerBuilder {
 }
 
 impl RouteLayerBuilder {
-    /// Add a route with a glob pattern.
+    /// Add a route for paths that match `pattern`.
+    ///
+    /// If multiple patterns match, the route added first wins. The target
+    /// operator contributes both its service and its operation context.
     pub fn route(mut self, pattern: impl AsRef<str>, op: Operator) -> Self {
         let (ctx, srv) = op.into_parts();
         self.routes.push(RouteEntry {
@@ -60,9 +89,10 @@ impl RouteLayerBuilder {
         self
     }
 
-    /// Build the `RouteLayer`.
+    /// Build the route layer.
     ///
-    /// Returns an error if any glob pattern fails to compile.
+    /// This method returns [`ErrorKind::ConfigInvalid`] if a glob pattern is
+    /// invalid.
     pub fn build(self) -> Result<RouteLayer> {
         let mut builder = GlobSetBuilder::new();
         let mut targets = Vec::with_capacity(self.routes.len());
@@ -142,7 +172,7 @@ impl RouteLayer {
     }
 }
 
-/// Service that routes operations to different targets based on path.
+#[doc(hidden)]
 pub struct RouteAccessor {
     inner: Servicer,
     router: Arc<RouteRouter>,
@@ -263,7 +293,7 @@ impl Service for RouteAccessor {
     }
 }
 
-/// Deleter that batches deletions per routed service.
+#[doc(hidden)]
 pub struct RouteDeleter {
     default: Servicer,
     router: Arc<RouteRouter>,

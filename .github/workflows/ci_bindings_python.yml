@@ -39,13 +39,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           working-directory: "bindings/python"
+
       - uses: taiki-e/install-action@just
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/python"
+        run: cargo clippy --version
+
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint
@@ -54,22 +63,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           working-directory: "bindings/python"
+
       - uses: taiki-e/install-action@just
+
       - name: Setup taplo
         uses: taiki-e/install-action@v2
         with:
           tool: taplo-cli
+
       - name: Setup hawkeye
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/korandoru/hawkeye/releases/download/v6.5.1/hawkeye-installer.sh | sh
+
       - name: Regenerate stubs
         working-directory: "bindings/python"
         run: just stub-gen
+
       - name: Check diff
         run: git diff --exit-code
 
@@ -77,15 +93,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-protoc: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           working-directory: bindings/python
+
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
@@ -93,6 +112,7 @@ jobs:
           uv venv --python=python3.11
           uv sync --all-extras
           uv run -- maturin develop
+
       # Examples back the snippets shown in the website guide. Running them keeps
       # the docs honest: a broken example fails CI instead of shipping bad docs.
       - name: Run guide examples

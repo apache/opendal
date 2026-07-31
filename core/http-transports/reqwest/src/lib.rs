@@ -15,55 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Reqwest based HTTP transport for Apache OpenDAL.
-//!
-//! # TLS backends
-//!
-//! Enable one of the following Cargo features to compile reqwest TLS support.
-//! The `default` feature enables `rustls`.
-//!
-//! - **`native-tls`** — Platform TLS links against the OS TLS library:
-//!    - Windows: SChannel
-//!    - macOS: Secure Transport
-//!    - Linux: OpenSSL, requires system development packages
-//!
-//! - **`rustls`** — [Rustls](https://crates.io/crates/rustls) configured by
-//!   reqwest with its default crypto provider and platform certificate
-//!   verification. Pure-Rust TLS stack, no system TLS dependency.
-//!
-//! - **`rustls-no-provider`** — Rustls without a built-in crypto provider.
-//!   You must install a [`rustls::crypto::CryptoProvider`] before building a
-//!   client. Use this when you want to bring your own provider
-//!   (e.g., a FIPS-certified module).
-//!
-//! In application or language binding builds, prefer selecting a single backend
-//! feature. In workspace or `--all-features` builds, Cargo may enable multiple
-//! backend features via feature unification; build a [`reqwest::Client`] with
-//! reqwest's TLS configuration methods and pass it to [`ReqwestTransport::new`]
-//! to force the backend you want.
-//!
-//! On wasm targets, reqwest uses the Fetch API instead of hyper. TLS is provided
-//! by the host environment, so native TLS backend features do not select a TLS
-//! stack there.
-//!
-//! # Custom reqwest client
-//!
-//! ```
-//! use std::time::Duration;
-//!
-//! use opendal_core::HttpTransporter;
-//! use opendal_http_transport_reqwest::ReqwestTransport;
-//!
-//! # fn build() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = reqwest::Client::builder()
-//!     .tls_backend_rustls()
-//!     .connect_timeout(Duration::from_secs(10))
-//!     .build()?;
-//! let transport = ReqwestTransport::new(client);
-//! let _transport = HttpTransporter::new(transport);
-//! # Ok(())
-//! # }
-//! ```
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
 
 use std::fmt::{Debug, Formatter};
 use std::future;
@@ -78,11 +33,13 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::HttpBody;
 use opendal_core::HttpTransport;
+use opendal_core::HttpTransporter;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
 
-static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
+static DEFAULT_REQWEST_TRANSPORT: LazyLock<ReqwestTransport> =
+    LazyLock::new(|| ReqwestTransport::new(reqwest::Client::new()));
 
 /// A HTTP transport with [`reqwest::Client`].
 #[derive(Clone)]
@@ -98,7 +55,7 @@ impl Debug for ReqwestTransport {
 
 impl Default for ReqwestTransport {
     fn default() -> Self {
-        Self::new(DEFAULT_REQWEST_CLIENT.clone())
+        DEFAULT_REQWEST_TRANSPORT.clone()
     }
 }
 
@@ -206,6 +163,23 @@ impl HttpTransport for ReqwestTransport {
     }
 }
 
+/// Install the process-wide default reqwest transport.
+///
+/// The reqwest client is initialized when the transport handles its first
+/// request.
+#[doc(hidden)]
+pub fn install_default() {
+    HttpTransporter::install_default(LazyReqwestTransport);
+}
+
+struct LazyReqwestTransport;
+
+impl HttpTransport for LazyReqwestTransport {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        DEFAULT_REQWEST_TRANSPORT.fetch(req).await
+    }
+}
+
 #[inline]
 fn is_temporary_error(err: &reqwest::Error) -> bool {
     // error sending request
@@ -246,6 +220,11 @@ impl http_body::Body for HttpBufferBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_install_default_is_lazy() {
+        install_default();
+    }
 
     #[cfg(any(feature = "rustls", feature = "native-tls"))]
     #[test]

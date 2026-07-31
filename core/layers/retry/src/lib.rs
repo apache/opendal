@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Retry layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -29,13 +28,13 @@ use backon::Retryable;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add retry for temporary failed operations.
+/// `RetryLayer` retries temporarily failed operations.
 ///
 /// # Notes
 ///
-/// This layer will retry failed operations when [`Error::is_temporary`]
-/// returns true. If operation still failed, this layer will set error to
-/// `Persistent` which means error has been retried.
+/// This layer retries an operation when [`Error::is_temporary`] returns `true`.
+/// If the operation still fails, the layer marks the error as `Persistent` to
+/// indicate that retries did not resolve it.
 ///
 /// # Stateful operation bodies
 ///

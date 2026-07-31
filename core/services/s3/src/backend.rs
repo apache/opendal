@@ -725,7 +725,7 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let S3Builder {
             mut config,
@@ -738,7 +738,7 @@ impl Builder for S3Builder {
         }
 
         let root = normalize_root(&config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket name.
         let bucket = if Self::is_bucket_valid(&config) {
@@ -749,7 +749,7 @@ impl Builder for S3Builder {
                     .with_context("service", S3_SCHEME),
             )
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let default_storage_class = match &config.default_storage_class {
             None => None,

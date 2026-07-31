@@ -9,6 +9,15 @@ Guidance for AI coding agents working in this repository.
 - Add tests when they verify real behavior or guard a regression; do not add placeholder tests.
 - Do not change public APIs or behavior tests unless the task explicitly requires it.
 
+## Documentation Style
+
+- Prefer active voice. Name the type or component that performs an action, for example, “`RetryLayer` retries failed operations.”
+- Use direct, present-tense sentences.
+- Lead with what a public type or method does, then explain important constraints, defaults, and behavior.
+- Describe API semantics precisely. Verify option types, capability requirements, error behavior, and overwrite or versioning semantics against the implementation.
+- Keep terminology consistent with the codebase, especially `service`, `layer`, `operator`, `storage` and `operation`.
+- Use parallel structure in lists and punctuate complete sentences consistently.
+
 ## Rust Workspace Commands
 
 The Rust workspace for OpenDAL core lives under `core/`. There is no root `Cargo.toml`; run core cargo commands from `core/`.

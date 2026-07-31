@@ -126,46 +126,75 @@ func (op *Operator) Copy(src, dest string, opts ...WithCopyFn) error {
 		return ffiOperatorCopy.symbol(op.ctx)(op.inner, src, dest)
 	}
 
+	o := parseCopyOptions(opts...)
+	cOpts, keepAlive, err := newOpendalCopyOptions(op.ctx, o)
+	if err != nil {
+		return err
+	}
+	defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
+	err = ffiOperatorCopyWith.symbol(op.ctx)(op.inner, src, dest, cOpts)
+	// cOpts holds raw pointers into the Go buffers tracked by keepAlive; keep
+	// them reachable until the native call above has returned.
+	runtime.KeepAlive(keepAlive)
+	return err
+}
+
+func parseCopyOptions(opts ...WithCopyFn) *copyOptions {
 	o := &copyOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
-	cOpts := ffiCopyOptionsNew.symbol(op.ctx)()
-	free := ffiCopyOptionsFree.symbol(op.ctx)
+	return o
+}
 
-	ffiCopyOptionsSetIfNotExists.symbol(op.ctx)(cOpts, o.ifNotExists)
-	var ifMatchData []byte
-	if o.ifMatch != "" {
-		data, err := ffiCopyOptionsSetIfMatch.symbol(op.ctx)(cOpts, o.ifMatch)
-		if err != nil {
-			free(cOpts)
-			return err
-		}
-		ifMatchData = data
+// copyOptionsKeepAlive holds byte slices that must outlive the FFI call that
+// references them, since the C side borrows the underlying memory.
+type copyOptionsKeepAlive struct {
+	strings [][]byte
+}
+
+// newOpendalCopyOptions builds a C-side opendal_copy_options from o. On error it
+// frees the allocated options before returning. The caller is responsible for
+// freeing the returned options and for keeping keepAlive reachable until after
+// the FFI call that consumes the options.
+func newOpendalCopyOptions(ctx context.Context, o *copyOptions) (*opendalCopyOptions, copyOptionsKeepAlive, error) {
+	cOpts := ffiCopyOptionsNew.symbol(ctx)()
+	keepAlive := copyOptionsKeepAlive{}
+
+	fail := func(err error) (*opendalCopyOptions, copyOptionsKeepAlive, error) {
+		ffiCopyOptionsFree.symbol(ctx)(cOpts)
+		return nil, copyOptionsKeepAlive{}, err
 	}
-	var sourceVersionData []byte
-	if o.sourceVersion != "" {
-		data, err := ffiCopyOptionsSetSourceVersion.symbol(op.ctx)(cOpts, o.sourceVersion)
+
+	setString := func(value string, set func(*opendalCopyOptions, string) ([]byte, error)) error {
+		if value == "" {
+			return nil
+		}
+		data, err := set(cOpts, value)
 		if err != nil {
-			free(cOpts)
 			return err
 		}
-		sourceVersionData = data
+		keepAlive.strings = append(keepAlive.strings, data)
+		return nil
+	}
+
+	ffiCopyOptionsSetIfNotExists.symbol(ctx)(cOpts, o.ifNotExists)
+	if err := setString(o.ifMatch, ffiCopyOptionsSetIfMatch.symbol(ctx)); err != nil {
+		return fail(err)
+	}
+	if err := setString(o.sourceVersion, ffiCopyOptionsSetSourceVersion.symbol(ctx)); err != nil {
+		return fail(err)
 	}
 	if o.sourceContentLengthHint != 0 {
-		ffiCopyOptionsSetSourceContentLengthHint.symbol(op.ctx)(cOpts, o.sourceContentLengthHint)
+		ffiCopyOptionsSetSourceContentLengthHint.symbol(ctx)(cOpts, o.sourceContentLengthHint)
 	}
 	if o.concurrent != 0 {
-		ffiCopyOptionsSetConcurrent.symbol(op.ctx)(cOpts, o.concurrent)
+		ffiCopyOptionsSetConcurrent.symbol(ctx)(cOpts, o.concurrent)
 	}
 	if o.chunk != 0 {
-		ffiCopyOptionsSetChunk.symbol(op.ctx)(cOpts, o.chunk)
+		ffiCopyOptionsSetChunk.symbol(ctx)(cOpts, o.chunk)
 	}
-	err := ffiOperatorCopyWith.symbol(op.ctx)(op.inner, src, dest, cOpts)
-	free(cOpts)
-	runtime.KeepAlive(ifMatchData)
-	runtime.KeepAlive(sourceVersionData)
-	return err
+	return cOpts, keepAlive, nil
 }
 
 var ffiCopyOptionsNew = newFFI(ffiOpts{

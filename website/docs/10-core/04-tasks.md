@@ -1,15 +1,17 @@
 ---
 title: Common tasks
 sidebar_label: Common tasks
-description: Task-oriented recipes for OpenDAL in Rust — read, write, stream, list, delete, copy, and presign.
+description: Task-oriented recipes for OpenDAL in Rust — read, write, conditional operations, stream, list, delete, copy, and presign.
 ---
 
 # Common tasks
 
-Recipes for the things you actually do with storage. Each works on every
-service. They assume an `op: Operator` built as in
-[Getting started](./02-getting-started.md). For full method signatures and
-options, follow the links to the [API reference][operator].
+Recipes for the things you actually do with storage. They assume an
+`op: Operator` built as in [Getting started](./02-getting-started.md). Support
+for optional operations and advanced options varies by service; check the
+matching [capability](./05-production.md#capability-checks) before using one.
+For full method signatures and options, follow the links to the
+[API reference][operator].
 
 A few conventions used throughout:
 
@@ -18,7 +20,7 @@ A few conventions used throughout:
 - Reads return a [`Buffer`]; writes accept anything that converts into one
   (`&str`, `String`, `Vec<u8>`, `Bytes`).
 - Most verbs have a `*_with` companion (`read_with`, `write_with`, …) for extra
-  options like ranges, content type, and concurrency.
+  options like ranges, conditions, content type, and concurrency.
 
 ## Read a whole file
 
@@ -32,6 +34,23 @@ let text = String::from_utf8(bytes.to_vec())?;
 ```rust
 let bytes = op.read_with("path/to/file").range(0..1024).await?;
 ```
+
+## Read conditionally
+
+Use an ETag to make the read succeed only while the object still has the ETag
+you inspected:
+
+```rust
+let meta = op.stat("config.json").await?;
+if let Some(etag) = meta.etag() {
+    let bytes = op.read_with("config.json").if_match(etag).await?;
+}
+```
+
+If the ETag no longer matches between `stat` and `read_with`, the read returns
+`ErrorKind::ConditionNotMatch`. `read_with` and `reader_with` also support
+`if_none_match`, `if_modified_since`, and `if_unmodified_since`. The same
+conditions are available on `stat_with` for conditional metadata checks.
 
 ## Stream a large file
 
@@ -52,6 +71,33 @@ while let Some(chunk) = stream.try_next().await? {
 let _meta = op.write("path/to/file", "Hello, World!").await?;
 let _meta = op.write("path/to/file", vec![0u8; 1024]).await?;
 ```
+
+## Write conditionally
+
+Use `if_match` for optimistic concurrency control. The write succeeds only if
+the target still has the ETag returned by `stat`:
+
+```rust
+let meta = op.stat("config.json").await?;
+if let Some(etag) = meta.etag() {
+    let _meta = op
+        .write_with("config.json", r#"{"enabled":true}"#)
+        .if_match(etag)
+        .await?;
+}
+```
+
+Use `if_not_exists` to create an object without overwriting an existing one:
+
+```rust
+let _meta = op
+    .write_with("jobs/123.json", r#"{"state":"queued"}"#)
+    .if_not_exists(true)
+    .await?;
+```
+
+A false condition returns `ErrorKind::ConditionNotMatch`. `if_none_match` is
+also available on services that advertise `write_with_if_none_match`.
 
 ## Stream a large upload
 
@@ -123,6 +169,21 @@ op.remove_all("dir/").await?;       // a path and everything under it
 
 `delete` succeeds even if the path does not exist.
 
+## Delete a specific version
+
+Version-aware services can delete one stored version without deleting other
+versions of the same path:
+
+```rust
+let meta = op.stat("report.csv").await?;
+if let Some(version) = meta.version() {
+    op.delete_with("report.csv").version(version).await?;
+}
+```
+
+Check `delete_with_version` before using this option. A version-scoped delete
+remains idempotent if that version is missing.
+
 ## Create a directory
 
 ```rust
@@ -138,6 +199,26 @@ op.rename("old.txt", "new.txt").await?;
 
 Both operate within a single operator and require a service that supports them;
 see [capability checks](./05-production.md#capability-checks).
+
+## Copy or rename without overwriting
+
+Some services can make copy or rename fail instead of replacing an existing
+target:
+
+```rust
+let _meta = op
+    .copy_with("from.txt", "to.txt")
+    .if_not_exists(true)
+    .await?;
+
+op.rename_with("old.txt", "new.txt")
+    .if_not_exists(true)
+    .await?;
+```
+
+Check `copy_with_if_not_exists` or `rename_with_if_not_exists` before using
+these conditions. If the target exists, the operation returns
+`ErrorKind::ConditionNotMatch`.
 
 ## Generate a presigned URL
 

@@ -8,8 +8,10 @@ local filesystem, and 50+ more services through one API.
 > **Note**: This binding is experimental/WIP. Only Clang and AppleClang are
 > currently supported. The API may change without notice.
 
-> **Note**: This binding has its own independent version number. When checking
-> compatibility, refer to this binding's version, not the Rust core version.
+We release the OpenDAL C++ binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the C++ binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

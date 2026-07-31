@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Dtrace layer implementation for Apache OpenDAL.
-
 #![cfg(target_os = "linux")]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::ffi::CString;
 use std::sync::Arc;
 
@@ -29,9 +28,10 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use probe::probe_lazy;
 
-/// Support User Statically-Defined Tracing(aka USDT) on Linux
+/// `DtraceLayer` supports User Statically-Defined Tracing (USDT) on Linux.
 ///
-/// This layer is an experimental feature, it will be enabled by `features = ["layers-dtrace"]` in Cargo.toml.
+/// Enable this experimental layer with `features = ["layers-dtrace"]` in
+/// `Cargo.toml`.
 ///
 /// For now we have following probes:
 ///

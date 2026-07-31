@@ -5,7 +5,10 @@
 This package provides a native .NET binding for **Apache OpenDAL™**, a data access
 layer that allows you to access various storage services in a unified way.
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL .NET binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the .NET binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

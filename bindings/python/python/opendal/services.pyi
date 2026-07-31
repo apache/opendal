@@ -35,7 +35,6 @@ class Scheme:
     Gcs: Final[Scheme]
     Gdrive: Final[Scheme]
     Ghac: Final[Scheme]
-    Goosefs: Final[Scheme]
     Gridfs: Final[Scheme]
     HdfsNative: Final[Scheme]
     Hf: Final[Scheme]

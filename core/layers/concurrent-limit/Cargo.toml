@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL concurrent limit layer"
 name = "opendal-layer-concurrent-limit"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -34,8 +35,8 @@ all-features = true
 futures = { workspace = true }
 http = { workspace = true }
 mea = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.58.0" }
+opendal-core = { path = "../../core", version = "0.58.1" }
 tokio = { workspace = true, features = ["macros", "rt", "time"] }

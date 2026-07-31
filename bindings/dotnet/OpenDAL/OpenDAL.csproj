@@ -4,7 +4,7 @@
         <Title>Apache OpenDAL .NET</Title>
         <PackageId>Apache.OpenDAL</PackageId>
         <Description>The official .NET binding for Apache OpenDAL™</Description>
-        <VersionPrefix>0.1.0</VersionPrefix>
+        <VersionPrefix>0.1.1</VersionPrefix>
         <AssemblyVersion>$(VersionPrefix)</AssemblyVersion>
         <FileVersion>$(VersionPrefix)</FileVersion>
         <Authors>Apache OpenDAL™</Authors>

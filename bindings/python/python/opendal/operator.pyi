@@ -21,6 +21,7 @@ from os import PathLike
 from typing import Any, final
 
 from .capability import Capability
+from .config import ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
 from .services import Scheme
@@ -160,6 +161,38 @@ class AsyncOperator:
         -------
         coroutine
             An awaitable that returns True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+        """
+        Create a new `AsyncOperator` from a typed service config.
+
+        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+        ``scheme`` key selects the service, so a static type checker rejects a
+        wrong scheme, a missing required key, an unknown key, and a wrong value
+        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+        are converted to the string form core consumes.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service configuration such as ``opendal.config.S3Config``.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.config import S3Config
+
+        op = opendal.AsyncOperator.from_config(
+            S3Config(scheme="s3", bucket="my-bucket")
+        )
+        ```
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs) -> AsyncOperator:
@@ -781,6 +814,38 @@ class Operator:
         -------
         bool
             True if the path exists, False otherwise.
+        """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> Operator:
+        """
+        Create a new blocking `Operator` from a typed service config.
+
+        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+        ``scheme`` key selects the service, so a static type checker rejects a
+        wrong scheme, a missing required key, an unknown key, and a wrong value
+        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+        are converted to the string form core consumes.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service configuration such as ``opendal.config.S3Config``.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.config import S3Config
+
+        op = opendal.Operator.from_config(
+            S3Config(scheme="s3", bucket="my-bucket")
+        )
+        ```
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs) -> Operator:

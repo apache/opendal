@@ -76,6 +76,10 @@ jobs:
       - name: Check format
         run: pnpm exec prettier --check .
 
+      # Useful for debugging
+      - name: Print Clippy version
+        run: cargo clippy --version
+
       - name: Check Clippy
         run: cargo clippy -- -D warnings
 

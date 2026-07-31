@@ -62,7 +62,7 @@ impl oio::List for FtpLister {
         let entry = if de.is_file() {
             oio::Entry::new(&path, meta)
         } else if de.is_directory() {
-            oio::Entry::new(&format!("{}/", &path), meta)
+            oio::Entry::new(&format!("{}/", path), meta)
         } else {
             oio::Entry::new(&path, meta)
         };

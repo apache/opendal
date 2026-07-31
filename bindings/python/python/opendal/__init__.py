@@ -26,6 +26,7 @@ from opendal.operator import AsyncOperator, Operator
 
 from opendal import (  # isort: skip
     capability as capability,
+    config as config,
     exceptions as exceptions,
     file as file,
     layers as layers,
@@ -38,6 +39,7 @@ __all__ = [
     "AsyncOperator",
     "Operator",
     "capability",
+    "config",
     "exceptions",
     "file",
     "layers",

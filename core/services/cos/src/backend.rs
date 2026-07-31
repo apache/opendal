@@ -167,7 +167,7 @@ impl Builder for CosBuilder {
     type Config = CosConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -179,7 +179,7 @@ impl Builder for CosBuilder {
                     .with_context("service", COS_SCHEME),
             ),
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
@@ -199,7 +199,7 @@ impl Builder for CosBuilder {
 
         // If endpoint contains bucket name, we should trim them.
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let os_env = OsEnv;
         let ctx = Context::new()
@@ -294,7 +294,7 @@ impl Builder for CosBuilder {
                 capability,
                 bucket: bucket.clone(),
                 root,
-                endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
+                endpoint: format!("{}://{}.{}", scheme, bucket, endpoint),
                 signer,
             }),
         })

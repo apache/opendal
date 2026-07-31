@@ -26,6 +26,7 @@ use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
 
+#[doc(hidden)]
 pub struct Writer<W> {
     pub(crate) w: W,
     pub(crate) buf: oio::QueueBuf,

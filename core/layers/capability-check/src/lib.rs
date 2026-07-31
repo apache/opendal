@@ -15,23 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Capability check layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an extra capability check layer for every operation
+/// `CapabilityCheckLayer` validates optional operation arguments against service capabilities.
 ///
-/// Similar to `CorrectnessChecker`, Before performing any operations, this layer will first verify
-/// its arguments against the capability of the underlying service. If the arguments is not supported,
-/// an error will be returned directly.
+/// Similar to `CorrectnessChecker`, this layer verifies selected optional arguments for write,
+/// copy, and list operations against the capabilities of the underlying service. If an argument is
+/// not supported, an error is returned directly.
 ///
-/// Notes
+/// # Notes
 ///
 /// There are two main differences between this checker with the `CorrectnessChecker`:
 /// 1. This checker provides additional checks for capabilities like write_with_content_type and

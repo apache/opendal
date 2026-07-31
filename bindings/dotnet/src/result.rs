@@ -17,7 +17,7 @@
 
 use std::ffi::c_void;
 
-use crate::byte_buffer::{ByteBuffer, buffer_free};
+use crate::buffer::{OpendalBuffer, buffer_free};
 use crate::entry::entry_list_free;
 use crate::error::OpenDALError;
 use crate::metadata::metadata_free;
@@ -75,7 +75,7 @@ pub struct OpendalEntryListResult {
 #[repr(C)]
 /// Result for operations returning a byte buffer payload.
 pub struct OpendalReadResult {
-    pub buffer: ByteBuffer,
+    pub buffer: OpendalBuffer,
     pub error: OpenDALError,
 }
 
@@ -164,8 +164,8 @@ define_result!(
 
 define_result!(
     OpendalReadResult,
-    field = buffer: ByteBuffer,
-    error_value = ByteBuffer::empty()
+    field = buffer: OpendalBuffer,
+    error_value = OpendalBuffer::empty()
 );
 
 define_result!(
@@ -255,18 +255,12 @@ pub extern "C" fn opendal_entry_list_result_release(mut result: OpendalEntryList
 /// This function is idempotent for empty/null buffers.
 /// # Safety
 ///
-/// - `result.buffer` must originate from `ByteBuffer::from_vec` in this crate.
-/// - The buffer memory must not be accessed after this call.
+/// - `result.buffer` must originate from `OpendalBuffer::from_buffer` in this crate.
+/// - The buffer must not be accessed after this call.
 #[unsafe(no_mangle)]
 pub extern "C" fn opendal_read_result_release(mut result: OpendalReadResult) {
-    if !result.buffer.data.is_null() {
-        unsafe {
-            buffer_free(
-                result.buffer.data,
-                result.buffer.len,
-                result.buffer.capacity,
-            );
-        }
+    unsafe {
+        buffer_free(result.buffer.handle);
     }
 
     release_error_message(&mut result.error);

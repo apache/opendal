@@ -8,7 +8,10 @@
 
 A native Node.js binding for Apache OpenDAL: access S3, GCS, Azure Blob, HDFS, the local filesystem, and 50+ more services through one API.
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL Node.js binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Node.js binding version instead of the `opendal`
+crate version.
 
 ## Useful Links
 

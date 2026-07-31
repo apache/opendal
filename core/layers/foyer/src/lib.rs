@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
 mod deleter;
 mod error;
 mod full;
@@ -45,7 +49,9 @@ pub use writer::Writer;
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
+    /// Object path used as the cache key.
     pub path: String,
+    /// Object version, when the read targets a specific version.
     pub version: Option<String>,
 }
 
@@ -101,9 +107,12 @@ fn read_string(reader: &mut impl std::io::Read) -> FoyerResult<String> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
 }
 
-/// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
+/// [`FoyerValue`] stores buffered object data in Foyer.
 #[derive(Debug)]
-pub struct FoyerValue(pub Buffer);
+pub struct FoyerValue(
+    /// Buffered object data.
+    pub Buffer,
+);
 
 impl Deref for FoyerValue {
     type Target = Buffer;
@@ -138,13 +147,17 @@ impl Code for FoyerValue {
     }
 }
 
-/// Hybrid cache layer for OpenDAL that uses [foyer](https://github.com/foyer-rs/foyer) for caching.
+/// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-/// - `write`: [`FoyerLayer`] will write to the foyer hybrid cache after the service's write operation is completed.
-/// - `read`: [`FoyerLayer`] will first check the foyer hybrid cache for the data. If the data is not found, it will perform the read operation on the service and cache the result.
-/// - `delete`: [`FoyerLayer`] will remove the data from the foyer hybrid cache regardless of whether the service's delete operation is successful.
-/// - Other operations: [`FoyerLayer`] will not cache the results of other operations, such as `list`, `copy`, `rename`, etc. They will be passed through to the underlying service without caching.
+/// - `write`: [`FoyerLayer`] caches data after the service completes the write.
+/// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
+///   from the service and caches the result.
+/// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
+///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
+///   deleter is closed, so the data remains invalidated if closing the deleter fails.
+/// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
+///   and `rename` to the service without caching their results.
 ///
 /// # Examples
 ///
@@ -169,7 +182,8 @@ impl Code for FoyerValue {
 ///
 /// # Note
 ///
-/// If the object version is enabled, the foyer cache layer will treat the objects with same path but different versions as different objects.
+/// When object versioning is enabled, `FoyerLayer` treats objects with the same
+/// path but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,
@@ -187,9 +201,11 @@ impl FoyerLayer {
         }
     }
 
-    /// Sets the size limit for caching.
+    /// Set the object-size range eligible for caching.
     ///
-    /// It is recommended to set a size limit to avoid caching large files that may not be suitable for caching.
+    /// The layer reads through or writes through objects outside this range
+    /// without retaining them in Foyer. The default range accepts every
+    /// representable object size below `usize::MAX`.
     pub fn with_size_limit<R: RangeBounds<usize>>(mut self, size_limit: R) -> Self {
         let start = match size_limit.start_bound() {
             Bound::Included(v) => *v,
@@ -232,6 +248,7 @@ pub(crate) struct Inner {
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct FoyerService {
     inner: Servicer,
     cache: HybridCache<FoyerKey, FoyerValue>,

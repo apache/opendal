@@ -39,7 +39,7 @@ The visual system is a direct translation of OpenDAL's engineering values.
 | **Solid Foundation**      | Hairline structure, precise alignment, restraint. Nothing is decorative-only.|
 | **Fast Access (zero-cost)**| System fonts, no web-font requests, CSS-only motion. The page costs nothing it doesn't need. |
 | **Object Storage First**  | Content-first layout; code and capabilities lead, ornament follows.          |
-| **Extensible Architecture**| Tokens compose; components are presentational and reusable.                 |
+| **Extensible Architecture**| CSS variables compose; components are presentational and reusable.          |
 
 Operating posture: **engineering-minimal, light-first** (dark mode is a
 first-class, fully designed peer), near-monochrome **ink** with a single
@@ -52,14 +52,16 @@ OpenDAL wordmark.
 
 | Concern                         | Location                                  |
 | ------------------------------- | ----------------------------------------- |
-| Tokens + Infima mapping + motif | `src/css/custom.css`                      |
+| CSS variables + Infima mapping | `src/css/variables.css`                     |
+| Global styles + motif          | `src/css/global.css`                        |
 | Landing sections                | `src/components/landing/sections.jsx`     |
 | Code window / language tabs     | `src/components/landing/CodeTabs.jsx`     |
 | Landing styles                  | `src/components/landing/styles.module.css`|
 | Content model (copy, catalogs)  | `src/components/landing/data.js`          |
 
-All design decisions are encoded as CSS custom properties prefixed `--odl-*`.
-Components never hardcode raw hex; they consume tokens.
+All shared design values are encoded as CSS custom properties, also called CSS
+variables, prefixed `--odl-*` in `src/css/variables.css`. Components never
+hardcode raw values when a matching `--odl-*` variable exists.
 
 ---
 
@@ -82,9 +84,9 @@ UI (admonitions, etc.) stay on-system. They are intentionally muted.
 
 ### 3.2 Semantic roles (theme-aware)
 
-Components consume **semantic** tokens, not primitives:
+Components use **semantic** CSS variables, not primitive color variables:
 
-| Token                 | Light                | Dark              | Use                          |
+| CSS variable          | Light                | Dark              | Use                          |
 | --------------------- | -------------------- | ----------------- | ---------------------------- |
 | `--odl-bg`            | `ink-0`              | `#0a0d11`         | Page background              |
 | `--odl-bg-subtle`     | `ink-50`             | `#0e1218`         | Alternating section bands    |
@@ -126,7 +128,7 @@ technical — eyebrows/kickers, section indices, statistics, service names, code
 This gives the minimal system its engineering character without a custom font.
 
 > To adopt **IBM Plex** instead: self-host via `@fontsource/ibm-plex-sans` and
-> `@fontsource/ibm-plex-mono`, `@import` the weights in `custom.css`, and set
+> `@fontsource/ibm-plex-mono`, `@import` the weights in `variables.css`, and set
 > `--odl-font-sans`/`--odl-font-mono` accordingly. The rest of the system needs
 > no changes.
 
@@ -162,13 +164,16 @@ Headings: weight `650–700`, tracking `-0.022em`. Body: `400`, line-height
 
 ## 7. Motion
 
-- **Tokens:** `--odl-dur-fast 120ms / dur 200ms / dur-slow 320ms`;
-  `--odl-ease-out cubic-bezier(0.16,1,0.3,1)`, `--odl-ease`.
-- **Micro-interactions** 120–200ms (hover, tab change, button press).
-- **Reveal-on-scroll** (`.reveal`) is **pure CSS** via `animation-timeline:
-  view()` — progressive enhancement: browsers without support show content
-  immediately, and `prefers-reduced-motion` disables it entirely.
-- Animate only `opacity`/`transform`. Never block input.
+- Use `--odl-dur-fast 120ms`, `--odl-dur 200ms`, and
+  `--odl-dur-slow 320ms` with `--odl-ease` or `--odl-ease-out`.
+- Keep micro-interactions short: hover, tab changes, and button presses should
+  finish within 120–200ms.
+- Use CSS-only reveal-on-scroll through `.reveal` and `animation-timeline:
+  view()`. Browsers without support must show content immediately.
+- Animate `opacity` and `transform` by default. Animate layout only when it
+  fixes a real layout jump, keep the movement local, and disable it for
+  `prefers-reduced-motion`.
+- Never block input with animation.
 
 ---
 
@@ -215,7 +220,7 @@ hairline dividers between cells — a precise, technical signature.
 **Don't**
 - Introduce a second accent hue or gradients-as-decoration.
 - Use emoji as icons (use the existing SVG sets in `static/img/*`).
-- Hardcode hex in components — consume `--odl-*` tokens.
+- Hardcode hex in components when a matching `--odl-*` CSS variable exists.
 - Add motion that conveys nothing or ignores `prefers-reduced-motion`.
 
 ---
@@ -223,7 +228,10 @@ hairline dividers between cells — a precise, technical signature.
 ## 11. Accessibility checklist
 
 - [ ] Text/accent contrast ≥ 4.5:1 (AA) in light and dark.
-- [ ] Visible `:focus-visible` ring (accent, 2px) on every interactive element.
+- [ ] Show a visible `:focus-visible` state on every interactive element. Use
+      the 2px accent ring by default. Use a compact accent outline, underline,
+      or border for dense icon controls, window chrome links, and text inputs
+      when the default ring overpowers the control.
 - [ ] Decorative icons use empty `alt`; meaning carried by adjacent text.
 - [ ] Code tabs are a proper `tablist`/`tab`/`tabpanel` with arrow-key support.
 - [ ] `prefers-reduced-motion` respected globally.

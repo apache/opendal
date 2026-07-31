@@ -77,6 +77,11 @@ jobs:
         working-directory: bindings/dart
         run: flutter pub get
 
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: bindings/dart/rust
+        run: cargo clippy --version
+
       - name: Check Clippy
         working-directory: bindings/dart/rust
         run: cargo clippy -- -D warnings

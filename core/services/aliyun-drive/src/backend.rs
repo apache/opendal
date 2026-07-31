@@ -100,10 +100,10 @@ impl Builder for AliyunDriveBuilder {
     type Config = AliyunDriveConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         let sign = match self.config.access_token.clone() {
             Some(access_token) if !access_token.is_empty() => {

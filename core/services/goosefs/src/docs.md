@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] create_dir
 - [x] stat
@@ -10,7 +10,11 @@ This service can be used to:
 - [x] list
 - [ ] copy
 - [x] rename
+- [x] rename (if_not_exists)
 - [ ] presign
+
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
 ## Notes
 
@@ -23,18 +27,14 @@ Features:
 - **Block-level I/O**: Data reads/writes go through block-level gRPC bidirectional streaming.
 - **Consistent hash routing**: Worker selection uses consistent hashing on block IDs.
 - **All WriteTypes**: Supports MUST_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH.
+- **Conditional Create**: `write_with_if_not_exists` publishes via Master no-replace
+  rename (`rename_with_if_not_exists`); destination is never deleted on the Create path.
 
 ## Configuration
 
-- `root`: Set the work directory for backend
-- `master_addr`: GooseFS Master address (`host:port`), supports comma-separated for HA
-- `block_size`: Block size for new files (default: 64 MiB)
-- `chunk_size`: Chunk size for streaming RPCs (default: 1 MiB)
-- `write_type`: Default write type (`must_cache`, `cache_through`, `through`, `async_through`)
-- `auth_type`: Authentication type (`nosasl`, `simple`). Default: `simple`
-- `auth_username`: Authentication username for SIMPLE mode. Default: current OS user
-
-You can refer to [`GoosefsBuilder`]'s docs for more information
+Use [`crate::GoosefsConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

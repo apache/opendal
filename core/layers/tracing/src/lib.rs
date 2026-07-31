@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Tracing layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -35,7 +34,8 @@ use tracing::Level;
 use tracing::Span;
 use tracing::span;
 
-/// Add [tracing](https://docs.rs/tracing/) for every operation.
+/// `TracingLayer` traces every operation with
+/// [tracing](https://docs.rs/tracing/).
 ///
 /// # Examples
 ///

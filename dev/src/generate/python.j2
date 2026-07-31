@@ -39,7 +39,7 @@ pub enum Scheme {
 impl Scheme {
     #[getter]
     pub fn name(&self) -> String {
-        format!("{:?}", &self)
+        format!("{:?}", self)
     }
 
     #[getter]

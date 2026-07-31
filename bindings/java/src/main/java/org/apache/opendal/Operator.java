@@ -171,11 +171,11 @@ public class Operator extends NativeObject {
 
     private static native Metadata stat(long op, String path, StatOptions options);
 
-    private static native long createDir(long op, String path);
+    private static native void createDir(long op, String path);
 
-    private static native long copy(long op, String sourcePath, String targetPath);
+    private static native void copy(long op, String sourcePath, String targetPath);
 
-    private static native long rename(long op, String sourcePath, String targetPath);
+    private static native void rename(long op, String sourcePath, String targetPath);
 
     private static native void removeAll(long op, String path);
 

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Redis service implementation"
 name = "opendal-service-redis"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -39,7 +40,7 @@ rustls = ["redis/tokio-rustls-comp"]
 bytes = { workspace = true }
 fastpool = "1.0.2"
 http = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
 redis = { version = "1.2", features = [
   "cluster-async",
   "tokio-comp",

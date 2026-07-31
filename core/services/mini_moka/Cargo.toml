@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL mini-moka service implementation"
 name = "opendal-service-mini-moka"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -33,5 +34,5 @@ all-features = true
 [dependencies]
 log = { workspace = true }
 mini-moka = "0.10"
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }

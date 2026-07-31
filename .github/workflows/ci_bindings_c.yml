@@ -42,6 +42,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v7
 
@@ -53,12 +54,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config uuid-dev libcurl4-gnutls-dev
 
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/c"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/c"
 
         run: |
           cargo clippy -- -D warnings
-
 
       - name: Build C binding
         working-directory: "bindings/c"

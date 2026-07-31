@@ -238,7 +238,7 @@ impl Builder for AzdlsBuilder {
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -250,7 +250,7 @@ impl Builder for AzdlsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZDLS_SCHEME)),
         }?;
-        debug!("backend use filesystem {}", &filesystem);
+        debug!("backend use filesystem {}", filesystem);
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
@@ -258,7 +258,7 @@ impl Builder for AzdlsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZDLS_SCHEME)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let account_name = self
             .config

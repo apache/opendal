@@ -22,10 +22,10 @@ use std::sync::Arc;
 use crate::raw::*;
 use crate::*;
 
-/// Immutable identity facts for a storage service.
+/// Immutable identity and configuration for a storage service.
 ///
-/// Runtime resources and composed capabilities are kept outside this value so
-/// layers can replace them without mutating shared service identity.
+/// `ServiceInfo` excludes runtime resources and composed capabilities so that
+/// layers can replace them without mutating the shared service identity.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ServiceInfo {
     scheme: &'static str,
@@ -44,7 +44,7 @@ impl Debug for ServiceInfo {
 }
 
 impl ServiceInfo {
-    /// Create a new service info value.
+    /// Create a new `ServiceInfo`.
     pub fn new(scheme: &'static str, root: impl AsRef<str>, name: impl AsRef<str>) -> Self {
         Self {
             scheme,
@@ -53,12 +53,12 @@ impl ServiceInfo {
         }
     }
 
-    /// Create a new service info value with only scheme.
+    /// Create a new `ServiceInfo` with only scheme.
     pub fn with_scheme(scheme: &'static str) -> Self {
         Self::new(scheme, "", "")
     }
 
-    /// Return a copy of this service info with a different root.
+    /// Return a copy of this `ServiceInfo` with a different root.
     pub fn with_root(&self, root: impl AsRef<str>) -> Self {
         Self {
             scheme: self.scheme,
@@ -67,17 +67,17 @@ impl ServiceInfo {
         }
     }
 
-    /// Scheme of backend.
+    /// Scheme of the service.
     pub fn scheme(&self) -> &'static str {
         self.scheme
     }
 
-    /// Root of backend, will be in format like `/path/to/dir/`.
+    /// Root of the service. Follows a format like `/path/to/dir/`.
     pub fn root(&self) -> Arc<str> {
         self.root.clone()
     }
 
-    /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
+    /// Name of the service. This might be empty if the service has no namespace concept.
     ///
     /// For example:
     ///
@@ -90,18 +90,19 @@ impl ServiceInfo {
     }
 }
 
-/// Underlying trait of all storage services.
+/// Foundational trait for storage services.
 ///
-/// Every storage backend supported by OpenDAL implements [`Service`]. Backends
-/// must implement every operation so unsupported behavior is explicit at the
-/// implementation boundary.
+/// Every storage service (or backend) in OpenDAL implements [`Service`]. Services
+/// and layers must implement every operation in this trait and declare their
+/// capabilities. This allows callers to detect unsupported operations.
 ///
 /// # Operations
 ///
-/// - Paths passed into service operations are normalized by the operator.
-///   - `/` means the root path.
-///   - Paths ending with `/` are directory paths.
-///   - Other paths are file paths.
+/// - An operator normalizes paths before passing them to a `Service`. Relative to
+///   the configured `root`:
+///   - `/` represents the root.
+///   - A path ending with `/` represents a directory.
+///   - Any other path represents a file.
 /// - Services report their supported operation set through [`Service::capability`].
 /// - The [`OperationContext`] carries layer-composed runtime resources for each
 ///   operation.
@@ -117,13 +118,14 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     /// Copier returned by `copy`.
     type Copier: oio::Copy;
 
-    /// Return immutable identity facts for this service.
+    /// Return the immutable identity and configuration for this service.
     fn info(&self) -> ServiceInfo;
 
     /// Return the capability of this service stack.
     ///
-    /// Layers may transform capabilities, so callers should use this value for
-    /// the current stack instead of assuming the backend's native capability.
+    /// Layers may affect a service's capabilities, so callers should use this
+    /// value for the current stack instead of assuming the backend's native
+    /// capability.
     fn capability(&self) -> Capability;
 
     /// Invoke the `create` operation on the specified path.
@@ -411,7 +413,7 @@ impl<S: Service + ?Sized> ServiceDyn for S {
     }
 }
 
-/// Service is used behind a [`Servicer`] everywhere.
+/// Implement `Service` for type-erased services so they use the same API.
 impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
     type Reader = oio::Reader;
     type Writer = oio::Writer;

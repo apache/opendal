@@ -93,7 +93,7 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <td><a href="https://vercel.com/docs/storage/vercel-blob"><img src="./website/static/img/services/vercel.png" width="18" height="18" alt="Vercel logo"> vercel-blob</a></td>
     <td></td>
     <td><a href="https://docs.alluxio.io/os/user/stable/en/api/REST-API.html"><img src="./website/static/img/services/alluxio.svg" width="18" height="18" alt="Alluxio logo"> alluxio</a></td>
-    <td><a href="https://github.com/Tencent/GooseFS"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> goosefs</a></td>
+    <td><a href="https://github.com/Tencent/tencent-goosefs-rust-sdk"><img src="./website/static/img/services/cos.svg" width="26" height="18" alt="Tencent Cloud logo"> goosefs</a></td>
     <td><a href="https://docs.databricks.com/en/dbfs/index.html"><img src="./website/static/img/services/databricks.png" width="18" height="18" alt="Databricks logo"> dbfs</a></td>
   </tr>
   <tr>

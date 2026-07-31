@@ -1214,8 +1214,8 @@ mod tests {
 
     use super::*;
 
-    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b=c%25&e";
-    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%3Dc%2525%26e";
+    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b/c=d%25&e!()*'";
+    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%2Fc%3Dd%2525%26e%21%28%29%2A%27";
 
     fn test_core() -> TosCore {
         TosCore {

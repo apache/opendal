@@ -78,10 +78,10 @@ impl Builder for AlluxioBuilder {
 
     /// Builds the backend and returns the result of AlluxioBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -89,7 +89,7 @@ impl Builder for AlluxioBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", ALLUXIO_SCHEME)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         Ok(AlluxioBackend {
             core: Arc::new(AlluxioCore {

@@ -202,7 +202,8 @@ impl Writer {
         self.inner.close().await
     }
 
-    /// Convert writer into [`BufferSink`] which implements [`Sink<Buffer>`].
+    /// Convert this writer into a [`BufferSink`] that implements
+    /// [`Sink<Buffer>`][futures::Sink].
     ///
     /// # Notes
     ///

@@ -111,7 +111,7 @@ impl Builder for LakefsBuilder {
 
     /// Build a LakefsBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let endpoint = match self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -119,7 +119,7 @@ impl Builder for LakefsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", LAKEFS_SCHEME)),
         }?;
-        debug!("backend use endpoint: {:?}", &endpoint);
+        debug!("backend use endpoint: {:?}", endpoint);
 
         let repository = match &self.config.repository {
             Some(repository) => Ok(repository.clone()),
@@ -127,16 +127,16 @@ impl Builder for LakefsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", LAKEFS_SCHEME)),
         }?;
-        debug!("backend use repository: {}", &repository);
+        debug!("backend use repository: {}", repository);
 
         let branch = match &self.config.branch {
             Some(branch) => branch.clone(),
             None => "main".to_string(),
         };
-        debug!("backend use branch: {}", &branch);
+        debug!("backend use branch: {}", branch);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root: {}", &root);
+        debug!("backend use root: {}", root);
 
         let username = match &self.config.username {
             Some(username) => Ok(username.clone()),

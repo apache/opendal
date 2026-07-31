@@ -18,8 +18,9 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
 )]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Facade crate that re-exports all public APIs from `opendal-core` and optional services/layers.
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
 pub use opendal_core::*;
@@ -32,11 +33,23 @@ pub extern crate opendal_testkit as tests;
 /// This function is safe to call multiple times. It registers enabled services
 /// and installs the default HTTP transport when the corresponding feature is
 /// enabled.
+///
+/// # Process-wide HTTP transport
+///
+/// When `auto-register-services` is enabled, a process constructor calls this
+/// function before `main`. If a default HTTP transport feature is also enabled,
+/// that transport occupies the process-wide default because
+/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+///
+/// Applications that need to install their own process-wide transport should
+/// disable `auto-register-services`, call [`init_default_registry`] explicitly
+/// when URI-based construction is needed, and install the transport themselves.
+/// Per-operator transports can be configured regardless of this setting.
 pub fn install_default() {
     init_default_registry();
 
     #[cfg(feature = "http-transport-reqwest")]
-    HttpTransporter::install_default(opendal_http_transport_reqwest::ReqwestTransport::default());
+    opendal_http_transport_reqwest::install_default();
 }
 
 /// Initialize the global [`OperatorRegistry`] with enabled services.
@@ -257,7 +270,15 @@ fn register_default_operator_registry() {
     install_default();
 }
 
-/// Re-export of service implementations.
+/// Service builders enabled through `services-*` Cargo features.
+///
+/// [`Memory`](services::Memory) is always available. Other builders are
+/// re-exported when their matching facade feature is enabled; for example,
+/// `services-s3` enables [`S3`](services::S3).
+///
+/// Pass a configured builder to [`Operator::new`]. The facade automatically
+/// registers enabled services for [`Operator::from_uri`] and
+/// [`Operator::via_iter`] when the `auto-register-services` feature is enabled.
 pub mod services {
     pub use opendal_core::services::*;
     #[cfg(feature = "services-aliyun-drive")]
@@ -390,7 +411,12 @@ pub mod services {
     pub use opendal_service_yandex_disk::*;
 }
 
-/// Re-export of layers.
+/// Layers enabled through `layers-*` Cargo features.
+///
+/// A layer adds cross-service behavior to an [`Operator`]. Enable the matching
+/// facade feature, construct the layer, and pass it to [`Operator::layer`].
+/// Layer order is observable, so review each layer's composition notes when
+/// combining retries, timeouts, caching, or observability.
 pub mod layers {
     pub use opendal_core::layers::*;
     #[cfg(feature = "layers-async-backtrace")]

@@ -34,6 +34,7 @@ use mea::oneshot;
 use object_store::Attributes;
 use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
+use object_store::Extensions;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -242,6 +243,7 @@ impl OpendalStore {
                 range: read_range,
                 meta,
                 attributes,
+                extensions: Extensions::new(),
             });
         }
 
@@ -277,6 +279,7 @@ impl OpendalStore {
             range: read_range,
             meta,
             attributes,
+            extensions: Extensions::new(),
         })
     }
 
@@ -301,6 +304,7 @@ impl OpendalStore {
                 range: 0..0,
                 meta,
                 attributes,
+                extensions: Extensions::new(),
             });
         }
 
@@ -311,6 +315,7 @@ impl OpendalStore {
                 range: read_range,
                 meta,
                 attributes,
+                extensions: Extensions::new(),
             });
         }
 
@@ -339,6 +344,7 @@ impl OpendalStore {
             range: read_range,
             meta,
             attributes,
+            extensions: Extensions::new(),
         })
     }
 
@@ -452,7 +458,11 @@ impl ObjectStore for OpendalStore {
         let e_tag = rp.etag().map(|s| s.to_string());
         let version = rp.version().map(|s| s.to_string());
 
-        Ok(PutResult { e_tag, version })
+        Ok(PutResult {
+            e_tag,
+            version,
+            extensions: Extensions::new(),
+        })
     }
 
     async fn put_multipart_opts(
@@ -723,6 +733,7 @@ impl ObjectStore for OpendalStore {
         Ok(ListResult {
             common_prefixes,
             objects,
+            extensions: Extensions::new(),
         })
     }
 
@@ -805,7 +816,11 @@ impl MultipartUpload for OpendalMultipartUpload {
         let e_tag = metadata.etag().map(|s| s.to_string());
         let version = metadata.version().map(|s| s.to_string());
 
-        Ok(PutResult { e_tag, version })
+        Ok(PutResult {
+            e_tag,
+            version,
+            extensions: Extensions::new(),
+        })
     }
 
     async fn abort(&mut self) -> object_store::Result<()> {

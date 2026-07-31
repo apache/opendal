@@ -194,3 +194,38 @@ pub struct opendal_result_write {
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
+
+/// \brief The result type returned by opendal_operator_copier().
+///
+/// Fields:
+/// * `copier`: the copier used to drive a long-running copy operation by calling
+///   opendal_copier_next() repeatedly; only valid when `error` is null.
+/// * `error`: the error of the operation; null when the operation succeeds.
+#[repr(C)]
+pub struct opendal_result_operator_copier {
+    /// The pointer for opendal_copier
+    pub copier: *mut opendal_copier,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_copier_next().
+///
+/// A copy is driven by calling opendal_copier_next() repeatedly: each call
+/// performs one step of the copy until the copy reports completion.
+///
+/// Fields:
+/// * `size`: the number of bytes copied in this step; zero on error or completion.
+/// * `has_next`: true when the copy made progress and should be driven again by
+///   another opendal_copier_next() call; when false and `error` is null, the copy
+///   has completed.
+/// * `error`: the error code and message; null when the step succeeds.
+#[repr(C)]
+pub struct opendal_result_copier_next {
+    /// The number of bytes copied in this step.
+    pub size: usize,
+    /// Whether the copy operation made progress and should be driven again.
+    pub has_next: bool,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}

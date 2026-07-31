@@ -136,7 +136,6 @@ impl PersyBackend {
             write: true,
             write_can_empty: true,
             delete: true,
-            shared: false,
             ..Default::default()
         };
 

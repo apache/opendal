@@ -43,6 +43,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: dev
+        run: cargo clippy --version
+
       - name: Cargo clippy
         working-directory: dev
         run: cargo clippy --all-targets --all-features -- -D warnings

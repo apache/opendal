@@ -44,6 +44,8 @@ impl OpfsCore {
 
             delete: true,
 
+            shared: true,
+
             ..Default::default()
         };
 

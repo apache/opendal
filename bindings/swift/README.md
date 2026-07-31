@@ -5,8 +5,10 @@
 A Swift binding for OpenDAL. Access storage services through one consistent
 API backed by the Rust core. **Experimental — not suitable for production use.**
 
-> This binding has its own independent version number. Always check the
-> binding's version for compatibility, not the Rust core's version.
+We release the OpenDAL Swift binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Swift binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

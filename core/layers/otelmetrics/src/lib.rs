@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenTelemetry metrics layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
@@ -29,7 +28,8 @@ use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
 
-/// Add [opentelemetry::metrics] for OpenDAL operations and HTTP fetches.
+/// `OtelMetricsLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [opentelemetry::metrics].
 ///
 /// This layer records operation metrics from OpenDAL API calls and HTTP metrics
 /// from requests made through OpenDAL's HTTP fetcher.

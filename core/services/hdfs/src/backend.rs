@@ -110,7 +110,7 @@ impl Builder for HdfsBuilder {
     type Config = HdfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let name_node = match &self.config.name_node {
             Some(v) => v,

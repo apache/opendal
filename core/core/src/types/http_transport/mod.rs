@@ -96,6 +96,12 @@ impl HttpTransporter {
     /// Install the process-wide default HTTP transport.
     ///
     /// The first installed transport wins. Later calls are ignored.
+    ///
+    /// The `opendal` facade calls this before `main` when
+    /// `auto-register-services` and a default HTTP transport feature are enabled.
+    /// Applications that need to install their own process-wide default should
+    /// disable `auto-register-services`. This does not affect transports
+    /// configured directly on an operator.
     pub fn install_default(transport: impl HttpTransport) {
         let _ = DEFAULT_HTTP_TRANSPORTER.set(Self::new(transport));
     }

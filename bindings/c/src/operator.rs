@@ -1444,3 +1444,98 @@ pub unsafe extern "C" fn opendal_operator_check(op: &opendal_operator) -> *mut o
         std::ptr::null_mut()
     }
 }
+
+/// \brief Blocking create a copier to copy a file from `src` to `dest`.
+///
+/// The returned copier is used to complete a long-running copy operation. Call
+/// `opendal_copier_next` repeatedly to make progress, and `opendal_copier_free`
+/// to release it once finished.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @see opendal_operator
+/// @see opendal_copier
+/// @see opendal_result_operator_copier
+/// @return opendal_result_operator_copier, containing a copier and an opendal_error.
+/// If the operation succeeds, the `copier` field holds a valid copier and the `error`
+/// field is null. Otherwise, the `copier` will be null and the `error` will be set
+/// correspondingly.
+///
+/// # Safety
+///
+/// * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the
+///   end of the string.
+///
+/// # Panic
+///
+/// * If the `src` or `dest` points to NULL, this function panics
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copier(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+) -> opendal_result_operator_copier {
+    assert!(!src.is_null());
+    assert!(!dest.is_null());
+    let src = std::ffi::CStr::from_ptr(src)
+        .to_str()
+        .expect("malformed src");
+    let dest = std::ffi::CStr::from_ptr(dest)
+        .to_str()
+        .expect("malformed dest");
+    match op.deref().copier(src, dest) {
+        Ok(copier) => opendal_result_operator_copier {
+            copier: Box::into_raw(Box::new(opendal_copier::new(copier))),
+            error: std::ptr::null_mut(),
+        },
+        Err(err) => opendal_result_operator_copier {
+            copier: std::ptr::null_mut(),
+            error: opendal_error::new(err),
+        },
+    }
+}
+
+/// \brief Blocking create a copier to copy a file from `src` to `dest` with options.
+///
+/// This is the same as `opendal_operator_copier` but accepts an `opendal_copy_options`
+/// to control the behavior, e.g. `concurrent` or `chunk`. Pass NULL to use defaults.
+///
+/// @param op The opendal_operator created previously
+/// @param src The designated source path you want to copy
+/// @param dest The designated destination path you want to copy
+/// @param opts The options for the copy operation; pass NULL to use defaults
+/// @see opendal_operator_copier
+/// @see opendal_copy_options
+/// @return opendal_result_operator_copier, containing a copier and an opendal_error.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_copier_with(
+    op: &opendal_operator,
+    src: *const c_char,
+    dest: *const c_char,
+    opts: *const opendal_copy_options,
+) -> opendal_result_operator_copier {
+    assert!(!src.is_null());
+    assert!(!dest.is_null());
+    let src = std::ffi::CStr::from_ptr(src)
+        .to_str()
+        .expect("malformed src");
+    let dest = std::ffi::CStr::from_ptr(dest)
+        .to_str()
+        .expect("malformed dest");
+    let copy_opts = if opts.is_null() {
+        core::options::CopyOptions::default()
+    } else {
+        core::options::CopyOptions::from(&*opts)
+    };
+    match op.deref().copier_options(src, dest, copy_opts) {
+        Ok(copier) => opendal_result_operator_copier {
+            copier: Box::into_raw(Box::new(opendal_copier::new(copier))),
+            error: std::ptr::null_mut(),
+        },
+        Err(err) => opendal_result_operator_copier {
+            copier: std::ptr::null_mut(),
+            error: opendal_error::new(err),
+        },
+    }
+}

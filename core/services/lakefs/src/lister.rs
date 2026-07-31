@@ -106,7 +106,7 @@ impl oio::PageList for LakefsLister {
             }
 
             let path = if entry_type == EntryMode::DIR {
-                format!("{}/", &status.path)
+                format!("{}/", status.path)
             } else {
                 status.path.clone()
             };

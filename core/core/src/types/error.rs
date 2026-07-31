@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Errors that returned by OpenDAL
+//! OpenDAL error types.
 //!
 //! # Examples
 //!
@@ -42,10 +42,10 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
 
-/// Result that is a wrapper of `Result<T, opendal::Error>`
+/// A specialized [`std::result::Result`] whose default error type is [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// ErrorKind is all kinds of Error of opendal.
+/// OpenDAL error categories.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -55,7 +55,7 @@ pub enum ErrorKind {
     /// Underlying service doesn't support this operation.
     Unsupported,
 
-    /// The config for backend is invalid.
+    /// The config for this service is invalid.
     ConfigInvalid,
     /// The given path is not found.
     NotFound,
@@ -130,21 +130,26 @@ impl From<ErrorKind> for &'static str {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ErrorStatus {
-    /// Permanent means without external changes, the error never changes.
+    /// The error is stable and will not change without external changes.
     ///
-    /// For example, underlying services returns a not found error.
+    /// For example, a service returns a not found error.
     ///
     /// Users MUST never retry this operation.
     Permanent,
-    /// Temporary means this error is returned for temporary.
+
+    /// The error is temporary.
     ///
-    /// For example, underlying services is rate limited or unavailable for temporary.
+    /// For example:
     ///
-    /// Users CAN retry the operation to resolve it.
+    /// - A service rate-limits a request.
+    /// - A service is temporarily unavailable.
+    ///
+    /// Users MAY retry an operation to resolve this error.
     Temporary,
-    /// Persistent means this error used to be temporary but still failed after retry.
+
+    /// The error was temporary but persisted after retries.
     ///
-    /// For example, underlying services kept returning network errors.
+    /// For example, a service kept returning network errors.
     ///
     /// Users SHOULD NOT retry this operation, since it's highly possible to error again.
     Persistent,

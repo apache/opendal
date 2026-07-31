@@ -133,10 +133,12 @@ impl HfBuilder {
         self
     }
 
-    /// configure the Hub base url. You might want to set this variable if your
-    /// organization is using a Private Hub https://huggingface.co/enterprise
+    /// Set the Hub base URL.
     ///
-    /// Default is "https://huggingface.co"
+    /// Configure this when your organization uses a
+    /// [Private Hub](https://huggingface.co/enterprise).
+    ///
+    /// The default is `https://huggingface.co`.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string());
@@ -209,7 +211,7 @@ impl Builder for HfBuilder {
     type Config = HfConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
@@ -220,25 +222,25 @@ impl Builder for HfBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", HF_SCHEME)
         })?;
-        debug!("backend use repo_type: {:?}", &repo_type);
+        debug!("backend use repo_type: {:?}", repo_type);
 
         let repo_id = self.config.repo_id.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "repo_id is required")
                 .with_operation("Builder::build")
                 .with_context("service", HF_SCHEME)
         })?;
-        debug!("backend use repo_id: {}", &repo_id);
+        debug!("backend use repo_id: {}", repo_id);
 
         let revision = match &self.config.revision {
             Some(revision) => revision.clone(),
             None => "main".to_string(),
         };
-        debug!("backend use revision: {}", &revision);
+        debug!("backend use revision: {}", revision);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root: {}", &root);
+        debug!("backend use root: {}", root);
         debug!("backend use token: {}", token.is_some());
-        debug!("backend use endpoint: {}", &endpoint);
+        debug!("backend use endpoint: {}", endpoint);
         debug!("backend use download_mode: {:?}", download_mode);
 
         let info = ServiceInfo::new(HF_SCHEME, "", "");
@@ -246,6 +248,7 @@ impl Builder for HfBuilder {
             stat: true,
             read: true,
             write: token.is_some(),
+            write_can_multi: token.is_some(),
             delete: token.is_some(),
             delete_max_size: Some(100),
             list: true,

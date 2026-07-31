@@ -16,12 +16,10 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::str::FromStr;
 
 use bytes::Bytes;
 use http::Request;
 use http::Response;
-use http::Uri;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -30,6 +28,9 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
+use percent_encoding::AsciiSet;
+use percent_encoding::NON_ALPHANUMERIC;
+use percent_encoding::utf8_percent_encode;
 use reqsign_core::{Context, Signer};
 use reqsign_tencent_cos::Credential;
 use serde::Deserialize;
@@ -45,6 +46,16 @@ pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
 
     pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
+}
+
+static COS_QUERY_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
+fn percent_encode_query(value: &str) -> String {
+    utf8_percent_encode(value, &COS_QUERY_ENCODE_SET).to_string()
 }
 
 pub struct CosCore {
@@ -78,15 +89,12 @@ impl CosCore {
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
-        let encoded_query = req.uri().query().map(str::to_string);
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
-
-        parts.uri = Self::restore_encoded_query(parts.uri, encoded_query.as_deref())?;
 
         Ok(Request::from_parts(parts, body))
     }
@@ -97,7 +105,6 @@ impl CosCore {
         req: Request<T>,
         duration: Duration,
     ) -> Result<Request<T>> {
-        let encoded_query = req.uri().query().map(str::to_string);
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -105,63 +112,7 @@ impl CosCore {
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
-        parts.uri = Self::restore_encoded_query(parts.uri, encoded_query.as_deref())?;
-
         Ok(Request::from_parts(parts, body))
-    }
-
-    fn restore_encoded_query(uri: Uri, encoded_query: Option<&str>) -> Result<Uri> {
-        let Some(encoded_query) = encoded_query else {
-            return Ok(uri);
-        };
-
-        let Some(path_and_query) = uri.path_and_query() else {
-            return Ok(uri);
-        };
-        let Some(signed_query) = path_and_query.query() else {
-            return Ok(uri);
-        };
-
-        let decoded_query = Self::decode_signed_query(encoded_query);
-        let rest = signed_query
-            .strip_prefix(&decoded_query)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "signed query changed"))?
-            .strip_prefix('&')
-            .filter(|v| !v.is_empty());
-
-        let query = if let Some(rest) = rest {
-            format!("{encoded_query}&{rest}")
-        } else {
-            encoded_query.to_string()
-        };
-
-        let path_and_query = format!("{}?{}", path_and_query.path(), query);
-
-        let mut parts = uri.into_parts();
-        parts.path_and_query = Some(http::uri::PathAndQuery::from_str(&path_and_query).map_err(
-            |e| Error::new(ErrorKind::Unexpected, "invalid signed query").set_source(e),
-        )?);
-        let uri = Uri::from_parts(parts).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "failed to restore signed query").set_source(e)
-        })?;
-
-        Ok(uri)
-    }
-
-    fn decode_signed_query(encoded_query: &str) -> String {
-        encoded_query
-            .split('&')
-            .map(|pair| {
-                let mut kv = pair.splitn(2, '=');
-                let key = percent_decode_path(kv.next().unwrap_or_default());
-                if let Some(value) = kv.next() {
-                    format!("{key}={}", percent_decode_path(value))
-                } else {
-                    key
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("&")
     }
 
     #[inline]
@@ -203,7 +154,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_encode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -317,7 +268,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_encode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -369,7 +320,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_encode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -814,8 +765,8 @@ mod tests {
 
     use super::*;
 
-    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b=c%25&e";
-    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%3Dc%2525%26e";
+    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b/c=d%25&e!()*'";
+    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%2Fc%3Dd%2525%26e%21%28%29%2A%27";
 
     fn assert_version_id_query_encoded(uri: &http::Uri) {
         let query = uri.query().unwrap_or_default();

@@ -66,6 +66,46 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public void ReadBehavior_LargePayload_RoundTripsExactly()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        // Covers the whole path end to end at a size worth measuring. The chunk
+        // walking itself is pinned by the unit tests in src/buffer.rs, which build
+        // multi-part buffers a backend may or may not produce.
+        const int size = 8 * 1024 * 1024;
+        var path = NewPath("read-large");
+        var content = RandomBytes(size);
+
+        Op.Write(path, content);
+        var actual = Op.Read(path);
+
+        Assert.Equal(content.Length, actual.Length);
+        Assert.True(content.AsSpan().SequenceEqual(actual));
+    }
+
+    [Fact]
+    public async Task ReadBehavior_LargePayload_RoundTripsExactlyAsync()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("read-large-async");
+        var content = RandomBytes(8 * 1024 * 1024);
+
+        await Op.WriteAsync(path, content, CT);
+        var actual = await Op.ReadAsync(path, CT);
+
+        Assert.Equal(content.Length, actual.Length);
+        Assert.True(content.AsSpan().SequenceEqual(actual));
+    }
+
+    [Fact]
     public void ReadBehavior_WithRange_ReturnsExpectedBytes()
     {
         if (!Supports(c => c.Read && c.Write))

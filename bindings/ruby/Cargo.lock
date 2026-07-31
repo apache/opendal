@@ -1561,6 +1561,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
+ "percent-encoding",
  "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",

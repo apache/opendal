@@ -648,10 +648,9 @@ impl Operator {
                 self.0.stat_options(path, stat_opts)?.content_length()
             }
         };
-        let reader = Box::into_raw(Box::new(Reader(
-            self.0
-                .reader_options(path, opts)?
-                .into_std_read(0..content_length)?,
+        let reader = Box::into_raw(Box::new(Reader::new(
+            self.0.reader_options(path, opts)?,
+            content_length,
         )));
         Ok(reader)
     }

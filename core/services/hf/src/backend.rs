@@ -249,7 +249,6 @@ impl Builder for HfBuilder {
             read: true,
             write: token.is_some(),
             write_can_multi: token.is_some(),
-            write_can_append: token.is_some(),
             delete: token.is_some(),
             delete_max_size: Some(100),
             list: true,

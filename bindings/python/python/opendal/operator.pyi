@@ -18,7 +18,9 @@
 import collections.abc
 from datetime import datetime
 from os import PathLike
-from typing import Any, Unpack, final
+from typing import Any, final
+
+from typing_extensions import Unpack
 
 from .capability import Capability
 from .config import ServiceConfig

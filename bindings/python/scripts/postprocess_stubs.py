@@ -57,7 +57,7 @@ IMPORTS = {
         "from .options import OpenKwargs\n"
         "from .services import Scheme\n"
         "from .types import Entry, PresignedRequest\n"
-        "from typing import Unpack\n"
+        "from typing_extensions import Unpack\n"
     ),
     "file": "import collections.abc\nimport types\nimport typing_extensions\n",
 }

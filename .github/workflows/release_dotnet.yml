@@ -201,7 +201,7 @@ jobs:
         with:
           # The nuget.org account that created the trusted publishing policy,
           # not the package owner (Apache.OpenDAL organization).
-          user: ${{ secrets.NUGET_USER }}
+          user: Fatorin
 
       - name: Publish package
         run: dotnet nuget push bindings/dotnet/artifacts/package/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json

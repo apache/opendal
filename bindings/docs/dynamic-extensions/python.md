@@ -63,8 +63,8 @@ opendal-layer-foyer       contributes Foyer
 ```
 
 Every native service/layer distribution requires an exact
-`opendal` release and embeds that OpenDAL version in its JSON bootstrap
-document. The base wheel remains installable on its own:
+`opendal` release and embeds that OpenDAL version in its bootstrap metadata. The
+base wheel remains installable on its own:
 
 ```console
 python -m pip install opendal
@@ -317,7 +317,7 @@ source distribution. Installing `opendal`, S3, WebDAV, or
 
 ## Migration
 
-1. Add the runtime, JSON bootstrap, and registry internally while services/layers
+1. Add the runtime, bootstrap interface, and registry internally while services/layers
    remain compiled into the base wheel.
 2. Make built-in adapters use the same internal factory interface intended for
    external packages.

@@ -61,8 +61,8 @@ opendal-layer-foyer      provides Foyer
 ```
 
 Each native service/layer gem requires an exact `opendal` release and embeds
-that OpenDAL version in its JSON bootstrap document. The base gem remains
-installable on its own:
+that OpenDAL version in its bootstrap metadata. The base gem remains installable
+on its own:
 
 ```console
 gem install opendal

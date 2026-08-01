@@ -118,8 +118,7 @@ An illustrative service manifest is:
     "aliases": []
   },
   "native_artifact_path": "lib/opendal_service_s3.so",
-  "native_entry_kind": "c-json",
-  "native_entry_symbol": "opendal_service_s3_bootstrap",
+  "native_entry_symbol": "opendal_service_s3_bootstrap_v1",
   "target_identity": "x86_64-unknown-linux-gnu"
 }
 ```
@@ -133,15 +132,88 @@ The registry validates document size, UTF-8, JSON structure, IDs, aliases, and
 artifact paths before storing the manifest. It must not store credentials, URI
 options, or service configuration in registration metadata.
 
-## JSON Bootstrap
+## Bootstrap Encoding Alternatives
 
-The bootstrap exists only to reject an incompatible native artifact before the
-runtime enters the release-specific interface. The package exports a
-package-unique function with a fixed C calling convention. The function reports
-the required document length, then writes UTF-8 JSON into a host-provided
-bounded buffer. It does not transfer memory ownership across the boundary.
+The installed discovery manifest remains JSON so the registry can inspect it
+without loading native code. The native bootstrap repeats its compatibility
+metadata after the library loads. The bootstrap encoding is still a design
+choice: OpenDAL should compare a bounded JSON document with an exact-release
+C-layout descriptor instead of discarding either option before prototyping.
 
-The bootstrap document repeats these manifest fields:
+For directly loaded native libraries, both encodings use a package-unique
+exported function with a fixed C calling convention. They exist only to reject
+an incompatible native artifact before the runtime enters the release-specific
+interface.
+
+Both encodings sit behind the same stable bootstrap envelope and function
+signature:
+
+```c
+enum {
+  OPENDAL_BOOTSTRAP_JSON = 1,
+  OPENDAL_BOOTSTRAP_C_LAYOUT_V1 = 2,
+};
+
+typedef struct {
+  uint32_t struct_size;
+  uint32_t payload_encoding;
+  const unsigned char *payload;
+  size_t payload_len;
+} opendal_bootstrap_result_v1;
+
+typedef int32_t (*opendal_bootstrap_fn_v1)(
+    opendal_bootstrap_result_v1 *result
+);
+```
+
+The host initializes `struct_size` to `sizeof(opendal_bootstrap_result_v1)` and
+zeroes the other fields before calling the package-unique symbol. Every version
+1 bootstrap symbol ends in `_bootstrap_v1` and uses this signature. A future
+incompatible envelope uses a new symbol suffix, so the loader never guesses a
+function signature from unvalidated package metadata.
+
+The function returns one of these status codes:
+
+- `0`: Success. The result contains one recognized, bounded payload.
+- `1`: Invalid argument, including a null result pointer.
+- `2`: Unsupported bootstrap envelope, including an undersized `struct_size`.
+- `3`: The package could not provide bootstrap metadata.
+
+The loader treats every non-zero or unknown status as `BootstrapInvalid` and
+does not read the payload fields. On success, the payload is immutable
+package-owned memory that remains valid while the library is loaded. The loader
+rejects a null payload, a zero or excessive length, or an unknown encoding
+before decoding it.
+
+A Node-API addon initializer cannot use a package-unique C initializer. It
+returns the same status, payload-encoding discriminant, and bounded payload
+through Node-API values. The environment adapter applies the same validation
+before passing metadata to the process runtime.
+
+Prototype runtimes can accept both payload encodings through this envelope for
+comparison. A published OpenDAL release selects one encoding for its supported
+SDK and official packages. The common function signature remains the same, so a
+stale manifest cannot make the loader call the bootstrap with the wrong ABI.
+
+<!-- markdownlint-disable MD013 -->
+
+| Property           | JSON payload                                      | C-layout payload                                 |
+| ------------------ | ------------------------------------------------- | ------------------------------------------------ |
+| Bootstrap call     | Common version 1 envelope                         | Common version 1 envelope                        |
+| Installed manifest | JSON                                              | JSON                                             |
+| Native metadata    | UTF-8 names and values                            | Size-tagged structure with bounded byte slices   |
+| Payload ownership  | Immutable package memory                          | Immutable package memory                         |
+| Validation surface | Length, UTF-8, JSON, fields                       | Pointer, length, size, alignment, and fields     |
+| Human inspection   | Direct                                            | Requires a decoding tool                         |
+| Node-API transport | String or byte buffer                             | Wrapper around the native structure              |
+| Evolution          | Schema follows the exact OpenDAL release          | New layout needs a new payload discriminant      |
+| Main risk          | Parser complexity and non-canonical serialization | Unsafe pointer, length, and alignment validation |
+
+<!-- markdownlint-enable MD013 -->
+
+### JSON Payload
+
+The JSON payload is a bounded UTF-8 document. An illustrative document is:
 
 ```json
 {
@@ -155,21 +227,66 @@ The bootstrap document repeats these manifest fields:
 }
 ```
 
-The RFC must define the maximum document length, pointer validity, encoding,
-symbol lifetime, and failure behavior. The bootstrap follows these rules:
+The loader validates the envelope length before parsing. The RFC must define
+canonical encoding where bytewise comparison matters; field comparison must not
+depend on JSON object order.
+
+### C-Layout Payload
+
+The C-layout payload points to this illustrative version 1 metadata structure:
+
+```c
+typedef struct {
+  const unsigned char *data;
+  size_t len;
+} opendal_bytes;
+
+typedef struct {
+  uint32_t struct_size;
+  opendal_bytes opendal_version;
+  opendal_bytes package_id;
+  opendal_bytes package_version;
+  opendal_bytes component_kind;
+  opendal_bytes component_id;
+  opendal_bytes target_identity;
+  opendal_bytes entry_symbol;
+} opendal_c_metadata_v1;
+```
+
+The package contract requires every returned pointer to reference immutable
+package-owned memory for the declared lifetime. The loader can reject null or
+misaligned pointers and invalid structural bounds, but it cannot prove that an
+arbitrary in-process pointer is mapped safely. After the checkable pointer and
+alignment checks, the loader requires `payload_len` to cover the `struct_size`
+field. It then requires `struct_size` to contain every version 1 field and not
+exceed `payload_len` before reading any byte slice. Version 1 defines the
+complete layout needed to read the OpenDAL version; changing that layout
+requires a new payload encoding discriminant. The RFC must define maximum slice
+lengths, encoding, and structure lifetime.
+
+### Shared Bootstrap Rules
+
+Whichever encoding the prototype selects, the bootstrap follows these rules:
 
 - Every exported function uses an explicit C calling convention.
 - No panic or foreign exception crosses the call.
-- The loader rejects a reported document length above the defined limit before
-  allocating or parsing it.
+- Every package-unique bootstrap symbol uses the common envelope signature.
 - The loader checks the OpenDAL version, package identity, component identity,
-  target identity, and entry symbol before entering package code.
-- The JSON manifest and bootstrap document must identify the same package and
+  target identity, and entry symbol before invoking the release-specific entry
+  point or factory.
+- The JSON manifest and native bootstrap must identify the same package and
   component.
-- The bootstrap reports incompatibility; it does not attempt ABI adaptation.
+- The loader reports incompatible metadata; it does not attempt ABI adaptation.
 
 The bootstrap does not expose `Operator`, `Layer`, trait objects, Rust strings,
 Rust enums, futures, Tokio handles, or allocator ownership.
+
+JSON is the leading candidate because the discovery manifest and native
+metadata can share parsing and scalar-value conventions, and the Node-API
+adapter can transport it without native structure access. The C-layout payload
+remains a candidate if the prototype demonstrates simpler or safer activation
+on the supported native targets. The selection must follow cross-platform
+loader tests, not document preference alone.
 
 ## OpenDAL Release Compatibility
 

@@ -133,10 +133,10 @@ The first Node prototype should compare two packaging implementations:
 2. An environment-bound JavaScript activator loads a target-specific Node-API
    bootstrap addon in the calling `napi_env`.
 
-Both implementations use the same JSON bootstrap document, OpenDAL version,
-factory contract, and conformance suite. A literal separately installed shared
-Rust `dylib` is not a design assumption; npm/pnpm/Yarn layouts, rpaths, and
-Windows DLL discovery must prove it first.
+Both implementations use the same bootstrap metadata and selected encoding,
+OpenDAL version, factory contract, and conformance suite. A literal separately
+installed shared Rust `dylib` is not a design assumption; npm/pnpm/Yarn layouts,
+rpaths, and Windows DLL discovery must prove it first.
 
 Direct host loading is the preferred starting point because it naturally
 preserves JSON registration, process-level activate-once behavior, and
@@ -145,19 +145,20 @@ construction-time native activation.
 The Node-API bootstrap variant requires this explicit environment-bound
 activation sequence:
 
-1. The JavaScript registration stub gives its `EnvironmentAdapter` a text
+1. The JavaScript registration stub gives its `EnvironmentAdapter` a JSON
    manifest and a local activation callback. It loads no native target package.
 2. First construction asks the adapter, on its JavaScript thread, to invoke that
    callback.
 3. The callback resolves the package's target artifact and synchronously loads
    its `.node` addon in the same `napi_env`. ESM and CommonJS wrappers call one
    shared loader implementation.
-4. The addon uses the normal Node-API initializer and returns the bounded JSON
-   bootstrap document. It does not return a napi-rs class or an `External<T>`
-   shared with the base.
-5. The base validates the document before giving its release-specific entry to
-   the `ProcessRuntime`. The process runtime installs the factory and records an
-   explicit process-lifetime library lease.
+4. The addon uses the normal Node-API initializer and returns the bootstrap
+   status, encoding discriminant, and payload. The payload is JSON bytes or a
+   `napi_external` pointing to C-layout metadata. It does not return a napi-rs
+   class or an `External<T>` shared with the base.
+5. The base validates the status, length, and selected encoding before giving
+   its release-specific entry to the `ProcessRuntime`. The process runtime
+   installs the factory and records an explicit process-lifetime library lease.
 6. The environment adapter releases its activation callback after success. The
    factory does not retain `napi_env`, `napi_value`, JavaScript references, or
    thread-safe functions.

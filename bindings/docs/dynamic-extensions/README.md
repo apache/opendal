@@ -31,7 +31,7 @@ successful cross-platform packaging prototype and the OpenDAL RFC process.
 
 ## Documents
 
-- [Design alternatives](alternatives.md) compares two possible extension
+- [Design alternatives](alternatives.md) compares four possible extension
   seams and explains why Design C is the leading prototype candidate.
 - [Compatibility and ABI](compatibility.md) defines version and target checks,
   loader checks, lifetime rules, and supported stability guarantees.
@@ -161,9 +161,9 @@ The adapter preserves each language's normal interface:
   streams, ESM/CommonJS exports, and Node-API.
 
 The project should share the native extension contract, not force one public
-language API across all three bindings. The JSON manifest and bootstrap
-documents, configuration value grammar, factory semantics, error categories,
-and conformance suite are common. Constructor names, typing, duration syntax,
+language API across all three bindings. The JSON manifest, bootstrap metadata,
+configuration value grammar, factory semantics, error categories, and
+conformance suite are common. Constructor names, typing, duration syntax,
 blocking behavior, and package discovery remain binding-specific.
 
 ### Extension runtime
@@ -209,16 +209,18 @@ A native extension contains exactly one service or layer factory. The package
 exports one generated, package-unique bootstrap symbol and hides other
 package-local symbols where the platform permits it.
 
-The bootstrap returns a bounded UTF-8 JSON document so the runtime can inspect
-the package identity, target, and exact OpenDAL version through a small C
-calling convention. Only after all checks pass may the runtime enter the
-release-specific internal interface. That internal interface is not a stable
-Rust ABI.
+The bootstrap exposes the package identity, target, and exact OpenDAL version
+through a small C calling convention. The [compatibility
+contract](compatibility.md#bootstrap-encoding-alternatives) compares a bounded
+JSON document with an exact-release C-layout descriptor instead of removing
+either encoding before prototyping. Only after all checks pass may the runtime
+enter the release-specific internal interface. That internal interface is not a
+stable Rust ABI.
 
 Node.js packages are an exception to the unique-initializer rule when the
 native artifact is itself a Node-API addon: Node defines the addon initializer.
 The Node adapter must use a language-appropriate initializer and validate the
-same package identity in the returned JSON document.
+same package identity in the returned bootstrap metadata.
 
 ## Construction Requests
 

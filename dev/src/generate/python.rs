@@ -27,9 +27,9 @@ use std::path::PathBuf;
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
-        | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
-        | "vercel_blob" | "foyer" | "goosefs" | "git" | "smb" => false,
+        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "cloudflare_kv" | "monoiofs"
+        | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud" | "vercel_blob"
+        | "foyer" | "goosefs" | "git" | "smb" => false,
         _ => true,
     }
 }

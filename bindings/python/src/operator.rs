@@ -337,7 +337,7 @@ impl Operator {
     /// -------
     /// File
     ///     A file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs: "OpenKwargs"))]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]"))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -1066,7 +1066,7 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs: "str") -> "collections.abc.Awaitable[AsyncFile]")]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]") -> "collections.abc.Awaitable[AsyncFile]")]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,

@@ -53,22 +53,26 @@ behavior.
 The proposed release family is:
 
 ```text
-opendal                  owns `require "opendal"` and the shared runtime
+opendal-runtime          provides the shared native runtime
+opendal                  owns `require "opendal"` and the Ruby adapter
 opendal-service-s3       provides S3 registration and native artifacts
 opendal-service-hdfs     provides libhdfs-backed HDFS lazily
 opendal-layer-timeout    provides Timeout
 opendal-layer-foyer      provides Foyer
 ```
 
-Each native service/layer gem requires an exact `opendal` release and embeds
-that OpenDAL version in its bootstrap metadata. The base gem remains installable
-on its own:
+The `opendal` gem declares its `required_runtime_protocol`. The
+`opendal-runtime` gem exposes its minimum and current protocol levels for the
+binding to check. Each native service/layer gem requires an exact
+`opendal-runtime` release and embeds that OpenDAL version in its bootstrap
+metadata. Installing the base gem resolves the runtime dependency:
 
 ```console
 gem install opendal
 ```
 
-Applications select the base runtime and extensions in their `Gemfile`:
+Applications select the main binding and extensions in their `Gemfile`; Bundler
+resolves `opendal-runtime`:
 
 ```ruby
 gem "opendal", "= <opendal-release>"

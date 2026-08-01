@@ -17,12 +17,13 @@
 
 # Extension Compatibility and ABI
 
-Status: pre-RFC contract for the exact-release runtime candidate. OpenDAL does
-not provide or guarantee this interface today.
+Status: pre-RFC contract for the shared runtime candidate. OpenDAL does not
+provide or guarantee this interface today.
 
-The design uses one compatibility version: the OpenDAL version. A native
-extension must target exactly the version used by the runtime. The target
-identity remains a separate platform check, not another versioning scheme.
+The design uses two compatibility axes. A language binding declares the runtime
+protocol level that it requires. A native extension must target exactly the
+OpenDAL version used by the runtime. The target identity remains a separate
+platform check, not another versioning scheme.
 
 The key constraint is deliberate:
 
@@ -40,10 +41,93 @@ compatibility describe the interface between a binding adapter and its language
 runtime. They are informational for the native extension loader and do not
 replace the exact OpenDAL version check.
 
+## Runtime Protocol Compatibility
+
+The binding-to-runtime boundary uses a common, language-neutral protocol. The
+protocol is distinct from the runtime package version and from the
+exact-release native extension interface.
+
+Each main binding package declares one `required_runtime_protocol`. The runtime
+package reports an inclusive supported range:
+
+- `minimum_runtime_protocol` identifies the oldest protocol contract that the
+  runtime still supports.
+- `runtime_protocol` identifies the newest protocol capability that the runtime
+  provides.
+
+A binding is compatible when:
+
+```text
+minimum_runtime_protocol
+    <= required_runtime_protocol
+    <= runtime_protocol
+```
+
+For example, a binding that requires protocol 20 can use a runtime that supports
+protocols 18 through 23. Package metadata provides an early diagnostic, but the
+loaded runtime reports the authoritative values before returning an API table.
+
+The runtime reports the range and acquires the requested API through one
+bootstrap function equivalent to:
+
+```c
+typedef struct {
+  uint32_t struct_size;
+  uint32_t minimum_runtime_protocol;
+  uint32_t runtime_protocol;
+} opendal_runtime_protocol_info_v1;
+
+typedef struct opendal_runtime_api opendal_runtime_api;
+
+int32_t opendal_runtime_get_api_v1(
+    uint32_t required_runtime_protocol,
+    opendal_runtime_protocol_info_v1 *protocol_info,
+    const opendal_runtime_api **api
+);
+```
+
+The runtime fills `protocol_info` even when the requested level is incompatible
+and returns a null `api` in that case. On success, it returns an API table that
+conforms to `required_runtime_protocol`. The binding performs this call before
+converting configuration or acquiring a runtime-owned handle. The binding uses
+no capability introduced after its required level, and the runtime does not
+send that interaction a value, callback, or handle kind introduced after that
+level. A newer runtime therefore preserves the complete behavior of every
+protocol at or above `minimum_runtime_protocol`.
+
+The binding's requested level is also the interaction ceiling for an extension.
+The loader rejects an extension whose `required_runtime_protocol` is greater
+than the binding's requested level, even when the runtime itself provides that
+newer level. An extension can require an older level because the exact-release
+runtime and extension enter the interaction at the binding's requested level.
+
+An incompatible change to this bootstrap function uses a new exported symbol,
+such as `opendal_runtime_get_api_v2`; it does not add a separately negotiated
+ABI-major field to the normal protocol check.
+
+The protocol should expose the smallest practical surface. The exported
+bootstrap function acquires a size-tagged API table; a registration or
+construction function in that table performs the main operation. Even this
+two-function interaction has a protocol: its function signatures, table layout,
+`ConfigValue` representation, status codes, handle ownership, and lifetime
+rules are the compatibility contract.
+
+Adding an ordinary service configuration field does not raise the runtime
+protocol level because each service package owns its schema. Adding a new
+shared `ConfigValue` variant, handle kind, factory capability, or lifetime rule
+does raise the protocol level. The binding that first uses that capability then
+raises `required_runtime_protocol`. The protocol does not contain language- or
+service-specific identifiers such as `opendal.python.s3`.
+
+OpenDAL distributes the protocol implementation in the shared runtime package
+and publishes that package with the language bindings. Ecosystem-specific
+delivery wrappers must resolve the same runtime identity when multiple bindings
+load in one process.
+
 ## Configuration Value Contract
 
-Factories receive language-neutral configuration values. The matching OpenDAL
-release defines this closed grammar:
+Factories receive language-neutral configuration values. The runtime protocol
+defines this closed grammar at the binding's requested protocol level:
 
 ```text
 ConfigValue =
@@ -77,21 +161,21 @@ entries in one list or map, and a maximum encoded request size of 64 MiB. It
 rejects invalid UTF-8, duplicate map keys, non-finite floats, unknown value tags,
 and values outside the declared numeric ranges before calling package code.
 
-A package owns its configuration fields, defaults, validation, credentials, and
-redaction behavior. The matching OpenDAL release defines the factory request;
-the runtime does not negotiate separate grammar or configuration-schema
-versions.
+A package owns its configuration format, fields, defaults, validation,
+credentials, redaction behavior, and any schema version. `ConfigValue` defines
+only the shared transport vocabulary; it does not impose one schema model on
+all bindings or packages.
 
-Schema behavior follows these rules:
+Each package therefore decides:
 
-- A missing field selects its declared default or produces a missing-field
-  error.
-- `Null` is valid only when the field is explicitly nullable. Optional and
-  nullable are separate properties.
-- A package rejects every field absent from its schema.
-- A schema marks credential and token fields as secret. The runtime never logs
-  raw configuration values, and package errors identify a secret field without
-  rendering its value.
+- Whether a missing field selects a default or produces an error.
+- Whether `Null` differs from a missing field.
+- Whether to reject, ignore, or preserve unknown fields.
+- How to represent and evolve package-specific configuration versions.
+- Which credential and token fields require redaction.
+
+The runtime enforces the transport limits above and never logs raw configuration
+values. Package validation errors must not render secret values.
 
 `UriRequest` remains separate. It contains one UTF-8 URI and a map of UTF-8
 option names to UTF-8 option values, matching current iterator construction.
@@ -110,6 +194,7 @@ An illustrative service manifest is:
 ```json
 {
   "opendal_version": "0.55.0",
+  "required_runtime_protocol": 20,
   "package_id": "opendal-service-s3",
   "package_version": "0.55.0",
   "component": {
@@ -123,10 +208,12 @@ An illustrative service manifest is:
 }
 ```
 
-The exact OpenDAL release defines the document fields and their meaning. The
-loader rejects a manifest whose `opendal_version` differs from the runtime; it
-does not negotiate manifest revisions. `package_version` remains package
-metadata and does not establish native compatibility.
+The runtime protocol defines the common document fields and their meaning. The
+loader first verifies that `required_runtime_protocol` does not exceed the
+binding's already validated requested level, then rejects a native extension
+manifest whose `opendal_version` differs from the runtime. It does not negotiate
+native extension compatibility from the protocol level. `package_version`
+remains package metadata and does not establish native compatibility.
 
 The registry validates document size, UTF-8, JSON structure, IDs, aliases, and
 artifact paths before storing the manifest. It must not store credentials, URI
@@ -218,6 +305,7 @@ The JSON payload is a bounded UTF-8 document. An illustrative document is:
 ```json
 {
   "opendal_version": "0.55.0",
+  "required_runtime_protocol": 20,
   "package_id": "opendal-service-s3",
   "package_version": "0.55.0",
   "component_kind": "service",
@@ -243,6 +331,7 @@ typedef struct {
 
 typedef struct {
   uint32_t struct_size;
+  uint32_t required_runtime_protocol;
   opendal_bytes opendal_version;
   opendal_bytes package_id;
   opendal_bytes package_version;
@@ -271,9 +360,9 @@ Whichever encoding the prototype selects, the bootstrap follows these rules:
 - Every exported function uses an explicit C calling convention.
 - No panic or foreign exception crosses the call.
 - Every package-unique bootstrap symbol uses the common envelope signature.
-- The loader checks the OpenDAL version, package identity, component identity,
-  target identity, and entry symbol before invoking the release-specific entry
-  point or factory.
+- The loader checks the required runtime protocol, OpenDAL version, package
+  identity, component identity, target identity, and entry symbol before
+  invoking the release-specific entry point or factory.
 - The JSON manifest and native bootstrap must identify the same package and
   component.
 - The loader reports incompatible metadata; it does not attempt ABI adaptation.
@@ -394,11 +483,11 @@ remains authoritative.
 
 <!-- markdownlint-disable MD013 -->
 
-| Ecosystem | Proposed constraint                                                              | Additional requirement                                    |
-| --------- | -------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Python    | Extension distribution requires the exact OpenDAL runtime release                | Bootstrap version check; wheel target must match          |
-| Ruby      | Extension gem requires the exact OpenDAL runtime release                         | Bootstrap version check; source/native policy is explicit |
-| Node.js   | Extension uses an exact runtime peer dependency and target-specific dependencies | Reject a nested incompatible `ProcessRuntime`             |
+| Ecosystem | Main binding constraint                  | Native extension constraint             | Additional requirement                                    |
+| --------- | ---------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
+| Python    | Required runtime protocol                | Exact OpenDAL runtime release           | Bootstrap version check; wheel target must match          |
+| Ruby      | Required runtime protocol                | Exact OpenDAL runtime release           | Bootstrap version check; source/native policy is explicit |
+| Node.js   | Required runtime protocol                | Exact runtime and target dependencies   | Reject a nested incompatible `ProcessRuntime`             |
 
 <!-- markdownlint-enable MD013 -->
 

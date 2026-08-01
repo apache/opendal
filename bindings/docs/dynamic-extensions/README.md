@@ -24,10 +24,13 @@ This design allows a language binding to install services and layers as
 independent packages. For example, an application can install only S3,
 Timeout, and Foyer without rebuilding or replacing the base binding.
 
-The leading prototype candidate uses an exact-release shared native runtime.
-Python, Ruby, and Node.js use different language interfaces over the same
-native extension model. Selecting that candidate remains conditional on a
-successful cross-platform packaging prototype and the OpenDAL RFC process.
+The leading prototype candidate uses a shared native runtime package with a
+small common protocol. Python, Ruby, and Node.js use different language
+interfaces over the same runtime and native extension model. The proposed
+release process publishes the runtime with the language bindings as one
+coordinated release family.
+Selecting that candidate remains conditional on a successful cross-platform
+packaging prototype and the OpenDAL RFC process.
 
 ## Documents
 
@@ -118,10 +121,11 @@ Python adapter       Ruby adapter          Node-API adapter
           S3 / WebDAV / HDFS    Timeout / Foyer / Throttle
 ```
 
-The diagram shows a logical architecture. The first implementation may package
-a separate runtime artifact for each language ecosystem. Sharing the SDK,
-manifest rules, and conformance suite is required; sharing one physical runtime
-library across Python, Ruby, and Node.js installations is not.
+The diagram shows a logical architecture. The selected distribution model puts
+the implementation in a shared runtime package instead of embedding a private
+copy in each main binding package. Ecosystem-specific packages may wrap
+target-specific artifacts, but they must resolve the same runtime release and
+runtime identity when loaded into one process.
 
 ### Why one common runtime graph is required
 
@@ -141,9 +145,17 @@ language adapter cannot preserve arbitrary native layer semantics.
 The common runtime graph therefore owns composition machinery and extensions
 register release-specific factories into it. Service packages still own their
 configuration, URI interpretation, credentials, redaction, and package-local
-dependencies. "Common" means one graph for extensions loaded by one binding
-runtime; it does not require one physical runtime library to be shared across
-Python, Ruby, and Node.js.
+dependencies. "Common" means that all bindings in one process resolve one
+runtime identity rather than loading binding-private runtime graphs.
+
+The protocol can remain small even though the runtime owns substantial native
+state. Independently built packages need only a stable way to acquire a runtime
+API, declare their required protocol level, inspect the runtime's supported
+protocol range, and invoke runtime-owned factories.
+The API implementation can expose a small bootstrap surface, such as an API
+lookup and a construction or registration entry point, backed by an extensible
+function table. The function signatures, table layouts, value grammar, handle
+ownership, and error rules together form the protocol.
 
 ### Binding adapter
 
@@ -274,16 +286,32 @@ applications are outer layers, matching OpenDAL core behavior.
 
 ## Package Families
 
-Each ecosystem needs a runtime distribution and independent extension packages:
+The selected release family has three package roles:
 
 ```text
-runtime distribution       minimal binding and native runtime
-service/layer packages     exact dependency on that OpenDAL release
+shared runtime package     native runtime, protocol, registries, and handles
+main binding package       Python, Ruby, or Node.js public API and adapter
+service/layer package      manifest, language API, and native implementation
 ```
 
-A minimal installation uses the runtime distribution plus selected extension
-packages. Independently installable does not imply independently ABI-versioned:
-every native package must be rebuilt for a new OpenDAL release.
+The main binding package declares the `required_runtime_protocol` that its
+adapter needs. The runtime package exposes `minimum_runtime_protocol` and
+`runtime_protocol` so the adapter can verify that requirement before using the
+runtime API. A service or layer package also depends on the runtime package,
+while its native artifact follows the exact-release extension compatibility
+rules. A minimal installation uses the runtime package and one main binding
+package; applications then add selected extension packages.
+
+The proposed release process publishes these packages together. Coordinated
+publication gives every binding and official extension a consistent runtime
+implementation, build contract, and compatibility matrix. Keeping the
+implementation in its own package also makes upgrades and dependency
+diagnostics easier to manage than embedding equivalent native code independently
+in every binding.
+
+Independently installable does not imply independently ABI-versioned: every
+native extension package must be rebuilt for every OpenDAL release, even when
+the internal interface appears unchanged.
 
 The 1,000-manifest requirement measures registry behavior, not a commitment to
 publish 1,000 official package families. Before a split release, each ecosystem

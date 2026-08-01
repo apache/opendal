@@ -57,6 +57,7 @@ The proposed family is:
 
 ```text
 opendal                           Node-API adapter and JavaScript interface
+@opendal/runtime                  runtime loader and target resolver
 @opendal/runtime-linux-x64-gnu    target-specific runtime addon
 @opendal/service-s3               S3 JavaScript stub and types
 @opendal/service-s3-linux-x64-gnu target-specific S3 native addon/library
@@ -66,15 +67,21 @@ opendal                           Node-API adapter and JavaScript interface
 
 Each root extension package declares:
 
-- An exact peer dependency on the compatible `opendal` release.
+- An exact peer dependency on the compatible `@opendal/runtime` release.
+- A compatible peer dependency on the `opendal` adapter when it exposes a
+  JavaScript API through that package.
 - Target packages as optional dependencies with `os`, `cpu`, and `libc`
   metadata where available.
 - ESM and CommonJS entry points that use one registration implementation.
 - A mandatory embedded OpenDAL version check.
 - A clear error for optional dependencies omitted during installation.
 
-Applications depend on `opendal` and their selected extensions. Package names
-remain provisional pending npm namespace and release prototypes.
+The `opendal` adapter declares its `required_runtime_protocol`.
+`@opendal/runtime` exposes its minimum and current protocol levels for the
+adapter to check. Applications depend on `opendal` and their selected
+extensions; the package manager resolves `@opendal/runtime` and its target
+package. Package names remain provisional pending npm namespace and release
+prototypes.
 
 One root package plus several target packages per extension creates a large
 publication matrix. A registry with 1,000 manifest records can be efficient;
@@ -317,8 +324,8 @@ a different `opendal` instance from the one that created an operator.
 
 The design applies three defenses:
 
-1. Exact peer dependencies make the intended singleton visible to the package
-   manager.
+1. Exact runtime peer dependencies make the intended singleton visible to the
+   package manager.
 2. Registration records the specific `ProcessRuntime` identity.
 3. A layer/operator wrapper verifies process-runtime identity before native
    handle use and throws `OPENDAL_EXTENSION_INCOMPATIBLE` on mismatch.

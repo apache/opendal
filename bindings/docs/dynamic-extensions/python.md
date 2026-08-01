@@ -55,22 +55,26 @@ adopt a new operator abstraction.
 The proposed release family is:
 
 ```text
-opendal                   owns the `opendal` import package and native runtime
+opendal-runtime           provides the shared native runtime
+opendal                   owns the `opendal` import package and Python adapter
 opendal-service-s3        contributes the S3 manifest, native code, and typing
 opendal-service-hdfs      contributes libhdfs-backed HDFS lazily
 opendal-layer-timeout     contributes Timeout
 opendal-layer-foyer       contributes Foyer
 ```
 
-Every native service/layer distribution requires an exact
-`opendal` release and embeds that OpenDAL version in its bootstrap metadata. The
-base wheel remains installable on its own:
+The `opendal` distribution declares its `required_runtime_protocol`. The
+`opendal-runtime` distribution exposes its minimum and current protocol levels
+for the binding to check. Every native service/layer distribution requires an
+exact `opendal-runtime` release and embeds that OpenDAL version in its bootstrap
+metadata. Installing the base wheel resolves the runtime dependency:
 
 ```console
 python -m pip install opendal
 ```
 
-An application installs the base runtime and selected packages:
+An application installs the main binding and selected packages; the package
+manager resolves `opendal-runtime`:
 
 ```console
 python -m pip install \
@@ -303,8 +307,9 @@ which artifacts can actually be shared:
 - A language-neutral service/layer library should not link CPython.
 - The extension still needs one artifact per supported native target and libc
   or deployment floor.
-- One extension wheel can cover several Python versions only if all of those base
-  wheels use the same OpenDAL version and compatible shared library.
+- One extension wheel can cover several Python versions only if every base wheel
+  requires a protocol in the runtime's supported range and resolves the same
+  exact shared runtime release.
 - Wheel repair must retain the intended shared runtime relationship instead of
   copying private runtime libraries into every extension under conflicting
   names.

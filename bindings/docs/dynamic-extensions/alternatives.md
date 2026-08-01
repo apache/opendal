@@ -41,6 +41,31 @@ Design B does not preserve arbitrary native layers and repeats an operation
 adapter in every language. Design D preserves cross-version binaries only by
 requiring OpenDAL to maintain a second operation model.
 
+## Runtime Distribution Alternatives
+
+Design C still needs a distribution choice. The protocol and the package are
+separate concepts: independently built components always need a protocol, even
+if that protocol consists of only a small API lookup and construction surface.
+The runtime package determines who ships and owns its implementation.
+
+<!-- markdownlint-disable MD013 -->
+
+| Model | Distribution | Strengths | Limitations |
+| ----- | ------------ | --------- | ----------- |
+| Binding-embedded runtime | Every main binding package carries a private runtime implementation | Simplest installation; no separate runtime dependency; binding maintainers control loading | Duplicates native artifacts; can create multiple runtime identities in one process; lets bindings drift in behavior and build settings |
+| Host-provided runtime | The main binding loads a runtime and exposes its API to extension packages | Avoids a separately visible runtime package; extensions reuse the host instance | Couples discovery to each host language; makes extensions depend on host loading order and adapter-specific mechanisms; does not naturally coordinate multiple languages |
+| Shared runtime package | Main bindings and extension packages depend on one separately versioned runtime package | Gives all languages one runtime identity and implementation; centralizes compatibility checks, fixes, and native resources; fits coordinated OpenDAL releases | Requires cross-ecosystem native artifact resolution; needs package-manager rules against incompatible duplicate runtimes; adds an explicit dependency |
+
+<!-- markdownlint-enable MD013 -->
+
+OpenDAL selects the shared runtime package for the prototype. The project
+will publish the runtime and language bindings as a coordinated release family,
+which strengthens consistency and simplifies release management.
+Although each binding could carry the same implementation, a separate package
+provides one place to version, test, diagnose, and update that implementation.
+Target-specific wheels, gems, and npm packages may act as ecosystem delivery
+wrappers, but they must represent the same runtime release and protocol.
+
 ## Summary
 
 <!-- markdownlint-disable MD013 -->

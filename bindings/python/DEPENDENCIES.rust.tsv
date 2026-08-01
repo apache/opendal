@@ -133,6 +133,7 @@ opendal-service-cos@0.58.1	X
 opendal-service-fs@0.58.1	X												
 opendal-service-gcs@0.58.1	X												
 opendal-service-ghac@0.58.1	X												
+opendal-service-github@0.58.1	X												
 opendal-service-http@0.58.1	X												
 opendal-service-ipmfs@0.58.1	X												
 opendal-service-obs@0.58.1	X												

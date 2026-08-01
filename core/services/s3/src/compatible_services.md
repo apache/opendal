@@ -57,6 +57,39 @@ builder.region("<region>");
 builder.bucket("<bucket_name>");
 ```
 
+### Oracle Cloud Infrastructure Object Storage
+
+[Oracle Cloud Infrastructure (OCI) Object Storage](https://www.oracle.com/cloud/storage/object-storage/) provides an Amazon S3 Compatibility API.
+
+To connect with path-style requests, set:
+
+- `endpoint`: The endpoint containing the Object Storage namespace and OCI region, for example: `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
+- `region`: The OCI region identifier, for example: `us-ashburn-1`.
+- `bucket`: The bucket name.
+- `access_key_id` and `secret_access_key`: The access key and secret key from an OCI Customer Secret Key.
+
+```rust,ignore
+builder.endpoint(
+    "https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com",
+);
+builder.region("<region>");
+builder.bucket("<bucket_name>");
+builder.access_key_id("<access_key>");
+builder.secret_access_key("<secret_key>");
+```
+
+OCI also supports virtual-hosted-style requests. Use the endpoint
+`https://vhcompat.objectstorage.<region>.oci.customer-oci.com` and call
+`enable_virtual_host_style()` when selecting that form.
+
+OCI Object Storage differs from Amazon S3 in the following ways:
+
+- OCI uses an Object Storage namespace instead of Amazon S3's global bucket namespace. Bucket names must be unique within the namespace according to the configured bucket scope.
+- OCI organizes resources in compartments. Buckets created through the S3 Compatibility API use the tenancy's designated compartment, which defaults to the root compartment.
+- OCI encrypts every object at rest and does not allow clients to enable or disable encryption through the API.
+- OCI does not support object-level ACLs. OCI IAM policies control access instead, so S3 object ACL settings such as `default_acl` do not apply.
+- OCI requires AWS Signature Version 4; Signature Version 2 is not supported.
+
 ### QingStor Object Storage
 
 [QingStor Object Storage](https://www.qingcloud.com/products/qingstor) is a S3-compatible service provided by [QingCloud](https://www.qingcloud.com/).

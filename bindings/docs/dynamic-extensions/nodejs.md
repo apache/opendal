@@ -20,7 +20,7 @@
 Status: pre-RFC binding-specific design proposal. The current Node.js binding
 remains one native addon with compile-time service and layer selection.
 
-The exact-build extension design is useful for Node.js. Node-API makes the base
+The exact-release extension design is useful for Node.js. Node-API makes the base
 addon portable across supported Node.js versions, but it does not stabilize the
 Rust interface between separately built OpenDAL native packages.
 
@@ -56,32 +56,25 @@ napi-rs implementation types as the extension contract.
 The proposed family is:
 
 ```text
-@opendal/runtime                  Node-API adapter and JavaScript interface
+opendal                           Node-API adapter and JavaScript interface
 @opendal/runtime-linux-x64-gnu    target-specific runtime addon
 @opendal/service-s3               S3 JavaScript stub and types
 @opendal/service-s3-linux-x64-gnu target-specific S3 native addon/library
 @opendal/layer-timeout            Timeout stub and types
 @opendal/layer-foyer              Foyer stub and types
-opendal                           compatibility aggregator and re-export
 ```
 
 Each root extension package declares:
 
-- An exact peer dependency on the compatible `@opendal/runtime` release.
+- An exact peer dependency on the compatible `opendal` release.
 - Target packages as optional dependencies with `os`, `cpu`, and `libc`
   metadata where available.
 - ESM and CommonJS entry points that use one registration implementation.
-- A mandatory embedded runtime build-ID check.
+- A mandatory embedded OpenDAL version check.
 - A clear error for optional dependencies omitted during installation.
 
-The unscoped `opendal` package preserves the current import and installs the
-runtime plus the service/layer set provided by the current release. It re-exports
-the runtime classes and registers those packages' text manifests. It does not
-contain a second native runtime.
-
-Minimal applications depend directly on `@opendal/runtime` and selected
-extensions. Package names remain provisional pending npm namespace and release
-prototypes.
+Applications depend on `opendal` and their selected extensions. Package names
+remain provisional pending npm namespace and release prototypes.
 
 One root package plus several target packages per extension creates a large
 publication matrix. A registry with 1,000 manifest records can be efficient;
@@ -94,7 +87,7 @@ The native architecture gives process resources and Node environment state
 different owners:
 
 ```text
-loaded @opendal/runtime native module
+loaded opendal native module
   ProcessRuntime
     OpenDAL core, Tokio, registries, activation state, handle identity
     process-lifetime native library leases
@@ -138,18 +131,18 @@ The first Node prototype should compare two packaging implementations:
 1. The `ProcessRuntime` loads a language-neutral native library directly from
    the package manifest.
 2. An environment-bound JavaScript activator loads a target-specific Node-API
-   descriptor addon in the calling `napi_env`.
+   bootstrap addon in the calling `napi_env`.
 
-Both implementations use the same descriptor, runtime build ID, factories, and
-conformance suite. A literal separately installed shared Rust `dylib` is not a
-design assumption; npm/pnpm/Yarn layouts, rpaths, and Windows DLL discovery must
-prove it first.
+Both implementations use the same JSON bootstrap document, OpenDAL version,
+factory contract, and conformance suite. A literal separately installed shared
+Rust `dylib` is not a design assumption; npm/pnpm/Yarn layouts, rpaths, and
+Windows DLL discovery must prove it first.
 
 Direct host loading is the preferred starting point because it naturally
-preserves text registration, process-level activate-once behavior, and
+preserves JSON registration, process-level activate-once behavior, and
 construction-time native activation.
 
-The Node-API descriptor variant requires this explicit environment-bound
+The Node-API bootstrap variant requires this explicit environment-bound
 activation sequence:
 
 1. The JavaScript registration stub gives its `EnvironmentAdapter` a text
@@ -159,12 +152,12 @@ activation sequence:
 3. The callback resolves the package's target artifact and synchronously loads
    its `.node` addon in the same `napi_env`. ESM and CommonJS wrappers call one
    shared loader implementation.
-4. The addon uses the normal Node-API initializer and returns a `napi_external`
-   containing the C-layout descriptor. It does not return a napi-rs class or an
-   `External<T>` shared with the base.
-5. The base validates the descriptor before giving its language-neutral exact
-   entry to the `ProcessRuntime`. The process runtime installs the factories
-   atomically and records an explicit process-lifetime library lease.
+4. The addon uses the normal Node-API initializer and returns the bounded JSON
+   bootstrap document. It does not return a napi-rs class or an `External<T>`
+   shared with the base.
+5. The base validates the document before giving its release-specific entry to
+   the `ProcessRuntime`. The process runtime installs the factory and records an
+   explicit process-lifetime library lease.
 6. The environment adapter releases its activation callback after success. The
    factory does not retain `napi_env`, `napi_value`, JavaScript references, or
    thread-safe functions.
@@ -182,7 +175,7 @@ adapts completion into the calling environment.
 Explicit registration avoids bundler-dependent side effects:
 
 ```javascript
-import { Operator } from "@opendal/runtime";
+import { Operator } from "opendal";
 import { registerS3 } from "@opendal/service-s3";
 
 registerS3();
@@ -193,24 +186,9 @@ const op = Operator.fromUri("s3://photos/archive", {
 ```
 
 `registerS3()` is idempotent for the same package and `ProcessRuntime`. It
-registers a text manifest without activating native code. Under the descriptor
+registers a JSON manifest without activating native code. Under the bootstrap
 addon prototype it also installs one environment-local activation callback;
 under direct host loading the manifest's artifact path is sufficient.
-
-The compatibility `opendal` aggregator can register its dependency set during
-module initialization so existing construction remains concise:
-
-```javascript
-import { Operator } from "opendal";
-
-const op = new Operator("s3", {
-  bucket: "photos",
-  region: "us-east-1",
-});
-```
-
-The aggregator imports registration stubs, not every native target library.
-Native activation still occurs on first construction.
 
 A package may offer a documented side-effect registration subpath for
 convenience, but it must mark that subpath appropriately for bundlers. The
@@ -263,19 +241,18 @@ later.
 
 Layer packages validate JavaScript numbers before calling Rust. Timeout values
 use non-negative integer milliseconds and convert to the shared
-[`DurationNs`](compatibility.md#configuration-value-contract) representation.
-The adapter rejects values above `u64::MAX` nanoseconds and never truncates,
-saturates, or wraps them. Throttle bandwidth and burst must be positive integers
-in the supported `u32` range so invalid input cannot reach the core
-constructor's assertions. Other options convert through the same shared
-`ConfigValueV1` grammar; native factories never receive JavaScript objects.
+[`SignedDuration`](compatibility.md#configuration-value-contract)
+representation.
+The adapter rejects values outside `SignedDuration`'s `i64`-seconds range and
+never truncates, saturates, or wraps them. Throttle bandwidth and burst must be
+positive integers in the supported `u32` range so invalid input cannot reach the
+core constructor's assertions. Other options convert through the same shared
+`ConfigValue` grammar; native factories never receive JavaScript objects.
 
 Applying one Throttle or Foyer handle to several operators preserves shared
-native state. Later `.layer()` calls remain outer layers. Timeout must be
-applied before Retry so each attempt has a deadline. Applying an outer Timeout
-after Retry is unsupported because it can cancel Retry before operation-body
-state is restored. The adapter preserves order and rejects this known unsafe
-composition when both layer IDs are visible.
+native state. Later `.layer()` calls remain outer layers. The adapter preserves
+the [canonical Timeout/Retry order](compatibility.md#layer-compatibility-rules)
+and rejects the known unsafe composition when both layer IDs are visible.
 
 ## Async Operations and Cancellation
 
@@ -313,8 +290,8 @@ design and should not silently fall back to this interface.
 ## Version and Error Behavior
 
 Node-API version compatibility and OpenDAL runtime compatibility remain
-separate. The generated package-version checks used by a native loader are not
-a replacement for a mandatory embedded build-ID handshake.
+separate. The generated package-version checks provide an early diagnostic; the
+embedded exact OpenDAL version check remains authoritative.
 
 Extension lifecycle errors should be JavaScript `Error` subclasses or errors
 with stable codes:
@@ -335,7 +312,7 @@ reason string.
 ## Multiple Runtime Versions
 
 npm can install nested copies of a package. An extension stub may therefore see
-a different `@opendal/runtime` instance from the one that created an operator.
+a different `opendal` instance from the one that created an operator.
 
 The design applies three defenses:
 
@@ -358,10 +335,10 @@ their creating `EnvironmentAdapter`.
 3. Make compiled services/layers use the internal extension factory model.
 4. Publish runtime and target packages using the existing platform-loader
    experience.
-5. Extract S3 and Timeout as tracer package families and register them from the
-   `opendal` compatibility aggregator.
+5. Extract S3 and Timeout as tracer package families and remove them from the
+   base package after their packages are available.
 6. Add Foyer async creation and HDFS lazy activation as design gates.
-7. Test both direct native loading and Node-API descriptor addons before
+7. Test both direct native loading and Node-API bootstrap addons before
    selecting the physical linking model.
 8. Publish the third-party SDK only after Worker, ESM/CommonJS, target, and
    lifetime conformance passes.

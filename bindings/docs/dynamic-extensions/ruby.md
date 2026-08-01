@@ -53,41 +53,34 @@ behavior.
 The proposed release family is:
 
 ```text
-opendal-runtime          owns `require "opendal"` and the shared runtime
+opendal                  owns `require "opendal"` and the shared runtime
 opendal-service-s3       provides S3 registration and native artifacts
 opendal-service-hdfs     provides libhdfs-backed HDFS lazily
 opendal-layer-timeout    provides Timeout
 opendal-layer-foyer      provides Foyer
-opendal                  compatibility aggregator
 ```
 
-Each native service/layer gem requires an exact `opendal-runtime` release and
-embeds its runtime build ID. The `opendal` compatibility gem depends on the
-runtime and the extensions included by the current monolithic gem. This
-preserves:
+Each native service/layer gem requires an exact `opendal` release and embeds
+that OpenDAL version in its JSON bootstrap document. The base gem remains
+installable on its own:
 
 ```console
 gem install opendal
 ```
 
-Applications that need a smaller installation select the runtime and extensions
-in their `Gemfile`:
+Applications select the base runtime and extensions in their `Gemfile`:
 
 ```ruby
-gem "opendal-runtime", "= <runtime-release>"
+gem "opendal", "= <opendal-release>"
 gem "opendal-service-s3"
 gem "opendal-layer-timeout"
 gem "opendal-layer-foyer"
 ```
 
-The aggregator must not install files that conflict with the runtime gem. It is
-metadata and dependency coordination, not a second owner of `lib/opendal.rb` or
-the runtime native library.
-
 ## Registration and Activation
 
-Each extension gem contains a Ruby registration stub, a text manifest, and gem
-metadata mapping its canonical service/layer IDs to that stub:
+Each extension gem contains a Ruby registration stub, a JSON manifest, and gem
+metadata mapping its canonical service or layer ID to that stub:
 
 ```ruby
 require "opendal/runtime"
@@ -108,14 +101,9 @@ require "opendal/layers/foyer"
 
 Requiring an extension reads and registers metadata but does not activate its
 native library. The first service/layer construction performs native loading
-and the exact build-ID check.
+and the exact OpenDAL version check.
 
-The compatibility aggregator publishes a generated index of the registration
-stubs provided by its exact dependencies. When `require "opendal"` activates
-that aggregator, the runtime requires each indexed registration stub. Those
-stubs register text manifests only; they do not load native libraries.
-
-For a minimal installation, construction of an unregistered scheme must resolve
+Construction of an unregistered scheme must resolve
 the one matching registration stub from installed gem metadata. The resolver
 reports duplicate claims, caches results and deterministic failures, handles
 aliases deterministically, and never requires every native extension at
@@ -163,7 +151,7 @@ WebDAV, HDFS, and third-party gems retain their own configurator behavior,
 validation, credentials, and redaction.
 
 Typed Ruby configuration objects and hashes convert to the shared
-[`ConfigValueV1`](compatibility.md#configuration-value-contract) grammar. The
+[`ConfigValue`](compatibility.md#configuration-value-contract) grammar. The
 base adapter rejects symbols or objects without a declared conversion, cyclic
 containers, oversized values, unknown fields, and numeric overflow before
 calling package code. Native factories never retain Ruby objects.
@@ -197,18 +185,16 @@ The current names remain compatibility adapters:
 
 Timeout values remain finite, non-negative seconds at the Ruby interface. The
 adapter uses the current `Duration::try_from_secs_f64` rule, which rounds to the
-nearest nanosecond with ties to even, and then emits `DurationNs`. It rejects
-values above `u64::MAX` nanoseconds instead of saturating them.
+nearest nanosecond with ties to even, and then emits `SignedDuration`. It rejects
+values outside `SignedDuration`'s `i64`-seconds range instead of saturating them.
 
 Throttle accepts only positive integer `bandwidth` and `burst` values in the
 supported `u32` range. Ruby validation must reject invalid values before the
 native constructor can assert.
 
-Later layer calls are outer layers. Timeout must be applied before Retry, which
-puts Retry outside Timeout and gives each attempt a deadline. Applying Timeout
-after Retry is unsupported because the outer Timeout can cancel Retry before it
-restores operation-body state. The binding preserves order and rejects that
-known unsafe composition when it can observe both layer IDs.
+Later layer calls are outer layers. The binding preserves the
+[canonical Timeout/Retry order](compatibility.md#layer-compatibility-rules) and
+rejects the known unsafe composition when it can observe both layer IDs.
 
 ## Asynchronous Layer Construction
 
@@ -276,15 +262,15 @@ not include credentials or unredacted option hashes.
   platforms.
 - A language-neutral service/layer library should not link Ruby or Magnus.
 - Native extension gems still need artifacts for every supported OS,
-  architecture, libc/deployment floor, and runtime build ID.
+  architecture, libc/deployment floor, and OpenDAL version.
 - Source gems build against the exact SDK/runtime metadata and verify the
-  resulting embedded build ID.
+  resulting embedded OpenDAL version.
 - The runtime loads an explicit artifact path from the gem manifest and keeps
   the library pinned.
 - Linux symbol visibility, macOS install names, and Windows DLL discovery must
   be tested with gems installed in normal Bundler layouts.
 - A native-gem failure may fall back to a documented source build, but it must
-  not silently load a different runtime build.
+  not silently load a different OpenDAL release.
 
 The current native-gem matrix is best effort. Dynamic extensions should not
 claim broader binary coverage until runtime plus adapter artifacts pass an
@@ -310,7 +296,8 @@ unless a package later defines explicit reinitialization behavior.
    proposed SDK shapes.
 3. Add `via_iter`, `from_uri`, `layer`, `OpenDal::Layers`, and structured errors
    without removing current methods.
-4. Extract S3 and Timeout as tracer gems and make `opendal` depend on them.
+4. Extract S3 and Timeout as tracer gems and remove them from the base gem after
+   their packages are available.
 5. Add gem-metadata resolution for compatibility constructors.
 6. Validate WebDAV configurator behavior and HDFS lazy activation.
 7. Validate Foyer initialization and Throttle sharing before publishing the

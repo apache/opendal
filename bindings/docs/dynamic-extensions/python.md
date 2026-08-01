@@ -55,43 +55,39 @@ adopt a new operator abstraction.
 The proposed release family is:
 
 ```text
-opendal-runtime           owns the `opendal` import package and native runtime
+opendal                   owns the `opendal` import package and native runtime
 opendal-service-s3        contributes the S3 manifest, native code, and typing
 opendal-service-hdfs      contributes libhdfs-backed HDFS lazily
 opendal-layer-timeout     contributes Timeout
 opendal-layer-foyer       contributes Foyer
-opendal                   compatibility aggregator with no native extension
 ```
 
 Every native service/layer distribution requires an exact
-`opendal-runtime` release and embeds its runtime build ID. The `opendal`
-aggregator depends on the runtime and the service/layer set shipped by the
-current monolithic `opendal` wheel. This preserves:
+`opendal` release and embeds that OpenDAL version in its JSON bootstrap
+document. The base wheel remains installable on its own:
 
 ```console
 python -m pip install opendal
 ```
 
-A minimal application instead installs only the runtime and selected packages:
+An application installs the base runtime and selected packages:
 
 ```console
 python -m pip install \
-  opendal-runtime \
+  opendal \
   opendal-service-s3 \
   opendal-layer-timeout \
   opendal-layer-foyer
 ```
 
-The package names are provisional. The split between runtime and aggregator is
-not: allowing both distributions to install the same native `opendal` files
-would create ambiguous ownership and upgrades.
+The extension package names are provisional.
 
 ## Import Layout
 
 The intended typed import layout is:
 
 ```text
-opendal                    regular package owned by opendal-runtime
+opendal                    regular package owned by the base distribution
 opendal.services           namespace subpackage
 opendal.services.s3        supplied by opendal-service-s3
 opendal.services.hdfs      supplied by opendal-service-hdfs
@@ -131,7 +127,7 @@ allow the runtime to find an installed package without importing every package.
 The resolver follows these rules:
 
 1. `import opendal` loads only the base adapter and runtime.
-2. An explicit service/layer import registers its text manifest.
+2. An explicit service/layer import registers its JSON manifest.
 3. Construction of an unregistered scheme must look up the one entry point with
    the matching canonical name and load only that registration stub. It reports
    a conflict if more than one distribution claims the name.
@@ -141,9 +137,7 @@ The resolver follows these rules:
 
 Explicit imports remain useful for deterministic startup and access to typed
 configuration classes. Entry-point discovery preserves the current concise URI
-path for callers that only need strings. This lookup is mandatory: dependencies
-installed by the compatibility `opendal` aggregator do not register themselves
-merely because pip installed them.
+path for callers that only need strings.
 
 ## Proposed Operator Interface
 
@@ -177,10 +171,10 @@ op = AsyncOperator.from_config(config)
 The base `from_config` runtime path accepts a generic mapping or service recipe.
 Package-local generated `TypedDict` or dataclass definitions provide field
 checking without extending one base `ServiceConfig` union. The service package
-owns structured serialization and schema revisioning.
+owns structured serialization and validation for the matching OpenDAL release.
 
 The adapter converts mappings to the shared
-[`ConfigValueV1`](compatibility.md#configuration-value-contract) grammar. It
+[`ConfigValue`](compatibility.md#configuration-value-contract) grammar. It
 rejects unsupported Python objects, cyclic containers, oversized values,
 unknown fields, and numeric overflow before package construction. Package-local
 types can expose Python-native values, but no `PyObject` crosses the factory
@@ -237,16 +231,15 @@ Throttle accepts only positive integer `bandwidth` and `burst` values in the
 supported `u32` range. Python validation must reject invalid values before the
 native constructor can assert.
 
-Timeout values remain finite, non-negative seconds at the Python interface. The
+Timeout values remain finite, positive seconds at the Python interface. The
 adapter uses the current `Duration::try_from_secs_f64` rule, which rounds to the
-nearest nanosecond with ties to even, and then emits `DurationNs`. It rejects
-values above `u64::MAX` nanoseconds instead of saturating them.
+nearest nanosecond with ties to even, and then emits `SignedDuration`. It
+rejects values outside `SignedDuration`'s `i64`-seconds range instead of
+saturating them.
 
-Later `.layer()` calls are outer layers. Timeout must be applied before Retry,
-which puts Retry outside Timeout and gives each attempt a deadline. Applying
-Timeout after Retry is unsupported because the outer Timeout can cancel Retry
-before it restores operation-body state. The binding preserves order and
-rejects that known unsafe composition when it can observe both layer IDs.
+Later `.layer()` calls are outer layers. The binding preserves the
+[canonical Timeout/Retry order](compatibility.md#layer-compatibility-rules) and
+rejects the known unsafe composition when it can observe both layer IDs.
 
 ## Async Behavior
 
@@ -311,7 +304,7 @@ which artifacts can actually be shared:
 - The extension still needs one artifact per supported native target and libc
   or deployment floor.
 - One extension wheel can cover several Python versions only if all of those base
-  wheels load the same runtime build ID and compatible shared library.
+  wheels use the same OpenDAL version and compatible shared library.
 - Wheel repair must retain the intended shared runtime relationship instead of
   copying private runtime libraries into every extension under conflicting
   names.
@@ -319,12 +312,12 @@ which artifacts can actually be shared:
   does not imply free-threaded compatibility.
 
 The libhdfs-backed HDFS wheel may have a smaller platform allowlist or ship as a
-source distribution. Installing `opendal-runtime`, S3, WebDAV, or
+source distribution. Installing `opendal`, S3, WebDAV, or
 `hdfs-native` must not load HDFS code or require Java/Hadoop.
 
 ## Migration
 
-1. Add the runtime, descriptor, and registry internally while services/layers
+1. Add the runtime, JSON bootstrap, and registry internally while services/layers
    remain compiled into the base wheel.
 2. Make built-in adapters use the same internal factory interface intended for
    external packages.
@@ -332,8 +325,8 @@ source distribution. Installing `opendal-runtime`, S3, WebDAV, or
    packages and re-export existing names.
 4. Extract S3 and Timeout as tracer distributions. Keep Memory in the runtime
    because OpenDAL core always provides it.
-5. Convert `opendal` into the compatibility aggregator before removing bundled
-   features from its runtime dependency.
+5. Remove extracted components from the base wheel after their packages are
+   available.
 6. Generate package-local configuration types from the Rust service metadata.
 7. Validate WebDAV, HDFS, Foyer, and Throttle before declaring the interface
    complete.

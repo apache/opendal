@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OPENDAL_S3_EXTENSION_1 {
-  global:
-    opendal_service_s3_bootstrap_v1;
-  local:
-    *;
-};
+from pkgutil import extend_path
+
+__path__ = extend_path(__path__, __name__)

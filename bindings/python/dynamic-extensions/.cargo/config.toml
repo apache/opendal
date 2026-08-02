@@ -13,9 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OPENDAL_S3_EXTENSION_1 {
-  global:
-    opendal_service_s3_bootstrap_v1;
-  local:
-    *;
-};
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,--exclude-libs,ALL"]

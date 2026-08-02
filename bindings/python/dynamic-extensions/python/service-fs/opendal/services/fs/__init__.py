@@ -13,9 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OPENDAL_S3_EXTENSION_1 {
-  global:
-    opendal_service_s3_bootstrap_v1;
-  local:
-    *;
-};
+from pathlib import Path
+
+from opendal._runtime import _register_service
+
+MANIFEST = {
+    "required_runtime_protocol": 1,
+    "package_id": "opendal-service-fs-poc",
+    "component": {"kind": "service", "id": "fs", "aliases": ["file"]},
+    "native_entry_symbol": "opendal_service_fs_bootstrap_v1",
+}
+
+_register_service(MANIFEST, Path(__file__).parent / "_native" / "libfs_extension.so")

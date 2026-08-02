@@ -13,9 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OPENDAL_S3_EXTENSION_1 {
-  global:
-    opendal_service_s3_bootstrap_v1;
-  local:
-    *;
-};
+[package]
+edition.workspace = true
+license.workspace = true
+name = "opendal-runtime-poc"
+publish.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libloading.workspace = true
+opendal-core.workspace = true
+opendal-dynamic-extension-sdk.workspace = true

@@ -13,9 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OPENDAL_S3_EXTENSION_1 {
-  global:
-    opendal_service_s3_bootstrap_v1;
-  local:
-    *;
-};
+import tempfile
+
+import opendal.services.fs
+import opendal.services.s3
+from opendal import Operator
+
+
+with Operator("s3", bucket="my-bucket", region="us-east-1") as s3:
+    print(s3.info)
+
+with tempfile.TemporaryDirectory() as root:
+    with Operator("fs", root=root) as fs:
+        fs.write("hello.txt", b"Hello, OpenDAL!")
+        print(fs.read("hello.txt"))

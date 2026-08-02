@@ -296,6 +296,23 @@ TEST(OpenDALOptionsTest, DeleteOptions) {
   EXPECT_FALSE(op.Exists("delete_options/file"));
 }
 
+TEST(OpenDALOptionsTest, RemoveAll) {
+  opendal::Operator op("memory");
+  std::vector<std::string> paths;
+  for (int index = 0; index < 8; ++index) {
+    auto path = "remove_all/file_" + std::to_string(index);
+    op.Write(path, "hello");
+    EXPECT_TRUE(op.Exists(path));
+    paths.push_back(path);
+  }
+
+  op.RemoveAll(paths);
+
+  for (const auto &path : paths) {
+    EXPECT_FALSE(op.Exists(path));
+  }
+}
+
 TEST(OpenDALOptionsTest, StatOptions) {
   opendal::Operator op("memory");
   op.Write("stat_options", "hello");

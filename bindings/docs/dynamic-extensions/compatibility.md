@@ -388,8 +388,9 @@ source code.
 
 Package-local dependencies such as S3 signing, XML parsing, `hdrs`, Foyer, or a
 rate limiter can use different versions when their types and globals remain
-inside the package. Any value exchanged through the internal interface follows
-the exact SDK contract for that OpenDAL release.
+inside the package and their dynamic symbols satisfy the [native symbol
+isolation contract](symbol-isolation.md). Any value exchanged through the
+internal interface follows the exact SDK contract for that OpenDAL release.
 
 The project never replaces a published runtime artifact with different bits
 under the same OpenDAL version. A changed artifact requires a new release.
@@ -425,6 +426,8 @@ The following constraints apply:
 - Ownership remains on the creating side unless an SDK handle explicitly
   transfers it.
 - Opaque runtime handles are preferred over exposing Rust types directly.
+- All cross-artifact calls enter through validated bootstrap or SDK functions;
+  exact-release matching does not permit ambient Rust symbol resolution.
 
 ## Target Identity
 
@@ -562,7 +565,8 @@ The loader and official SDK must:
 
 - Validate all untrusted lengths and identifiers before use.
 - Catch panics at every exported native entry and runtime-invoked callback.
-- Keep package symbols local where supported.
+- Enforce the export allowlist defined by the [native symbol isolation
+  contract](symbol-isolation.md).
 - Load only a path supplied by an installed, explicitly selected package.
 - Pin libraries while any callback, vtable, task, or object may reference them.
 - Keep credentials out of manifests and conflict errors.

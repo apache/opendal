@@ -38,6 +38,8 @@ packaging prototype and the OpenDAL RFC process.
   seams and explains why Design C is the leading prototype candidate.
 - [Compatibility and ABI](compatibility.md) defines version and target checks,
   loader checks, lifetime rules, and supported stability guarantees.
+- [Native symbol isolation](symbol-isolation.md) defines export allowlists,
+  dependency ownership, artifact monitoring, and co-loading tests.
 - [Python design](python.md) defines Python packages, discovery, typing, and
   migration.
 - [Ruby design](ruby.md) defines Ruby gems, blocking construction, and
@@ -218,8 +220,10 @@ layer. This isolates HDFS and similar native dependencies.
 ### Native extension
 
 A native extension contains exactly one service or layer factory. The package
-exports one generated, package-unique bootstrap symbol and hides other
-package-local symbols where the platform permits it.
+exports one generated, package-unique bootstrap symbol. The final artifact must
+hide every other package-local symbol and pass the [native symbol isolation
+contract](symbol-isolation.md). Language-runtime initializers remain explicit
+allowlist exceptions.
 
 The bootstrap exposes the package identity, target, and exact OpenDAL version
 through a small C calling convention. The [compatibility
@@ -349,6 +353,10 @@ The design is not ready for an RFC decision until prototypes demonstrate:
 6. Atomic registration and lazy lookup with 1,000 synthetic packages.
 7. Target packaging on supported Linux, macOS, and Windows variants.
 8. Python, Ruby, and Node.js adapters passing the same native conformance suite.
+9. Final-artifact export, import, and native-dependency reports matching
+   explicit platform allowlists.
+10. Co-loading independently compiled extensions without symbol interposition,
+    including real operations that exercise runtime-owned facilities.
 
 If those gates pass, the next deliverable is a `0000_*.md` RFC. These pre-RFC
 documents remain supporting analysis rather than evidence that the candidate

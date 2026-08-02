@@ -205,6 +205,8 @@ release-specific internal interface.
   OpenDAL release.
 - Requires cross-platform shared-library discovery, repair,
   rpath/install-name behavior, Windows DLL lookup, and symbol visibility work.
+- Requires final-artifact export allowlists and co-loading tests so private
+  dependency symbols cannot resolve across the runtime and extensions.
 - Requires package managers to prevent or clearly reject mixed release trains.
 - Needs artifact-level proof before one physical extension artifact can be
   shared across language ecosystems.

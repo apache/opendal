@@ -1,0 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to you under the Apache License, Version 2.0.
+
+[workspace]
+members = ["host", "s3-extension", "timeout-extension"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+rust-version = "1.91"
+version = "0.0.0"
+
+[workspace.dependencies]
+libloading = "0.8.9"
+opendal-core = { path = "../../../../core/core", default-features = false }
+opendal-layer-timeout = { path = "../../../../core/layers/timeout" }
+opendal-service-s3 = { path = "../../../../core/services/s3" }

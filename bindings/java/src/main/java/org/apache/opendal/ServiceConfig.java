@@ -2024,6 +2024,88 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service minio.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Minio implements ServiceConfig {
+        /**
+         * <p>Access key ID.</p>
+         * <p>Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         * <p>This field is required.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>MinIO endpoint.</p>
+         * <p>This field is required because MinIO deployments do not share a
+         * universal endpoint.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region.</p>
+         * <p>The default is <code>auto</code>. Set this field when the deployment requires a
+         * configured region.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket.</p>
+         * <p>All operations happen under this root. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key.</p>
+         * <p>Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials.</p>
+         * <p>This field requires <code>access_key_id</code> and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+        /**
+         * <p>Send requests without signing them.</p>
+         * <p>This option cannot be combined with direct credentials.</p>
+         */
+        public final Boolean skipSignature;
+
+        @Override
+        public String scheme() {
+            return "minio";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service moka.
      */
     @Builder
@@ -2747,6 +2829,90 @@ public interface ServiceConfig {
             }
             if (valueField != null) {
                 map.put("value_field", valueField);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service r2.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class R2 implements ServiceConfig {
+        /**
+         * <p>Access key ID.</p>
+         * <p>Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Cloudflare account ID used to derive the R2 endpoint.</p>
+         * <p>Set exactly one of <code>account_id</code> and <code>endpoint</code>.</p>
+         */
+        public final String accountId;
+        /**
+         * <p>Bucket name.</p>
+         * <p>This field is required.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit R2-compatible endpoint.</p>
+         * <p>Use this field for a proxy, gateway, or test server. Set exactly one of
+         * <code>endpoint</code> and <code>account_id</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>R2 jurisdiction.</p>
+         * <p>Supported values are <code>eu</code> and <code>fedramp</code>. This field requires
+         * <code>account_id</code> and cannot be used with <code>endpoint</code>.</p>
+         */
+        public final String jurisdiction;
+        /**
+         * <p>Root within the bucket.</p>
+         * <p>All operations happen under this root. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key.</p>
+         * <p>Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials.</p>
+         * <p>This field requires <code>access_key_id</code> and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "r2";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            if (accountId != null) {
+                map.put("account_id", accountId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (jurisdiction != null) {
+                map.put("jurisdiction", jurisdiction);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }

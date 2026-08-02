@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
+use crate::generate::parser::{Config, ConfigType, Services, service_feature, sorted_services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
@@ -38,7 +38,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     env.add_template("python", include_str!("python.j2"))?;
     env.add_template("python_config", include_str!("python_config.j2"))?;
     env.add_function("snake_to_kebab_case", snake_to_kebab_case);
-    env.add_function("service_to_feature", service_to_feature);
+    env.add_function("service_to_feature", service_feature);
     env.add_function("service_to_pascal", service_to_pascal);
     env.add_function("make_python_type", make_python_type);
     env.add_function("make_pydoc_param_header", make_pydoc_param_header);
@@ -70,10 +70,6 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
 
 fn snake_to_kebab_case(str: &str) -> String {
     str.replace('_', "-")
-}
-
-fn service_to_feature(service: &str) -> String {
-    format!("services-{}", snake_to_kebab_case(service))
 }
 
 fn service_to_pascal(service: &str) -> String {

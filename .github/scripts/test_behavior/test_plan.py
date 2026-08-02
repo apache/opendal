@@ -53,6 +53,36 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue("hdfs_native" in cases)
         self.assertFalse("fs" in cases)
 
+    @patch.dict("os.environ", {"GITHUB_HAS_SECRETS": "true"})
+    def test_s3_crate_schedules_provider_cases(self):
+        result = plan(["core/services/s3/src/lib.rs"])
+        core_cases = {
+            (case["service"], case["feature"])
+            for target in result["core"]
+            for case in target["cases"]
+        }
+        self.assertEqual(
+            core_cases,
+            {
+                ("s3", "services-s3"),
+                ("minio", "services-minio"),
+                ("r2", "services-r2"),
+            },
+        )
+
+        go_services = {
+            case["service"]
+            for target in result["binding_go"]
+            for case in target["cases"]
+        }
+        ruby_services = {
+            case["service"]
+            for target in result["binding_ruby"]
+            for case in target["cases"]
+        }
+        self.assertTrue({"minio", "r2"}.isdisjoint(go_services))
+        self.assertTrue({"minio", "r2"} <= ruby_services)
+
     def test_binding_java(self):
         result = plan(["bindings/java/pom.xml"])
         self.assertFalse(result["components"]["core"])

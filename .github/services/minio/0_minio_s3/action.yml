@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: minio_s3_with_anonymous
-description: 'Behavior test for Minio S3 with anonymous access.'
+name: minio
+description: 'Behavior test for the MinIO provider preset.'
 
 runs:
   using: "composite"
@@ -24,8 +24,7 @@ runs:
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3
-      run: |
-        docker compose -f docker-compose-minio.yml up -d --wait
+      run: docker compose -f docker-compose-minio.yml up -d --wait
     - name: Setup test bucket
       shell: bash
       env:
@@ -33,21 +32,15 @@ runs:
         AWS_SECRET_ACCESS_KEY: "minioadmin"
         AWS_EC2_METADATA_DISABLED: "true"
       run: |
-        set -e
         aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
 
-        curl -fLO https://dl.min.io/client/mc/release/linux-amd64/mc
-        chmod +x mc
-        ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
-        ./mc anonymous set public local/test
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_S3_BUCKET=test
-        OPENDAL_S3_ENDPOINT=http://127.0.0.1:9000
-        OPENDAL_S3_REGION=us-east-1
-        OPENDAL_S3_ALLOW_ANONYMOUS=on
-        OPENDAL_S3_DISABLE_EC2_METADATA=on
+        OPENDAL_MINIO_BUCKET=test
+        OPENDAL_MINIO_ENDPOINT=http://127.0.0.1:9000
+        OPENDAL_MINIO_ACCESS_KEY_ID=minioadmin
+        OPENDAL_MINIO_SECRET_ACCESS_KEY=minioadmin
         OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,write_can_append=false,copy_with_if_not_exists=false,copy_with_if_match=false
         EOF

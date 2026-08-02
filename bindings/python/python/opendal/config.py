@@ -492,6 +492,29 @@ class MiniMokaConfig(TypedDict):
     """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)"""
 
 
+class MinioConfig(TypedDict):
+    """Configuration for the `minio` service."""
+
+    scheme: Required[Literal["minio"]]
+    """The service scheme; fixed to `"minio"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID.  Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name.  This field is required."""
+    endpoint: Required[str]
+    """MinIO endpoint.  This field is required because MinIO deployments do not share a universal endpoint."""
+    region: NotRequired[str]
+    """Signing region.  The default is `auto`. Set this field when the deployment requires a configured region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket.  All operations happen under this root. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key.  Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials.  This field requires `access_key_id` and `secret_access_key`."""
+    skip_signature: NotRequired[bool]
+    """Send requests without signing them.  This option cannot be combined with direct credentials."""
+
+
 class MokaConfig(TypedDict):
     """Configuration for the `moka` service."""
 
@@ -662,6 +685,29 @@ class PostgresqlConfig(TypedDict):
     """the table of postgresql"""
     value_field: NotRequired[str]
     """the value field of postgresql"""
+
+
+class R2Config(TypedDict):
+    """Configuration for the `r2` service."""
+
+    scheme: Required[Literal["r2"]]
+    """The service scheme; fixed to `"r2"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID.  Set this field together with `secret_access_key`."""
+    account_id: NotRequired[str]
+    """Cloudflare account ID used to derive the R2 endpoint.  Set exactly one of `account_id` and `endpoint`."""
+    bucket: Required[str]
+    """Bucket name.  This field is required."""
+    endpoint: NotRequired[str]
+    """Explicit R2-compatible endpoint.  Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`."""
+    jurisdiction: NotRequired[str]
+    """R2 jurisdiction.  Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket.  All operations happen under this root. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key.  Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials.  This field requires `access_key_id` and `secret_access_key`."""
 
 
 class RedbConfig(TypedDict):
@@ -1010,6 +1056,7 @@ ServiceConfig = (
     | MemcachedConfig
     | MemoryConfig
     | MiniMokaConfig
+    | MinioConfig
     | MokaConfig
     | MongodbConfig
     | MysqlConfig
@@ -1018,6 +1065,7 @@ ServiceConfig = (
     | OssConfig
     | PersyConfig
     | PostgresqlConfig
+    | R2Config
     | RedbConfig
     | RedisConfig
     | S3Config
@@ -1064,6 +1112,7 @@ __all__ = [
     "MemcachedConfig",
     "MemoryConfig",
     "MiniMokaConfig",
+    "MinioConfig",
     "MokaConfig",
     "MongodbConfig",
     "MysqlConfig",
@@ -1072,6 +1121,7 @@ __all__ = [
     "OssConfig",
     "PersyConfig",
     "PostgresqlConfig",
+    "R2Config",
     "RedbConfig",
     "RedisConfig",
     "S3Config",

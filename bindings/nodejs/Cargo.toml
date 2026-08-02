@@ -37,8 +37,10 @@ default = [
   "services-http",
   "services-ipmfs",
   "services-memory",
+  "services-minio",
   "services-obs",
   "services-oss",
+  "services-r2",
   "services-s3",
   "services-webdav",
   "services-webhdfs",
@@ -102,8 +104,10 @@ services-ghac = ["opendal/services-ghac"]
 services-http = ["opendal/services-http"]
 services-ipmfs = ["opendal/services-ipmfs"]
 services-memory = ["opendal/services-memory"]
+services-minio = ["opendal/services-minio"]
 services-obs = ["opendal/services-obs"]
 services-oss = ["opendal/services-oss"]
+services-r2 = ["opendal/services-r2"]
 services-s3 = ["opendal/services-s3"]
 services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]

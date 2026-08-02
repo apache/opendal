@@ -215,6 +215,12 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-s3")]
     opendal_service_s3::register_s3_service(registry);
 
+    #[cfg(feature = "services-r2")]
+    opendal_service_s3::register_r2_service(registry);
+
+    #[cfg(feature = "services-minio")]
+    opendal_service_s3::register_minio_service(registry);
+
     #[cfg(feature = "services-seafile")]
     opendal_service_seafile::register_seafile_service(registry);
 
@@ -274,7 +280,7 @@ fn register_default_operator_registry() {
 ///
 /// [`Memory`](services::Memory) is always available. Other builders are
 /// re-exported when their matching facade feature is enabled; for example,
-/// `services-s3` enables [`S3`](services::S3).
+/// `services-r2` enables the `R2` builder.
 ///
 /// Pass a configured builder to [`Operator::new`]. The facade automatically
 /// registers enabled services for [`Operator::from_uri`] and
@@ -379,8 +385,12 @@ pub mod services {
     pub use opendal_service_redis::*;
     #[cfg(feature = "services-rocksdb")]
     pub use opendal_service_rocksdb::*;
+    #[cfg(feature = "services-minio")]
+    pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
+    #[cfg(feature = "services-r2")]
+    pub use opendal_service_s3::{R2, R2_SCHEME, R2Config, register_r2_service};
     #[cfg(feature = "services-s3")]
-    pub use opendal_service_s3::*;
+    pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service};
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sftp")]
@@ -409,6 +419,43 @@ pub mod services {
     pub use opendal_service_webhdfs::*;
     #[cfg(feature = "services-yandex-disk")]
     pub use opendal_service_yandex_disk::*;
+}
+
+#[cfg(test)]
+mod service_feature_tests {
+    use super::*;
+
+    #[test]
+    fn registers_enabled_s3_provider_schemes() {
+        init_default_registry();
+        let schemes = OperatorRegistry::get().schemes();
+
+        assert!(schemes.contains("memory"));
+
+        #[cfg(feature = "services-s3")]
+        {
+            let _ = services::S3::default();
+            assert!(schemes.contains("s3"));
+        }
+        #[cfg(not(feature = "services-s3"))]
+        assert!(!schemes.contains("s3"));
+
+        #[cfg(feature = "services-r2")]
+        {
+            let _ = services::R2::default();
+            assert!(schemes.contains("r2"));
+        }
+        #[cfg(not(feature = "services-r2"))]
+        assert!(!schemes.contains("r2"));
+
+        #[cfg(feature = "services-minio")]
+        {
+            let _ = services::Minio::default();
+            assert!(schemes.contains("minio"));
+        }
+        #[cfg(not(feature = "services-minio"))]
+        assert!(!schemes.contains("minio"));
+    }
 }
 
 /// Layers enabled through `layers-*` Cargo features.

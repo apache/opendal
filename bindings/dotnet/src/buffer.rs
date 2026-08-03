@@ -159,7 +159,7 @@ pub unsafe extern "C" fn read_buffer_chunks(
 /// - `handle` must be null or come from `OpendalReadBuffer::from_buffer`.
 /// - This function must be called at most once for the same handle.
 /// - Callers must not use `handle` after this function returns.
-pub unsafe fn read_buffer_free(handle: *mut c_void) {
+pub(crate) unsafe fn read_buffer_free(handle: *mut c_void) {
     if handle.is_null() {
         return;
     }

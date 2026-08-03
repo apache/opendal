@@ -20,7 +20,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using OpenDAL.Interop.Buffers;
-using OpenDAL.Interop.NativeObject;
 using OpenDAL.Interop.Result;
 
 namespace OpenDAL;
@@ -57,10 +56,6 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_info_get")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorInfoResult operator_info_get(Operator op);
-
-    [LibraryImport(__DllName, EntryPoint = "operator_info_free")]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial void operator_info_free(IntPtr info);
 
     [LibraryImport(__DllName, EntryPoint = "operator_duplicate")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

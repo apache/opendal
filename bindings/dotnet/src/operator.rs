@@ -315,8 +315,7 @@ fn operator_info_get_inner(op: *const opendal::Operator) -> Result<*mut c_void, 
 /// - `info` must be either null or a pointer returned by `operator_info_get`.
 /// - The pointer must not be used after this call.
 /// - This function must be called at most once for the same pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn operator_info_free(info: *mut OpendalOperatorInfo) {
+pub(crate) unsafe fn operator_info_free(info: *mut OpendalOperatorInfo) {
     if info.is_null() {
         return;
     }

@@ -72,8 +72,7 @@ pub fn into_entry_list_ptr(entries: Vec<opendal::Entry>) -> *mut c_void {
 ///
 /// - `list` must be null or a pointer returned by Rust as `OpendalEntryList`.
 /// - Must be called at most once for the same pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn entry_list_free(list: *mut OpendalEntryList) {
+pub(crate) unsafe fn entry_list_free(list: *mut OpendalEntryList) {
     if list.is_null() {
         return;
     }

@@ -69,11 +69,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Gets the underlying native operator pointer.
-    /// </summary>
-    public IntPtr Op => DangerousGetHandle();
-
-    /// <summary>
     /// Gets whether the native handle is invalid.
     /// </summary>
     public override bool IsInvalid => handle == IntPtr.Zero;

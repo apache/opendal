@@ -114,8 +114,7 @@ pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
 ///
 /// - `metadata` must be null or a pointer returned by Rust for `OpendalMetadata`.
 /// - Must be called at most once for the same pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn metadata_free(metadata: *mut OpendalMetadata) {
+pub(crate) unsafe fn metadata_free(metadata: *mut OpendalMetadata) {
     if metadata.is_null() {
         return;
     }

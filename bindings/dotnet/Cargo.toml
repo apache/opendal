@@ -105,6 +105,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-yandex-disk",
 ] }
 bytes = "1.12.1"
+futures = "0.3"
 tokio = { version = "1.49.0", features = ["full"] }
 
 # This is not optimal. See also the Cargo issue:

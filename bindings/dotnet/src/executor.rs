@@ -73,10 +73,6 @@ impl Executor {
     {
         self.runtime.spawn(future)
     }
-
-    pub fn enter(&self) -> tokio::runtime::EnterGuard<'_> {
-        self.runtime.enter()
-    }
 }
 
 fn default_executor() -> Result<Arc<Executor>, OpenDALError> {

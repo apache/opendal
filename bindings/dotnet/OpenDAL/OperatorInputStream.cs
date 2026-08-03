@@ -28,6 +28,7 @@ public sealed class OperatorInputStream : Stream
 {
     private IntPtr handle;
     private bool disposed;
+    private bool abandoned;
 
     // Current native chunk. Keeping the native handle instead of a managed
     // copy lets Read copy each byte exactly once, straight into the caller's
@@ -45,7 +46,7 @@ public sealed class OperatorInputStream : Stream
         this.handle = handle;
     }
 
-    public override bool CanRead => !disposed;
+    public override bool CanRead => !disposed && !abandoned;
 
     public override bool CanSeek => false;
 
@@ -75,37 +76,136 @@ public sealed class OperatorInputStream : Stream
             if (currentChunk is null || chunkOffset >= currentChunk.Value.Buffer.Len)
             {
                 ReleaseCurrentChunk();
-                var next = NativeMethods.operator_input_stream_read_next(handle);
-                var error = next.GetError();
-                if (error.IsError)
+                if (!AcceptChunk(NativeMethods.operator_input_stream_read_next(handle)))
                 {
-                    var exception = new OpenDALException(error);
-                    next.Release();
-                    throw exception;
-                }
-
-                if (next.Buffer.Handle == IntPtr.Zero || next.Buffer.Len == 0)
-                {
-                    next.Release();
                     break;
                 }
-
-                currentChunk = next;
-                chunkOffset = 0;
             }
 
-            var copied = currentChunk.Value.Buffer.CopyTo(chunkOffset, destination);
+            var copied = CopyFromCurrentChunk(destination);
             if (copied == 0)
             {
                 break;
             }
 
-            chunkOffset += (nuint)copied;
             destination = destination[copied..];
             totalRead += copied;
         }
 
         return totalRead;
+    }
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var totalRead = 0;
+        while (!destination.IsEmpty)
+        {
+            if (currentChunk is null || chunkOffset >= currentChunk.Value.Buffer.Len)
+            {
+                ReleaseCurrentChunk();
+                if (!AcceptChunk(await FetchNextChunkAsync(cancellationToken).ConfigureAwait(false)))
+                {
+                    break;
+                }
+            }
+
+            var copied = CopyFromCurrentChunk(destination.Span);
+            if (copied == 0)
+            {
+                break;
+            }
+
+            destination = destination[copied..];
+            totalRead += copied;
+        }
+
+        return totalRead;
+    }
+
+    /// <summary>
+    /// Awaits the next chunk from the native async read path.
+    /// </summary>
+    /// <remarks>
+    /// On success the returned result still owns its native buffer; the caller
+    /// takes that ownership through <see cref="AcceptChunk"/>. When the token
+    /// fires first, the late native callback finds no awaiter and releases the
+    /// chunk itself, and the stream is poisoned because its position no
+    /// longer matches what the caller consumed.
+    /// </remarks>
+    private async ValueTask<OpenDALReadResult> FetchNextChunkAsync(CancellationToken cancellationToken)
+    {
+        var context = AsyncStateRegistry.Register<OpenDALReadResult>(out var state);
+        OpenDALResult submit;
+        unsafe
+        {
+            submit = NativeMethods.operator_input_stream_read_next_async(
+                handle, &Operator.OnReadResultRetained, context);
+        }
+
+        try
+        {
+            Operator.ThrowIfErrorAndRelease(submit);
+        }
+        catch
+        {
+            AsyncStateRegistry.Unregister(context);
+            throw;
+        }
+
+        state.BindCancellation(cancellationToken);
+        try
+        {
+            return await state.Completion.Task.ConfigureAwait(false);
+        }
+        catch
+        {
+            // The native position may already sit past a chunk this caller
+            // never received. Poison the stream instead of silently skipping
+            // those bytes on the next read.
+            abandoned = true;
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Takes ownership of a fetched chunk, releasing empty results.
+    /// </summary>
+    /// <returns><see langword="false"/> on EOF.</returns>
+    private bool AcceptChunk(OpenDALReadResult next)
+    {
+        var error = next.GetError();
+        if (error.IsError)
+        {
+            var exception = new OpenDALException(error);
+            next.Release();
+            throw exception;
+        }
+
+        if (next.Buffer.Handle == IntPtr.Zero || next.Buffer.Len == 0)
+        {
+            next.Release();
+            return false;
+        }
+
+        currentChunk = next;
+        chunkOffset = 0;
+        return true;
+    }
+
+    private int CopyFromCurrentChunk(Span<byte> destination)
+    {
+        var copied = currentChunk!.Value.Buffer.CopyTo(chunkOffset, destination);
+        chunkOffset += (nuint)copied;
+        return copied;
     }
 
     private void ReleaseCurrentChunk()
@@ -116,18 +216,6 @@ public sealed class OperatorInputStream : Stream
             currentChunk = null;
             chunkOffset = 0;
         }
-    }
-
-    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(Read(buffer, offset, count));
-    }
-
-    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(Read(buffer.Span));
     }
 
     public override void Flush()
@@ -158,6 +246,11 @@ public sealed class OperatorInputStream : Stream
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed || handle == IntPtr.Zero, this);
+        if (abandoned)
+        {
+            throw new InvalidOperationException(
+                "An abandoned read left the native stream position unknown; dispose this stream and open a new one.");
+        }
     }
 
     protected override void Dispose(bool disposing)

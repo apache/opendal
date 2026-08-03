@@ -39,7 +39,12 @@ use crate::{
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
+use std::sync::Arc;
 use std::time::Duration;
+
+use futures::StreamExt;
+
+use crate::executor::Executor;
 
 /// Callback signature for async write completion.
 ///
@@ -1258,6 +1263,38 @@ pub extern "C" fn operator_input_stream_create(
     }
 }
 
+/// Streaming reader backing `OperatorInputStream`.
+///
+/// The underlying byte stream is async; the sync FFI path blocks on it
+/// through the owning executor while the async path spawns onto it. The
+/// mutex is defensive — the C# stream contract already forbids concurrent
+/// reads — and the `Arc` lets in-flight tasks outlive an early free safely.
+struct InputStream {
+    executor: Arc<Executor>,
+    inner: Arc<tokio::sync::Mutex<opendal::FuturesBytesStream>>,
+}
+
+/// Convert one polled chunk into an FFI read payload.
+///
+/// EOF becomes an empty buffer, matching the one-shot read contract.
+fn next_chunk_to_buffer(
+    value: Option<std::io::Result<bytes::Bytes>>,
+) -> Result<OpendalReadBuffer, OpenDALError> {
+    value
+        .transpose()
+        .map_err(|err| {
+            OpenDALError::from_opendal_error(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                err.to_string(),
+            ))
+        })
+        .map(|chunk| {
+            chunk
+                .map(|bytes| OpendalReadBuffer::from_buffer(bytes.into()))
+                .unwrap_or_else(OpendalReadBuffer::empty)
+        })
+}
+
 fn operator_input_stream_create_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
@@ -1273,9 +1310,7 @@ fn operator_input_stream_create_inner(
         unsafe { (&*options).clone() }
     };
 
-    let _guard = executor.enter();
-
-    let range = options.range.to_range();
+    let range = options.range;
     let reader_options = opendal::options::ReaderOptions {
         version: options.version,
         if_match: options.if_match,
@@ -1289,16 +1324,18 @@ fn operator_input_stream_create_inner(
         ..Default::default()
     };
 
-    let blocking_op =
-        opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
-    let reader = blocking_op
-        .reader_options(&path, reader_options)
-        .map_err(OpenDALError::from_opendal_error)?;
-    let stream = reader
-        .into_bytes_iterator(range)
+    let stream_op = op.clone();
+    let stream = executor
+        .block_on(async move {
+            let reader = stream_op.reader_options(&path, reader_options).await?;
+            reader.into_bytes_stream(range).await
+        })
         .map_err(OpenDALError::from_opendal_error)?;
 
-    Ok(Box::into_raw(Box::new(stream)) as *mut c_void)
+    Ok(Box::into_raw(Box::new(InputStream {
+        executor,
+        inner: Arc::new(tokio::sync::Mutex::new(stream)),
+    })) as *mut c_void)
 }
 
 /// Read next bytes chunk from input stream.
@@ -1308,9 +1345,7 @@ fn operator_input_stream_create_inner(
 ///
 /// - `stream` must be a valid pointer returned by `operator_input_stream_create`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_input_stream_read_next(
-    stream: *mut opendal::blocking::StdBytesIterator,
-) -> OpendalReadResult {
+pub extern "C" fn operator_input_stream_read_next(stream: *mut c_void) -> OpendalReadResult {
     match operator_input_stream_read_next_inner(stream) {
         Ok(buffer) => OpendalReadResult::ok(buffer),
         Err(error) => OpendalReadResult::from_error(error),
@@ -1318,7 +1353,7 @@ pub extern "C" fn operator_input_stream_read_next(
 }
 
 fn operator_input_stream_read_next_inner(
-    stream: *mut opendal::blocking::StdBytesIterator,
+    stream: *mut c_void,
 ) -> Result<OpendalReadBuffer, OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
@@ -1326,21 +1361,64 @@ fn operator_input_stream_read_next_inner(
         ));
     }
 
-    let stream = unsafe { &mut *stream };
-
+    let stream = unsafe { &*(stream as *const InputStream) };
+    let inner = stream.inner.clone();
     let value = stream
-        .next()
-        .transpose()
-        .map_err(|err| {
-            OpenDALError::from_opendal_error(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                err.to_string(),
-            ))
-        })?
-        .map(|v| OpendalReadBuffer::from_buffer(v.into()))
-        .unwrap_or_else(OpendalReadBuffer::empty);
+        .executor
+        .block_on(async move { inner.lock().await.next().await });
 
-    Ok(value)
+    next_chunk_to_buffer(value)
+}
+
+/// Read next bytes chunk from input stream asynchronously.
+///
+/// The callback is invoked exactly once; EOF is reported as an empty buffer.
+/// On successful reads, the callback result must be released with
+/// `opendal_read_result_release`. The stream must not be read again, on
+/// either path, until the callback fires.
+/// # Safety
+///
+/// - `stream` must be a valid pointer returned by `operator_input_stream_create`.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn operator_input_stream_read_next_async(
+    stream: *mut c_void,
+    callback: Option<ReadCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_input_stream_read_next_async_inner(stream, callback, context) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_input_stream_read_next_async_inner(
+    stream: *mut c_void,
+    callback: Option<ReadCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    if stream.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "input stream pointer is null",
+        ));
+    }
+    let callback = require_callback(callback)?;
+
+    let stream = unsafe { &*(stream as *const InputStream) };
+    let inner = stream.inner.clone();
+    stream.executor.spawn(async move {
+        let value = inner.lock().await.next().await;
+
+        callback(
+            context,
+            match next_chunk_to_buffer(value) {
+                Ok(buffer) => OpendalReadResult::ok(buffer),
+                Err(error) => OpendalReadResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
 }
 
 /// # Safety
@@ -1348,15 +1426,13 @@ fn operator_input_stream_read_next_inner(
 /// - `stream` must be null or a pointer returned by `operator_input_stream_create`.
 /// - Must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn operator_input_stream_free(
-    stream: *mut opendal::blocking::StdBytesIterator,
-) {
+pub unsafe extern "C" fn operator_input_stream_free(stream: *mut c_void) {
     if stream.is_null() {
         return;
     }
 
     unsafe {
-        drop(Box::from_raw(stream));
+        drop(Box::from_raw(stream as *mut InputStream));
     }
 }
 
@@ -1380,6 +1456,17 @@ pub extern "C" fn operator_output_stream_create(
     }
 }
 
+/// Streaming writer backing `OperatorOutputStream`.
+///
+/// Same split as [`InputStream`]: async writer underneath, sync FFI blocks on
+/// it, async FFI spawns onto it. The C# stream contract forbids concurrent
+/// writes; the mutex is defensive and the `Arc` keeps in-flight tasks safe
+/// against an early free.
+struct OutputStream {
+    executor: Arc<Executor>,
+    inner: Arc<tokio::sync::Mutex<opendal::Writer>>,
+}
+
 fn operator_output_stream_create_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
@@ -1395,15 +1482,15 @@ fn operator_output_stream_create_inner(
         unsafe { (&*options).clone() }
     };
 
-    let _guard = executor.enter();
-
-    let blocking_op =
-        opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
-    let stream = blocking_op
-        .writer_options(&path, options)
+    let writer_op = op.clone();
+    let writer = executor
+        .block_on(async move { writer_op.writer_options(&path, options).await })
         .map_err(OpenDALError::from_opendal_error)?;
 
-    Ok(Box::into_raw(Box::new(stream)) as *mut c_void)
+    Ok(Box::into_raw(Box::new(OutputStream {
+        executor,
+        inner: Arc::new(tokio::sync::Mutex::new(writer)),
+    })) as *mut c_void)
 }
 
 /// Write bytes to output stream.
@@ -1413,7 +1500,7 @@ fn operator_output_stream_create_inner(
 /// - When `len > 0`, `data` must be non-null and readable for `len` bytes.
 #[unsafe(no_mangle)]
 pub extern "C" fn operator_output_stream_write(
-    stream: *mut opendal::blocking::Writer,
+    stream: *mut c_void,
     data: *const u8,
     len: usize,
 ) -> OpendalResult {
@@ -1424,7 +1511,7 @@ pub extern "C" fn operator_output_stream_write(
 }
 
 fn operator_output_stream_write_inner(
-    stream: *mut opendal::blocking::Writer,
+    stream: *mut c_void,
     data: *const u8,
     len: usize,
 ) -> Result<(), OpenDALError> {
@@ -1435,36 +1522,106 @@ fn operator_output_stream_write_inner(
     }
     require_data_ptr(data, len)?;
 
-    let stream = unsafe { &mut *stream };
+    let stream = unsafe { &*(stream as *const OutputStream) };
     let payload = if len == 0 {
-        &[][..]
+        bytes::Bytes::new()
     } else {
-        unsafe { std::slice::from_raw_parts(data, len) }
+        bytes::Bytes::copy_from_slice(unsafe { std::slice::from_raw_parts(data, len) })
     };
 
+    let inner = stream.inner.clone();
     stream
-        .write(payload)
+        .executor
+        .block_on(async move { inner.lock().await.write(payload).await })
         .map(|_| ())
         .map_err(OpenDALError::from_opendal_error)
 }
 
+/// Write bytes to output stream asynchronously.
+///
+/// The payload is copied before this function returns, so the caller only has
+/// to keep `data` alive for the duration of this call. The callback is
+/// invoked exactly once. The stream must not be written to again, on either
+/// path, until the callback fires.
+/// # Safety
+///
+/// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
+/// - When `len > 0`, `data` must be non-null and readable for `len` bytes.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn operator_output_stream_write_async(
+    stream: *mut c_void,
+    data: *const u8,
+    len: usize,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_output_stream_write_async_inner(stream, data, len, callback, context) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_output_stream_write_async_inner(
+    stream: *mut c_void,
+    data: *const u8,
+    len: usize,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    if stream.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "output stream pointer is null",
+        ));
+    }
+    require_data_ptr(data, len)?;
+    let callback = require_callback(callback)?;
+
+    let stream = unsafe { &*(stream as *const OutputStream) };
+    let payload = if len == 0 {
+        bytes::Bytes::new()
+    } else {
+        bytes::Bytes::copy_from_slice(unsafe { std::slice::from_raw_parts(data, len) })
+    };
+
+    let inner = stream.inner.clone();
+    stream.executor.spawn(async move {
+        let result = inner
+            .lock()
+            .await
+            .write(payload)
+            .await
+            .map(|_| ())
+            .map_err(OpenDALError::from_opendal_error);
+
+        callback(
+            context,
+            match result {
+                Ok(()) => OpendalResult::ok(),
+                Err(error) => OpendalResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
+}
+
 /// Flush output stream.
+///
+/// The underlying writer only persists data on close, so this is a no-op that
+/// exists to keep the FFI surface symmetric.
 /// # Safety
 ///
 /// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_output_stream_flush(
-    stream: *mut opendal::blocking::Writer,
-) -> OpendalResult {
+pub extern "C" fn operator_output_stream_flush(stream: *mut c_void) -> OpendalResult {
     match operator_output_stream_flush_inner(stream) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_output_stream_flush_inner(
-    stream: *mut opendal::blocking::Writer,
-) -> Result<(), OpenDALError> {
+fn operator_output_stream_flush_inner(stream: *mut c_void) -> Result<(), OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "output stream pointer is null",
@@ -1479,29 +1636,82 @@ fn operator_output_stream_flush_inner(
 ///
 /// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_output_stream_close(
-    stream: *mut opendal::blocking::Writer,
-) -> OpendalResult {
+pub extern "C" fn operator_output_stream_close(stream: *mut c_void) -> OpendalResult {
     match operator_output_stream_close_inner(stream) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_output_stream_close_inner(
-    stream: *mut opendal::blocking::Writer,
-) -> Result<(), OpenDALError> {
+fn operator_output_stream_close_inner(stream: *mut c_void) -> Result<(), OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "output stream pointer is null",
         ));
     }
 
-    let stream = unsafe { &mut *stream };
+    let stream = unsafe { &*(stream as *const OutputStream) };
+    let inner = stream.inner.clone();
     stream
-        .close()
+        .executor
+        .block_on(async move { inner.lock().await.close().await })
         .map(|_| ())
         .map_err(OpenDALError::from_opendal_error)
+}
+
+/// Close output stream asynchronously.
+///
+/// The callback is invoked exactly once. After a successful close the handle
+/// only needs `operator_output_stream_free`.
+/// # Safety
+///
+/// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn operator_output_stream_close_async(
+    stream: *mut c_void,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_output_stream_close_async_inner(stream, callback, context) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_output_stream_close_async_inner(
+    stream: *mut c_void,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    if stream.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "output stream pointer is null",
+        ));
+    }
+    let callback = require_callback(callback)?;
+
+    let stream = unsafe { &*(stream as *const OutputStream) };
+    let inner = stream.inner.clone();
+    stream.executor.spawn(async move {
+        let result = inner
+            .lock()
+            .await
+            .close()
+            .await
+            .map(|_| ())
+            .map_err(OpenDALError::from_opendal_error);
+
+        callback(
+            context,
+            match result {
+                Ok(()) => OpendalResult::ok(),
+                Err(error) => OpendalResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
 }
 
 /// # Safety
@@ -1509,13 +1719,13 @@ fn operator_output_stream_close_inner(
 /// - `stream` must be null or a pointer returned by `operator_output_stream_create`.
 /// - Must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn operator_output_stream_free(stream: *mut opendal::blocking::Writer) {
+pub unsafe extern "C" fn operator_output_stream_free(stream: *mut c_void) {
     if stream.is_null() {
         return;
     }
 
     unsafe {
-        drop(Box::from_raw(stream));
+        drop(Box::from_raw(stream as *mut OutputStream));
     }
 }
 

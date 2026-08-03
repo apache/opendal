@@ -55,21 +55,10 @@ internal static class EntryMarshaller
             return results;
         }
 
-        var entryPointers = new ReadOnlySpan<IntPtr>((void*)payload.Entries, count);
+        var entries = new ReadOnlySpan<OpenDALEntry>((void*)payload.Entries, count);
         for (var index = 0; index < count; index++)
         {
-            var entryPtr = entryPointers[index];
-            if (entryPtr == IntPtr.Zero)
-            {
-                continue;
-            }
-
-            var entryPayload = Unsafe.Read<OpenDALEntry>((void*)entryPtr);
-            if (entryPayload.Metadata == IntPtr.Zero)
-            {
-                continue;
-            }
-
+            ref readonly var entryPayload = ref entries[index];
             var path = Utilities.ReadUtf8(entryPayload.Path);
             var metadata = MetadataMarshaller.ToMetadata(entryPayload.Metadata);
             results.Add(new Entry(path, metadata));

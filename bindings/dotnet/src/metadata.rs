@@ -81,6 +81,35 @@ fn optional_string_to_ptr(value: Option<&str>) -> *mut c_char {
         .unwrap_or(std::ptr::null_mut())
 }
 
+/// Release the heap-allocated string fields of a metadata value in place.
+///
+/// Entries store metadata inline, so their release path frees the strings
+/// without also freeing a containing box.
+/// # Safety
+///
+/// - Every string field must be null or produced by `into_string_ptr`.
+/// - Must be called at most once for the same value.
+pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
+    unsafe fn release(field: &mut *mut c_char) {
+        if field.is_null() {
+            return;
+        }
+
+        drop(unsafe { std::ffi::CString::from_raw(*field) });
+        *field = std::ptr::null_mut();
+    }
+
+    unsafe {
+        release(&mut metadata.content_disposition);
+        release(&mut metadata.content_md5);
+        release(&mut metadata.content_type);
+        release(&mut metadata.content_encoding);
+        release(&mut metadata.cache_control);
+        release(&mut metadata.etag);
+        release(&mut metadata.version);
+    }
+}
+
 /// # Safety
 ///
 /// - `metadata` must be null or a pointer returned by Rust for `OpendalMetadata`.
@@ -92,27 +121,7 @@ pub unsafe extern "C" fn metadata_free(metadata: *mut OpendalMetadata) {
     }
 
     unsafe {
-        let metadata = Box::from_raw(metadata);
-        if !metadata.content_disposition.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.content_disposition));
-        }
-        if !metadata.content_md5.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.content_md5));
-        }
-        if !metadata.content_type.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.content_type));
-        }
-        if !metadata.content_encoding.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.content_encoding));
-        }
-        if !metadata.cache_control.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.cache_control));
-        }
-        if !metadata.etag.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.etag));
-        }
-        if !metadata.version.is_null() {
-            drop(std::ffi::CString::from_raw(metadata.version));
-        }
+        let mut metadata = Box::from_raw(metadata);
+        metadata_release_fields(&mut metadata);
     }
 }

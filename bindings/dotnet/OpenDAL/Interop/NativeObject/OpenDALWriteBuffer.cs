@@ -18,34 +18,33 @@
  */
 
 using System.Runtime.InteropServices;
-using OpenDAL.Interop.NativeObject;
-using OpenDAL.Interop.Result.Abstractions;
 
-namespace OpenDAL.Interop.Result;
+namespace OpenDAL.Interop.NativeObject;
 
 [StructLayout(LayoutKind.Sequential)]
 /// <summary>
-/// Result wrapper for operations that return a byte buffer payload.
+/// Writable native segment returned by <c>write_buffer_create</c> or
+/// <c>write_buffer_add_segment</c>.
 /// </summary>
-internal struct OpenDALReadResult : INativeResult
+/// <remarks>
+/// <see cref="Data"/> points at <see cref="Capacity"/> writable bytes owned by
+/// <see cref="Handle"/>. The handle must be released exactly once through
+/// <c>write_buffer_free</c>.
+/// </remarks>
+internal struct OpenDALWriteBuffer
 {
     /// <summary>
-    /// Byte buffer payload on success.
+    /// Opaque handle owning every segment of the buffer.
     /// </summary>
-    public OpenDALReadBuffer Buffer;
+    public IntPtr Handle;
 
     /// <summary>
-    /// Error details for the operation.
+    /// Raw pointer to the newest segment, valid until the handle is freed.
     /// </summary>
-    public OpenDALError Error;
+    public IntPtr Data;
 
-    public readonly void Release()
-    {
-        NativeMethods.opendal_read_result_release(this);
-    }
-
-    public readonly OpenDALError GetError()
-    {
-        return Error;
-    }
+    /// <summary>
+    /// Writable bytes behind <see cref="Data"/>.
+    /// </summary>
+    public nuint Capacity;
 }

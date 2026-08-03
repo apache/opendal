@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::{
-    buffer::OpendalBuffer,
+    buffer::{OpendalReadBuffer, WriteBufferSlot, take_payload},
     entry::into_entry_list_ptr,
     error::OpenDALError,
     executor::executor_or_default,
@@ -1319,7 +1319,7 @@ pub extern "C" fn operator_input_stream_read_next(
 
 fn operator_input_stream_read_next_inner(
     stream: *mut opendal::blocking::StdBytesIterator,
-) -> Result<OpendalBuffer, OpenDALError> {
+) -> Result<OpendalReadBuffer, OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "input stream pointer is null",
@@ -1337,8 +1337,8 @@ fn operator_input_stream_read_next_inner(
                 err.to_string(),
             ))
         })?
-        .map(|v| OpendalBuffer::from_buffer(v.into()))
-        .unwrap_or_else(OpendalBuffer::empty);
+        .map(|v| OpendalReadBuffer::from_buffer(v.into()))
+        .unwrap_or_else(OpendalReadBuffer::empty);
 
     Ok(value)
 }
@@ -1519,15 +1519,178 @@ pub unsafe extern "C" fn operator_output_stream_free(stream: *mut opendal::block
     }
 }
 
-/// Write bytes to `path` synchronously with options.
+/// Write the committed bytes of a write buffer to `path` synchronously.
+///
+/// On a non-error return the contents belong to the write and the caller
+/// must not write through the buffer's pointers again; the handle itself
+/// still needs `write_buffer_free`. An error raised before the payload is
+/// taken leaves the slot untouched, while a backend failure after it has
+/// already consumed the contents.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+/// - `path` must be a valid null-terminated UTF-8 string.
+/// - `buffer` must be a handle from `write_buffer_create` whose contents
+///   have not been consumed, and must not have been freed.
+/// - Calls taking the same buffer handle must not run concurrently.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn operator_write_with_options(
+    op: *const opendal::Operator,
+    executor: *const c_void,
+    path: *const c_char,
+    buffer: *mut c_void,
+    committed_in_current: usize,
+    options: *const opendal::options::WriteOptions,
+) -> OpendalResult {
+    match operator_write_with_options_inner(
+        op,
+        executor,
+        path,
+        buffer,
+        committed_in_current,
+        options,
+    ) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_write_with_options_inner(
+    op: *const opendal::Operator,
+    executor: *const c_void,
+    path: *const c_char,
+    buffer: *mut c_void,
+    committed_in_current: usize,
+    options: *const opendal::options::WriteOptions,
+) -> Result<(), OpenDALError> {
+    let op = require_operator(op)?;
+    let executor = executor_or_default(executor)?;
+    let path = require_cstr(path, "path")?;
+    if buffer.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "write buffer handle is null",
+        ));
+    }
+    let options = if options.is_null() {
+        opendal::options::WriteOptions::default()
+    } else {
+        unsafe { (&*options).clone() }
+    };
+
+    // Taken only after every fallible check above, so an error result means
+    // ownership never transferred and the buffer stays usable.
+    let slot = unsafe { &mut *(buffer as *mut WriteBufferSlot) };
+    let payload = take_payload(slot, committed_in_current)?;
+
+    executor
+        .block_on(op.write_options(path, payload, options))
+        .map(|_| ())
+        .map_err(OpenDALError::from_opendal_error)
+}
+
+/// Write the committed bytes of a write buffer to `path` asynchronously.
+///
+/// The callback is invoked exactly once. Ownership behaves as in the sync
+/// variant: consumed on a non-error return, untouched on error.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+/// - `path` must be a valid null-terminated UTF-8 string.
+/// - `buffer` must be a handle from `write_buffer_create` whose contents
+///   have not been consumed, and must not have been freed.
+/// - Calls taking the same buffer handle must not run concurrently.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn operator_write_with_options_async(
+    op: *const opendal::Operator,
+    executor: *const c_void,
+    path: *const c_char,
+    buffer: *mut c_void,
+    committed_in_current: usize,
+    options: *const opendal::options::WriteOptions,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_write_with_options_async_inner(
+        op,
+        executor,
+        path,
+        buffer,
+        committed_in_current,
+        options,
+        callback,
+        context,
+    ) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+// Mirrors the `extern "C"` signature above, which clippy exempts because a C ABI
+// is not a design choice. This helper exists only to give that function a body it
+// can write with `?`.
+#[allow(clippy::too_many_arguments)]
+fn operator_write_with_options_async_inner(
+    op: *const opendal::Operator,
+    executor: *const c_void,
+    path: *const c_char,
+    buffer: *mut c_void,
+    committed_in_current: usize,
+    options: *const opendal::options::WriteOptions,
+    callback: Option<WriteCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    let op = require_operator(op)?;
+    let executor = executor_or_default(executor)?;
+    let path = require_cstr(path, "path")?.to_string();
+    let callback = require_callback(callback)?;
+    if buffer.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "write buffer handle is null",
+        ));
+    }
+    let options = if options.is_null() {
+        opendal::options::WriteOptions::default()
+    } else {
+        unsafe { (&*options).clone() }
+    };
+
+    // Taken only after every fallible check above, so an error result means
+    // ownership never transferred and the buffer stays usable.
+    let slot = unsafe { &mut *(buffer as *mut WriteBufferSlot) };
+    let payload = take_payload(slot, committed_in_current)?;
+
+    let op = op.clone();
+    executor.spawn(async move {
+        let result = op
+            .write_options(&path, payload, options)
+            .await
+            .map(|_| ())
+            .map_err(OpenDALError::from_opendal_error);
+
+        callback(
+            context,
+            match result {
+                Ok(()) => OpendalResult::ok(),
+                Err(error) => OpendalResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
+}
+
+/// Write a caller-owned byte range to `path` synchronously.
+///
+/// The bytes are copied before the write, so `data` only has to stay valid
+/// for the duration of this call.
 /// # Safety
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
 /// - When `len > 0`, `data` must be non-null and readable for `len` bytes.
-/// - When `option_len > 0`, `option_keys` and `option_values` must be valid arrays.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_write_with_options(
+pub unsafe extern "C" fn operator_write_bytes_with_options(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
@@ -1535,13 +1698,13 @@ pub extern "C" fn operator_write_with_options(
     len: usize,
     options: *const opendal::options::WriteOptions,
 ) -> OpendalResult {
-    match operator_write_with_options_inner(op, executor, path, data, len, options) {
+    match operator_write_bytes_with_options_inner(op, executor, path, data, len, options) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_write_with_options_inner(
+fn operator_write_bytes_with_options_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
@@ -1559,10 +1722,14 @@ fn operator_write_with_options_inner(
         unsafe { (&*options).clone() }
     };
 
+    // Copied explicitly: the only `Into<Buffer>` impl for slices is
+    // `From<&'static [u8]>`, which is zero-copy, so passing the raw slice
+    // would launder the caller's pointer into `'static` and let backends
+    // retain memory that is only pinned for the duration of this call.
     let payload = if len == 0 {
-        &[][..]
+        bytes::Bytes::new()
     } else {
-        unsafe { std::slice::from_raw_parts(data, len) }
+        bytes::Bytes::copy_from_slice(unsafe { std::slice::from_raw_parts(data, len) })
     };
 
     executor
@@ -1571,17 +1738,19 @@ fn operator_write_with_options_inner(
         .map_err(OpenDALError::from_opendal_error)
 }
 
-/// Write bytes to `path` asynchronously with options.
+/// Write a caller-owned byte range to `path` asynchronously.
 ///
-/// The callback is invoked exactly once with the final result.
+/// The bytes are copied before the task is spawned, so `data` only has to
+/// stay valid for the duration of this call. The callback is invoked exactly
+/// once with the final result.
 /// # Safety
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
-/// - `data` must be non-null and readable for `len` bytes when `len > 0`.
+/// - When `len > 0`, `data` must be non-null and readable for `len` bytes.
 /// - `callback` must be a valid function pointer and remain callable until invoked.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn operator_write_with_options_async(
+pub unsafe extern "C" fn operator_write_bytes_with_options_async(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
@@ -1591,7 +1760,7 @@ pub unsafe extern "C" fn operator_write_with_options_async(
     callback: Option<WriteCallback>,
     context: i64,
 ) -> OpendalResult {
-    match operator_write_with_options_async_inner(
+    match operator_write_bytes_with_options_async_inner(
         op, executor, path, data, len, options, callback, context,
     ) {
         Ok(()) => OpendalResult::ok(),
@@ -1603,7 +1772,7 @@ pub unsafe extern "C" fn operator_write_with_options_async(
 // is not a design choice. This helper exists only to give that function a body it
 // can write with `?`.
 #[allow(clippy::too_many_arguments)]
-fn operator_write_with_options_async_inner(
+fn operator_write_bytes_with_options_async_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
@@ -1627,9 +1796,9 @@ fn operator_write_with_options_async_inner(
     // Copied before the task is spawned, so the caller only has to keep its
     // array alive for the duration of this call.
     let payload = if len == 0 {
-        Vec::new()
+        bytes::Bytes::new()
     } else {
-        unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
+        bytes::Bytes::copy_from_slice(unsafe { std::slice::from_raw_parts(data, len) })
     };
 
     let op = op.clone();
@@ -1678,7 +1847,7 @@ fn operator_read_with_options_inner(
     executor: *const c_void,
     path: *const c_char,
     options: *const opendal::options::ReadOptions,
-) -> Result<OpendalBuffer, OpenDALError> {
+) -> Result<OpendalReadBuffer, OpenDALError> {
     let op = require_operator(op)?;
     let executor = executor_or_default(executor)?;
     let path = require_cstr(path, "path")?;
@@ -1692,7 +1861,7 @@ fn operator_read_with_options_inner(
         .block_on(op.read_options(path, options))
         .map_err(OpenDALError::from_opendal_error)?;
 
-    Ok(OpendalBuffer::from_buffer(value))
+    Ok(OpendalReadBuffer::from_buffer(value))
 }
 
 /// Read bytes from `path` asynchronously with options.
@@ -1743,7 +1912,7 @@ fn operator_read_with_options_async_inner(
         let result = op
             .read_options(&path, options)
             .await
-            .map(OpendalBuffer::from_buffer)
+            .map(OpendalReadBuffer::from_buffer)
             .map_err(OpenDALError::from_opendal_error);
 
         callback(

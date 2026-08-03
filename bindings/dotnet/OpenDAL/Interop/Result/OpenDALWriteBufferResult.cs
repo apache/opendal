@@ -25,14 +25,19 @@ namespace OpenDAL.Interop.Result;
 
 [StructLayout(LayoutKind.Sequential)]
 /// <summary>
-/// Result wrapper for operations that return a byte buffer payload.
+/// Result wrapper for operations returning a freshly allocated native write buffer.
 /// </summary>
-internal struct OpenDALReadResult : INativeResult
+/// <remarks>
+/// On success the caller takes over the buffer handle, so
+/// <see cref="Release"/> only frees the error message; the handle itself is
+/// released later through <c>write_buffer_free</c>.
+/// </remarks>
+internal struct OpenDALWriteBufferResult : INativeValueResult<OpenDALWriteBuffer>
 {
     /// <summary>
-    /// Byte buffer payload on success.
+    /// Allocated buffer payload on success.
     /// </summary>
-    public OpenDALReadBuffer Buffer;
+    public OpenDALWriteBuffer Buffer;
 
     /// <summary>
     /// Error details for the operation.
@@ -41,11 +46,16 @@ internal struct OpenDALReadResult : INativeResult
 
     public readonly void Release()
     {
-        NativeMethods.opendal_read_result_release(this);
+        NativeMethods.opendal_error_release(Error);
     }
 
     public readonly OpenDALError GetError()
     {
         return Error;
+    }
+
+    public readonly OpenDALWriteBuffer ToValue()
+    {
+        return Buffer;
     }
 }

@@ -17,8 +17,11 @@
  * under the License.
  */
 
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using OpenDAL.Interop.Buffers;
+using OpenDAL.Interop.NativeObject;
 using OpenDAL.Interop.Result;
 using OpenDAL.Interop.Result.Abstractions;
 using OpenDAL.Layer.Abstractions;
@@ -178,8 +181,7 @@ public partial class Operator : SafeHandle
         var executorHandle = GetExecutorHandle(executor);
 
         using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-
-        OpenDALResult result = NativeMethods.operator_write_with_options(
+        var result = NativeMethods.operator_write_bytes_with_options(
             this,
             executorHandle,
             path,
@@ -187,6 +189,95 @@ public partial class Operator : SafeHandle
             (nuint)content.Length,
             GetOptionsHandle(nativeOptionsHandle)
         );
+
+        ThrowIfErrorAndRelease(result);
+    }
+
+    /// <summary>
+    /// Writes a payload produced directly into native memory, without a
+    /// managed copy.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="fill"/> runs synchronously against a native-backed
+    /// <see cref="IBufferWriter{T}"/>, so standard producers such as
+    /// <c>System.Text.Json.Utf8JsonWriter</c> serialize straight into the
+    /// write payload. Everything committed when it returns becomes the
+    /// payload of a single write. The buffer never leaves this call: it
+    /// grows on demand while filling and is released once the backend
+    /// finishes with the payload.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="fill">Producer invoked once to fill the payload.</param>
+    /// <param name="sizeHint">
+    /// Expected payload size in bytes, or 0 for the default. A positive hint
+    /// sizes the first native segment so a well-estimated payload fills it
+    /// without growing; it is an estimate, not a limit.
+    /// </param>
+    /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="fill"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeHint"/> is negative.</exception>
+    /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
+    /// <exception cref="OpenDALException">Native write fails.</exception>
+    public void Write(
+        string path,
+        Action<IBufferWriter<byte>> fill,
+        int sizeHint = 0,
+        WriteOptions? options = null,
+        Executor? executor = null)
+    {
+        ArgumentNullException.ThrowIfNull(fill);
+        ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
+
+        using var buffer = AllocateWriteBuffer(
+            sizeHint > 0 ? sizeHint : WriteBuffer.DefaultInitialCapacity);
+        fill(buffer);
+        Write(path, buffer, options, executor);
+    }
+
+    /// <summary>
+    /// Writes the bytes committed to an allocated native buffer to a path
+    /// synchronously, transferring ownership of its contents to the native
+    /// layer without copying.
+    /// </summary>
+    /// <remarks>
+    /// On success the write consumes the buffer contents: every later access
+    /// throws, and the memory is released once the buffer is disposed and
+    /// the backend finishes with the payload. An error raised before the
+    /// payload is taken leaves the buffer usable, but a backend failure
+    /// after that point has already consumed it, so treat a failed buffer
+    /// as spent.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="content">Allocated buffer holding the bytes to write.</param>
+    /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <exception cref="ObjectDisposedException">The operator or buffer has been disposed.</exception>
+    /// <exception cref="InvalidOperationException">The buffer contents were already consumed by a write.</exception>
+    /// <exception cref="OpenDALException">Native write fails.</exception>
+    internal void Write(string path, WriteBuffer content, WriteOptions? options = null, Executor? executor = null)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var executorHandle = GetExecutorHandle(executor);
+
+        var bufferHandle = content.Handle;
+        var committedInTail = content.TailWritten;
+
+        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        var result = NativeMethods.operator_write_with_options(
+            this,
+            executorHandle,
+            path,
+            bufferHandle,
+            (nuint)committedInTail,
+            GetOptionsHandle(nativeOptionsHandle)
+        );
+
+        if (!result.Error.IsError)
+        {
+            content.MarkConsumed();
+        }
 
         ThrowIfErrorAndRelease(result);
     }
@@ -263,13 +354,13 @@ public partial class Operator : SafeHandle
         ObjectDisposedException.ThrowIf(IsInvalid, this);
         var executorHandle = GetExecutorHandle(executor);
 
-        return SubmitAsyncOperation<bool, WriteOptions>(options, SubmitWriteAsync, cancellationToken);
+        return SubmitAsyncOperation<bool, WriteOptions>(options, DispatchWriteBytesAsync, cancellationToken);
 
-        OpenDALResult SubmitWriteAsync(long context, IntPtr optionsHandle)
+        OpenDALResult DispatchWriteBytesAsync(long context, IntPtr optionsHandle)
         {
             unsafe
             {
-                return NativeMethods.operator_write_with_options_async(
+                return NativeMethods.operator_write_bytes_with_options_async(
                     this,
                     executorHandle,
                     path,
@@ -281,6 +372,146 @@ public partial class Operator : SafeHandle
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Allocates a native <see cref="System.Buffers.IBufferWriter{T}"/> for a
+    /// zero-copy write.
+    /// </summary>
+    /// <remarks>
+    /// Produce into the buffer through the <see cref="System.Buffers.IBufferWriter{T}"/>
+    /// contract — for example with <c>System.Text.Json.Utf8JsonWriter</c> —
+    /// then hand it to <c>Write(path, buffer)</c> or
+    /// <c>WriteAsync(path, buffer)</c>. The buffer grows on demand, so
+    /// <paramref name="initialCapacity"/> is a hint, not a limit. The write
+    /// consumes the buffer; allocate a new one for the next write. Dispose
+    /// an unconsumed buffer to return the memory.
+    /// </remarks>
+    /// <param name="initialCapacity">Size of the first segment in bytes.</param>
+    /// <returns>An empty native buffer writer.</returns>
+    /// <exception cref="ObjectDisposedException">The operator has been disposed.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="initialCapacity"/> is not positive.</exception>
+    /// <exception cref="OpenDALException">Native buffer allocation fails.</exception>
+    internal WriteBuffer AllocateWriteBuffer(int initialCapacity = WriteBuffer.DefaultInitialCapacity)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(initialCapacity);
+
+        var result = NativeMethods.write_buffer_create((nuint)initialCapacity);
+        var buffer = ToValueOrThrowAndRelease<OpenDALWriteBuffer, OpenDALWriteBufferResult>(result);
+        return new WriteBuffer(buffer.Handle, buffer.Data, checked((int)buffer.Capacity));
+    }
+
+    /// <summary>
+    /// Writes the bytes committed to an allocated native buffer to a path
+    /// asynchronously, transferring ownership of its contents to the native
+    /// layer without copying.
+    /// </summary>
+    /// <remarks>
+    /// Everything committed with <see cref="WriteBuffer.Advance"/> is
+    /// written, in order. On success the buffer is consumed: every later
+    /// access to it throws, and its memory is released once the buffer is
+    /// disposed and the backend finishes with the payload. When dispatch
+    /// fails immediately, ownership does not transfer and the buffer stays
+    /// usable.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="content">Allocated buffer holding the bytes to write.</param>
+    /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    /// <exception cref="ObjectDisposedException">The operator or buffer has been disposed.</exception>
+    /// <exception cref="InvalidOperationException">The buffer contents were already consumed by a write.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
+    /// <exception cref="OpenDALException">Native write submission fails immediately.</exception>
+    internal Task WriteAsync(
+        string path,
+        WriteBuffer content,
+        WriteOptions? options = null,
+        Executor? executor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var executorHandle = GetExecutorHandle(executor);
+
+        // Surfaces disposed/already-consumed as managed exceptions before the
+        // native call; the native slot enforces the same contract again.
+        var bufferHandle = content.Handle;
+        var committedInTail = content.TailWritten;
+
+        return SubmitAsyncOperation<bool, WriteOptions>(options, DispatchWriteBufferAsync, cancellationToken);
+
+        OpenDALResult DispatchWriteBufferAsync(long context, IntPtr optionsHandle)
+        {
+            unsafe
+            {
+                var result = NativeMethods.operator_write_with_options_async(
+                    this,
+                    executorHandle,
+                    path,
+                    bufferHandle,
+                    (nuint)committedInTail,
+                    optionsHandle,
+                    &OnWriteCompleted,
+                    context
+                );
+
+                if (!result.Error.IsError)
+                {
+                    content.MarkConsumed();
+                }
+
+                return result;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes a payload produced directly into native memory, without a
+    /// managed copy.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="fill"/> runs synchronously against a native-backed
+    /// <see cref="IBufferWriter{T}"/>, so standard producers such as
+    /// <c>System.Text.Json.Utf8JsonWriter</c> serialize straight into the
+    /// write payload. Everything committed when it returns becomes the
+    /// payload of a single write. The buffer never leaves this call: it
+    /// grows on demand while filling and is released once the backend
+    /// finishes with the payload.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="fill">Producer invoked once to fill the payload.</param>
+    /// <param name="sizeHint">
+    /// Expected payload size in bytes, or 0 for the default. A positive hint
+    /// sizes the first native segment so a well-estimated payload fills it
+    /// without growing; it is an estimate, not a limit.
+    /// </param>
+    /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="fill"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeHint"/> is negative.</exception>
+    /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
+    /// <exception cref="OpenDALException">Native write submission fails immediately.</exception>
+    public async Task WriteAsync(
+        string path,
+        Action<IBufferWriter<byte>> fill,
+        int sizeHint = 0,
+        WriteOptions? options = null,
+        Executor? executor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fill);
+        ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
+
+        using var buffer = AllocateWriteBuffer(
+            sizeHint > 0 ? sizeHint : WriteBuffer.DefaultInitialCapacity);
+        fill(buffer);
+        await WriteAsync(path, buffer, options, executor, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -328,14 +559,7 @@ public partial class Operator : SafeHandle
     /// <returns>The content bytes.</returns>
     public byte[] Read(string path, ReadOptions? options, Executor? executor)
     {
-        ObjectDisposedException.ThrowIf(IsInvalid, this);
-        var executorHandle = GetExecutorHandle(executor);
-
-        OpenDALReadResult result;
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-        result = NativeMethods.operator_read_with_options(this, executorHandle, path, GetOptionsHandle(nativeOptionsHandle));
-
-        return ToValueOrThrowAndRelease<byte[], OpenDALReadResult>(result);
+        return Read(path, static sequence => sequence.ToArray(), options, executor);
     }
 
     /// <summary>
@@ -393,24 +617,168 @@ public partial class Operator : SafeHandle
         Executor? executor,
         CancellationToken cancellationToken = default)
     {
+        return ReadAsync(path, static sequence => sequence.ToArray(), options, executor, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads a path into a native buffer exposed as a
+    /// <see cref="System.Buffers.ReadOnlySequence{T}"/>, without copying into
+    /// a managed array.
+    /// </summary>
+    /// <remarks>
+    /// Dispose the returned buffer to release the native memory; the sequence
+    /// must not be used afterwards.
+    /// </remarks>
+    /// <param name="path">Source path in the configured backend.</param>
+    /// <param name="options">Additional read options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <returns>The content as a disposable native buffer.</returns>
+    /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
+    /// <exception cref="OpenDALException">Native read fails.</exception>
+    internal ReadBuffer ReadBuffer(string path, ReadOptions? options = null, Executor? executor = null)
+    {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
         var executorHandle = GetExecutorHandle(executor);
 
-        return SubmitAsyncOperation<byte[], ReadOptions>(options, SubmitReadAsync, cancellationToken);
+        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        var result = NativeMethods.operator_read_with_options(
+            this, executorHandle, path, GetOptionsHandle(nativeOptionsHandle));
 
-        OpenDALResult SubmitReadAsync(long context, IntPtr optionsHandle)
+        return Interop.Buffers.ReadBuffer.FromResult(result);
+    }
+
+    /// <summary>
+    /// Reads a path asynchronously into a native buffer exposed as a
+    /// <see cref="System.Buffers.ReadOnlySequence{T}"/>, without copying into
+    /// a managed array.
+    /// </summary>
+    /// <remarks>
+    /// Dispose the returned buffer to release the native memory; the sequence
+    /// must not be used afterwards.
+    /// </remarks>
+    /// <param name="path">Source path in the configured backend.</param>
+    /// <param name="options">Additional read options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that resolves with the content as a disposable native buffer.</returns>
+    /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
+    /// <exception cref="OpenDALException">Native read submission fails immediately.</exception>
+    internal async Task<ReadBuffer> ReadBufferAsync(
+        string path,
+        ReadOptions? options = null,
+        Executor? executor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        var executorHandle = GetExecutorHandle(executor);
+
+        var context = AsyncStateRegistry.Register<OpenDALReadResult>(out var state);
+        OpenDALResult submit;
+        using (var nativeOptionsHandle = options?.BuildNativeOptionsHandle())
         {
             unsafe
             {
-                return NativeMethods.operator_read_with_options_async(
+                submit = NativeMethods.operator_read_with_options_async(
                     this,
                     executorHandle,
                     path,
-                    optionsHandle,
-                    &OnReadCompleted,
+                    GetOptionsHandle(nativeOptionsHandle),
+                    &OnReadResultRetained,
                     context
                 );
             }
+        }
+
+        try
+        {
+            ThrowIfErrorAndRelease(submit);
+        }
+        catch
+        {
+            AsyncStateRegistry.Unregister(context);
+            throw;
+        }
+
+        state.BindCancellation(cancellationToken);
+        var result = await state.Completion.Task.ConfigureAwait(false);
+        return Interop.Buffers.ReadBuffer.FromResult(result);
+    }
+
+    /// <summary>
+    /// Reads a path and consumes the payload in place as a
+    /// <see cref="ReadOnlySequence{T}"/> over native memory, without copying
+    /// into a managed array.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="consume"/> runs synchronously, so standard consumers
+    /// such as <c>System.Text.Json.Utf8JsonReader</c> parse straight from
+    /// native memory. The memory is released when it returns: the sequence,
+    /// and anything pointing into it, must not escape the callback.
+    /// </remarks>
+    /// <typeparam name="T">Result produced by the consumer.</typeparam>
+    /// <param name="path">Source path in the configured backend.</param>
+    /// <param name="consume">Consumer invoked once with the payload.</param>
+    /// <param name="options">Additional read options, or <see langword="null"/> for default behavior.</param>
+    /// <param name="executor">Executor used for this operation, or <see langword="null"/> to use default executor.</param>
+    /// <returns>The value returned by <paramref name="consume"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="consume"/> is null.</exception>
+    /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
+    /// <exception cref="OpenDALException">Native read fails.</exception>
+    public T Read<T>(
+        string path,
+        Func<ReadOnlySequence<byte>, T> consume,
+        ReadOptions? options = null,
+        Executor? executor = null)
+    {
+        ArgumentNullException.ThrowIfNull(consume);
+
+        using var buffer = ReadBuffer(path, options, executor);
+        return consume(buffer.Sequence);
+    }
+
+    /// <inheritdoc cref="Read{T}(string, Func{ReadOnlySequence{byte}, T}, ReadOptions?, Executor?)" />
+    /// <summary>
+    /// Reads a path asynchronously and consumes the payload in place as a
+    /// <see cref="ReadOnlySequence{T}"/> over native memory, without copying
+    /// into a managed array.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
+    public async Task<T> ReadAsync<T>(
+        string path,
+        Func<ReadOnlySequence<byte>, T> consume,
+        ReadOptions? options = null,
+        Executor? executor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(consume);
+
+        using var buffer = await ReadBufferAsync(path, options, executor, cancellationToken).ConfigureAwait(false);
+        return consume(buffer.Sequence);
+    }
+
+    /// <summary>
+    /// Native read callback that keeps ownership of a successful payload with
+    /// the awaiter instead of materializing it. Without an awaiter, for
+    /// example after cancellation, the payload is released here.
+    /// </summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static void OnReadResultRetained(long context, OpenDALReadResult result)
+    {
+        if (!AsyncStateRegistry.TryTake<AsyncState<OpenDALReadResult>>(context, out var state))
+        {
+            result.Release();
+            return;
+        }
+
+        state.CancellationRegistration.Dispose();
+        if (!state.Completion.TrySetResult(result))
+        {
+            // Cancellation won the completion race, so no awaiter will ever
+            // take ownership of this payload.
+            result.Release();
         }
     }
 
@@ -1529,17 +1897,6 @@ public partial class Operator : SafeHandle
     private static void OnWriteCompleted(long context, OpenDALResult result)
     {
         CompleteAsyncCallback(context, result);
-    }
-
-    /// <summary>
-    /// Native callback invoked when an asynchronous read operation finishes.
-    /// </summary>
-    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
-    /// <param name="result">Read completion result returned by the native layer, including byte buffer payload.</param>
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnReadCompleted(long context, OpenDALReadResult result)
-    {
-        CompleteAsyncCallback<byte[], OpenDALReadResult>(context, result);
     }
 
     /// <summary>

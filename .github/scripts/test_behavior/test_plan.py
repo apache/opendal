@@ -18,7 +18,7 @@
 import unittest
 from unittest.mock import patch
 
-from plan import plan
+from plan import group_cases_by_service, plan
 
 
 class BehaviorTestPlan(unittest.TestCase):
@@ -52,6 +52,70 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["core"][0]["cases"]]
         self.assertTrue("hdfs_native" in cases)
         self.assertFalse("fs" in cases)
+
+    def test_group_core_cases_by_service(self):
+        cases = [
+            {
+                "service": "webdav",
+                "setup": "nginx_with_empty_password",
+                "feature": "services-webdav",
+            },
+            {
+                "service": "webdav",
+                "setup": "nginx_with_password",
+                "feature": "services-webdav",
+            },
+            {
+                "service": "memory",
+                "setup": "memory",
+                "feature": "services-memory",
+            },
+        ]
+
+        self.assertEqual(
+            group_cases_by_service(cases),
+            [
+                {
+                    "service": "webdav",
+                    "feature": "services-webdav",
+                    "setups": [
+                        "nginx_with_empty_password",
+                        "nginx_with_password",
+                    ],
+                },
+                {
+                    "service": "memory",
+                    "feature": "services-memory",
+                    "setups": ["memory"],
+                },
+            ],
+        )
+
+    def test_core_groups_multiple_setups(self):
+        result = plan(["core/services/webdav/src/lib.rs"])
+        cases = result["core"][0]["cases"]
+        webdav = next(v for v in cases if v["service"] == "webdav")
+
+        self.assertIn("nginx_with_empty_password", webdav["setups"])
+        self.assertIn("nginx_with_password", webdav["setups"])
+        self.assertIn("nginx_with_redirect", webdav["setups"])
+        self.assertEqual(
+            len([v for v in cases if v["service"] == "webdav"]),
+            1,
+        )
+
+    def test_core_action(self):
+        result = plan([".github/actions/test_behavior_core/action.yaml"])
+        self.assertTrue(result["components"]["core"])
+        self.assertTrue(len(result["core"]) > 0)
+
+        for target in result["core"]:
+            for case in target["cases"]:
+                self.assertIn("setups", case)
+                self.assertNotIn("setup", case)
+
+        windows = next(v for v in result["core"] if v["os"] == "windows-latest")
+        self.assertEqual(windows["cases"][0]["setups"], ["local_fs"])
 
     def test_binding_java(self):
         result = plan(["bindings/java/pom.xml"])

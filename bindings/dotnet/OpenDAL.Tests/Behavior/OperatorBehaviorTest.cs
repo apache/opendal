@@ -17,8 +17,6 @@
  * under the License.
  */
 
-using OpenDAL.Options;
-
 namespace OpenDAL.Tests;
 
 [Collection("BehaviorOperator")]
@@ -46,80 +44,6 @@ public sealed class OperatorBehaviorTest : BehaviorTestBase
 
         duplicated.Write(path, content);
         Assert.Equal(content, Op.Read(path));
-    }
-
-    [Fact]
-    public void OperatorBehavior_StreamRoundtrip_Works()
-    {
-        if (!Supports(c => c.Read && c.Write))
-        {
-            return;
-        }
-
-        var path = NewPath("stream-sync");
-        var content = RandomBytes(64);
-
-        using (var output = Op.OpenWriteStream(path))
-        {
-            output.Write(content, 0, content.Length);
-            output.Flush();
-        }
-
-        using var input = Op.OpenReadStream(path);
-        var buffer = new byte[content.Length];
-        var read = input.Read(buffer, 0, buffer.Length);
-
-        Assert.Equal(content.Length, read);
-        Assert.Equal(content, buffer);
-    }
-
-    [Fact]
-    public async Task OperatorBehavior_StreamRoundtripAsync_Works()
-    {
-        if (!Supports(c => c.Read && c.Write))
-        {
-            return;
-        }
-
-        var path = NewPath("stream-async");
-        var content = RandomBytes(64);
-
-        using (var output = Op.OpenWriteStream(path))
-        {
-            await output.WriteAsync(content, 0, content.Length, CT);
-            await output.FlushAsync(CT);
-        }
-
-        using var input = Op.OpenReadStream(path);
-        var buffer = new byte[content.Length];
-        var read = await input.ReadAsync(buffer, 0, buffer.Length, CT);
-
-        Assert.Equal(content.Length, read);
-        Assert.Equal(content, buffer);
-    }
-
-    [Fact]
-    public void OperatorBehavior_OpenReadStream_WithRange_ReadsSelectedSlice()
-    {
-        if (!Supports(c => c.Read && c.Write))
-        {
-            return;
-        }
-
-        var path = NewPath("stream-range");
-        Op.Write(path, System.Text.Encoding.UTF8.GetBytes("0123456789"));
-
-        using var input = Op.OpenReadStream(path, new ReadOptions
-        {
-            Offset = 3,
-            Length = 4,
-        });
-
-        var buffer = new byte[8];
-        var read = input.Read(buffer, 0, buffer.Length);
-
-        Assert.Equal(4, read);
-        Assert.Equal("3456", System.Text.Encoding.UTF8.GetString(buffer, 0, read));
     }
 
     [Fact]

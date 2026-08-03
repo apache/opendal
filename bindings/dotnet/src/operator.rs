@@ -1275,13 +1275,27 @@ fn operator_input_stream_create_inner(
 
     let _guard = executor.enter();
 
+    let range = options.range.to_range();
+    let reader_options = opendal::options::ReaderOptions {
+        version: options.version,
+        if_match: options.if_match,
+        if_none_match: options.if_none_match,
+        if_modified_since: options.if_modified_since,
+        if_unmodified_since: options.if_unmodified_since,
+        content_length_hint: options.content_length_hint,
+        concurrent: options.concurrent,
+        chunk: options.chunk,
+        gap: options.gap,
+        ..Default::default()
+    };
+
     let blocking_op =
         opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
     let reader = blocking_op
-        .reader_options(&path, opendal::options::ReaderOptions::default())
+        .reader_options(&path, reader_options)
         .map_err(OpenDALError::from_opendal_error)?;
     let stream = reader
-        .into_bytes_iterator(options.range.to_range())
+        .into_bytes_iterator(range)
         .map_err(OpenDALError::from_opendal_error)?;
 
     Ok(Box::into_raw(Box::new(stream)) as *mut c_void)

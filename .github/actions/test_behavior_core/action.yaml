@@ -45,7 +45,12 @@ runs:
         index=0
         IFS=',' read -r -a setups <<<"$TEST_SETUPS"
         for setup in "${setups[@]}"; do
-          cat <<EOF >>./dynamic_test_core/action.yml
+          setup_action="./dynamic_test_core/setup_$index"
+          mkdir -p "$setup_action"
+          cat <<EOF >"$setup_action/action.yml"
+        runs:
+          using: composite
+          steps:
           - name: Record existing Docker resources for $setup
             if: always()
             shell: bash
@@ -101,6 +106,12 @@ runs:
                     ;;
                 esac
               done < <(env)
+        EOF
+
+          cat <<EOF >>./dynamic_test_core/action.yml
+          - name: Test Core - $setup
+            if: always()
+            uses: ./dynamic_test_core/setup_$index
         EOF
           index=$((index + 1))
         done

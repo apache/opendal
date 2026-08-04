@@ -125,6 +125,8 @@ pub struct Capability {
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
+    /// Indicates if a precomputed checksum can be supplied during write operations.
+    pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads.
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,

@@ -22,6 +22,7 @@ use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 
+use crate::core::ChecksumAlgorithm;
 use crate::core::S3Error;
 use crate::core::from_s3_error;
 use crate::core::parse_error;
@@ -112,6 +113,17 @@ impl oio::MultipartWrite for S3Writer {
         size: u64,
         body: Buffer,
     ) -> Result<oio::MultipartPart> {
+        // A supplied checksum covers the whole object and cannot be applied to
+        // individual parts, so reject it instead of silently uploading without
+        // the integrity check the caller asked for.
+        if self.op.checksum().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "a precomputed checksum cannot be used with multipart uploads; \
+                 keep the write within a single request via a larger chunk size",
+            ));
+        }
+
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 

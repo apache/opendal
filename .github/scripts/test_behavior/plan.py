@@ -35,6 +35,10 @@ LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotne
 
 INTEGRATIONS = ["object_store"]
 
+SHARED_SERVICE_SCHEMES = {
+    "s3": {"s3", "minio", "r2"},
+}
+
 
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
@@ -116,9 +120,10 @@ def calculate_hint(changed_files: list[str]) -> Hint:
         for integration in INTEGRATIONS:
             setattr(hint, f"integration_{integration}", True)
 
-        hint.services.add(service)
-        hint.services.add(service.replace("-", "_"))
-        hint.services.add(service.replace("_", "-"))
+        for scheme in SHARED_SERVICE_SCHEMES.get(service, {service}):
+            hint.services.add(scheme)
+            hint.services.add(scheme.replace("-", "_"))
+            hint.services.add(scheme.replace("_", "-"))
 
     for p in changed_files:
         # workflow behavior tests affected
@@ -290,6 +295,10 @@ def generate_language_binding_cases(
     # Remove invalid cases for go.
     if language == "go":
         cases = [v for v in cases if v["service"] not in [
+            # Provider presets share the Rust S3 crate and don't have separate
+            # opendal-go-services packages.
+            "minio",
+            "r2",
             # opendal-go-services doesn't provide TOS yet.
             "tos",
         ]]
@@ -309,6 +318,8 @@ def generate_language_binding_cases(
             "memory",
             "obs",
             "oss",
+            "minio",
+            "r2",
             "s3",
             "webdav",
             "webhdfs",

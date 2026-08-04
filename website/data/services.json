@@ -2770,6 +2770,109 @@
       ]
     },
     {
+      "name": "minio",
+      "scheme": "minio",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket.\n\nAll operations happen under this root. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "my-bucket",
+          "comments": "Bucket name.\n\nThis field is required."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "http://127.0.0.1:9000",
+          "comments": "MinIO endpoint.\n\nThis field is required because MinIO deployments do not share a\nuniversal endpoint."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "auto",
+          "comments": "Signing region.\n\nThe default is `auto`. Set this field when the deployment requires a\nconfigured region."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID.\n\nSet this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key.\n\nSet this field together with `access_key_id`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials.\n\nThis field requires `access_key_id` and `secret_access_key`."
+        },
+        {
+          "name": "skip_signature",
+          "type": "bool",
+          "required": false,
+          "group": "Credentials",
+          "default": "false",
+          "comments": "Send requests without signing them.\n\nThis option cannot be combined with direct credentials."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"minio\", [\n    (\"bucket\".to_string(), \"my-bucket\".to_string()),\n    (\"endpoint\".to_string(), \"http://127.0.0.1:9000\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"minio\", [\n    // --- General ---\n    // Root within the bucket.\n    //\n    // All operations happen under this root. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    //\n    // This field is required.\n    (\"bucket\".to_string(), \"my-bucket\".to_string()),\n\n    // MinIO endpoint.\n    //\n    // This field is required because MinIO deployments do not share a\n    // universal endpoint.\n    (\"endpoint\".to_string(), \"http://127.0.0.1:9000\".to_string()),\n\n    // Signing region.\n    //\n    // The default is `auto`. Set this field when the deployment requires a\n    // configured region.\n    // (\"region\".to_string(), \"auto\".to_string()),\n    // --- Credentials ---\n    // Access key ID.\n    //\n    // Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key.\n    //\n    // Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials.\n    //\n    // This field requires `access_key_id` and `secret_access_key`.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n\n    // Send requests without signing them.\n    //\n    // This option cannot be combined with direct credentials.\n    // (\"skip_signature\".to_string(), \"false\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"my-bucket\");\nconfig.put(\"endpoint\", \"http://127.0.0.1:9000\");\nOperator operator = Operator.of(\"minio\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket.\n//\n// All operations happen under this root. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\n//\n// This field is required.\nconfig.put(\"bucket\", \"my-bucket\");\n\n// MinIO endpoint.\n//\n// This field is required because MinIO deployments do not share a\n// universal endpoint.\nconfig.put(\"endpoint\", \"http://127.0.0.1:9000\");\n\n// Signing region.\n//\n// The default is `auto`. Set this field when the deployment requires a\n// configured region.\n// config.put(\"region\", \"auto\");\n// --- Credentials ---\n// Access key ID.\n//\n// Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key.\n//\n// Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials.\n//\n// This field requires `access_key_id` and `secret_access_key`.\n// config.put(\"session_token\", \"...\");\n\n// Send requests without signing them.\n//\n// This option cannot be combined with direct credentials.\n// config.put(\"skip_signature\", \"false\");\nOperator operator = Operator.of(\"minio\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"minio\",\n    bucket=\"my-bucket\",\n    endpoint=\"http://127.0.0.1:9000\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"minio\",\n    # --- General ---\n    # Root within the bucket.\n    #\n    # All operations happen under this root. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    #\n    # This field is required.\n    bucket=\"my-bucket\",\n\n    # MinIO endpoint.\n    #\n    # This field is required because MinIO deployments do not share a\n    # universal endpoint.\n    endpoint=\"http://127.0.0.1:9000\",\n\n    # Signing region.\n    #\n    # The default is `auto`. Set this field when the deployment requires a\n    # configured region.\n    # region=\"auto\",\n    # --- Credentials ---\n    # Access key ID.\n    #\n    # Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key.\n    #\n    # Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials.\n    #\n    # This field requires `access_key_id` and `secret_access_key`.\n    # session_token=\"...\",\n\n    # Send requests without signing them.\n    #\n    # This option cannot be combined with direct credentials.\n    # skip_signature=\"false\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"minio\", {\n  bucket: \"my-bucket\",\n  endpoint: \"http://127.0.0.1:9000\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"minio\", {\n  // --- General ---\n  // Root within the bucket.\n  //\n  // All operations happen under this root. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  //\n  // This field is required.\n  bucket: \"my-bucket\",\n\n  // MinIO endpoint.\n  //\n  // This field is required because MinIO deployments do not share a\n  // universal endpoint.\n  endpoint: \"http://127.0.0.1:9000\",\n\n  // Signing region.\n  //\n  // The default is `auto`. Set this field when the deployment requires a\n  // configured region.\n  // region: \"auto\",\n  // --- Credentials ---\n  // Access key ID.\n  //\n  // Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key.\n  //\n  // Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials.\n  //\n  // This field requires `access_key_id` and `secret_access_key`.\n  // session_token: \"...\",\n\n  // Send requests without signing them.\n  //\n  // This option cannot be combined with direct credentials.\n  // skip_signature: \"false\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"minio\", {\n  \"bucket\" => \"my-bucket\",\n  \"endpoint\" => \"http://127.0.0.1:9000\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"minio\", {\n  # --- General ---\n  # Root within the bucket.\n  #\n  # All operations happen under this root. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  #\n  # This field is required.\n  \"bucket\" => \"my-bucket\",\n\n  # MinIO endpoint.\n  #\n  # This field is required because MinIO deployments do not share a\n  # universal endpoint.\n  \"endpoint\" => \"http://127.0.0.1:9000\",\n\n  # Signing region.\n  #\n  # The default is `auto`. Set this field when the deployment requires a\n  # configured region.\n  # \"region\" => \"auto\",\n  # --- Credentials ---\n  # Access key ID.\n  #\n  # Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key.\n  #\n  # Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials.\n  #\n  # This field requires `access_key_id` and `secret_access_key`.\n  # \"session_token\" => \"...\",\n\n  # Send requests without signing them.\n  #\n  # This option cannot be combined with direct credentials.\n  # \"skip_signature\" => \"false\",\n})"
+        }
+      ]
+    },
+    {
       "name": "moka",
       "scheme": "moka",
       "groups": [
@@ -3671,6 +3774,108 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/postgresql\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(postgresql.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/postgresql\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(postgresql.Scheme, opendal.OperatorOptions{\n\t// Root of this backend.\n\t//\n\t// All operations will happen under this root.\n\t//\n\t// Default to `/` if not set.\n\t// \"root\": \"...\",\n\n\t// The URL should be with a scheme of either `postgres://` or `postgresql://`.\n\t//\n\t// - `postgresql://user@localhost`\n\t// - `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10`\n\t// - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`\n\t// - `postgresql:///mydb?user=user&host=/var/lib/postgresql`\n\t//\n\t// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.\n\t// \"connection_string\": \"...\",\n\n\t// the table of postgresql\n\t// \"table\": \"...\",\n\n\t// the key field of postgresql\n\t// \"key_field\": \"...\",\n\n\t// the value field of postgresql\n\t// \"value_field\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "r2",
+      "scheme": "r2",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket.\n\nAll operations happen under this root. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "my-bucket",
+          "comments": "Bucket name.\n\nThis field is required."
+        },
+        {
+          "name": "account_id",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "example-account",
+          "comments": "Cloudflare account ID used to derive the R2 endpoint.\n\nSet exactly one of `account_id` and `endpoint`."
+        },
+        {
+          "name": "jurisdiction",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "R2 jurisdiction.\n\nSupported values are `eu` and `fedramp`. This field requires\n`account_id` and cannot be used with `endpoint`."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "https://example.r2.cloudflarestorage.com",
+          "comments": "Explicit R2-compatible endpoint.\n\nUse this field for a proxy, gateway, or test server. Set exactly one of\n`endpoint` and `account_id`."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID.\n\nSet this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key.\n\nSet this field together with `access_key_id`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials.\n\nThis field requires `access_key_id` and `secret_access_key`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"r2\", [\n    (\"bucket\".to_string(), \"my-bucket\".to_string()),\n    (\"account_id\".to_string(), \"example-account\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"r2\", [\n    // --- General ---\n    // Root within the bucket.\n    //\n    // All operations happen under this root. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    //\n    // This field is required.\n    (\"bucket\".to_string(), \"my-bucket\".to_string()),\n\n    // Cloudflare account ID used to derive the R2 endpoint.\n    //\n    // Set exactly one of `account_id` and `endpoint`.\n    (\"account_id\".to_string(), \"example-account\".to_string()),\n\n    // R2 jurisdiction.\n    //\n    // Supported values are `eu` and `fedramp`. This field requires\n    // `account_id` and cannot be used with `endpoint`.\n    // (\"jurisdiction\".to_string(), \"...\".to_string()),\n\n    // Explicit R2-compatible endpoint.\n    //\n    // Use this field for a proxy, gateway, or test server. Set exactly one of\n    // `endpoint` and `account_id`.\n    // (\"endpoint\".to_string(), \"https://example.r2.cloudflarestorage.com\".to_string()),\n    // --- Credentials ---\n    // Access key ID.\n    //\n    // Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key.\n    //\n    // Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials.\n    //\n    // This field requires `access_key_id` and `secret_access_key`.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"my-bucket\");\nconfig.put(\"account_id\", \"example-account\");\nOperator operator = Operator.of(\"r2\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket.\n//\n// All operations happen under this root. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\n//\n// This field is required.\nconfig.put(\"bucket\", \"my-bucket\");\n\n// Cloudflare account ID used to derive the R2 endpoint.\n//\n// Set exactly one of `account_id` and `endpoint`.\nconfig.put(\"account_id\", \"example-account\");\n\n// R2 jurisdiction.\n//\n// Supported values are `eu` and `fedramp`. This field requires\n// `account_id` and cannot be used with `endpoint`.\n// config.put(\"jurisdiction\", \"...\");\n\n// Explicit R2-compatible endpoint.\n//\n// Use this field for a proxy, gateway, or test server. Set exactly one of\n// `endpoint` and `account_id`.\n// config.put(\"endpoint\", \"https://example.r2.cloudflarestorage.com\");\n// --- Credentials ---\n// Access key ID.\n//\n// Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key.\n//\n// Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials.\n//\n// This field requires `access_key_id` and `secret_access_key`.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"r2\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"r2\",\n    bucket=\"my-bucket\",\n    account_id=\"example-account\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"r2\",\n    # --- General ---\n    # Root within the bucket.\n    #\n    # All operations happen under this root. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    #\n    # This field is required.\n    bucket=\"my-bucket\",\n\n    # Cloudflare account ID used to derive the R2 endpoint.\n    #\n    # Set exactly one of `account_id` and `endpoint`.\n    account_id=\"example-account\",\n\n    # R2 jurisdiction.\n    #\n    # Supported values are `eu` and `fedramp`. This field requires\n    # `account_id` and cannot be used with `endpoint`.\n    # jurisdiction=\"...\",\n\n    # Explicit R2-compatible endpoint.\n    #\n    # Use this field for a proxy, gateway, or test server. Set exactly one of\n    # `endpoint` and `account_id`.\n    # endpoint=\"https://example.r2.cloudflarestorage.com\",\n    # --- Credentials ---\n    # Access key ID.\n    #\n    # Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key.\n    #\n    # Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials.\n    #\n    # This field requires `access_key_id` and `secret_access_key`.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"r2\", {\n  bucket: \"my-bucket\",\n  account_id: \"example-account\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"r2\", {\n  // --- General ---\n  // Root within the bucket.\n  //\n  // All operations happen under this root. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  //\n  // This field is required.\n  bucket: \"my-bucket\",\n\n  // Cloudflare account ID used to derive the R2 endpoint.\n  //\n  // Set exactly one of `account_id` and `endpoint`.\n  account_id: \"example-account\",\n\n  // R2 jurisdiction.\n  //\n  // Supported values are `eu` and `fedramp`. This field requires\n  // `account_id` and cannot be used with `endpoint`.\n  // jurisdiction: \"...\",\n\n  // Explicit R2-compatible endpoint.\n  //\n  // Use this field for a proxy, gateway, or test server. Set exactly one of\n  // `endpoint` and `account_id`.\n  // endpoint: \"https://example.r2.cloudflarestorage.com\",\n  // --- Credentials ---\n  // Access key ID.\n  //\n  // Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key.\n  //\n  // Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials.\n  //\n  // This field requires `access_key_id` and `secret_access_key`.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"r2\", {\n  \"bucket\" => \"my-bucket\",\n  \"account_id\" => \"example-account\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"r2\", {\n  # --- General ---\n  # Root within the bucket.\n  #\n  # All operations happen under this root. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  #\n  # This field is required.\n  \"bucket\" => \"my-bucket\",\n\n  # Cloudflare account ID used to derive the R2 endpoint.\n  #\n  # Set exactly one of `account_id` and `endpoint`.\n  \"account_id\" => \"example-account\",\n\n  # R2 jurisdiction.\n  #\n  # Supported values are `eu` and `fedramp`. This field requires\n  # `account_id` and cannot be used with `endpoint`.\n  # \"jurisdiction\" => \"...\",\n\n  # Explicit R2-compatible endpoint.\n  #\n  # Use this field for a proxy, gateway, or test server. Set exactly one of\n  # `endpoint` and `account_id`.\n  # \"endpoint\" => \"https://example.r2.cloudflarestorage.com\",\n  # --- Credentials ---\n  # Access key ID.\n  #\n  # Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key.\n  #\n  # Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials.\n  #\n  # This field requires `access_key_id` and `secret_access_key`.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },

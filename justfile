@@ -17,7 +17,7 @@
 
 # Generate code for language
 #
-# Available languages: python, java
+# Available languages: python, java, docs
 generate language:
     cargo run --quiet --manifest-path=dev/Cargo.toml -- generate -l {{language}}
 

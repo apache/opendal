@@ -1,5 +1,14 @@
-
 ## Compatible Services
+
+OpenDAL provides provider presets for services with a maintained, narrow
+configuration contract:
+
+- Use [`crate::R2`] or the `r2` scheme for Cloudflare R2.
+- Use [`crate::Minio`] or the `minio` scheme for MinIO deployments.
+
+The presets own provider defaults and validation. Use this generic [`crate::S3`]
+builder for AWS S3, for compatible services without a built-in preset, or when
+an application requires S3 options outside a preset's contract.
 
 ### AWS S3
 
@@ -39,22 +48,6 @@ builder.endpoint("https://oss-cn-hangzhou.aliyuncs.com");
 builder.region("<region>");
 builder.bucket("<bucket_name>");
 builder.enable_virtual_host_style();
-```
-
-### Minio
-
-[minio](https://min.io/) is an open-source s3 compatible services.
-
-To connect to minio, we need to set:
-
-- `endpoint`: The endpoint of minio, for example: `http://127.0.0.1:9000`
-- `region`: The region of minio. If you don't care about it, just set it to "auto", it will be ignored.
-- `bucket`: The bucket name of minio.
-
-```rust,ignore
-builder.endpoint("http://127.0.0.1:9000");
-builder.region("<region>");
-builder.bucket("<bucket_name>");
 ```
 
 ### QingStor Object Storage
@@ -121,25 +114,6 @@ To connect to wasabi, we need to set:
 - `bucket`: The bucket name of wasabi.
 
 > Refer to [What are the service URLs for Wasabi's different storage regions?](https://wasabi-support.zendesk.com/hc/en-us/articles/360015106031) for more details.
-
-### Cloudflare R2
-
-[Cloudflare R2](https://developers.cloudflare.com/r2/) provides s3 compatible API.
-
-> Cloudflare R2 Storage allows developers to store large amounts of unstructured data without the costly egress bandwidth fees associated with typical cloud storage services.
-
-
-To connect to r2, we need to set:
-
-- `endpoint`: The endpoint of r2, for example: `https://<account_id>.r2.cloudflarestorage.com`
-- `bucket`: The bucket name of r2.
-- `region`: When you create a new bucket, the data location is set to Automatic by default. So please use `auto` for region.
-- `enable_exact_buf_write`: R2 requires the non-tailing parts size to be exactly the same. Please enable this option to avoid the error `All non-trailing parts must have the same length`.
-
-R2 has the following capability differences from S3:
-
-- `delete_max_size`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please override `delete_max_size` to `700`.
-- `stat_with_override_cache_control`, `stat_with_override_content_disposition`, `stat_with_override_content_type`: R2 doesn't support stat with response override queries. Please override them to `false`.
 
 ### Google Cloud Storage XML API
 [Google Cloud Storage XML API](https://cloud.google.com/storage/docs/xml-api/overview) provides s3 compatible API.

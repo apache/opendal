@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
       .root("/path/to/dir")
       // Set the bucket name. This is required.
       .bucket("test")
-      // Set the region. This is required for some services, if you don't care about it, for example Minio service, just set it to "auto", it will be ignored.
+      // Set the signing region. Compatible services define their own region rules.
       .region("us-east-1")
       // Set the endpoint.
       //

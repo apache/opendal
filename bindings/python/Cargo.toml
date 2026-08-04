@@ -39,8 +39,10 @@ default = [
   "services-http",
   "services-ipmfs",
   "services-memory",
+  "services-minio",
   "services-obs",
   "services-oss",
+  "services-r2",
   "services-s3",
   "services-webdav",
   "services-webhdfs",
@@ -141,6 +143,7 @@ services-lakefs = [
 services-memcached = ["opendal/services-memcached"]
 services-memory = ["opendal/services-memory"]
 services-mini-moka = ["opendal/services-mini-moka"]
+services-minio = ["opendal/services-minio"]
 services-moka = ["opendal/services-moka"]
 services-mongodb = ["opendal/services-mongodb"]
 services-monoiofs = [
@@ -158,6 +161,7 @@ services-pcloud = [
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
+services-r2 = ["opendal/services-r2"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
 services-rocksdb = [

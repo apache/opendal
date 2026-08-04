@@ -32,6 +32,8 @@ doc = false
 
 [dependencies]
 # this crate won't be published, we always use the local version
+bytes = "1.12.1"
+futures = "0.3"
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "http-transport-reqwest",
@@ -104,8 +106,6 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-upyun",
   "services-yandex-disk",
 ] }
-bytes = "1.12.1"
-futures = "0.3"
 tokio = { version = "1.49.0", features = ["full"] }
 
 # This is not optimal. See also the Cargo issue:

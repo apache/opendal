@@ -19,42 +19,56 @@
 
 using System.Runtime.InteropServices;
 
-namespace OpenDAL;
+namespace OpenDAL.Interop.NativeObject;
 
 [StructLayout(LayoutKind.Sequential)]
 /// <summary>
-/// FFI representation of a Rust byte buffer.
+/// Read payload still owned by the native side.
 /// </summary>
-public struct ByteBuffer
+/// <remarks>
+/// Holds the native buffer itself rather than a flattened copy, so
+/// <see cref="ToManagedBytes"/> can copy straight into its final array. Released
+/// through the owning result's release call, not from here.
+/// </remarks>
+internal struct OpenDALBuffer
 {
     /// <summary>
-    /// Pointer to the first byte in unmanaged memory.
+    /// Opaque handle to the native buffer, or zero when there is no payload.
     /// </summary>
-    public IntPtr Data;
+    public IntPtr Handle;
 
     /// <summary>
-    /// Number of valid bytes in <see cref="Data"/>.
+    /// Total readable bytes across every chunk.
     /// </summary>
     public nuint Len;
 
     /// <summary>
-    /// Total allocated capacity in bytes.
+    /// Copies the payload into a new managed array.
     /// </summary>
-    public nuint Capacity;
-
-    /// <summary>
-    /// Copies the unmanaged bytes into a managed array.
-    /// </summary>
+    /// <returns>The payload, or an empty array when there is none.</returns>
     public readonly unsafe byte[] ToManagedBytes()
     {
-        if (Data == IntPtr.Zero || Len == 0)
+        if (Handle == IntPtr.Zero || Len == 0)
         {
             return Array.Empty<byte>();
         }
 
         var size = checked((int)Len);
         var managed = GC.AllocateUninitializedArray<byte>(size);
-        new ReadOnlySpan<byte>((void*)Data, size).CopyTo(managed);
+        nuint written;
+        fixed (byte* destination = managed)
+        {
+            written = NativeMethods.buffer_copy_to(Handle, destination, (nuint)size);
+        }
+
+        // The array is uninitialized, so a short copy would hand back whatever the
+        // heap held rather than the payload.
+        if (written != (nuint)size)
+        {
+            throw new InvalidOperationException(
+                $"Native buffer reported {Len} bytes but produced {written}.");
+        }
+
         return managed;
     }
 }

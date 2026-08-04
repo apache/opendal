@@ -57,6 +57,40 @@ builder.region("<region>");
 builder.bucket("<bucket_name>");
 ```
 
+### Oracle Cloud Infrastructure Object Storage
+
+[Oracle Cloud Infrastructure (OCI) Object Storage](https://www.oracle.com/cloud/storage/object-storage/) provides an Amazon S3 Compatibility API.
+
+To connect with path-style requests, set:
+
+- `endpoint`: The endpoint containing the Object Storage namespace and OCI region, for example: `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
+- `region`: The OCI region identifier, for example: `us-ashburn-1`.
+- `bucket`: The bucket name.
+- `access_key_id` and `secret_access_key`: The access key and secret key from an OCI Customer Secret Key.
+
+```rust,ignore
+// Accepted endpoint includes "oci.customer-oci.com" and "oraclecloud.com", while "oci.customer-oci.com" is preferred.
+builder.endpoint(
+    "https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com",
+);
+builder.region("<region>");
+builder.bucket("<bucket_name>");
+builder.access_key_id("<access_key>");
+builder.secret_access_key("<secret_key>");
+```
+
+OCI also supports virtual-hosted-style requests. Use the endpoint
+`https://vhcompat.objectstorage.<region>.oci.customer-oci.com` and call
+`enable_virtual_host_style()` when selecting that form.
+
+OCI Object Storage differs from Amazon S3 in the following ways:
+
+- OCI uses an Object Storage namespace instead of Amazon S3's global bucket namespace. Bucket names must be unique within the namespace according to the configured bucket scope.
+- OCI organizes resources in compartments. Buckets created through the S3 Compatibility API use the tenancy's designated compartment, which defaults to the root compartment.
+- OCI encrypts every object at rest and does not allow clients to enable or disable encryption through the API.
+- OCI does not support object-level ACLs. OCI IAM policies control access instead, so S3 object ACL settings such as `default_acl` do not apply.
+- OCI requires AWS Signature Version 4; Signature Version 2 is not supported.
+
 ### QingStor Object Storage
 
 [QingStor Object Storage](https://www.qingcloud.com/products/qingstor) is a S3-compatible service provided by [QingCloud](https://www.qingcloud.com/).
@@ -151,3 +185,26 @@ R2 has the following capability differences from S3:
 Ceph supports a RESTful API that is compatible with the basic data access model of the Amazon S3 API.
 
 For more information, refer: <https://docs.ceph.com/en/latest/radosgw/s3/>
+
+### SeaweedFS
+
+[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an open-source distributed storage system that serves an S3 API from its gateway.
+
+To connect to SeaweedFS, we need to set:
+
+- `endpoint`: The endpoint of the SeaweedFS S3 gateway, for example: `http://127.0.0.1:8333`
+- `region`: The region of SeaweedFS. SeaweedFS ignores it, so set it to `us-east-1` when a region is required.
+- `bucket`: The bucket name.
+
+```rust,ignore
+builder.endpoint("http://127.0.0.1:8333");
+builder.region("us-east-1");
+builder.bucket("<bucket_name>");
+```
+
+Credentials are standard S3 access keys. A gateway started without any configured identity accepts anonymous requests, so `allow_anonymous` also works.
+
+SeaweedFS has the following capability differences from S3:
+
+- `write_can_append`: SeaweedFS doesn't support appending to an existing object through the S3 API. Please override it to `false`.
+- Object versioning is per-bucket and off by default. Enable it with `PutBucketVersioning` before relying on the version capabilities, or override them to `false`.

@@ -44,10 +44,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Setup dotnet toolchain
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -74,15 +70,14 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-latest
-        dotnet-version:
-          - '8.0.x'
-          - '10.0.x'
     steps:
       - uses: actions/checkout@v7
       - name: Setup dotnet toolchain
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: ${{ matrix.dotnet-version }}
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -91,11 +86,13 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Test
+      - name: Build native library
         working-directory: "bindings/dotnet"
-        run: |
-          cargo build
-          dotnet test -f ${{ matrix.dotnet-version == '8.0.x' && 'net8.0' || 'net10.0' }}
+        run: cargo build
+
+      - name: Test
+        working-directory: "bindings/dotnet"
+        run: dotnet test
         env:
           OPENDAL_TEST: memory
 
@@ -104,5 +101,7 @@ jobs:
       # bad docs. It uses the in-memory service, so it needs no credentials.
       - name: Run guide example
         working-directory: "bindings/dotnet"
+        shell: bash
         run: |
-          dotnet run --project examples/GettingStarted -f ${{ matrix.dotnet-version == '8.0.x' && 'net8.0' || 'net10.0' }}
+          dotnet run --project examples/GettingStarted -f net8.0
+          dotnet run --project examples/GettingStarted -f net10.0

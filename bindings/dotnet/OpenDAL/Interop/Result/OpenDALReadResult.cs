@@ -18,6 +18,7 @@
  */
 
 using System.Runtime.InteropServices;
+using OpenDAL.Interop.NativeObject;
 using OpenDAL.Interop.Result.Abstractions;
 
 namespace OpenDAL.Interop.Result;
@@ -31,7 +32,7 @@ internal struct OpenDALReadResult : INativeValueResult<byte[]>
     /// <summary>
     /// Byte buffer payload on success.
     /// </summary>
-    public ByteBuffer Buffer;
+    public OpenDALBuffer Buffer;
 
     /// <summary>
     /// Error details for the operation.

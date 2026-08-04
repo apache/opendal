@@ -286,6 +286,7 @@ mod ffi {
         ) -> Result<()>;
         fn remove(self: &Operator, path: &str) -> Result<()>;
         fn remove_options(self: &Operator, path: &str, opts: FfiDeleteOptions) -> Result<()>;
+        fn remove_all(self: &Operator, paths: Vec<String>) -> Result<()>;
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn stat_options(self: &Operator, path: &str, opts: FfiStatOptions) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
@@ -600,6 +601,10 @@ impl Operator {
 
     fn remove_options(&self, path: &str, opts: ffi::FfiDeleteOptions) -> Result<()> {
         Ok(self.0.delete_options(path, delete_options(opts))?)
+    }
+
+    fn remove_all(&self, paths: Vec<String>) -> Result<()> {
+        Ok(self.0.delete_iter(paths)?)
     }
 
     fn stat(&self, path: &str) -> Result<ffi::Metadata> {

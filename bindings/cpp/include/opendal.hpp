@@ -179,6 +179,7 @@ class Operator {
    */
   void Remove(std::string_view path);
   void Remove(std::string_view path, const DeleteOptions &options);
+  void RemoveAll(const std::vector<std::string> &paths);
 
   /**
    * @brief Get the metadata of a file or directory

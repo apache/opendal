@@ -1069,31 +1069,42 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-    op.write(path.as_str(), content.clone())
+    let (path, first_content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), first_content.clone())
         .await
         .expect("write must success");
-    let meta = op.stat(path.as_str()).await.expect("stat must success");
-    let version = meta.version().expect("must have version");
+    let first_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let first_version = first_meta.version().expect("must have version");
 
     let data = op
         .read_with(path.as_str())
-        .version(version)
+        .version(first_version)
         .await
         .expect("read must success");
-    assert_eq!(content, data.to_vec());
+    assert_eq!(first_content, data.to_vec());
 
-    op.write(path.as_str(), "1")
+    let second_content = b"second version";
+    op.write(path.as_str(), second_content.to_vec())
         .await
         .expect("write must success");
+    let second_meta = op.stat(path.as_str()).await.expect("stat must success");
+    let second_version = second_meta.version().expect("must have version");
+    assert_ne!(first_version, second_version);
 
     // After writing new data, we can still read the first version data
-    let second_data = op
+    let first_version_data = op
         .read_with(path.as_str())
-        .version(version)
+        .version(first_version)
         .await
         .expect("read must success");
-    assert_eq!(content, second_data.to_vec());
+    assert_eq!(first_content, first_version_data.to_vec());
+
+    let second_version_data = op
+        .read_with(path.as_str())
+        .version(second_version)
+        .await
+        .expect("read must success");
+    assert_eq!(second_content.to_vec(), second_version_data.to_vec());
 
     Ok(())
 }

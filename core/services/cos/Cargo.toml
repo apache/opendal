@@ -38,6 +38,7 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.1", default-features = false, features = [
   "reqsign",
 ] }
+percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-core = { version = "3.2.0", default-features = false }
 reqsign-file-read-tokio = { version = "3.0.3", default-features = false }

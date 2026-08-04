@@ -69,6 +69,7 @@ To connect with path-style requests, set:
 - `access_key_id` and `secret_access_key`: The access key and secret key from an OCI Customer Secret Key.
 
 ```rust,ignore
+// Accepted endpoint includes "oci.customer-oci.com" and "oraclecloud.com", while "oci.customer-oci.com" is preferred.
 builder.endpoint(
     "https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com",
 );

@@ -194,7 +194,7 @@ impl OpendalWriteBuffer {
 
 /// Sealed segments with their committed lengths, plus the segment currently
 /// exposed to the caller.
-struct FillingState {
+pub(crate) struct FillingState {
     sealed: Vec<(Vec<MaybeUninit<u8>>, usize)>,
     current: Vec<MaybeUninit<u8>>,
 }

@@ -207,7 +207,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-mime-guess",
 ] }
-pyo3 = { version = "0.29.0", features = [
+pyo3 = { version = "=0.29.1", features = [
   "experimental-inspect",
   "generate-import-lib",
   "jiff-02",

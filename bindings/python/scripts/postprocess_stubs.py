@@ -54,8 +54,10 @@ IMPORTS = {
         "import collections.abc\n"
         "from .config import ServiceConfig\n"
         "from .file import AsyncFile\n"
+        "from .options import OpenKwargs\n"
         "from .services import Scheme\n"
         "from .types import Entry, PresignedRequest\n"
+        "from typing_extensions import Unpack\n"
     ),
     "file": "import collections.abc\nimport types\nimport typing_extensions\n",
 }

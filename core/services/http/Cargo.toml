@@ -17,12 +17,16 @@
 
 [package]
 description = "Apache OpenDAL HTTP service implementation"
-edition = "2024"
-license = "Apache-2.0"
 name = "opendal-service-http"
 readme = "README.md"
-repository = "https://github.com/apache/opendal"
-version = "0.58.1"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true

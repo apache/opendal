@@ -21,7 +21,7 @@ edition = "2024"
 license = "Apache-2.0"
 name = "opendal-benchmark-vs-s3"
 publish = false
-rust-version = "1.86"
+rust-version = "1.91"
 version = "0.58.1"
 
 [dependencies]

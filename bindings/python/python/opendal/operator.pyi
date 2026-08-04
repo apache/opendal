@@ -20,10 +20,13 @@ from datetime import datetime
 from os import PathLike
 from typing import Any, final
 
+from typing_extensions import Unpack
+
 from .capability import Capability
 from .config import ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
+from .options import OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
 
@@ -39,7 +42,7 @@ class AsyncOperator:
     Operator
     """
 
-    def __new__(cls, /, scheme: str | Scheme, **kwargs) -> AsyncOperator:
+    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> AsyncOperator:
         """
         Create a new `AsyncOperator`.
 
@@ -195,7 +198,7 @@ class AsyncOperator:
         ```
         """
     @classmethod
-    def from_uri(cls, /, uri: str, **kwargs) -> AsyncOperator:
+    def from_uri(cls, /, uri: str, **kwargs: str) -> AsyncOperator:
         """
         Create a new `AsyncOperator` from a URI string.
 
@@ -279,7 +282,7 @@ class AsyncOperator:
             An awaitable that returns an async iterator over the entries.
         """
     def open(
-        self, /, path: str | PathLike[str], mode: str, **kwargs
+        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
     ) -> collections.abc.Awaitable[AsyncFile]:
         """
         Open an async file-like object for the given path.
@@ -716,7 +719,7 @@ class Operator:
     AsyncOperator
     """
 
-    def __new__(cls, /, scheme: str | Scheme, **kwargs) -> Operator:
+    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> Operator:
         """
         Create a new blocking `Operator`.
 
@@ -848,7 +851,7 @@ class Operator:
         ```
         """
     @classmethod
-    def from_uri(cls, /, uri: str, **kwargs) -> Operator:
+    def from_uri(cls, /, uri: str, **kwargs: str) -> Operator:
         """
         Create a new blocking `Operator` from a URI string.
 
@@ -929,7 +932,9 @@ class Operator:
         BlockingLister
             An iterator over the entries in the directory.
         """
-    def open(self, /, path: str | PathLike[str], mode: str, **kwargs) -> File:
+    def open(
+        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
+    ) -> File:
         """
         Open a file-like object for the given path.
 

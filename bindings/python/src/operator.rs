@@ -190,7 +190,7 @@ impl Operator {
     /// Operator
     ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs))]
+    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str"))]
     pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
@@ -242,7 +242,7 @@ impl Operator {
     /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     /// ```
     #[classmethod]
-    #[pyo3(signature = (uri, **kwargs))]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
@@ -337,7 +337,7 @@ impl Operator {
     /// -------
     /// File
     ///     A file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs))]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]"))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -922,7 +922,7 @@ impl AsyncOperator {
     /// AsyncOperator
     ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs))]
+    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs: "str"))]
     pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
@@ -975,7 +975,7 @@ impl AsyncOperator {
     /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     /// ```
     #[classmethod]
-    #[pyo3(signature = (uri, **kwargs))]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
@@ -1066,7 +1066,7 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs) -> "collections.abc.Awaitable[AsyncFile]")]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]") -> "collections.abc.Awaitable[AsyncFile]")]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,

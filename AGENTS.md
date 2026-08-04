@@ -133,6 +133,7 @@ When adding or changing a public optional layer:
 
 ## Pull Requests
 
+- Before opening a PR, search for similar open PRs, issues, and in-progress branches that already address the same problem. Prefer contributing to or coordinating with existing work over opening a duplicate.
 - Always use `.github/pull_request_template.md` when creating a PR.
 - Keep PR titles and descriptions factual and concise.
 - Do not add AI-tool branding or co-author trailers.

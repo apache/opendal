@@ -17,6 +17,7 @@
  * under the License.
  */
 
+using System.Buffers;
 using OpenDAL.Options;
 
 namespace OpenDAL.Tests;
@@ -163,5 +164,130 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
         var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.ReadAsync(NewPath("missing-async"), CT));
 
         Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task ReadBehavior_ConsumeCallback_ReturnsConsumerResult()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("read-consume");
+        var content = RandomBytes(100_000);
+        await Op.WriteAsync(path, content, CT);
+
+        var length = 0L;
+        var actual = Op.Read(path, sequence =>
+        {
+            length = sequence.Length;
+            return sequence.ToArray();
+        });
+
+        Assert.Equal(content.Length, length);
+        Assert.Equal(content, actual);
+
+        var asyncActual = await Op.ReadAsync(path, sequence => sequence.ToArray(), cancellationToken: CT);
+        Assert.Equal(content, asyncActual);
+    }
+
+    [Fact]
+    public async Task ReadBehavior_ConsumeCallback_ChunkedPayloadRoundtrips()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        // Written in many small pieces, so backends that store the payload as
+        // written hand the consumer a sequence spanning several segments.
+        var path = NewPath("read-consume-chunked");
+        var content = RandomBytes(200_000);
+
+        await Op.WriteAsync(path, writer => FillInChunks(writer, content), cancellationToken: CT);
+
+        var actual = await Op.ReadAsync(path, sequence => sequence.ToArray(), cancellationToken: CT);
+        Assert.Equal(content, actual);
+
+        static void FillInChunks(IBufferWriter<byte> writer, byte[] content)
+        {
+            var remaining = content.AsSpan();
+            while (!remaining.IsEmpty)
+            {
+                var chunk = remaining[..Math.Min(999, remaining.Length)];
+                chunk.CopyTo(writer.GetSpan(chunk.Length));
+                writer.Advance(chunk.Length);
+                remaining = remaining[chunk.Length..];
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ReadBehavior_ConsumeCallback_ParsesJsonDirectly()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("read-consume-json");
+        var expected = new Dictionary<string, int[]>
+        {
+            ["values"] = Enumerable.Range(0, 5_000).ToArray(),
+        };
+
+        await Op.WriteAsync(path, writer =>
+        {
+            using var json = new System.Text.Json.Utf8JsonWriter(writer);
+            System.Text.Json.JsonSerializer.Serialize(json, expected);
+        }, cancellationToken: CT);
+
+        var actual = await Op.ReadAsync(path, Deserialize, cancellationToken: CT);
+
+        Assert.NotNull(actual);
+        Assert.Equal(expected["values"], actual!["values"]);
+
+        static Dictionary<string, int[]>? Deserialize(ReadOnlySequence<byte> sequence)
+        {
+            var reader = new System.Text.Json.Utf8JsonReader(sequence);
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int[]>>(ref reader);
+        }
+    }
+
+    [Fact]
+    public async Task ReadBehavior_ConsumeCallback_ConsumerFailurePropagates()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("read-consume-throw");
+        var content = RandomBytes(1024);
+        await Op.WriteAsync(path, content, CT);
+
+        Assert.Throws<InvalidOperationException>(() => Op.Read<byte[]>(
+            path, _ => throw new InvalidOperationException("consumer failed")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Op.ReadAsync<byte[]>(
+            path, _ => throw new InvalidOperationException("consumer failed"), cancellationToken: CT));
+
+        Assert.Equal(content, Op.Read(path));
+    }
+
+    [Fact]
+    public async Task ReadBehavior_ConsumeCallback_RejectsNullConsumer()
+    {
+        if (!Supports(c => c.Read))
+        {
+            return;
+        }
+
+        var path = NewPath("read-consume-arguments");
+
+        Assert.Throws<ArgumentNullException>(() => Op.Read(
+            path, (Func<ReadOnlySequence<byte>, byte[]>)null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Op.ReadAsync(
+            path, (Func<ReadOnlySequence<byte>, byte[]>)null!, cancellationToken: CT));
     }
 }

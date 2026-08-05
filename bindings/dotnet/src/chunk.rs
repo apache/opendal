@@ -15,22 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Rust FFI layer backing the OpenDAL .NET binding.
-//!
-//! This crate exposes `extern "C"` APIs consumed by C# via P/Invoke and keeps
-//! interop memory ownership explicit through dedicated release functions.
-
-mod buffer;
-mod capability;
-mod chunk;
-mod entry;
-mod error;
-mod executor;
-mod metadata;
-mod operator;
-mod operator_info;
-mod options;
-mod presign;
-mod result;
-mod utils;
-mod validators;
+#[repr(C)]
+/// Descriptor of one contiguous chunk inside a read payload.
+pub struct OpendalChunk {
+    pub data: *const u8,
+    pub len: usize,
+}

@@ -25,6 +25,11 @@ namespace OpenDAL;
 /// <summary>
 /// Managed wrapper over an OpenDAL native executor handle.
 /// </summary>
+/// <remarks>
+/// Dispose only after every operation submitted with this executor has
+/// completed: disposal tears down the runtime, and tasks it cancels never
+/// complete their awaiters.
+/// </remarks>
 public sealed class Executor : SafeHandle
 {
     /// <summary>

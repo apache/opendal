@@ -28,7 +28,7 @@ namespace OpenDAL;
 /// </summary>
 public sealed class OperatorOutputStream : Stream
 {
-    internal const int DefaultBufferSize = 16 * 1024;
+    internal const int DefaultBufferSize = 16 * 1024; // 16 KiB
 
     private IntPtr handle;
     private bool disposed;

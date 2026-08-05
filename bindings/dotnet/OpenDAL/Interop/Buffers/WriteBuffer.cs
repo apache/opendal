@@ -37,12 +37,12 @@ namespace OpenDAL.Interop.Buffers;
 /// </remarks>
 internal sealed class WriteBuffer : IBufferWriter<byte>, IDisposable
 {
-    internal const int DefaultInitialCapacity = 64 * 1024;
+    internal const int DefaultInitialCapacity = 64 * 1024; // 64 KiB
 
     // New segments double the previous capacity up to this bound, mirroring
     // ArrayBufferWriter's growth curve while keeping segments coarse enough
     // that a large payload stays a handful of chunks.
-    private const int MaxSegmentCapacity = 8 * 1024 * 1024;
+    private const int MaxSegmentCapacity = 8 * 1024 * 1024; // 8 MiB
 
     private IntPtr handle;
     private IntPtr data;

@@ -86,6 +86,7 @@ mod _opendal {
         #[pymodule_export]
         use crate::{
             CapabilityOverrideLayer, ConcurrentLimitLayer, Layer, MimeGuessLayer, RetryLayer,
+            TimeoutLayer,
         };
     }
 

@@ -42,7 +42,7 @@ rust-version = "1.91"
 version = "0.58.1"
 
 [workspace.dependencies]
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1.10"
 ctor = "1.0.7"
 futures = { version = "0.3", default-features = false }
@@ -76,6 +76,7 @@ reqsign-volcengine-tos = { git = "https://github.com/apache/opendal-reqsign", re
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"
+readme = "README.md"
 
 authors = { workspace = true }
 categories = { workspace = true }

@@ -1,6 +1,6 @@
-# Capabilities
+## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,30 +12,18 @@ This service can be used to:
 - [ ] rename
 - [x] presign
 
-# Configuration
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
-- `root`: Set the work dir for backend.
-- `bucket`: Set the container name for backend.
-- `endpoint`: Set the endpoint for backend.
-- `addressing_style`: Set the addressing style for endpoint.
-- `presign_endpoint`: Set the endpoint for presign.
-- `presign_addressing_style`: Set the addressing style for presign endpoint.
-- `access_key_id`: Set the access_key_id for backend.
-- `access_key_secret`: Set the access_key_secret for backend.
-- `role_arn`: Set the role of backend.
-- `external_id`: Set the external_id for backend.
-- `oidc_token`: Set the oidc_token for backend.
-- `skip_signature`: Skip loading credentials and signing requests.
-- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
-- `enable_versioning`: Deprecated. OSS versioning capability is enabled by default and this option is no longer needed.
-- `batch_max_operations`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.
-- `delete_max_size`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.
+## Configuration
 
-Refer to [`OssBuilder`]'s public API docs for more information.
+Use [`crate::OssConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
-# Example
+## Example
 
-## Via Builder
+### Via Builder
 
 ```rust,no_run
 use opendal_core::Operator;

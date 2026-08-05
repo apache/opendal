@@ -20,6 +20,7 @@ description = "Apache OpenDAL HTTP service implementation"
 edition = "2024"
 license = "Apache-2.0"
 name = "opendal-service-http"
+readme = "README.md"
 repository = "https://github.com/apache/opendal"
 version = "0.58.1"
 

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Foundationdb service implementation"
 name = "opendal-service-foundationdb"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

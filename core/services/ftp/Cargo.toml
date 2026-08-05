@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL FTP service implementation"
 name = "opendal-service-ftp"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL COS service implementation"
 name = "opendal-service-cos"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

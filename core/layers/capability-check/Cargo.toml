@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL capability-check layer"
 name = "opendal-layer-capability-check"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }

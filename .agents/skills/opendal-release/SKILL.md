@@ -46,14 +46,15 @@ Use these states explicitly when reporting status:
 
 1. `planning`: release discussion/tracking issue/version bump not done.
 2. `bump-pr`: version/changelog/upgrade/dependency updates are in PR.
-3. `rc-tagged`: signed RC tag exists and was pushed.
-4. `rc-ci`: tag-triggered release workflows are still running or failed.
-5. `artifacts-built`: `just release` generated local ASF source artifacts.
-6. `dist-dev-uploaded`: artifacts are committed to ASF SVN `dist/dev`.
-7. `nexus-closed`: Java staging repo is closed and publicly accessible.
-8. `vote-open`: GitHub Discussion vote is open.
-9. `vote-passed`: at least 72 hours elapsed and binding vote requirements are met.
-10. `official-release`: final tag, `dist/release`, package repositories, GitHub release, and announcement are complete.
+3. `crates-bootstrapped`: the bootstrap workflow has authenticated every Rust crate in the scanned `main` publish plan, and every name exists with the exact Trusted Publisher and `trustpub_only` enabled.
+4. `rc-tagged`: signed RC tag exists and was pushed.
+5. `rc-ci`: tag-triggered release workflows are still running or failed.
+6. `artifacts-built`: `just release` generated local ASF source artifacts.
+7. `dist-dev-uploaded`: artifacts are committed to ASF SVN `dist/dev`.
+8. `nexus-closed`: Java staging repo is closed and publicly accessible.
+9. `vote-open`: GitHub Discussion vote is open.
+10. `vote-passed`: at least 72 hours elapsed and binding vote requirements are met.
+11. `official-release`: final tag, `dist/release`, package repositories, GitHub release, and announcement are complete.
 
 If a release fails before `official-release`, abandon that RC, clean up wrong staged artifacts where needed, drop the Maven staging repo, and create the next RC.
 
@@ -69,6 +70,8 @@ If a release fails before `official-release`, abandon that RC, clean up wrong st
    - `website/community/release/release.md`
    - `dev/src/release/package.rs`
    - `.github/workflows/release_*.yml`
+   - `.github/workflows/bootstrap_rust_crates.yml`
+   - `.github/scripts/release_rust/bootstrap.py`
    - `.github/scripts/release_rust/plan.py`
    - `.github/scripts/release_rust/publish.py`
 
@@ -95,6 +98,61 @@ When preparing a bump PR:
 
 Before opening the PR, check whether PR templates exist and use them. Keep the PR body self-contained and reviewer-facing.
 
+## Bootstrap Rust Crates
+
+During release preparation, wait until the intended Rust crate-name set is
+present on `apache/opendal` `main`. The release manager chooses the exact
+reservation time, normally about three days before the planned release. When
+the release manager decides to reserve the names, dispatch the Rust crate
+bootstrap workflow:
+
+```bash
+.agents/skills/opendal-release/scripts/bootstrap-rust-crates.sh
+```
+
+This command performs the transition to `crates-bootstrapped`. Run it without
+asking for a second confirmation after a PMC release manager explicitly chooses
+the reservation time. Do not run it for release status checks or dry-run
+planning. A `0.0.0` package is an externally visible and irreversible namespace
+reservation, not an ASF software release or release artifact.
+
+The helper:
+
+- Requires a clean checkout at the current `apache/opendal` `main`.
+- Verifies that the `rust-bootstrap` environment has a required-reviewer protection rule.
+- Dispatches `bootstrap_rust_crates.yml` without inputs.
+- Resolves the exact run, checks its `headSha`, and waits for completion.
+- Blocks while the `rust-bootstrap` environment awaits PMC approval on every run.
+- Verifies publicly that every crate in the checked publish plan exists and has `trustpub_only` enabled after the authenticated workflow audit succeeds.
+
+The workflow always scans the publish plan from its `main` commit. Before any
+write, the protected job uses the bootstrap token to authenticate ownership and
+audit the exact Trusted Publisher configuration of every existing planned
+crate. It never modifies an established crate. For missing names, it publishes
+a dependency-free `0.0.0` namespace reservation, creates the single allowed
+Trusted Publisher for `apache/opendal`, `release_rust.yml`, and the `release`
+environment, and enables `trustpub_only`. Reruns reconcile every placeholder.
+The protected authenticated audit runs even when discovery finds no bootstrap
+candidates.
+
+The one-time migration of existing, established crates to Trusted Publishing is
+an independent administrative prerequisite. Configure the same
+`apache/opendal`, `release_rust.yml`, and `release` publisher identity and
+enable `trustpub_only` for every existing crate. This workflow audits but never
+changes established crates, and it fails if that migration is incomplete.
+Complete the migration before using the OIDC-only release workflow.
+
+ASF Infrastructure provisions the `rust-bootstrap` GitHub environment from
+`.asf.yaml` with PMC required reviewers, self-review disabled, and a `main`-only
+deployment policy. A PMC release manager must add the
+`CARGO_REGISTRY_BOOTSTRAP_TOKEN` environment secret. The token must have only
+`publish-new` and `trusted-publishing` endpoint scopes, with crate scopes
+restricted to OpenDAL package names. Never expose this token to the normal
+release workflow.
+
+If the Rust publish plan gains another crate after a successful reservation
+run, run the helper again at the release manager's chosen time.
+
 ## RC Tagging
 
 Before creating an RC tag:
@@ -102,6 +160,7 @@ Before creating an RC tag:
 - Resolve the remote that points to `apache/opendal`; do not assume it is named `origin`.
 - Confirm the bump PR or required fix PR is merged.
 - Confirm the tag target commit exactly.
+- Confirm the Rust crate bootstrap workflow succeeded and no later change added a crate to the publish plan.
 - Confirm no existing tag uses the intended RC version.
 
 Tag and push:
@@ -232,7 +291,8 @@ Release safety requirements from the 0.56.0 cycle:
 - `core/testkit` / `opendal-testkit` must be in the Rust publish plan when top-level `opendal` references it through the `tests` feature.
 - Publish helpers must use `cargo publish --package <name>` rather than relying on workspace defaults.
 - Repo-local `dev-dependencies` can break packaging even with `cargo publish --no-verify`; use `.github/scripts/release_rust/publish.py` and keep its tests green.
-- Trusted publishing tokens cannot create new crates. If a new crate name is introduced, verify creation permissions or pre-create/publish manually.
+- The bootstrap workflow must succeed before RC tagging, and it must be rerun if the publish plan later gains a crate.
+- The normal release workflow must use Trusted Publishing only. It fetches and revokes a new OIDC-derived crates.io token for every publish attempt, including retries.
 
 If release helper CI is noisy, rebase onto latest `origin/main`, run targeted helper tests locally, then update the PR.
 

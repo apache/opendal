@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -36,10 +37,12 @@ namespace ffi {
 class Operator;
 class Reader;
 class Lister;
+class Writer;
 }  // namespace ffi
 
 class Reader;
 class Lister;
+class Writer;
 
 /**
  * @class Operator
@@ -88,6 +91,15 @@ class Operator {
   std::string Read(std::string_view path);
 
   /**
+   * @brief Read data from the operator with extra options
+   *
+   * @param path The path of the data
+   * @param options The read options
+   * @return The data read from the operator
+   */
+  std::string Read(std::string_view path, const ReadOptions &options);
+
+  /**
    * @brief Write data to the operator
    *
    * @param path The path of the data
@@ -96,12 +108,25 @@ class Operator {
   void Write(std::string_view path, std::string_view data);
 
   /**
+   * @brief Write data to the operator with extra options
+   *
+   * @param path The path of the data
+   * @param data The data to write
+   * @param options The write options
+   */
+  void Write(std::string_view path, std::string_view data,
+             const WriteOptions &options);
+
+  /**
    * @brief Read data from the operator
    *
    * @param path The path of the data
    * @return The reader of the data
    */
   Reader GetReader(std::string_view path);
+  Reader GetReader(std::string_view path, const ReaderOptions &options);
+  Writer GetWriter(std::string_view path);
+  Writer GetWriter(std::string_view path, const WriteOptions &options);
 
   /**
    * @brief Check if the path exists
@@ -134,6 +159,8 @@ class Operator {
    * @param dst The destination path
    */
   void Copy(std::string_view src, std::string_view dst);
+  void Copy(std::string_view src, std::string_view dst,
+            const CopyOptions &options);
 
   /**
    * @brief Rename a file from src to dst.
@@ -142,6 +169,8 @@ class Operator {
    * @param dst The destination path
    */
   void Rename(std::string_view src, std::string_view dst);
+  void Rename(std::string_view src, std::string_view dst,
+              const RenameOptions &options);
 
   /**
    * @brief Remove a file or directory
@@ -149,6 +178,8 @@ class Operator {
    * @param path The path of the file or directory
    */
   void Remove(std::string_view path);
+  void Remove(std::string_view path, const DeleteOptions &options);
+  void RemoveAll(const std::vector<std::string> &paths);
 
   /**
    * @brief Get the metadata of a file or directory
@@ -157,6 +188,7 @@ class Operator {
    * @return The metadata of the file or directory
    */
   Metadata Stat(std::string_view path);
+  Metadata Stat(std::string_view path, const StatOptions &options);
 
   /**
    * @brief List the entries of a directory
@@ -166,13 +198,15 @@ class Operator {
    * @return The entries of the directory
    */
   std::vector<Entry> List(std::string_view path);
+  std::vector<Entry> List(std::string_view path, const ListOptions &options);
 
   Lister GetLister(std::string_view path);
+  Lister GetLister(std::string_view path, const ListOptions &options);
   Capability Info();
- 
+
   private:
    void Destroy() noexcept;
- 
+
    ffi::Operator *operator_{nullptr};
  };
 
@@ -193,6 +227,8 @@ class Reader {
 
   std::streamsize Read(void *s, std::streamsize n);
 
+  std::streamsize ReadAt(void *s, std::streamsize n, uint64_t offset);
+
   std::streampos Seek(std::streamoff off, std::ios_base::seekdir way);
 
  private:
@@ -203,6 +239,35 @@ class Reader {
   void Destroy() noexcept;
 
   ffi::Reader *reader_{nullptr};
+};
+
+/**
+ * @class Writer
+ * @brief Writer is designed to write a sequence of byte buffers to an object.
+ *
+ * Call Close to commit the object. OpenDAL selects the service's appropriate
+ * implementation, including multipart uploads when supported.
+ */
+class Writer {
+ public:
+  Writer(Writer &&other) noexcept;
+
+  ~Writer() noexcept;
+
+  void Write(std::string_view data);
+
+  void Flush();
+
+  void Close();
+
+ private:
+  friend class Operator;
+
+  Writer(ffi::Writer *pointer) noexcept;
+
+  void Destroy() noexcept;
+
+  ffi::Writer *writer_{nullptr};
 };
 
 /**

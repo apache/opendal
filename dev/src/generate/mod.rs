@@ -17,6 +17,7 @@
 
 mod docs;
 mod java;
+mod options;
 mod parser;
 mod python;
 

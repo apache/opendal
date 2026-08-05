@@ -18,16 +18,15 @@ This guide complements the foundation-wide policies and guides:
 - [Release Distribution Policy](https://infra.apache.org/release-distribution)
 - [Release Creation Process](https://infra.apache.org/release-publishing.html)
 
-## Some Terminology of release
+## Release terminology
 
-In the context of our release, we use several terms to describe different stages of the release process.
+The release process uses the following terms:
 
-Here's an explanation of these terms:
-
-- `opendal_version`: the version of OpenDAL to be released, like `0.46.0`.
-- `release_version`: the version of release candidate, like `0.46.0-rc.1`.
-- `rc_version`: the minor version for voting round, like `rc.1`.
-- `maven_artifact_number`: the number for Maven staging artifacts, like `1010`. The number can be found by searching "opendal" on https://repository.apache.org/#stagingRepositories. And the Maven staging artifacts will be created automatically when we push a git tag to GitHub for now.
+- `release_version`: the final version proposed for release, like `0.46.0`.
+- `release_candidate_version`: the exact candidate used during staging and voting, formed from `${release_version}-${rc_version}`, like `0.46.0-rc.1`.
+- `opendal_last_version`: the most recent final version, used as the starting point for the release comparison.
+- `rc_version`: the suffix that identifies the release candidate and voting round, like `rc.1`.
+- `maven_artifact_number`: the number of the Maven staging repository, like `1010`. Find it by searching for "opendal" in the [Apache Nexus staging repositories](https://repository.apache.org/#stagingRepositories). GitHub Actions creates the staged Maven artifacts when the release candidate tag is pushed.
 
 ## Preparation
 
@@ -52,18 +51,18 @@ Title:
 Content:
 
 ```
-Hello, Apache OpenDAL Community,
+Hello, Apache OpenDAL community,
 
-This is a call for a discussion to release Apache OpenDAL version ${opendal_version}.
+I would like to start a discussion about releasing Apache OpenDAL ${release_version}.
 
-The change lists about this release:
+Changes since Apache OpenDAL ${opendal_last_version}:
 
 https://github.com/apache/opendal/compare/v${opendal_last_version}...main
 
-Please leave your comments here about this release plan. We will bump the version in the repo and start the release process after the discussion.
+Please share any comments on this release plan. After the discussion, we will
+update the repository versions and begin preparing the release candidate.
 
-Thanks
-
+Thanks,
 ${name}
 ```
 
@@ -103,6 +102,54 @@ Run `just update-version` to bump the version in the project.
 Download and setup `cargo-deny`. You can refer to [cargo-deny](https://embarkstudios.github.io/cargo-deny/cli/index.html).
 
 Running `python3 ./scripts/dependencies.py generate` to update the dependency list of every package.
+
+### Bootstrap Rust crate names
+
+During release preparation, wait until the intended Rust crate-name set is on
+`apache/opendal` `main`. The release manager chooses the exact reservation time,
+normally about three days before the planned release. At that time, check out
+the current `main` commit and run:
+
+```shell
+.agents/skills/opendal-release/scripts/bootstrap-rust-crates.sh
+```
+
+The helper dispatches the manual `Bootstrap Rust Crates` workflow without
+inputs. The workflow scans the Rust publish plan from the `main` commit that
+GitHub records as the run's `headSha`. The helper resolves that exact run,
+checks the `headSha`, and waits for it to finish. A PMC member must approve the
+protected `rust-bootstrap` environment on every run.
+
+The protected job authenticates ownership and audits every existing planned
+crate before it writes anything. Each established crate must already have
+`apache/opendal`, `release_rust.yml`, and the `release` environment as its only
+Trusted Publisher, with `trustpub_only` enabled. The workflow never modifies an
+established crate. For each missing name, it publishes a dependency-free
+`0.0.0` package, configures that Trusted Publisher, and enables
+`trustpub_only`. Reruns reconcile every placeholder. The protected authenticated
+audit runs even when there are no bootstrap candidates.
+
+The one-time migration of existing crates is a separate administrative task.
+Configure the same `apache/opendal`, `release_rust.yml`, and `release` publisher
+identity and enable `trustpub_only` for every existing crate. This workflow
+audits but never modifies established crates, and it fails if the migration is
+incomplete. Complete that migration before using the OIDC-only Rust release
+workflow.
+
+The `0.0.0` package is a namespace reservation, not an ASF software release or
+release artifact. crates.io exposes the reservation publicly, and publishing it
+is irreversible. The release manager decides when the names are stable enough
+to reserve. Run the helper again if a later `main` commit adds another planned
+crate. Do not create the RC tag until every name in the current publish plan has
+passed the workflow.
+
+ASF Infrastructure provisions the `rust-bootstrap` GitHub environment from
+`.asf.yaml` with PMC required reviewers, self-review disabled, and a `main`-only
+deployment policy. A PMC release manager must add a
+`CARGO_REGISTRY_BOOTSTRAP_TOKEN` environment secret. The crates.io token must
+have only the `publish-new` and `trusted-publishing` endpoint scopes and
+OpenDAL-specific crate scopes. The normal Rust release workflow must not have
+access to this token.
 
 ### Push release candidate tag
 
@@ -149,14 +196,10 @@ of calling `cargo publish` directly. The helper temporarily removes repo-local
 step, same-version dev dependencies and dev-only cycles can block the release
 even though they are not needed by downstream users.
 
-:::caution
-
-crates.io trusted publishing tokens cannot create new crates. If this release
-introduces a new crate name, make sure a crates.io token that is allowed to
-create crates is available as `CARGO_REGISTRY_TOKEN`, or publish the new crate
-manually before relying on trusted publishing.
-
-:::
+The normal workflow publishes only through Trusted Publishing. The helper
+fetches and revokes a fresh OIDC-derived crates.io token for every publish
+attempt, including attempts retried after a rate limit. New crate names must
+already exist from the reservation workflow.
 
 ## ASF Side
 
@@ -178,7 +221,7 @@ After the RC tag has been pushed and the required workflows are green, create th
     - `apache-opendal-{package}-{version}-src.tar.gz.sha512`
   - Artifact names use each package's own version. The RC version is only used for the SVN directory name, such as `0.55.0-rc.1/`.
   - Each archive contains `LICENSE`, `NOTICE`, the package directory itself, and any repo-local dependencies needed to build that package from source.
-  - This repository no longer produces a monolithic `apache-opendal-${opendal_version}-src.tar.gz` artifact or any `apache-opendal-bin-*` artifacts.
+  - This repository no longer produces a monolithic `apache-opendal-${release_version}-src.tar.gz` artifact or any `apache-opendal-bin-*` artifacts.
 
 This script will create a new release under `dist`.
 
@@ -237,22 +280,22 @@ svn co https://dist.apache.org/repos/dist/dev/opendal opendal-dist-dev
 
 Then, upload the artifacts:
 
-> The `${release_version}` here should be like `0.46.0-rc.1`
+> The `${release_candidate_version}` here should be like `0.46.0-rc.1`.
 
 ```shell
 cd opendal-dist-dev
 # create a directory named by version
-mkdir ${release_version}
+mkdir ${release_candidate_version}
 # copy source code and signature package to the versioned directory
-cp ${repo_dir}/dist/* ${release_version}/
+cp ${repo_dir}/dist/* ${release_candidate_version}/
 # check svn status
 svn status
 # add to svn
-svn add ${release_version}
+svn add ${release_candidate_version}
 # check svn status
 svn status
 # commit to SVN remote server
-svn commit -m "Prepare for ${release_version}"
+svn commit -m "Prepare for ${release_candidate_version}"
 ```
 
 Visit <https://dist.apache.org/repos/dist/dev/opendal/> to make sure the artifacts are uploaded correctly.
@@ -274,37 +317,36 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 ### Rescue
 
-If you accidentally published wrong or unexpected artifacts, like wrong signature files, wrong sha256 files,
-please cancel the release for the current `release_version`,
-_increase th RC counting_ and re-initiate a release with the new `release_version`.
-And remember to delete the wrong artifacts from the SVN dist repo.
-Additionally, you should also drop the staging Maven artifacts on https://repository.apache.org.
+If you publish incorrect or unexpected artifacts, such as invalid signatures or
+checksums, abandon the current release candidate `${release_candidate_version}`,
+increment `rc_version`, and prepare a new candidate. Delete the incorrect
+artifacts from the SVN dist repository and drop the Maven staging repository at
+https://repository.apache.org.
 
 ## Voting
 
-OpenDAL requires votes from both the OpenDAL Community.
+A release candidate must receive at least three binding `+1` votes from OpenDAL
+PMC members and more binding `+1` than `-1` votes.
 
 Start a VOTE at [OpenDAL Discussion General](https://github.com/apache/opendal/discussions/categories/general):
 
 Title:
 
 ```
-[VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1
+[VOTE] Release Apache OpenDAL ${release_candidate_version}
 ```
 
 Content:
 
-```
-Hello, Apache OpenDAL Community,
+````
+Hello, Apache OpenDAL community,
 
-This is a call for a vote to release Apache OpenDAL ${opendal_version},
-based on release candidate v${release_version}.
-
-We are voting on release v${release_version}.
+This is a call for a vote on Apache OpenDAL release candidate
+v${release_candidate_version}, proposed for release as Apache OpenDAL ${release_version}.
 
 Release candidate source packages:
 
-https://dist.apache.org/repos/dist/dev/opendal/${release_version}/
+https://dist.apache.org/repos/dist/dev/opendal/${release_candidate_version}/
 
 Keys used to verify the signatures:
 
@@ -312,7 +354,7 @@ https://downloads.apache.org/opendal/KEYS
 
 Release candidate Git tag:
 
-https://github.com/apache/opendal/releases/tag/v${release_version}
+https://github.com/apache/opendal/releases/tag/v${release_candidate_version}
 
 Maven staging repository:
 
@@ -324,17 +366,19 @@ https://test.pypi.org/project/opendal/
 
 Staged website:
 
-https://opendal-v${release_version | replace('.', '-')}.staged.apache.org/
+https://opendal-v${release_candidate_version | replace('.', '-')}.staged.apache.org/
 
-Please download, verify, and test the release candidate.
+Please download, verify, and test the release candidate. When voting, state
+which checks you performed.
 
-The vote will remain open for at least 72 hours and until the required
-number of binding votes is reached.
+The vote will remain open for at least 72 hours and until the release candidate
+receives at least three binding `+1` votes, with more binding `+1` than `-1`
+votes.
 
 ```markdown
-- [ ] +1 approve
-- [ ] +0 no opinion
-- [ ] -1 disapprove the release. Please explain why.
+- [ ] +1 Approve.
+- [ ] +0 No opinion.
+- [ ] -1 Do not approve. Please explain why.
 
 Verification checklist:
 
@@ -346,69 +390,76 @@ Verification checklist:
 - [ ] Source builds successfully.
 ```
 
-Use our verify.py to assist in the verify process:
+Use `verify.py` to help verify the release candidate:
 
-    svn checkout https://dist.apache.org/repos/dist/dev/opendal/${release_version}/ opendal-dist-${release_version}
-    cd opendal-dist-${release_version}
-    curl --silent --show-error --location https://github.com/apache/opendal/raw/v${release_version}/scripts/verify.py --output verify.py
-    python verify.py
+```shell
+svn checkout https://dist.apache.org/repos/dist/dev/opendal/${release_candidate_version}/ opendal-dist-${release_candidate_version}
+cd opendal-dist-${release_candidate_version}
+curl --silent --show-error --location https://github.com/apache/opendal/raw/v${release_candidate_version}/scripts/verify.py --output verify.py
+python verify.py
+```
 
-For more information about Apache OpenDAL, visit:
-https://opendal.apache.org/
+For more information about Apache OpenDAL, visit https://opendal.apache.org/.
 
 Thanks,
 ${name}
-```
+````
 
 Example: <https://github.com/apache/opendal/discussions/5211>
 
-The vote should be open for **at least 72 hours** except the following cases:
+The vote should remain open for **at least 72 hours**, except in the following cases:
 
 1. Security issues
-2. The wild user affected bug fixes
-3. Any other emergency cases
+2. Urgent bug fixes that affect many users
+3. Other emergencies approved by the PMC
 
-The Release manager should claim the emergency cases in the vote email if he wants to vote it rapidly.
+The release manager must explain the emergency and shortened voting period in the vote message.
 
-> Tips: The 72 hours is the minimum time for voting, so we can ensure that community members from various time zones can participate in the verification process.
+> The 72-hour minimum gives community members in different time zones an opportunity to verify the release candidate and vote.
 
-After at least 3 `+1` binding vote ([from OpenDAL PMC member](https://people.apache.org/phonebook.html?project=opendal)) and more +1 bindings than -1 bindings, claim the vote result:
+After the release candidate receives at least three binding `+1` votes from [OpenDAL PMC members](https://people.apache.org/phonebook.html?project=opendal), with more binding `+1` than `-1` votes, announce the result:
 
 Title:
 
 ```
-[RESULT][VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1
+[RESULT][VOTE] Release Apache OpenDAL ${release_candidate_version}
 ```
 
 Content:
 
 ```
-Hello, Apache OpenDAL Community,
+Hello, Apache OpenDAL community,
 
-The vote to release Apache OpenDAL ${release_version} has passed.
+The vote on Apache OpenDAL release candidate v${release_candidate_version} has passed.
+The candidate is approved for release as Apache OpenDAL ${release_version}.
 
-The vote PASSED with 3 +1 binding and 1 +1 non-binding votes, no +0 or -1 votes:
-
-Binding votes:
+Binding +1 votes:
 
 - xxx
 - yyy
 - zzz
 
-Non-Binding votes:
+Non-binding +1 votes:
 
 - aaa
 
++0 votes:
+
+- None
+
+-1 votes:
+
+- None
+
 Vote thread: ${vote_thread_url}
 
-Thanks
+Thanks,
 ${name}
 ```
 
-It's better to use the real name or the public name which is displayed on the voters' profile page,
-or Apache ID of the voter, to show who voted in the vote result email,
-and avoid using nicknames, it will make the vote result hard for others to track the voter.
-We should make sure the binding votes are from the people who have the right to vote the binding one.
+Identify voters by their real name, public profile name, or Apache ID. Avoid
+nicknames that make votes difficult to verify. Confirm that every binding vote
+comes from an OpenDAL PMC member.
 
 Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 
@@ -418,17 +469,17 @@ Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 
 ```shell
 # Checkout the tags that passed VOTE
-git checkout ${release_version}
-# Tag with the opendal version
-git tag -s ${opendal_version}
+git checkout v${release_candidate_version}
+# Tag with the final release version
+git tag -s v${release_version}
 # Push tags to GitHub to trigger releases
-git push origin ${opendal_version}
+git push origin v${release_version}
 ```
 
 ### Publish artifacts to SVN RELEASE branch
 
 ```shell
-svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_version} https://dist.apache.org/repos/dist/release/opendal/${opendal_version} -m "Release ${opendal_version}"
+svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_candidate_version} https://dist.apache.org/repos/dist/release/opendal/${release_version} -m "Release ${release_version}"
 ```
 
 ### Release Maven artifacts
@@ -474,16 +525,16 @@ we need to check the GitHub action status.
 
 ### Send the announcement
 
-Start an announcement to [OpenDAL Discussion Announcements](https://github.com/apache/opendal/discussions/categories/announcements) and send the same content to `announce@apache.org`.
+Post an announcement in [OpenDAL Discussion Announcements](https://github.com/apache/opendal/discussions/categories/announcements) and send the same content to `announce@apache.org`.
 
-> Tips: Please follow the [Committer Email](https://infra.apache.org/committer-email.html) guide to make sure you have already set up the email SMTP. Otherwise, your email cannot be sent to the announcement mailing list.
+> Follow the [Committer Email](https://infra.apache.org/committer-email.html) guide to configure SMTP before sending to the announcement mailing list.
 
-Instead of adding breaking changes, let's include the new features as "notable changes" in the announcement.
+Summarize notable user-facing changes instead of copying the raw breaking-change list.
 
 Title:
 
 ```
-[ANNOUNCE] Release Apache OpenDAL ${opendal_version}
+[ANNOUNCE] Release Apache OpenDAL ${release_version}
 ```
 
 Content:
@@ -491,31 +542,31 @@ Content:
 ```
 Hi all,
 
-The Apache OpenDAL community is pleased to announce
-that Apache OpenDAL ${opendal_version} has been released!
+The Apache OpenDAL community is pleased to announce the release of
+Apache OpenDAL ${release_version}.
 
-OpenDAL is a data access layer that allows users to easily and efficiently
-retrieve data from various storage services in a unified way.
+Apache OpenDAL provides a unified data access layer for applications,
+libraries, and data systems.
 
-The notable changes since ${opendal_version} include:
+Notable changes in this release include:
 
 1. xxxxx
 2. yyyyyy
 3. zzzzzz
 
-Please refer to the change log for the complete list of changes:
-https://github.com/apache/opendal/releases/tag/v${opendal_version}
+Changelog: https://github.com/apache/opendal/releases/tag/v${release_version}
 
-Apache OpenDAL website: https://opendal.apache.org/
+Download: https://opendal.apache.org/download
 
-Download Links: https://opendal.apache.org/download
+Website: https://opendal.apache.org/
 
-OpenDAL Resources:
-- Issue: https://github.com/apache/opendal/issues
-- Mailing list: dev@opendal.apache.org
+Issue tracker: https://github.com/apache/opendal/issues
 
-Thanks
-On behalf of Apache OpenDAL community
+Mailing list: dev@opendal.apache.org
+
+Thanks,
+${name}
+on behalf of the Apache OpenDAL community
 ```
 
 Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>

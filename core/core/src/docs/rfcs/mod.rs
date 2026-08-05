@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// S3 Provider Presets
+#[doc = include_str!("7948_s3_provider_presets.md")]
+pub mod rfc_7948_s3_provider_presets {}
+
 /// Rename If Not Exists
 #[doc = include_str!("7818_rename_if_not_exists.md")]
 pub mod rfc_7818_rename_if_not_exists {}

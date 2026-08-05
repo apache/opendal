@@ -133,10 +133,12 @@ impl HfBuilder {
         self
     }
 
-    /// configure the Hub base url. You might want to set this variable if your
-    /// organization is using a Private Hub https://huggingface.co/enterprise
+    /// Set the Hub base URL.
     ///
-    /// Default is "https://huggingface.co"
+    /// Configure this when your organization uses a
+    /// [Private Hub](https://huggingface.co/enterprise).
+    ///
+    /// The default is `https://huggingface.co`.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
             self.config.endpoint = Some(endpoint.to_string());
@@ -246,6 +248,7 @@ impl Builder for HfBuilder {
             stat: true,
             read: true,
             write: token.is_some(),
+            write_can_multi: token.is_some(),
             delete: token.is_some(),
             delete_max_size: Some(100),
             list: true,

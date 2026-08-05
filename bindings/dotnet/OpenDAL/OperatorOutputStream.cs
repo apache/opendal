@@ -17,8 +17,6 @@
  * under the License.
  */
 
-using OpenDAL.Interop.Result;
-
 namespace OpenDAL;
 
 /// <summary>

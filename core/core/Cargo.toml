@@ -21,6 +21,7 @@ description = "Apache OpenDAL™: One Layer, All Storage."
 exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal-core"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -61,7 +62,6 @@ services-memory = []
 
 [lib]
 bench = false
-doctest = false
 
 [dependencies]
 # Required dependencies

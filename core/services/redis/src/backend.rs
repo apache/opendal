@@ -44,6 +44,7 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 #[derive(Debug, Default)]
 pub struct RedisBuilder {
     pub(super) config: RedisConfig,
+    pub(super) default_ttl: Option<Duration>,
 }
 
 impl RedisBuilder {
@@ -108,7 +109,7 @@ impl RedisBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.config.default_ttl = Some(ttl);
+        self.default_ttl = Some(ttl);
         self
     }
 
@@ -144,6 +145,14 @@ impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Service> {
+        let default_ttl = match self.default_ttl {
+            Some(ttl) => Some(ttl),
+            None => self
+                .config
+                .default_ttl
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
         let root = normalize_root(
             self.config
                 .root
@@ -170,7 +179,7 @@ impl Builder for RedisBuilder {
                 endpoints,
                 None,
                 Some(client),
-                self.config.default_ttl,
+                default_ttl,
                 self.config.connection_pool_max_size,
             ))
             .with_normalized_root(root))
@@ -194,7 +203,7 @@ impl Builder for RedisBuilder {
                 endpoint,
                 Some(client),
                 None,
-                self.config.default_ttl,
+                default_ttl,
                 self.config.connection_pool_max_size,
             ))
             .with_normalized_root(root))

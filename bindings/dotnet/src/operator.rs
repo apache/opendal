@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::{
-    byte_buffer::ByteBuffer,
+    buffer::OpendalBuffer,
     entry::into_entry_list_ptr,
     error::OpenDALError,
     executor::executor_or_default,
@@ -31,7 +31,8 @@ use crate::{
     },
     utils::{collect_options, require_callback, require_cstr, require_data_ptr, require_operator},
     validators::prelude::{
-        validate_concurrent_limit_options, validate_retry_options, validate_timeout_options,
+        validate_concurrent_limit_options, validate_retry_options, validate_throttle_options,
+        validate_timeout_options,
     },
 };
 
@@ -385,6 +386,10 @@ fn operator_layer_retry_inner(
 ///
 /// The current operator is not modified. Returned pointer must be released with
 /// `operator_free`.
+///
+/// `http_permits` limits concurrent HTTP requests independently of `permits`,
+/// which limits concurrent operations. It is read only when `has_http_permits`
+/// is true; otherwise the HTTP limit is left unset.
 /// # Safety
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
@@ -392,8 +397,11 @@ fn operator_layer_retry_inner(
 pub extern "C" fn operator_layer_concurrent_limit(
     op: *const opendal::Operator,
     permits: usize,
+    http_permits: usize,
+    has_http_permits: bool,
 ) -> OpendalOperatorResult {
-    match operator_layer_concurrent_limit_inner(op, permits) {
+    let http_permits = has_http_permits.then_some(http_permits);
+    match operator_layer_concurrent_limit_inner(op, permits, http_permits) {
         Ok(value) => OpendalOperatorResult::ok(value),
         Err(error) => OpendalOperatorResult::from_error(error),
     }
@@ -402,11 +410,16 @@ pub extern "C" fn operator_layer_concurrent_limit(
 fn operator_layer_concurrent_limit_inner(
     op: *const opendal::Operator,
     permits: usize,
+    http_permits: Option<usize>,
 ) -> Result<*mut c_void, OpenDALError> {
     let op = require_operator(op)?;
-    validate_concurrent_limit_options(permits)?;
+    validate_concurrent_limit_options(permits, http_permits)?;
 
-    let concurrent_limit = opendal::layers::ConcurrentLimitLayer::new(permits);
+    let mut concurrent_limit = opendal::layers::ConcurrentLimitLayer::new(permits);
+    if let Some(http_permits) = http_permits {
+        concurrent_limit = concurrent_limit.with_http_concurrent_limit(http_permits);
+    }
+
     Ok(Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as *mut c_void)
 }
 
@@ -473,6 +486,66 @@ fn operator_layer_timeout_inner(
         .with_io_timeout(Duration::from_nanos(io_timeout_nanos));
 
     Ok(Box::into_raw(Box::new(op.clone().layer(timeout))) as *mut c_void)
+}
+
+/// Create a new operator layered with throttle behavior.
+///
+/// The current operator is not modified. Returned pointer must be released with
+/// `operator_free`.
+///
+/// `bandwidth` is the maximum number of bytes allowed through per second, and
+/// `burst` is the maximum number of bytes allowed through at once. `burst` must
+/// exceed the largest possible operation size, otherwise that operation can
+/// never acquire enough quota to proceed.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_layer_throttle(
+    op: *const opendal::Operator,
+    bandwidth: u32,
+    burst: u32,
+) -> OpendalOperatorResult {
+    match operator_layer_throttle_inner(op, bandwidth, burst) {
+        Ok(value) => OpendalOperatorResult::ok(value),
+        Err(error) => OpendalOperatorResult::from_error(error),
+    }
+}
+
+fn operator_layer_throttle_inner(
+    op: *const opendal::Operator,
+    bandwidth: u32,
+    burst: u32,
+) -> Result<*mut c_void, OpenDALError> {
+    let op = require_operator(op)?;
+    validate_throttle_options(bandwidth, burst)?;
+
+    let throttle = opendal::layers::ThrottleLayer::new(bandwidth, burst);
+    Ok(Box::into_raw(Box::new(op.clone().layer(throttle))) as *mut c_void)
+}
+
+/// Create a new operator layered with MIME-guess behavior.
+///
+/// The current operator is not modified. Returned pointer must be released with
+/// `operator_free`.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_layer_mime_guess(op: *const opendal::Operator) -> OpendalOperatorResult {
+    match operator_layer_mime_guess_inner(op) {
+        Ok(value) => OpendalOperatorResult::ok(value),
+        Err(error) => OpendalOperatorResult::from_error(error),
+    }
+}
+
+fn operator_layer_mime_guess_inner(
+    op: *const opendal::Operator,
+) -> Result<*mut c_void, OpenDALError> {
+    let op = require_operator(op)?;
+
+    let mime_guess = opendal::layers::MimeGuessLayer::default();
+    Ok(Box::into_raw(Box::new(op.clone().layer(mime_guess))) as *mut c_void)
 }
 
 /// Duplicate an operator instance.
@@ -1202,13 +1275,27 @@ fn operator_input_stream_create_inner(
 
     let _guard = executor.enter();
 
+    let range = options.range.to_range();
+    let reader_options = opendal::options::ReaderOptions {
+        version: options.version,
+        if_match: options.if_match,
+        if_none_match: options.if_none_match,
+        if_modified_since: options.if_modified_since,
+        if_unmodified_since: options.if_unmodified_since,
+        content_length_hint: options.content_length_hint,
+        concurrent: options.concurrent,
+        chunk: options.chunk,
+        gap: options.gap,
+        ..Default::default()
+    };
+
     let blocking_op =
         opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
     let reader = blocking_op
-        .reader_options(&path, opendal::options::ReaderOptions::default())
+        .reader_options(&path, reader_options)
         .map_err(OpenDALError::from_opendal_error)?;
     let stream = reader
-        .into_bytes_iterator(options.range.to_range())
+        .into_bytes_iterator(range)
         .map_err(OpenDALError::from_opendal_error)?;
 
     Ok(Box::into_raw(Box::new(stream)) as *mut c_void)
@@ -1232,7 +1319,7 @@ pub extern "C" fn operator_input_stream_read_next(
 
 fn operator_input_stream_read_next_inner(
     stream: *mut opendal::blocking::StdBytesIterator,
-) -> Result<ByteBuffer, OpenDALError> {
+) -> Result<OpendalBuffer, OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "input stream pointer is null",
@@ -1250,8 +1337,8 @@ fn operator_input_stream_read_next_inner(
                 err.to_string(),
             ))
         })?
-        .map(|v| ByteBuffer::from_vec(v.to_vec()))
-        .unwrap_or_else(ByteBuffer::empty);
+        .map(|v| OpendalBuffer::from_buffer(v.into()))
+        .unwrap_or_else(OpendalBuffer::empty);
 
     Ok(value)
 }
@@ -1491,31 +1578,37 @@ fn operator_write_with_options_inner(
 ///
 /// - `op` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
-/// - `data.data` must be non-null and readable for `data.len` bytes when `data.len > 0`.
+/// - `data` must be non-null and readable for `len` bytes when `len > 0`.
 /// - `callback` must be a valid function pointer and remain callable until invoked.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn operator_write_with_options_async(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
-    data: ByteBuffer,
+    data: *const u8,
+    len: usize,
     options: *const opendal::options::WriteOptions,
     callback: Option<WriteCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_write_with_options_async_inner(
-        op, executor, path, data, options, callback, context,
+        op, executor, path, data, len, options, callback, context,
     ) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
+// Mirrors the `extern "C"` signature above, which clippy exempts because a C ABI
+// is not a design choice. This helper exists only to give that function a body it
+// can write with `?`.
+#[allow(clippy::too_many_arguments)]
 fn operator_write_with_options_async_inner(
     op: *const opendal::Operator,
     executor: *const c_void,
     path: *const c_char,
-    data: ByteBuffer,
+    data: *const u8,
+    len: usize,
     options: *const opendal::options::WriteOptions,
     callback: Option<WriteCallback>,
     context: i64,
@@ -1523,7 +1616,7 @@ fn operator_write_with_options_async_inner(
     let op = require_operator(op)?;
     let executor = executor_or_default(executor)?;
     let path = require_cstr(path, "path")?.to_string();
-    require_data_ptr(data.data.cast_const(), data.len)?;
+    require_data_ptr(data, len)?;
     let callback = require_callback(callback)?;
     let options = if options.is_null() {
         opendal::options::WriteOptions::default()
@@ -1531,10 +1624,12 @@ fn operator_write_with_options_async_inner(
         unsafe { (&*options).clone() }
     };
 
-    let payload = if data.len == 0 {
+    // Copied before the task is spawned, so the caller only has to keep its
+    // array alive for the duration of this call.
+    let payload = if len == 0 {
         Vec::new()
     } else {
-        unsafe { std::slice::from_raw_parts(data.data.cast_const(), data.len) }.to_vec()
+        unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
     };
 
     let op = op.clone();
@@ -1583,7 +1678,7 @@ fn operator_read_with_options_inner(
     executor: *const c_void,
     path: *const c_char,
     options: *const opendal::options::ReadOptions,
-) -> Result<ByteBuffer, OpenDALError> {
+) -> Result<OpendalBuffer, OpenDALError> {
     let op = require_operator(op)?;
     let executor = executor_or_default(executor)?;
     let path = require_cstr(path, "path")?;
@@ -1595,10 +1690,9 @@ fn operator_read_with_options_inner(
 
     let value = executor
         .block_on(op.read_options(path, options))
-        .map(|v| v.to_vec())
         .map_err(OpenDALError::from_opendal_error)?;
 
-    Ok(ByteBuffer::from_vec(value))
+    Ok(OpendalBuffer::from_buffer(value))
 }
 
 /// Read bytes from `path` asynchronously with options.
@@ -1649,7 +1743,7 @@ fn operator_read_with_options_async_inner(
         let result = op
             .read_options(&path, options)
             .await
-            .map(|v| ByteBuffer::from_vec(v.to_vec()))
+            .map(OpendalBuffer::from_buffer)
             .map_err(OpenDALError::from_opendal_error);
 
         callback(

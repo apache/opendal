@@ -20,7 +20,7 @@ use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use std::thread::available_parallelism;
 
 use crate::error::OpenDALError;
@@ -29,8 +29,8 @@ use crate::utils::config_invalid_error;
 
 static DEFAULT_EXECUTOR: OnceLock<Arc<Executor>> = OnceLock::new();
 
-static EXECUTOR_REGISTRY: LazyLock<Mutex<HashMap<usize, Arc<Executor>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static EXECUTOR_REGISTRY: LazyLock<RwLock<HashMap<usize, Arc<Executor>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 static NEXT_EXECUTOR_ID: AtomicUsize = AtomicUsize::new(1);
 
 pub struct Executor {
@@ -73,10 +73,6 @@ impl Executor {
     {
         self.runtime.spawn(future)
     }
-
-    pub fn enter(&self) -> tokio::runtime::EnterGuard<'_> {
-        self.runtime.enter()
-    }
 }
 
 fn default_executor() -> Result<Arc<Executor>, OpenDALError> {
@@ -109,7 +105,7 @@ pub fn executor_or_default(executor: *const c_void) -> Result<Arc<Executor>, Ope
 
     let id = executor as usize;
     let registry = EXECUTOR_REGISTRY
-        .lock()
+        .read()
         .map_err(|_| config_invalid_error("executor registry is poisoned"))?;
 
     registry
@@ -123,7 +119,7 @@ pub extern "C" fn executor_create(threads: usize) -> OpendalExecutorResult {
     match Executor::new(threads) {
         Ok(executor) => {
             let id = NEXT_EXECUTOR_ID.fetch_add(1, Ordering::Relaxed);
-            match EXECUTOR_REGISTRY.lock() {
+            match EXECUTOR_REGISTRY.write() {
                 Ok(mut registry) => {
                     registry.insert(id, Arc::new(executor));
                     OpendalExecutorResult::ok(id as *mut c_void)
@@ -148,7 +144,7 @@ pub unsafe extern "C" fn executor_free(executor: *mut c_void) {
         return;
     }
 
-    if let Ok(mut registry) = EXECUTOR_REGISTRY.lock() {
+    if let Ok(mut registry) = EXECUTOR_REGISTRY.write() {
         registry.remove(&(executor as usize));
     }
 }

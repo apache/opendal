@@ -813,22 +813,6 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Writing more than once before `close()` commits through the service's multi-part
-/// completion request instead of a single-shot upload. Preconditions must still be honored
-/// on that path, otherwise a conditional write silently degrades to an unconditional
-/// overwrite.
-///
-/// Services normally evaluate the precondition at commit time, but some may reject earlier,
-/// so an error from either `write()` or `close()` is accepted.
-async fn write_conditionally_in_chunks(
-    w: &mut Writer,
-    content: &[u8],
-) -> opendal::Result<Metadata> {
-    w.write(content.to_vec()).await?;
-    w.write(content.to_vec()).await?;
-    w.close().await
-}
-
 /// Write an existing file through a chunked writer with if_not_exists should get a
 /// ConditionNotMatch error.
 pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
@@ -837,15 +821,23 @@ pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
 
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let mut w = op.writer_with(&path).if_not_exists(true).await?;
-    let res = write_conditionally_in_chunks(&mut w, &content).await;
-    assert!(res.is_err());
+    // Some services reject the precondition when the writer is created or on an early
+    // write rather than at commit time
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_not_exists(true).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
@@ -859,7 +851,8 @@ pub async fn test_writer_write_with_if_none_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
 
     op.write(&path, content.clone())
         .await
@@ -868,9 +861,14 @@ pub async fn test_writer_write_with_if_none_match(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await?;
     let etag = meta.etag().expect("etag must exist");
 
-    let mut w = op.writer_with(&path).if_none_match(etag).await?;
-    let res = write_conditionally_in_chunks(&mut w, &content).await;
-    assert!(res.is_err());
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_none_match(etag).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
@@ -884,7 +882,8 @@ pub async fn test_writer_write_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let (path_a, content_a, _) = TEST_FIXTURE.new_file(op.clone());
+    let path_a = TEST_FIXTURE.new_file_path();
+    let content_a = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
     let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
 
     op.write(&path_a, content_a.clone()).await?;
@@ -903,15 +902,20 @@ pub async fn test_writer_write_with_if_match(op: Operator) -> Result<()> {
         .expect("etag must exist")
         .to_string();
 
-    // Should succeed: writing to path_a with its own etag.
     let mut w = op.writer_with(&path_a).if_match(&etag_a).await?;
-    let res = write_conditionally_in_chunks(&mut w, &content_a).await;
-    assert!(res.is_ok());
+    w.write(content_a.clone()).await?;
+    w.write(content_a.clone()).await?;
+    w.close().await.expect("close with own etag must succeed");
 
     // Should fail: writing to path_a with path_b's etag.
-    let mut w = op.writer_with(&path_a).if_match(&etag_b).await?;
-    let res = write_conditionally_in_chunks(&mut w, &content_a).await;
-    assert!(res.is_err());
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path_a).if_match(&etag_b).await?;
+        w.write(content_a.clone()).await?;
+        w.write(content_a.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())

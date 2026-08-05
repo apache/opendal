@@ -17,7 +17,7 @@
 
 use std::ffi::c_void;
 
-use crate::buffer::{OpendalBuffer, buffer_free};
+use crate::buffer::{OpendalReadBuffer, OpendalWriteBuffer, read_buffer_free};
 use crate::entry::entry_list_free;
 use crate::error::OpenDALError;
 use crate::metadata::metadata_free;
@@ -75,7 +75,7 @@ pub struct OpendalEntryListResult {
 #[repr(C)]
 /// Result for operations returning a byte buffer payload.
 pub struct OpendalReadResult {
-    pub buffer: OpendalBuffer,
+    pub buffer: OpendalReadBuffer,
     pub error: OpenDALError,
 }
 
@@ -83,6 +83,17 @@ pub struct OpendalReadResult {
 /// Result for operations returning a presigned request payload pointer.
 pub struct OpendalPresignedRequestResult {
     pub ptr: *mut c_void,
+    pub error: OpenDALError,
+}
+
+#[repr(C)]
+/// Result for operations returning an allocated write buffer.
+///
+/// On success the caller owns the buffer handle; there is no dedicated
+/// release API for this result because the handle's lifecycle is managed by
+/// `write_buffer_free`, and the error message by `opendal_error_release`.
+pub struct OpendalWriteBufferResult {
+    pub buffer: OpendalWriteBuffer,
     pub error: OpenDALError,
 }
 
@@ -164,14 +175,20 @@ define_result!(
 
 define_result!(
     OpendalReadResult,
-    field = buffer: OpendalBuffer,
-    error_value = OpendalBuffer::empty()
+    field = buffer: OpendalReadBuffer,
+    error_value = OpendalReadBuffer::empty()
 );
 
 define_result!(
     OpendalPresignedRequestResult,
     field = ptr: *mut c_void,
     error_value = std::ptr::null_mut()
+);
+
+define_result!(
+    OpendalWriteBufferResult,
+    field = buffer: OpendalWriteBuffer,
+    error_value = OpendalWriteBuffer::empty()
 );
 
 fn release_error_message(error: &mut OpenDALError) {
@@ -255,12 +272,12 @@ pub extern "C" fn opendal_entry_list_result_release(mut result: OpendalEntryList
 /// This function is idempotent for empty/null buffers.
 /// # Safety
 ///
-/// - `result.buffer` must originate from `OpendalBuffer::from_buffer` in this crate.
+/// - `result.buffer` must originate from `OpendalReadBuffer::from_buffer` in this crate.
 /// - The buffer must not be accessed after this call.
 #[unsafe(no_mangle)]
 pub extern "C" fn opendal_read_result_release(mut result: OpendalReadResult) {
     unsafe {
-        buffer_free(result.buffer.handle);
+        read_buffer_free(result.buffer.handle);
     }
 
     release_error_message(&mut result.error);

@@ -17,35 +17,41 @@
  * under the License.
  */
 
-using System.Runtime.InteropServices;
-using OpenDAL.Interop.NativeObject;
-using OpenDAL.Interop.Result.Abstractions;
+using System.Buffers;
 
-namespace OpenDAL.Interop.Result;
+namespace OpenDAL.Interop.Buffers;
 
-[StructLayout(LayoutKind.Sequential)]
 /// <summary>
-/// Result wrapper for operations that return a byte buffer payload.
+/// Presents a fixed region of native memory as <see cref="Memory{T}"/>.
+/// The region never moves, so pinning is a no-op; the caller guarantees the
+/// memory outlives every handed-out view.
 /// </summary>
-internal struct OpenDALReadResult : INativeResult
+internal sealed unsafe class NativeMemoryManager : MemoryManager<byte>
 {
-    /// <summary>
-    /// Byte buffer payload on success.
-    /// </summary>
-    public OpenDALReadBuffer Buffer;
+    private readonly byte* pointer;
+    private readonly int length;
 
-    /// <summary>
-    /// Error details for the operation.
-    /// </summary>
-    public OpenDALError Error;
-
-    public readonly void Release()
+    public NativeMemoryManager(byte* pointer, int length)
     {
-        NativeMethods.opendal_read_result_release(this);
+        this.pointer = pointer;
+        this.length = length;
     }
 
-    public readonly OpenDALError GetError()
+    public override Span<byte> GetSpan()
     {
-        return Error;
+        return new Span<byte>(pointer, length);
+    }
+
+    public override MemoryHandle Pin(int elementIndex = 0)
+    {
+        return new MemoryHandle(pointer + elementIndex);
+    }
+
+    public override void Unpin()
+    {
+    }
+
+    protected override void Dispose(bool disposing)
+    {
     }
 }

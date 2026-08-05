@@ -22,9 +22,29 @@ using System.Runtime.InteropServices;
 namespace OpenDAL.Interop.NativeObject;
 
 [StructLayout(LayoutKind.Sequential)]
-internal struct OpenDALEntry
+/// <summary>
+/// Writable native segment returned by <c>write_buffer_create</c> or
+/// <c>write_buffer_add_segment</c>.
+/// </summary>
+/// <remarks>
+/// <see cref="Data"/> points at <see cref="Capacity"/> writable bytes owned by
+/// <see cref="Handle"/>. The handle must be released exactly once through
+/// <c>write_buffer_free</c>.
+/// </remarks>
+internal struct OpenDALWriteBuffer
 {
-    public IntPtr Path;
+    /// <summary>
+    /// Opaque handle owning every segment of the buffer.
+    /// </summary>
+    public IntPtr Handle;
 
-    public OpenDALMetadata Metadata;
+    /// <summary>
+    /// Raw pointer to the newest segment, valid until the handle is freed.
+    /// </summary>
+    public IntPtr Data;
+
+    /// <summary>
+    /// Writable bytes behind <see cref="Data"/>.
+    /// </summary>
+    public nuint Capacity;
 }

@@ -17,6 +17,7 @@
  * under the License.
  */
 
+using System.Buffers;
 using OpenDAL.Options;
 
 namespace OpenDAL.Tests;
@@ -63,6 +64,219 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
         var actual = await Op.ReadAsync(path, CT);
 
         Assert.Equal(content, actual);
+    }
+
+    [Fact]
+    public void WriteBehavior_SyncWriteCopiesTheSource()
+    {
+        if (!Supports(c => c.Write && c.Read))
+        {
+            return;
+        }
+
+        // Guards against the write path lending the caller's array to the
+        // backend: with aliasing, mutating the source after Write changes
+        // what in-process backends hand back on the next read, and the
+        // stored pointer dangles once the GC collects the array.
+        var path = NewPath("write-copies-source");
+        var content = RandomBytes(1024);
+        var expected = (byte[])content.Clone();
+
+        Op.Write(path, content);
+        content.AsSpan().Fill(0xEE);
+
+        Assert.Equal(expected, Op.Read(path));
+    }
+
+    [Fact]
+    public async Task WriteBehavior_LargeContentRoundtripAsync()
+    {
+        if (!Supports(c => c.Write && c.Read))
+        {
+            return;
+        }
+
+        var path = NewPath("write-async-large");
+        var content = RandomBytes(256 * 1024);
+
+        await Op.WriteAsync(path, content, CT);
+        var actual = await Op.ReadAsync(path, CT);
+
+        Assert.Equal(content, actual);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_Roundtrips()
+    {
+        if (!Supports(c => c.Write && c.Read))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill");
+        var content = RandomBytes(256 * 1024);
+
+        await Op.WriteAsync(path, writer =>
+        {
+            content.CopyTo(writer.GetSpan(content.Length));
+            writer.Advance(content.Length);
+        }, sizeHint: content.Length, cancellationToken: CT);
+
+        var actual = await Op.ReadAsync(path, CT);
+        Assert.Equal(content, actual);
+
+        var syncPath = NewPath("write-fill-sync");
+        Op.Write(syncPath, writer =>
+        {
+            content.CopyTo(writer.GetSpan(content.Length));
+            writer.Advance(content.Length);
+        }, sizeHint: content.Length);
+
+        Assert.Equal(content, Op.Read(syncPath));
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_ChunkedFillRoundtrips()
+    {
+        if (!Supports(c => c.Write && c.Read))
+        {
+            return;
+        }
+
+        // Produced in many small pieces and large enough that the writer must
+        // grow while filling, which is how serializers without a known output
+        // size behave.
+        var path = NewPath("write-fill-chunked");
+        var content = RandomBytes(200_000);
+
+        await Op.WriteAsync(path, writer => FillInChunks(writer, content), cancellationToken: CT);
+
+        var actual = await Op.ReadAsync(path, CT);
+        Assert.Equal(content, actual);
+
+        static void FillInChunks(IBufferWriter<byte> writer, byte[] content)
+        {
+            var remaining = content.AsSpan();
+            while (!remaining.IsEmpty)
+            {
+                var chunk = remaining[..Math.Min(1000, remaining.Length)];
+                chunk.CopyTo(writer.GetSpan(chunk.Length));
+                writer.Advance(chunk.Length);
+                remaining = remaining[chunk.Length..];
+            }
+        }
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_SerializesJsonDirectly()
+    {
+        if (!Supports(c => c.Write && c.Read))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-json");
+        var expected = new Dictionary<string, int[]>
+        {
+            ["values"] = Enumerable.Range(0, 10_000).ToArray(),
+        };
+
+        await Op.WriteAsync(path, writer =>
+        {
+            using var json = new System.Text.Json.Utf8JsonWriter(writer);
+            System.Text.Json.JsonSerializer.Serialize(json, expected);
+        }, cancellationToken: CT);
+
+        var actual = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int[]>>(
+            await Op.ReadAsync(path, CT));
+        Assert.NotNull(actual);
+        Assert.Equal(expected["values"], actual!["values"]);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_FillFailureWritesNothing()
+    {
+        if (!Supports(c => c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-throw");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Op.WriteAsync(
+            path, _ => throw new InvalidOperationException("producer failed"), cancellationToken: CT));
+
+        var ex = Assert.Throws<OpenDALException>(() => Op.Stat(path));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public void WriteBehavior_FillCallback_SyncFillFailureWritesNothing()
+    {
+        if (!Supports(c => c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-throw-sync");
+
+        Assert.Throws<InvalidOperationException>(() => Op.Write(
+            path, _ => throw new InvalidOperationException("producer failed")));
+
+        var ex = Assert.Throws<OpenDALException>(() => Op.Stat(path));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_PreCanceledTokenWritesNothing()
+    {
+        if (!Supports(c => c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-pre-canceled");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Op.WriteAsync(
+            path, _ => { }, cancellationToken: cts.Token));
+
+        var ex = Assert.Throws<OpenDALException>(() => Op.Stat(path));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task WriteBehavior_EmptyContentRoundtrips()
+    {
+        if (!Supports(c => c.Write && c.Read && c.WriteCanEmpty))
+        {
+            return;
+        }
+
+        var path = NewPath("write-empty");
+        Op.Write(path, Array.Empty<byte>());
+        Assert.Empty(Op.Read(path));
+
+        var asyncPath = NewPath("write-empty-async");
+        await Op.WriteAsync(asyncPath, Array.Empty<byte>(), CT);
+        Assert.Empty(await Op.ReadAsync(asyncPath, CT));
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_RejectsInvalidArguments()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-arguments");
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Op.WriteAsync(
+            path, (Action<IBufferWriter<byte>>)null!, cancellationToken: CT));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => Op.WriteAsync(
+            path, _ => { }, sizeHint: -1, cancellationToken: CT));
     }
 
     [Fact]

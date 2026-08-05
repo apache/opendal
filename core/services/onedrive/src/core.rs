@@ -453,11 +453,21 @@ impl OneDriveCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let parent_path = get_parent(path);
+        let mut request = self.onedrive_create_upload_session_request(path, args)?;
+        self.sign(ctx, &mut request).await?;
+
+        ctx.http_transport().send(request).await
+    }
+
+    pub(crate) fn onedrive_create_upload_session_request(
+        &self,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Request<Buffer>> {
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
-            self.onedrive_item_url(parent_path, true),
+            self.onedrive_item_url(path, true),
         );
         let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 
@@ -468,15 +478,13 @@ impl OneDriveCore {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        let mut request = request
+        let request = request
             .extension(Operation::Write)
             .extension(ServiceOperation("CreateUploadSession"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.sign(ctx, &mut request).await?;
-
-        ctx.http_transport().send(request).await
+        Ok(request)
     }
 
     /// Create a directory
@@ -965,3 +973,62 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use crate::ONEDRIVE_SCHEME;
+
+    use super::*;
+
+    fn get_request_json_body<T: for<'a> Deserialize<'a>>(request: Request<Buffer>) -> T {
+        let body = request.into_body();
+        let bytes = body.to_bytes(); // Buffer -> Bytes
+        let json: T = serde_json::from_slice(&bytes).expect("valid JSON");
+        json
+    }
+
+    fn make_onedrive(root: &str) -> OneDriveCore {
+        let info = ServiceInfo::new(ONEDRIVE_SCHEME, root, "");
+        let capability = Capability::default();
+        let mut signer = OneDriveSigner::new();
+        signer.access_token = "test-token".to_string();
+        signer.expires_in = Timestamp::MAX;
+        OneDriveCore {
+            info,
+            capability,
+            root: root.to_string(),
+            signer: Arc::new(Mutex::new(signer)),
+        }
+    }
+
+    #[test]
+    fn test_onedrive_create_upload_session_request() {
+        let root = "/";
+        let onedrive = make_onedrive(root);
+        let test_file_path = "test.file";
+        let request = onedrive
+            .onedrive_create_upload_session_request(test_file_path, &OpWrite::default())
+            .expect("failed to build request");
+        assert_eq!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:/test.file:/createUploadSession"
+                .to_string(),
+            request.uri().to_string()
+        );
+        let actual = get_request_json_body::<OneDriveUploadSessionCreationRequestBody>(request);
+        assert_eq!(test_file_path.to_string(), actual.item.name);
+
+        let test_file_path = "dir/hello world.md";
+        let request = onedrive
+            .onedrive_create_upload_session_request(test_file_path, &OpWrite::default())
+            .expect("failed to build request");
+        assert_eq!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:/dir/hello%20world.md:/createUploadSession"
+                .to_string(),
+            request.uri().to_string()
+        );
+        let actual = get_request_json_body::<OneDriveUploadSessionCreationRequestBody>(request);
+        assert_eq!("hello world.md", actual.item.name.as_str());
+    }
+}

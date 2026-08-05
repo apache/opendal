@@ -3037,6 +3037,13 @@ public interface ServiceConfig {
          */
         public final String externalId;
         /**
+         * <p>AWS profile used by the default credential provider chain.</p>
+         * <p>This profile takes precedence over the <code>AWS_PROFILE</code> environment
+         * variable and applies to shared AWS config and credentials files, SSO,
+         * and <code>credential_process</code>.</p>
+         */
+        public final String profile;
+        /**
          * <p>Region represent the signing region of this endpoint. This is required
          * if you are using the default AWS S3 endpoint.</p>
          * <p>If using a custom endpoint,</p>
@@ -3184,6 +3191,9 @@ public interface ServiceConfig {
             }
             if (externalId != null) {
                 map.put("external_id", externalId);
+            }
+            if (profile != null) {
+                map.put("profile", profile);
             }
             if (region != null) {
                 map.put("region", region);

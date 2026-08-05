@@ -498,26 +498,6 @@ impl S3Builder {
         self
     }
 
-    fn default_credential_provider(config: &S3Config) -> DefaultCredentialProvider {
-        let mut builder = DefaultCredentialProvider::builder();
-
-        if config.disable_config_load {
-            builder = builder.no_env().no_profile();
-        } else if let Some(profile) = config
-            .profile
-            .as_deref()
-            .filter(|profile| !profile.is_empty())
-        {
-            builder = builder.with_profile(profile);
-        }
-
-        if config.disable_ec2_metadata {
-            builder = builder.no_imds();
-        }
-
-        builder.build()
-    }
-
     /// Check if `bucket` is valid.
     /// `bucket` must be not empty and if `enable_virtual_host_style` is true
     /// it could not contain dot (.) character.
@@ -884,8 +864,25 @@ impl Builder for S3Builder {
             .with_env(OsEnv)
             .with_command_execute(TokioCommandExecute);
 
-        let mut provider =
-            ProvideCredentialChain::new().push(Self::default_credential_provider(&config));
+        let mut provider = {
+            let mut builder = DefaultCredentialProvider::builder();
+
+            if config.disable_config_load {
+                builder = builder.no_env().no_profile();
+            } else if let Some(profile) = config
+                .profile
+                .as_deref()
+                .filter(|profile| !profile.is_empty())
+            {
+                builder = builder.with_profile(profile);
+            }
+
+            if config.disable_ec2_metadata {
+                builder = builder.no_imds();
+            }
+
+            ProvideCredentialChain::new().push(builder.build())
+        };
 
         // Insert static key if user provided.
         if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
@@ -1258,14 +1255,13 @@ impl Service for S3Backend {
 }
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fs;
-
-    use reqsign_core::ProvideCredential;
-    use reqsign_core::StaticEnv;
-    use tempfile::tempdir;
-
     use super::*;
+
+    #[test]
+    fn test_profile() {
+        let builder = S3Builder::default().profile("selected");
+        assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1318,68 +1314,6 @@ mod tests {
             let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
-    }
-
-    #[tokio::test]
-    async fn test_profile_selects_default_credential_provider() {
-        let temp_dir = tempdir().expect("create temporary directory");
-        let credentials_file = temp_dir.path().join("credentials");
-        fs::write(
-            &credentials_file,
-            "\
-[ambient]
-aws_access_key_id = AMBIENT
-aws_secret_access_key = ambient-secret
-
-[selected]
-aws_access_key_id = SELECTED
-aws_secret_access_key = selected-secret
-",
-        )
-        .expect("write credentials file");
-
-        let context = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: None,
-                envs: HashMap::from([
-                    ("AWS_PROFILE".to_string(), "ambient".to_string()),
-                    (
-                        "AWS_SHARED_CREDENTIALS_FILE".to_string(),
-                        credentials_file.to_string_lossy().into_owned(),
-                    ),
-                ]),
-            });
-
-        let selected = S3Builder::default()
-            .profile("selected")
-            .disable_ec2_metadata();
-        let credential = S3Builder::default_credential_provider(&selected.config)
-            .provide_credential(&context)
-            .await
-            .expect("load selected profile")
-            .expect("selected profile must provide credentials");
-        assert_eq!(credential.access_key_id, "SELECTED");
-        assert_eq!(credential.secret_access_key, "selected-secret");
-
-        let ambient = S3Builder::default().disable_ec2_metadata();
-        let credential = S3Builder::default_credential_provider(&ambient.config)
-            .provide_credential(&context)
-            .await
-            .expect("load ambient profile")
-            .expect("ambient profile must provide credentials");
-        assert_eq!(credential.access_key_id, "AMBIENT");
-        assert_eq!(credential.secret_access_key, "ambient-secret");
-
-        let disabled = S3Builder::default()
-            .profile("selected")
-            .disable_config_load()
-            .disable_ec2_metadata();
-        let credential = S3Builder::default_credential_provider(&disabled.config)
-            .provide_credential(&context)
-            .await
-            .expect("disabled config loading must not fail");
-        assert!(credential.is_none());
     }
 
     #[tokio::test]

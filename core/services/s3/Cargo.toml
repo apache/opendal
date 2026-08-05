@@ -52,5 +52,4 @@ url = { workspace = true }
 [dev-dependencies]
 pretty_assertions = "1"
 serde_json = { workspace = true }
-tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -97,8 +97,7 @@ pub struct S3Config {
     /// AWS profile used by the default credential provider chain.
     ///
     /// This profile takes precedence over the `AWS_PROFILE` environment
-    /// variable and applies to shared AWS config and credentials files, SSO,
-    /// and `credential_process`.
+    /// variable and applies to shared AWS config and credentials files and SSO.
     ///
     /// <!-- @group Credentials -->
     /// <!-- @example development -->

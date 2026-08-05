@@ -3039,8 +3039,7 @@ public interface ServiceConfig {
         /**
          * <p>AWS profile used by the default credential provider chain.</p>
          * <p>This profile takes precedence over the <code>AWS_PROFILE</code> environment
-         * variable and applies to shared AWS config and credentials files, SSO,
-         * and <code>credential_process</code>.</p>
+         * variable and applies to shared AWS config and credentials files and SSO.</p>
          */
         public final String profile;
         /**

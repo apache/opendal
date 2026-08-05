@@ -35,7 +35,6 @@ use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::StaticCredentialProvider;
-use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
@@ -151,7 +150,7 @@ impl S3Builder {
     ///
     /// The configured profile takes precedence over the `AWS_PROFILE`
     /// environment variable and applies to shared AWS config and credentials
-    /// files, SSO, and `credential_process`.
+    /// files and SSO.
     ///
     /// This setting has no effect when [`Self::disable_config_load`] is set or
     /// when [`Self::credential_provider_chain`] replaces the default chain.
@@ -859,10 +858,10 @@ impl Builder for S3Builder {
         let endpoint = Self::build_endpoint(&config, &region);
         debug!("backend use endpoint: {endpoint}");
 
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(OsEnv)
-            .with_command_execute(TokioCommandExecute);
+        // The base signer context only carries local config readers. HTTP
+        // sending is injected from OperationContext when S3Core signs each
+        // operation.
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut provider = {
             let mut builder = DefaultCredentialProvider::builder();

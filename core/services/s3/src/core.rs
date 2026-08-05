@@ -40,8 +40,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_aws_v4::Credential;
-use reqsign_command_execute_tokio::TokioCommandExecute;
-use reqsign_core::{Context, OsEnv, Signer};
+use reqsign_core::{Context, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -142,8 +141,7 @@ impl S3Core {
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
                 .with_http_send(ctx.http_transport().clone())
-                .with_env(OsEnv)
-                .with_command_execute(TokioCommandExecute),
+                .with_env(reqsign_core::OsEnv),
         )
     }
 

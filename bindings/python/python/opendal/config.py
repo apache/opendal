@@ -748,7 +748,7 @@ class S3Config(TypedDict):
     external_id: NotRequired[str]
     """external_id for this backend."""
     profile: NotRequired[str]
-    """AWS profile used by the default credential provider chain.  This profile takes precedence over the `AWS_PROFILE` environment variable and applies to shared AWS config and credentials files, SSO, and `credential_process`."""
+    """AWS profile used by the default credential provider chain.  This profile takes precedence over the `AWS_PROFILE` environment variable and applies to shared AWS config and credentials files and SSO."""
     region: NotRequired[str]
     """Region represent the signing region of this endpoint. This is required if you are using the default AWS S3 endpoint.  If using a custom endpoint, - If region is set, we will take user's input first. - If not, we will try to load it from environment."""
     role_arn: NotRequired[str]

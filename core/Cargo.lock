@@ -7466,7 +7466,6 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign-aws-v4",
- "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "serde",
@@ -9240,16 +9239,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1 0.11.0",
-]
-
-[[package]]
-name = "reqsign-command-execute-tokio"
-version = "3.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53507459e278a2574b643521d631a9c99b1111ac33975c1ad3999e3898155211"
-dependencies = [
- "reqsign-core",
- "tokio",
 ]
 
 [[package]]

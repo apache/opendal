@@ -15,71 +15,132 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
+use russh_sftp::protocol::{FileAttributes, OpenFlags};
+
 use super::backend::*;
-use super::core::Manager;
+use super::core::PIPELINE_DEPTH;
+use super::core::SftpSessionRef;
+use super::core::close_handle_detached;
+use super::core::is_eof;
 use super::core::is_not_found;
 use super::core::is_sftp_failure;
 use super::core::parse_sftp_error;
 use super::lister::SftpLister;
 use super::writer::SftpWriter;
-use bytes::BytesMut;
-use fastpool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
-use openssh_sftp_client::file::File;
-use std::io::SeekFrom;
-use tokio::io::AsyncSeekExt;
 
+/// Streams a remote file by issuing several SFTP reads concurrently.
+///
+/// SFTP is a request/response protocol, so a single outstanding read caps
+/// throughput at one packet per round trip. Each call therefore fans out up to
+/// [`PIPELINE_DEPTH`] reads and returns them as one multi-chunk [`Buffer`].
 pub struct SftpReadStream {
-    /// Keep the connection alive while data stream is alive.
-    _conn: bounded::Object<Manager>,
+    /// Keeps the session alive while data stream is alive.
+    conn: SftpSessionRef,
 
-    file: File,
-    chunk: usize,
-    size: Option<usize>,
-    read: usize,
-    buf: BytesMut,
+    handle: String,
+    offset: u64,
+    /// Remaining bytes to read when the caller asked for a bounded range.
+    remaining: Option<u64>,
+    finished: bool,
+}
+
+impl Drop for SftpReadStream {
+    fn drop(&mut self) {
+        // A ranged or abandoned read never reaches EOF, so the remote handle
+        // has to be released here rather than at the end of the stream.
+        close_handle_detached(self.conn.session.clone(), std::mem::take(&mut self.handle));
+    }
 }
 
 impl SftpReadStream {
-    pub fn new(conn: bounded::Object<Manager>, file: File, size: Option<u64>) -> Self {
+    pub fn new(conn: SftpSessionRef, handle: String, offset: u64, size: Option<u64>) -> Self {
         Self {
-            _conn: conn,
-            file,
-            size: size.map(|v| v as usize),
-            chunk: 2 * 1024 * 1024,
-            read: 0,
-            buf: BytesMut::new(),
+            conn,
+            handle,
+            offset,
+            remaining: size,
+            finished: false,
         }
     }
 }
 
 impl oio::ReadStream for SftpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
-        if self.read >= self.size.unwrap_or(usize::MAX) {
+        if self.finished || self.remaining == Some(0) {
             return Ok(Buffer::new());
         }
 
-        let size = if let Some(size) = self.size {
-            (size - self.read).min(self.chunk)
-        } else {
-            self.chunk
-        };
-        self.buf.reserve(size);
+        let chunk = self.conn.read_len as u64;
 
-        let Some(bytes) = self
-            .file
-            .read(size as u32, self.buf.split_off(0))
-            .await
-            .map_err(parse_sftp_error)?
-        else {
+        // Plan a batch of reads covering contiguous offsets.
+        let mut planned = 0u64;
+        let mut wants = Vec::with_capacity(PIPELINE_DEPTH);
+        let mut inflight = Vec::with_capacity(PIPELINE_DEPTH);
+        for _ in 0..PIPELINE_DEPTH {
+            let want = match self.remaining {
+                Some(remaining) => remaining.saturating_sub(planned).min(chunk),
+                None => chunk,
+            };
+            if want == 0 {
+                break;
+            }
+
+            let offset = self.offset + planned;
+            planned += want;
+            wants.push(want);
+
+            let session = self.conn.session.clone();
+            let handle = self.handle.clone();
+            inflight.push(async move { session.read(handle, offset, want as u32).await });
+        }
+
+        if inflight.is_empty() {
             return Ok(Buffer::new());
-        };
+        }
 
-        self.read += bytes.len();
-        self.buf = bytes;
-        let bs = self.buf.split();
-        Ok(Buffer::from(bs.freeze()))
+        let results = futures::future::join_all(inflight).await;
+
+        // Assemble the batch in order. A short read means the server gave us
+        // less than we asked for, so everything planned after it is discarded
+        // and re-requested from the corrected offset on the next call.
+        let mut parts = Vec::with_capacity(results.len());
+        let mut consumed = 0u64;
+        for (result, want) in results.into_iter().zip(wants) {
+            match result {
+                Ok(data) => {
+                    let len = data.data.len() as u64;
+                    if len > 0 {
+                        parts.push(Bytes::from(data.data));
+                        consumed += len;
+                    }
+
+                    if len < want {
+                        self.finished = len == 0;
+                        break;
+                    }
+                }
+                Err(e) if is_eof(&e) => {
+                    self.finished = true;
+                    break;
+                }
+                Err(e) => return Err(parse_sftp_error(e)),
+            }
+        }
+
+        if consumed == 0 {
+            self.finished = true;
+            return Ok(Buffer::new());
+        }
+
+        self.offset += consumed;
+        if let Some(remaining) = self.remaining.as_mut() {
+            *remaining -= consumed;
+        }
+
+        Ok(Buffer::from(parts))
     }
 }
 
@@ -100,29 +161,19 @@ impl SftpReader {
 
 impl oio::StreamRead for SftpReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
-        let path = self.path.as_str();
+        let core = &self.backend.core;
+        let path = core.abs_path(&self.path);
 
-        let client = backend.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&backend.core.root);
-
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut f = client
-            .open(path.as_path())
+        let conn = core.connect().await?;
+        let handle = conn
+            .session
+            .open(path, OpenFlags::READ, FileAttributes::default())
             .await
-            .map_err(parse_sftp_error)?;
-
-        if range.offset() != 0 {
-            f.seek(SeekFrom::Start(range.offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
+            .map_err(parse_sftp_error)?
+            .handle;
 
         let rp = RpRead::default();
-        let stream = SftpReadStream::new(client, f, range.size());
+        let stream = SftpReadStream::new(conn.session_ref(), handle, range.offset(), range.size());
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
@@ -160,33 +211,29 @@ impl SftpLazyWriter {
                     .await?;
             }
 
-            let client = self.backend.core.connect().await?;
+            let core = &self.backend.core;
+            let path = core.abs_path(&self.path);
+            let conn = core.connect().await?;
 
-            let mut fs = client.fs();
-            fs.set_cwd(&self.backend.core.root);
-            let path = fs
-                .canonicalize(&self.path)
-                .await
-                .map_err(parse_sftp_error)?;
-
-            let mut option = client.options();
+            let mut flags = OpenFlags::WRITE | OpenFlags::CREATE;
             if self.op.if_not_exists() {
-                option.create_new(true);
-            } else {
-                option.create(true);
+                flags |= OpenFlags::EXCLUDE;
             }
-
             if self.op.append() {
-                option.append(true);
+                flags |= OpenFlags::APPEND;
             } else {
-                option.write(true).truncate(true);
+                flags |= OpenFlags::TRUNCATE;
             }
 
-            let res = option.open(&path).await;
-            let file = match res {
-                Ok(f) => f,
+            let res = conn
+                .session
+                .open(path.as_str(), flags, FileAttributes::default())
+                .await;
+
+            let handle = match res {
+                Ok(handle) => handle.handle,
                 Err(e) if self.op.if_not_exists() && is_sftp_failure(&e) => {
-                    if fs.metadata(&path).await.is_ok() {
+                    if conn.session.stat(path.as_str()).await.is_ok() {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
                             "file already exists, doesn't match the condition if_not_exists",
@@ -198,7 +245,20 @@ impl SftpLazyWriter {
                 Err(e) => return Err(parse_sftp_error(e)),
             };
 
-            self.inner = Some(SftpWriter::new(file));
+            // Appending starts at the current end of the file; the server
+            // honours `APPEND`, but the local offset must match so that the
+            // pipelined writes address the right region.
+            let offset = if self.op.append() {
+                conn.session
+                    .stat(path.as_str())
+                    .await
+                    .map(|attrs| attrs.attrs.size.unwrap_or(0))
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+
+            self.inner = Some(SftpWriter::new(conn.session_ref(), handle, offset));
         }
 
         Ok(self.inner.as_mut().expect("writer must be initialized"))
@@ -238,14 +298,16 @@ impl SftpLazyLister {
 impl oio::List for SftpLazyLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if self.inner.is_none() {
-            let client = self.backend.core.connect().await?;
-            let mut fs = client.fs();
-            fs.set_cwd(&self.backend.core.root);
+            let core = &self.backend.core;
+            let conn = core.connect().await?;
+            let dir_path = core.abs_path(&self.path);
 
-            let file_path = format!("./{}", self.path);
-
-            self.inner = Some(match fs.open_dir(&file_path).await {
-                Ok(dir) => Some(SftpLister::new(dir.read_dir(), self.path.clone())),
+            self.inner = Some(match conn.session.opendir(dir_path).await {
+                Ok(handle) => Some(SftpLister::new(
+                    conn.session_ref(),
+                    handle.handle,
+                    self.path.clone(),
+                )),
                 Err(e) if is_not_found(&e) => None,
                 Err(e) => return Err(parse_sftp_error(e)),
             });

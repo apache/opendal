@@ -35,19 +35,17 @@ impl SftpDeleter {
 
 impl oio::OneShotDelete for SftpDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
+        let conn = self.core.connect().await?;
+        let abs_path = self.core.abs_path(&path);
 
         let res = if path.ends_with('/') {
-            fs.remove_dir(path).await
+            conn.session.rmdir(abs_path).await
         } else {
-            fs.remove_file(path).await
+            conn.session.remove(abs_path).await
         };
 
         match res {
-            Ok(()) => Ok(()),
+            Ok(_) => Ok(()),
             Err(e) if is_not_found(&e) => Ok(()),
             Err(e) => Err(parse_sftp_error(e)),
         }

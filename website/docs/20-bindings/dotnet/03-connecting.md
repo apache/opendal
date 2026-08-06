@@ -59,6 +59,19 @@ Available scheme names and their keys are defined by OpenDAL; see the
 [Scheme reference](https://docs.rs/opendal/latest/opendal/enum.Scheme.html) and
 [Services](/services).
 
+### With a dedicated executor
+
+Both constructors accept an optional `Executor` that binds the operator to a
+dedicated Tokio runtime, for example to isolate a heavy workload. Leaving it
+out keeps the shared default:
+
+```csharp
+using var executor = new Executor(4);
+using var op = new Operator("s3", options, executor);
+```
+
+See [Getting started — Executors](./02-getting-started.md#executors).
+
 ## Credentials
 
 Credentials are just more configuration keys. Set them in the dictionary (or on
@@ -83,7 +96,8 @@ manager and pass them in when you build the operator.
 
 ## One operator per service and root
 
-An operator maps to one service and one root path. To work with two buckets or
-two roots, build two operators — they are lightweight handles. Use `Duplicate()`
-to create another handle to the same backend configuration. Always dispose
-operators with `using` or an explicit `Dispose()`.
+An operator maps to one service, one root path, and one executor. To work with
+two buckets, two roots, or two runtimes, build two operators — they are
+lightweight handles. Use `Duplicate()` to create another handle to the same
+backend configuration. Always dispose operators with `using` or an explicit
+`Dispose()`.

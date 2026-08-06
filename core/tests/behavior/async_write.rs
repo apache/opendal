@@ -693,6 +693,12 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     if op.info().scheme() == services::GHAC_SCHEME {
         return Ok(());
     }
+    // vercel-artifacts does not support overwrite: a PUT to an existing
+    // artifact hash returns 200 (cache hit) without updating the stored content.
+    #[cfg(feature = "services-vercel-artifacts")]
+    if op.info().scheme() == services::VERCEL_ARTIFACTS_SCHEME {
+        return Ok(());
+    }
 
     let path = uuid::Uuid::new_v4().to_string();
     let (content_one, _) = gen_bytes(op.info().capability());

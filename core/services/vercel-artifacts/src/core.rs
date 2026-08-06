@@ -114,17 +114,19 @@ impl VercelArtifactsCore {
             self.query_string
         );
 
-        let mut req = Request::head(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-        req = req.header(header::CONTENT_LENGTH, 0);
-
-        req = req
+        // Use a Range request instead of HEAD so that the Content-Range response
+        // header gives us the total artifact size (Vercel's HEAD responses do not
+        // include Content-Length). Matches the pattern used by the ghac backend.
+        let req = Request::get(&url)
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", self.access_token),
+            )
+            .header(header::RANGE, "bytes=0-0")
             .extension(Operation::Stat)
-            .extension(ServiceOperation("ArtifactExists"));
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+            .extension(ServiceOperation("ArtifactExists"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         ctx.http_transport().send(req).await
     }
@@ -144,7 +146,9 @@ mod error {
 
         let (kind, retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                (ErrorKind::PermissionDenied, false)
+            }
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

@@ -327,7 +327,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_tasks() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
 
         let mut tasks = ConcurrentTasks::new(executor, 16, 8, |(i, dur)| {
             Box::pin(async move {
@@ -370,7 +370,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_backpressure() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
         let concurrent = 4;
         let prefetch = 2;
 
@@ -428,7 +428,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_zero() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
         let concurrent = 4;
         let prefetch = 0; // No prefetching allowed
 

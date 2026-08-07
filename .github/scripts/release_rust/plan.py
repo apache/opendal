@@ -19,11 +19,11 @@
 import argparse
 import json
 import os
-import tomllib
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 
+import tomllib
 
 SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_DIR = SCRIPT_PATH.parents[3]
@@ -31,6 +31,7 @@ PUBLISH_GLOBS = (
     "core/Cargo.toml",
     "core/core/Cargo.toml",
     "core/testkit/Cargo.toml",
+    "core/executors/*/Cargo.toml",
     "core/http-transports/*/Cargo.toml",
     "core/layers/*/Cargo.toml",
     "core/services/*/Cargo.toml",

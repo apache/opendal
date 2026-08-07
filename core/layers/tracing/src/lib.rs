@@ -24,6 +24,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 
 use futures::Stream;
 use futures::StreamExt;
@@ -190,8 +191,8 @@ impl Execute for TracingExecutor {
             .execute(Box::pin(f.instrument(Span::current())) as BoxedStaticFuture<()>)
     }
 
-    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
-        self.inner.timeout()
+    fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
+        self.inner.timeout(timeout)
     }
 }
 

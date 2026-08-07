@@ -21,6 +21,11 @@ This in-tree POC tests the package and loading model proposed in
 [`bindings/docs/dynamic-extensions/python.md`](../../docs/dynamic-extensions/python.md).
 It does not change the released Python binding.
 
+The current-PyO3 [comparison prototype](pyo3-comparison/README.md) separately
+tests an FS service and MIME layer with both capsule and direct PyO3 adapters.
+This directory's original POC instead tests the wider versioned operation-table
+boundary proposed by the design document.
+
 The workspace builds three independently linked native artifacts:
 
 - `opendal-runtime-poc` owns protocol negotiation, service registration,

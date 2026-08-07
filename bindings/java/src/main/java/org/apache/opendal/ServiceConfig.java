@@ -3037,9 +3037,14 @@ public interface ServiceConfig {
          */
         public final String externalId;
         /**
-         * <p>AWS profile used by the default credential provider chain.</p>
-         * <p>This profile takes precedence over the <code>AWS_PROFILE</code> environment
-         * variable and applies to shared AWS config and credentials files and SSO.</p>
+         * <p>AWS profile.</p>
+         * <p>By default, reqsign which is the default credential provider, supplies profile in order:</p>
+         * <ul>
+         * <li>explicit option</li>
+         * <li><code>AWS_PROFILE</code> environment variable, from which reqsign reads profile from:</li>
+         * <li><code>~/.aws/credentials</code> (or the path specified by <code>AWS_SHARED_CREDENTIALS_FILE</code>)</li>
+         * <li><code>~/.aws/config</code> (or the path specified by <code>AWS_CONFIG_FILE</code>)</li>
+         * </ul>
          */
         public final String profile;
         /**

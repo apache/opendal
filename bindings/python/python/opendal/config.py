@@ -748,7 +748,7 @@ class S3Config(TypedDict):
     external_id: NotRequired[str]
     """external_id for this backend."""
     profile: NotRequired[str]
-    """AWS profile used by the default credential provider chain.  This profile takes precedence over the `AWS_PROFILE` environment variable and applies to shared AWS config and credentials files and SSO."""
+    """AWS profile.  By default, reqsign which is the default credential provider, supplies profile in order: - explicit option - `AWS_PROFILE` environment variable, from which reqsign reads profile from: - `~/.aws/credentials` (or the path specified by `AWS_SHARED_CREDENTIALS_FILE`) - `~/.aws/config` (or the path specified by `AWS_CONFIG_FILE`)"""
     region: NotRequired[str]
     """Region represent the signing region of this endpoint. This is required if you are using the default AWS S3 endpoint.  If using a custom endpoint, - If region is set, we will take user's input first. - If not, we will try to load it from environment."""
     role_arn: NotRequired[str]

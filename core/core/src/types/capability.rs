@@ -153,6 +153,14 @@ pub struct Capability {
     pub copy_with_if_not_exists: bool,
     /// Indicates if conditional copy operations with if-match are supported.
     pub copy_with_if_match: bool,
+    /// Indicates if conditional copy operations with source-side if-match are supported.
+    pub copy_with_source_if_match: bool,
+    /// Indicates if conditional copy operations with source-side if-none-match are supported.
+    pub copy_with_source_if_none_match: bool,
+    /// Indicates if conditional copy operations with source-side if-modified-since are supported.
+    pub copy_with_source_if_modified_since: bool,
+    /// Indicates if conditional copy operations with source-side if-unmodified-since are supported.
+    pub copy_with_source_if_unmodified_since: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.

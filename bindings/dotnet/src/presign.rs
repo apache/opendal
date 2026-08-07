@@ -82,8 +82,7 @@ pub fn into_presigned_request_ptr(
 ///
 /// - `request` must be null or a pointer produced by `into_presigned_request_ptr`.
 /// - This function must be called at most once per non-null pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn presigned_request_free(request: *mut OpendalPresignedRequest) {
+pub(crate) unsafe fn presigned_request_free(request: *mut OpendalPresignedRequest) {
     if request.is_null() {
         return;
     }

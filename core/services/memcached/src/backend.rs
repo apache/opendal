@@ -34,7 +34,6 @@ use super::writer::MemcachedWriter;
 #[derive(Debug, Default)]
 pub struct MemcachedBuilder {
     pub(super) config: MemcachedConfig,
-    pub(super) default_ttl: Option<Duration>,
 }
 
 impl MemcachedBuilder {
@@ -75,7 +74,7 @@ impl MemcachedBuilder {
 
     /// Set the default ttl for memcached services.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.default_ttl = Some(ttl);
+        self.config.default_ttl = Some(ttl);
         self
     }
 
@@ -98,14 +97,6 @@ impl Builder for MemcachedBuilder {
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Service> {
-        let default_ttl = match self.default_ttl {
-            Some(ttl) => Some(ttl),
-            None => self
-                .config
-                .default_ttl
-                .map(signed_duration_to_duration)
-                .transpose()?,
-        };
         let endpoint_raw = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", MEMCACHED_SCHEME)
@@ -180,7 +171,7 @@ impl Builder for MemcachedBuilder {
             endpoint,
             self.config.username,
             self.config.password,
-            default_ttl,
+            self.config.default_ttl,
             self.config.connection_pool_max_size,
         ))
         .with_normalized_root(root))

@@ -82,6 +82,105 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public async Task StreamBehavior_LargeRoundtripAsync_Works()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        // Large enough to cross the output stream's internal buffer many times
+        // and to come back over several chunks, so both async paths make
+        // repeated native round-trips instead of completing on the first call.
+        var path = NewPath("stream-async-large");
+        var content = RandomBytes(200_000);
+
+        using (var output = Op.OpenWriteStream(path, bufferSize: 8 * 1024))
+        {
+            await output.WriteAsync(content.AsMemory(), CT);
+            await output.FlushAsync(CT);
+        }
+
+        using var input = Op.OpenReadStream(path);
+        var actual = new byte[content.Length];
+        var filled = 0;
+        while (filled < actual.Length)
+        {
+            var read = await input.ReadAsync(
+                actual.AsMemory(filled, Math.Min(7_777, actual.Length - filled)), CT);
+            if (read == 0)
+            {
+                break;
+            }
+
+            filled += read;
+        }
+
+        Assert.Equal(content.Length, filled);
+        Assert.Equal(content, actual);
+        Assert.Equal(0, await input.ReadAsync(actual.AsMemory(0, 1), CT));
+    }
+
+    [Fact]
+    public void StreamBehavior_Complete_PersistsAndSealsTheStream()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-complete");
+        var content = RandomBytes(256);
+
+        using var output = Op.OpenWriteStream(path);
+        output.Write(content, 0, content.Length);
+        output.Complete();
+
+        Assert.Equal(content, Op.Read(path));
+        Assert.Throws<InvalidOperationException>(() => output.Write(content, 0, 1));
+        Assert.Throws<InvalidOperationException>(output.Complete);
+    }
+
+    [Fact]
+    public async Task StreamBehavior_CompleteAsync_PersistsViaAwaitUsing()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-complete-async");
+        var content = RandomBytes(100_000);
+
+        await using (var output = Op.OpenWriteStream(path, bufferSize: 8 * 1024))
+        {
+            await output.WriteAsync(content.AsMemory(), CT);
+            await output.CompleteAsync(CT);
+        }
+
+        Assert.Equal(content, await Op.ReadAsync(path, CT));
+    }
+
+    [Fact]
+    public async Task StreamBehavior_DisposeAsync_ClosesBestEffort()
+    {
+        if (!Supports(c => c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-dispose-async");
+        var content = RandomBytes(4096);
+
+        await using (var output = Op.OpenWriteStream(path))
+        {
+            await output.WriteAsync(content.AsMemory(), CT);
+        }
+
+        Assert.Equal(content, await Op.ReadAsync(path, CT));
+    }
+
+    [Fact]
     public void StreamBehavior_OpenReadStream_WithRange_ReadsSelectedSlice()
     {
         if (!Supports(c => c.Read && c.Write))

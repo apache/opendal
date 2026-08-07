@@ -26,11 +26,11 @@ namespace OpenDAL.Interop.NativeObject;
 /// Read payload still owned by the native side.
 /// </summary>
 /// <remarks>
-/// Holds the native buffer itself rather than a flattened copy, so
-/// <see cref="ToManagedBytes"/> can copy straight into its final array. Released
-/// through the owning result's release call, not from here.
+/// Holds the native buffer itself rather than a flattened copy, so consumers
+/// copy or view chunks straight from native memory. Released through the
+/// owning result's release call, not from here.
 /// </remarks>
-internal struct OpenDALBuffer
+internal struct OpenDALReadBuffer
 {
     /// <summary>
     /// Opaque handle to the native buffer, or zero when there is no payload.
@@ -43,32 +43,26 @@ internal struct OpenDALBuffer
     public nuint Len;
 
     /// <summary>
-    /// Copies the payload into a new managed array.
+    /// Copies payload bytes starting at <paramref name="sourceOffset"/> into the
+    /// destination span.
     /// </summary>
-    /// <returns>The payload, or an empty array when there is none.</returns>
-    public readonly unsafe byte[] ToManagedBytes()
+    /// <param name="sourceOffset">Byte offset into the payload to copy from.</param>
+    /// <param name="destination">Destination span receiving the bytes.</param>
+    /// <returns>
+    /// The number of bytes copied; 0 when the offset is at or past the end of the
+    /// payload or when there is no payload.
+    /// </returns>
+    public readonly unsafe int CopyTo(nuint sourceOffset, Span<byte> destination)
     {
-        if (Handle == IntPtr.Zero || Len == 0)
+        if (Handle == IntPtr.Zero || destination.Length == 0)
         {
-            return Array.Empty<byte>();
+            return 0;
         }
 
-        var size = checked((int)Len);
-        var managed = GC.AllocateUninitializedArray<byte>(size);
-        nuint written;
-        fixed (byte* destination = managed)
+        fixed (byte* dest = destination)
         {
-            written = NativeMethods.buffer_copy_to(Handle, destination, (nuint)size);
+            return checked((int)NativeMethods.read_buffer_copy_to(
+                Handle, sourceOffset, dest, (nuint)destination.Length));
         }
-
-        // The array is uninitialized, so a short copy would hand back whatever the
-        // heap held rather than the payload.
-        if (written != (nuint)size)
-        {
-            throw new InvalidOperationException(
-                $"Native buffer reported {Len} bytes but produced {written}.");
-        }
-
-        return managed;
     }
 }

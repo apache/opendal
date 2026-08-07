@@ -57,7 +57,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_futures_copy,
             test_writer_futures_copy_with_concurrent,
             test_writer_return_metadata,
-            test_writer_write_non_contiguous_data
+            test_writer_write_non_contiguous_data,
+            test_writer_write_with_if_not_exists,
+            test_writer_write_with_if_none_match,
+            test_writer_write_with_if_match
         ))
     }
 
@@ -805,6 +808,114 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
         .if_match(etag_b)
         .await;
     assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an existing file through a chunked writer with if_not_exists should get a
+/// ConditionNotMatch error.
+pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_not_exists || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // Some services reject the precondition when the writer is created or on an early
+    // write rather than at commit time
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_not_exists(true).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an existing file through a chunked writer with its own etag as if_none_match
+/// should get a ConditionNotMatch error.
+pub async fn test_writer_write_with_if_none_match(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_none_match || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    let etag = meta.etag().expect("etag must exist");
+
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_none_match(etag).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write a file through a chunked writer with if_match should succeed with the file's own
+/// etag and get a ConditionNotMatch error with a stale one.
+pub async fn test_writer_write_with_if_match(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_match || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path_a = TEST_FIXTURE.new_file_path();
+    let content_a = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+    let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path_a, content_a.clone()).await?;
+    op.write(&path_b, content_b.clone()).await?;
+
+    let etag_a = op
+        .stat(&path_a)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+    let etag_b = op
+        .stat(&path_b)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+
+    let mut w = op.writer_with(&path_a).if_match(&etag_a).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_a.clone()).await?;
+    w.close().await.expect("close with own etag must succeed");
+
+    // Should fail: writing to path_a with path_b's etag.
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path_a).if_match(&etag_b).await?;
+        w.write(content_a.clone()).await?;
+        w.write(content_a.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())

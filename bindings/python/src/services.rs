@@ -61,6 +61,8 @@ pub enum Scheme {
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
+    #[cfg(feature = "services-github")]
+    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -201,6 +203,8 @@ impl_enum_to_str!(
         Gdrive => "gdrive",
         #[cfg(feature = "services-ghac")]
         Ghac => "ghac",
+        #[cfg(feature = "services-github")]
+        Github => "github",
         #[cfg(feature = "services-gridfs")]
         Gridfs => "gridfs",
         #[cfg(feature = "services-hdfs-native")]

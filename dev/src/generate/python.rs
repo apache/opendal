@@ -264,7 +264,8 @@ fn is_path_like_field(name: &str) -> bool {
 fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
     Ok(match field.value {
         ConfigType::Bool => "bool".to_string(),
-        // Duration values cross the Python binding as strings, e.g. "5s".
+        // Duration is typed `str` (a humantime string, e.g. "5s"). See #7887:
+        // core cannot yet deserialize Duration config fields from strings.
         ConfigType::Duration => "str".to_string(),
         ConfigType::Usize
         | ConfigType::U64

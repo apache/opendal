@@ -683,6 +683,7 @@ mod error {
             StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
                 (ErrorKind::ConditionNotMatch, false)
             }
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

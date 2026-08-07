@@ -1374,7 +1374,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "opendal"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "ctor",
  "opendal-core",
@@ -1402,7 +1402,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-core"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "anyhow",
  "base64 0.23.0",
@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-http-transport-reqwest"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "futures",
@@ -1438,7 +1438,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-concurrent-limit"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "futures",
  "http",
@@ -1448,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-logging"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "log",
  "opendal-core",
@@ -1456,7 +1456,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-retry"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "backon",
  "log",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-throttle"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "governor",
  "opendal-core",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-timeout"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "opendal-core",
  "tokio",
@@ -1481,7 +1481,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-ruby"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "bytes",
  "magnus",
@@ -1493,7 +1493,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azblob"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -1512,7 +1512,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azdls"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -1531,7 +1531,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azfile"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "http",
@@ -1547,7 +1547,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azure-common"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "http",
  "opendal-core",
@@ -1555,7 +1555,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-cos"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "http",
@@ -1570,7 +1570,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-fs"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "log",
@@ -1582,7 +1582,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-gcs"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1601,7 +1601,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ghac"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "ghac",
@@ -1619,7 +1619,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-http"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "http",
  "log",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ipmfs"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "http",
@@ -1641,7 +1641,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-obs"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "http",
@@ -1656,7 +1656,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-oss"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "bytes",
  "http",
@@ -1671,7 +1671,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-s3"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -1690,7 +1690,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-webdav"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1704,7 +1704,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-webhdfs"
-version = "0.58.1"
+version = "0.58.2"
 dependencies = [
  "anyhow",
  "bytes",

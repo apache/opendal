@@ -27,7 +27,6 @@ use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
-use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
@@ -188,19 +187,6 @@ impl AzdlsBuilder {
             self.config.sas_token = Some(sas_token.to_string());
         }
 
-        self
-    }
-
-    /// Add a custom credential provider.
-    ///
-    /// Custom providers replace the default Azure credential chain. Repeated
-    /// calls push the newest provider to the front of the custom chain.
-    pub fn credential_provider(
-        mut self,
-        provider: impl ProvideCredential<Credential = Credential> + 'static,
-    ) -> Self {
-        let chain = self.credential_providers.unwrap_or_default();
-        self.credential_providers = Some(chain.push_front(provider));
         self
     }
 

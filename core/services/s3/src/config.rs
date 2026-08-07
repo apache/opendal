@@ -94,11 +94,13 @@ pub struct S3Config {
     #[serde(alias = "aws_region")]
     pub region: Option<String>,
 
-    /// AWS profile used by the default credential provider chain.
+    /// AWS profile.
     ///
-    /// This profile takes precedence over the `AWS_PROFILE` environment
-    /// variable and applies to shared AWS config and credentials files and SSO.
-    ///
+    /// By default, reqsign which is the default credential provider, supplies profile in order:
+    /// - explicit option
+    /// - `AWS_PROFILE` environment variable, from which reqsign reads profile from:
+    ///    - `~/.aws/credentials` (or the path specified by `AWS_SHARED_CREDENTIALS_FILE`)
+    ///    - `~/.aws/config` (or the path specified by `AWS_CONFIG_FILE`)
     /// <!-- @group Credentials -->
     /// <!-- @example development -->
     #[serde(alias = "aws_profile")]

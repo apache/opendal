@@ -437,7 +437,8 @@ mod tests {
     #[tokio::test]
     async fn test_content_length_hint_skips_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), Some(8), 8, 8, 1);
+        let mut copier =
+            MultipartCopier::new(crate::test_executor(), inner.clone(), Some(8), 8, 8, 1);
 
         assert_eq!(copier.next().await?, None);
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
@@ -448,7 +449,7 @@ mod tests {
     #[tokio::test]
     async fn test_missing_content_length_hint_loads_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), None, 8, 8, 1);
+        let mut copier = MultipartCopier::new(crate::test_executor(), inner.clone(), None, 8, 8, 1);
 
         assert_eq!(copier.next().await?, None);
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
@@ -467,7 +468,7 @@ mod tests {
         // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
         let inner = TestCopy::new(10);
         let mut copier = MultipartCopier::new(
-            /*context=*/ (Executor::default(), capability),
+            /*context=*/ (crate::test_executor(), capability),
             /*inner=*/ inner.clone(),
             /*source_content_length_hint=*/ Some(10),
             /*copy_once_threshold=*/ 0,

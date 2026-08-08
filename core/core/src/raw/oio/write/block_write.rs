@@ -326,7 +326,7 @@ mod tests {
     async fn test_block_writer_with_concurrent_errors() {
         let mut rng = rng();
 
-        let mut w = BlockWriter::new(Executor::default(), TestWrite::new(), 8);
+        let mut w = BlockWriter::new(crate::test_executor(), TestWrite::new(), 8);
         let mut total_size = 0u64;
         let mut expected_content = Vec::new();
 
@@ -370,7 +370,7 @@ mod tests {
         let mut rng = rng();
 
         for _ in 1..100 {
-            let mut w = BlockWriter::new(Executor::default(), TestWrite::new(), 8);
+            let mut w = BlockWriter::new(crate::test_executor(), TestWrite::new(), 8);
 
             let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];

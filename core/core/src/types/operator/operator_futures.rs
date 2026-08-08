@@ -1347,6 +1347,20 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.args.deleted = v;
         self
     }
+
+    /// Filter entries returned by this `list` operation using a Unix shell
+    /// style glob pattern.
+    ///
+    /// Patterns support `*`, `?`, `**`, `{a,b}` and character classes like
+    /// `[a-z]`. The pattern is matched against entry paths relative to the
+    /// list root.
+    ///
+    /// Services without native glob support require the `GlobLayer` (or a
+    /// similar client-side layer) to be installed.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
+        self
+    }
 }
 
 /// [`Operator::list_with`] and [`Operator::lister_with`] return this future.
@@ -1406,6 +1420,15 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     /// If `false`, deleted files or versions will be excluded from the `list` results.
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
+        self
+    }
+
+    /// Filter entries returned by this `list` operation using a Unix shell
+    /// style glob pattern.
+    ///
+    /// See [`FutureList::glob`] for syntax details.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
         self
     }
 }

@@ -60,7 +60,21 @@ pub fn install_default() {
     #[cfg(feature = "executors-tokio")]
     opendal_executor_tokio::install_default();
 
-    #[cfg(feature = "http-transport-reqwest")]
+    #[cfg(any(
+        feature = "http-transport-cyper",
+        feature = "http-transport-cyper-native-tls",
+        feature = "http-transport-cyper-rustls"
+    ))]
+    opendal_http_transport_cyper::install_default();
+
+    #[cfg(all(
+        not(any(
+            feature = "http-transport-cyper",
+            feature = "http-transport-cyper-native-tls",
+            feature = "http-transport-cyper-rustls"
+        )),
+        feature = "http-transport-reqwest"
+    ))]
     opendal_http_transport_reqwest::install_default();
 }
 

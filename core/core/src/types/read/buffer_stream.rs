@@ -96,7 +96,11 @@ impl oio::ReadStream for StreamingReader {
 struct ChunkedReadInput {
     ctx: Arc<ReadContext>,
     range: BytesRange,
-    reader: Option<Box<dyn oio::ReadStreamDyn>>,
+}
+
+struct OpenedChunk {
+    range: BytesRange,
+    reader: Box<dyn oio::ReadStreamDyn>,
 }
 
 /// ChunkedReader will read the file in chunks.
@@ -106,7 +110,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    opened: Option<ChunkedReadInput>,
+    opened: Option<OpenedChunk>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -122,18 +126,14 @@ impl ChunkedReader {
             ctx.context().executor().clone(),
             ctx.options().concurrent(),
             ctx.options().prefetch(),
-            |mut input: ChunkedReadInput| {
+            |input: ChunkedReadInput| {
                 Box::pin(async move {
-                    let result = if let Some(mut reader) = input.reader.take() {
-                        reader.read_all().await
-                    } else {
-                        match input.ctx.reader().read(input.range).await {
-                            Ok((rp, buffer)) => {
-                                input.ctx.observe_read_response(rp);
-                                Ok(buffer)
-                            }
-                            Err(err) => Err(err),
+                    let result = match input.ctx.reader().read(input.range).await {
+                        Ok((rp, buffer)) => {
+                            input.ctx.observe_read_response(rp);
+                            Ok(buffer)
                         }
+                        Err(err) => Err(err),
                     };
                     (input, result)
                 })
@@ -158,11 +158,7 @@ impl ChunkedReader {
             if let Some(range) = self.next_range() {
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(ChunkedReadInput {
-                    ctx: self.ctx.clone(),
-                    range,
-                    reader: Some(reader),
-                });
+                self.opened = Some(OpenedChunk { range, reader });
             } else {
                 self.done = true;
             }
@@ -210,15 +206,31 @@ impl ChunkedReader {
 
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
+        if let Some(mut opened) = self.opened.take() {
+            let result = opened.reader.read_all().await;
+            drop(opened.reader);
+
+            match result {
+                Ok(buffer) => return Ok(buffer),
+                Err(err) if err.is_temporary() => {
+                    self.tasks
+                        .execute(ChunkedReadInput {
+                            ctx: self.ctx.clone(),
+                            range: opened.range,
+                        })
+                        .await?;
+                    return Err(err);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
         while self.tasks.has_remaining() && !self.done {
-            if let Some(input) = self.opened.take() {
-                self.tasks.execute(input).await?;
-            } else if let Some(range) = self.next_range() {
+            if let Some(range) = self.next_range() {
                 self.tasks
                     .execute(ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range,
-                        reader: None,
                     })
                     .await?;
             } else {
@@ -370,6 +382,10 @@ impl Stream for BufferStream {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::thread;
+    use std::thread::ThreadId;
+    use std::time::Duration;
 
     use bytes::Buf;
     use bytes::Bytes;
@@ -432,5 +448,132 @@ mod tests {
         assert_eq!(&buf.to_vec(), "oWor".as_bytes());
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_keeps_metadata_body_local() -> Result<()> {
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let ctx = new_chunked_context(false, reads.clone());
+        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+        assert_eq!(reader.metadata().await?.content_length(), 10);
+        assert_eq!(reader.read().await?.to_bytes(), b"hello"[..]);
+        assert_eq!(reader.read().await?.to_bytes(), b"world"[..]);
+        assert!(reader.read().await?.is_empty());
+        assert_eq!(
+            *reads.lock().expect("reads lock must not be poisoned"),
+            vec![5]
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_failed_metadata_body() -> Result<()> {
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let ctx = new_chunked_context(true, reads.clone());
+        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+        assert_eq!(reader.metadata().await?.content_length(), 10);
+        assert!(reader.read().await.unwrap_err().is_temporary());
+        assert_eq!(reader.read().await?.to_bytes(), b"hello"[..]);
+        assert_eq!(reader.read().await?.to_bytes(), b"world"[..]);
+        assert!(reader.read().await?.is_empty());
+
+        let mut reads = reads
+            .lock()
+            .expect("reads lock must not be poisoned")
+            .clone();
+        reads.sort_unstable();
+        assert_eq!(reads, vec![0, 5]);
+
+        Ok(())
+    }
+
+    fn new_chunked_context(fail_opened: bool, reads: Arc<Mutex<Vec<u64>>>) -> Arc<ReadContext> {
+        let ctx = OperationContext::from_parts(
+            HttpTransporter::default(),
+            Executor::with(ThreadExecutor),
+        );
+        Arc::new(ReadContext::new(
+            ctx,
+            Arc::new(()),
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new().with_chunk(5).with_concurrent(2),
+            Box::new(TestRangeReader { fail_opened, reads }),
+        ))
+    }
+
+    #[derive(Clone)]
+    struct ThreadExecutor;
+
+    impl Execute for ThreadExecutor {
+        fn execute(&self, fut: BoxedStaticFuture<()>) {
+            let _ = thread::spawn(move || futures::executor::block_on(fut));
+        }
+
+        fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
+            Box::pin(async move { thread::sleep(timeout) })
+        }
+    }
+
+    struct TestRangeReader {
+        fail_opened: bool,
+        reads: Arc<Mutex<Vec<u64>>>,
+    }
+
+    impl oio::Read for TestRangeReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            Ok((
+                test_read_response(),
+                Box::new(LocalBody {
+                    thread: thread::current().id(),
+                    body: Some(test_range_buffer(range)),
+                    fail: self.fail_opened,
+                }),
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.reads
+                .lock()
+                .expect("reads lock must not be poisoned")
+                .push(range.offset());
+            Ok((test_read_response(), test_range_buffer(range)))
+        }
+    }
+
+    struct LocalBody {
+        thread: ThreadId,
+        body: Option<Buffer>,
+        fail: bool,
+    }
+
+    impl oio::ReadStream for LocalBody {
+        async fn read(&mut self) -> Result<Buffer> {
+            if thread::current().id() != self.thread {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "opened body moved to another thread",
+                ));
+            }
+            if std::mem::take(&mut self.fail) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "temporary body failure").set_temporary()
+                );
+            }
+            Ok(self.body.take().unwrap_or_default())
+        }
+    }
+
+    fn test_read_response() -> RpRead {
+        RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(10))
+    }
+
+    fn test_range_buffer(range: BytesRange) -> Buffer {
+        let start = range.offset() as usize;
+        let end = start + range.size().expect("test ranges must be bounded") as usize;
+        Buffer::from(Bytes::copy_from_slice(&b"helloworld"[start..end]))
     }
 }

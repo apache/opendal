@@ -425,13 +425,29 @@ checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
 
 [[package]]
 name = "async-trait"
-version = "0.1.91"
+version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
+]
+
+[[package]]
+name = "async-tungstenite"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8447f02eaa65412035e2d3eeaa3fc82bbb8d7137c84c5976b4af685136012ee9"
+dependencies = [
+ "atomic-waker",
+ "futures-core",
+ "futures-io",
+ "futures-task",
+ "futures-util",
+ "log",
+ "pin-project-lite",
+ "tungstenite 0.29.0",
 ]
 
 [[package]]
@@ -1719,6 +1735,8 @@ dependencies = [
  "compio-net",
  "compio-quic",
  "compio-runtime",
+ "compio-tls",
+ "compio-ws",
 ]
 
 [[package]]
@@ -1870,6 +1888,7 @@ dependencies = [
  "quinn-proto",
  "rustc-hash 2.1.3",
  "rustls 0.23.43",
+ "rustls-platform-verifier",
  "synchrony",
  "thiserror 2.0.20",
  "windows-sys 0.61.2",
@@ -1903,6 +1922,39 @@ checksum = "fa4a63ae089032966c7eb5411267dd14524fb249e6833818b2d6d9d9548bf504"
 dependencies = [
  "cfg-if 1.0.4",
  "loom 0.7.2",
+]
+
+[[package]]
+name = "compio-tls"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0177c2684878d0712ccfcf22113a198f5ddf74f0bf323801488dbb47f801a471"
+dependencies = [
+ "compio-buf",
+ "compio-io",
+ "futures-rustls",
+ "futures-util",
+ "native-tls",
+ "pin-project-lite",
+ "rustls 0.23.43",
+]
+
+[[package]]
+name = "compio-ws"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a9e5cbacce3ff2594cfd7321fd946d5f7afcf2dbc7537f6de7b42d798efb3a"
+dependencies = [
+ "async-tungstenite",
+ "compio-buf",
+ "compio-io",
+ "compio-log",
+ "compio-net",
+ "compio-tls",
+ "futures-util",
+ "pin-project-lite",
+ "rustls-platform-verifier",
+ "tungstenite 0.29.0",
 ]
 
 [[package]]
@@ -2301,6 +2353,47 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "cyper"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f8c8abaf78cfe3cb7838d7cfcf75e4e3bf02fe3e54571e0a1f10bb485cf8fbf"
+dependencies = [
+ "async-stream",
+ "base64 0.22.1",
+ "cfg-if 1.0.4",
+ "cfg_aliases",
+ "compio",
+ "cyper-core",
+ "encoding_rs",
+ "futures-util",
+ "http 1.5.0",
+ "http-body-util",
+ "hyper 1.11.0",
+ "hyper-util",
+ "mime",
+ "rustls-platform-verifier",
+ "send_wrapper",
+ "serde",
+ "serde_urlencoded",
+ "synchrony",
+ "thiserror 2.0.20",
+ "tower-service",
+ "url",
+]
+
+[[package]]
+name = "cyper-core"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03c8847069e286c64987119637d5f08cdb71e12e85be0294fed649dc8007d32e"
+dependencies = [
+ "compio",
+ "futures-util",
+ "hyper 1.11.0",
+ "send_wrapper",
 ]
 
 [[package]]
@@ -6288,6 +6381,7 @@ dependencies = [
  "opendal-core",
  "opendal-executor-compio",
  "opendal-executor-tokio",
+ "opendal-http-transport-cyper",
  "opendal-http-transport-reqwest",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
@@ -6501,6 +6595,21 @@ dependencies = [
  "logforth",
  "opendal",
  "uuid",
+]
+
+[[package]]
+name = "opendal-http-transport-cyper"
+version = "0.58.1"
+dependencies = [
+ "compio",
+ "cyper",
+ "futures",
+ "http 1.5.0",
+ "opendal-core",
+ "opendal-executor-compio",
+ "opendal-service-http",
+ "rustls 0.23.43",
+ "send_wrapper",
 ]
 
 [[package]]
@@ -9999,6 +10108,9 @@ name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
+dependencies = [
+ "futures-core",
+]
 
 [[package]]
 name = "serde"
@@ -11475,7 +11587,7 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.4",
- "tungstenite",
+ "tungstenite 0.28.0",
  "webpki-roots 0.26.11",
 ]
 
@@ -11922,6 +12034,25 @@ dependencies = [
  "thiserror 2.0.20",
  "url",
  "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http 1.5.0",
+ "httparse",
+ "log",
+ "native-tls",
+ "rand 0.9.5",
+ "rustls 0.23.43",
+ "rustls-pki-types",
+ "sha1 0.10.7",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

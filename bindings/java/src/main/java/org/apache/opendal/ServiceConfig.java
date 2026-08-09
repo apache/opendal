@@ -3037,6 +3037,17 @@ public interface ServiceConfig {
          */
         public final String externalId;
         /**
+         * <p>AWS profile.</p>
+         * <p>By default, reqsign which is the default credential provider, supplies profile in order:</p>
+         * <ul>
+         * <li>explicit option</li>
+         * <li><code>AWS_PROFILE</code> environment variable, from which reqsign reads profile from:</li>
+         * <li><code>~/.aws/credentials</code> (or the path specified by <code>AWS_SHARED_CREDENTIALS_FILE</code>)</li>
+         * <li><code>~/.aws/config</code> (or the path specified by <code>AWS_CONFIG_FILE</code>)</li>
+         * </ul>
+         */
+        public final String profile;
+        /**
          * <p>Region represent the signing region of this endpoint. This is required
          * if you are using the default AWS S3 endpoint.</p>
          * <p>If using a custom endpoint,</p>
@@ -3184,6 +3195,9 @@ public interface ServiceConfig {
             }
             if (externalId != null) {
                 map.put("external_id", externalId);
+            }
+            if (profile != null) {
+                map.put("profile", profile);
             }
             if (region != null) {
                 map.put("region", region);

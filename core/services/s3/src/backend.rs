@@ -146,6 +146,22 @@ impl S3Builder {
         self
     }
 
+    /// Set the AWS profile used by the default credential provider chain.
+    ///
+    /// The configured profile takes precedence over the `AWS_PROFILE`
+    /// environment variable and applies to shared AWS config and credentials
+    /// files and SSO.
+    ///
+    /// This setting has no effect when [`Self::disable_config_load`] is set or
+    /// when [`Self::credential_provider_chain`] replaces the default chain.
+    pub fn profile(mut self, profile: &str) -> Self {
+        if !profile.is_empty() {
+            self.config.profile = Some(profile.to_string())
+        }
+
+        self
+    }
+
     /// Set access_key_id of this backend.
     ///
     /// - If access_key_id is set, we will take user's input first.
@@ -852,6 +868,12 @@ impl Builder for S3Builder {
 
             if config.disable_config_load {
                 builder = builder.no_env().no_profile();
+            } else if let Some(profile) = config
+                .profile
+                .as_deref()
+                .filter(|profile| !profile.is_empty())
+            {
+                builder = builder.with_profile(profile);
             }
 
             if config.disable_ec2_metadata {
@@ -1233,6 +1255,12 @@ impl Service for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_profile() {
+        let builder = S3Builder::default().profile("selected");
+        assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
 
     #[test]
     fn test_is_valid_bucket() {

@@ -821,6 +821,14 @@ pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
         return Ok(());
     }
 
+    // GCS XML API multipart uploads do not support preconditions, so the multipart
+    // writer path cannot honor if_not_exists. Tracked in
+    // https://github.com/apache/opendal/issues/8040
+    #[cfg(feature = "services-gcs")]
+    if op.info().scheme() == services::GCS_SCHEME {
+        return Ok(());
+    }
+
     let path = TEST_FIXTURE.new_file_path();
     let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
 

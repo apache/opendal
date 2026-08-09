@@ -16,6 +16,7 @@
 # under the License.
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from plan import group_cases_by_service, plan
@@ -116,6 +117,13 @@ class BehaviorTestPlan(unittest.TestCase):
 
         windows = next(v for v in result["core"] if v["os"] == "windows-latest")
         self.assertEqual(windows["cases"][0]["setups"], ["local_fs"])
+
+    def test_service_setups_do_not_checkout(self):
+        service_dir = Path(__file__).parents[2] / "services"
+        setup_actions = service_dir.glob("*/*/action.yml")
+
+        for action in setup_actions:
+            self.assertNotIn("actions/checkout@", action.read_text(), str(action))
 
     def test_binding_java(self):
         result = plan(["bindings/java/pom.xml"])

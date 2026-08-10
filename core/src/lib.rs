@@ -221,6 +221,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-sftp")]
     opendal_service_sftp::register_sftp_service(registry);
 
+    #[cfg(feature = "services-sharepoint")]
+    opendal_service_sharepoint::register_sharepoint_service(registry);
+
     #[cfg(feature = "services-sled")]
     opendal_service_sled::register_sled_service(registry);
 
@@ -385,6 +388,8 @@ pub mod services {
     pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sftp")]
     pub use opendal_service_sftp::*;
+    #[cfg(feature = "services-sharepoint")]
+    pub use opendal_service_sharepoint::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]

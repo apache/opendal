@@ -207,6 +207,7 @@ services-rocksdb = ["dep:opendal-service-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]
 services-sftp = ["dep:opendal-service-sftp"]
+services-sharepoint = ["dep:opendal-service-sharepoint"]
 services-sled = ["dep:opendal-service-sled"]
 services-sqlite = ["dep:opendal-service-sqlite"]
 services-surrealdb = ["dep:opendal-service-surrealdb"]
@@ -318,6 +319,7 @@ opendal-service-rocksdb = { path = "services/rocksdb", version = "0.58.1", optio
 opendal-service-s3 = { path = "services/s3", version = "0.58.1", optional = true, default-features = false }
 opendal-service-seafile = { path = "services/seafile", version = "0.58.1", optional = true, default-features = false }
 opendal-service-sftp = { path = "services/sftp", version = "0.58.1", optional = true, default-features = false }
+opendal-service-sharepoint = { path = "services/sharepoint", version = "0.58.1", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.58.1", optional = true, default-features = false }
 opendal-service-sqlite = { path = "services/sqlite", version = "0.58.1", optional = true, default-features = false }
 opendal-service-surrealdb = { path = "services/surrealdb", version = "0.58.1", optional = true, default-features = false }

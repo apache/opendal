@@ -4369,6 +4369,78 @@
       ]
     },
     {
+      "name": "sharepoint",
+      "scheme": "sharepoint",
+      "groups": [
+        "General"
+      ],
+      "configs": [
+        {
+          "name": "folder_url",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "The browser URL of the folder inside a SharePoint document library that this\noperator is anchored to.\n\nFor example\n`https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/Reports`.\n\nThe value is used verbatim, so paste the URL as it appears in the browser\naddress bar with percent-encoding intact."
+        },
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "The root path under `folder_url` for the file access"
+        },
+        {
+          "name": "tenant_id",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Microsoft Entra tenant ID used to build the OAuth 2.0 token endpoint.\n\nDefaults to `common` when unset."
+        },
+        {
+          "name": "access_token",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Microsoft Graph API access token"
+        },
+        {
+          "name": "refresh_token",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Microsoft Graph API refresh token"
+        },
+        {
+          "name": "client_id",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Microsoft Graph API Application (client) ID that is in the Azure's app registration portal"
+        },
+        {
+          "name": "client_secret",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Microsoft Graph API Application client secret that is in the Azure's app registration portal"
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"sharepoint\", [\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"sharepoint\", [\n    // The browser URL of the folder inside a SharePoint document library that this\n    // operator is anchored to.\n    //\n    // For example\n    // `https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/Reports`.\n    //\n    // The value is used verbatim, so paste the URL as it appears in the browser\n    // address bar with percent-encoding intact.\n    // (\"folder_url\".to_string(), \"...\".to_string()),\n\n    // The root path under `folder_url` for the file access\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // Microsoft Entra tenant ID used to build the OAuth 2.0 token endpoint.\n    //\n    // Defaults to `common` when unset.\n    // (\"tenant_id\".to_string(), \"...\".to_string()),\n\n    // Microsoft Graph API access token\n    // (\"access_token\".to_string(), \"...\".to_string()),\n\n    // Microsoft Graph API refresh token\n    // (\"refresh_token\".to_string(), \"...\".to_string()),\n\n    // Microsoft Graph API Application (client) ID that is in the Azure's app registration portal\n    // (\"client_id\".to_string(), \"...\".to_string()),\n\n    // Microsoft Graph API Application client secret that is in the Azure's app registration portal\n    // (\"client_secret\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "go",
+          "language": "go",
+          "minimal": "import (\n\t\"github.com/apache/opendal-go-services/sharepoint\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(sharepoint.Scheme, opendal.OperatorOptions{\n})",
+          "full": "import (\n\t\"github.com/apache/opendal-go-services/sharepoint\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(sharepoint.Scheme, opendal.OperatorOptions{\n\t// The browser URL of the folder inside a SharePoint document library that this\n\t// operator is anchored to.\n\t//\n\t// For example\n\t// `https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/Reports`.\n\t//\n\t// The value is used verbatim, so paste the URL as it appears in the browser\n\t// address bar with percent-encoding intact.\n\t// \"folder_url\": \"...\",\n\n\t// The root path under `folder_url` for the file access\n\t// \"root\": \"...\",\n\n\t// Microsoft Entra tenant ID used to build the OAuth 2.0 token endpoint.\n\t//\n\t// Defaults to `common` when unset.\n\t// \"tenant_id\": \"...\",\n\n\t// Microsoft Graph API access token\n\t// \"access_token\": \"...\",\n\n\t// Microsoft Graph API refresh token\n\t// \"refresh_token\": \"...\",\n\n\t// Microsoft Graph API Application (client) ID that is in the Azure's app registration portal\n\t// \"client_id\": \"...\",\n\n\t// Microsoft Graph API Application client secret that is in the Azure's app registration portal\n\t// \"client_secret\": \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "sled",
       "scheme": "sled",
       "groups": [

@@ -1,4 +1,3 @@
-#!/usr/bin/env sh
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -14,29 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+# frozen_string_literal: true
 
-if [ "$#" -lt 2 ]; then
-  echo "usage: $0 ARTIFACT EXPECTED_SYMBOL..." >&2
-  exit 2
-fi
+require "opendal"
 
-artifact=$1
-shift
-expected=$(printf '%s\n' "$@" | LC_ALL=C sort -u)
-actual=$(
-  nm --dynamic --defined-only --extern-only --format=posix "$artifact" \
-    | awk '{ print $1 }' \
-    | sed 's/@.*//' \
-    | LC_ALL=C sort -u
-)
+module OpenDal
+  module Services
+    module Fs
+      MANIFEST = {
+        required_runtime_protocol: 1,
+        package_id: "opendal-service-fs-poc",
+        component_id: "fs",
+        native_entry_symbol: "opendal_service_fs_bootstrap_v1"
+      }.freeze
 
-if [ "$actual" != "$expected" ]; then
-  echo "unexpected exports in $artifact" >&2
-  echo "expected: $expected" >&2
-  echo "actual:" >&2
-  echo "$actual" >&2
-  exit 1
-fi
-
-echo "$artifact exports only the expected symbols"
+      Runtime.register_service(
+        MANIFEST.fetch(:package_id),
+        MANIFEST.fetch(:component_id),
+        MANIFEST.fetch(:native_entry_symbol),
+        File.expand_path("fs/_native/libfs_extension.so", __dir__),
+        MANIFEST.fetch(:required_runtime_protocol)
+      )
+    end
+  end
+end

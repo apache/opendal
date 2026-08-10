@@ -1,4 +1,3 @@
-#!/usr/bin/env sh
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -14,29 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+# frozen_string_literal: true
 
-if [ "$#" -lt 2 ]; then
-  echo "usage: $0 ARTIFACT EXPECTED_SYMBOL..." >&2
-  exit 2
-fi
+require "json"
+require_relative "opendal_ruby_poc"
 
-artifact=$1
-shift
-expected=$(printf '%s\n' "$@" | LC_ALL=C sort -u)
-actual=$(
-  nm --dynamic --defined-only --extern-only --format=posix "$artifact" \
-    | awk '{ print $1 }' \
-    | sed 's/@.*//' \
-    | LC_ALL=C sort -u
-)
+module OpenDal
+  REQUIRED_RUNTIME_PROTOCOL = Integer(
+    ENV.fetch("OPENDAL_POC_REQUIRED_RUNTIME_PROTOCOL", "1"),
+    10
+  )
 
-if [ "$actual" != "$expected" ]; then
-  echo "unexpected exports in $artifact" >&2
-  echo "expected: $expected" >&2
-  echo "actual:" >&2
-  echo "$actual" >&2
-  exit 1
-fi
+  Runtime.load(
+    File.expand_path("opendal/_native/libopendal_runtime_poc.so", __dir__),
+    REQUIRED_RUNTIME_PROTOCOL
+  )
 
-echo "$artifact exports only the expected symbols"
+  class Operator
+    def info
+      JSON.parse(info_json)
+    end
+  end
+end

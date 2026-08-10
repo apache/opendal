@@ -1,4 +1,3 @@
-#!/usr/bin/env sh
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -14,29 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+from tempfile import TemporaryDirectory
 
-if [ "$#" -lt 2 ]; then
-  echo "usage: $0 ARTIFACT EXPECTED_SYMBOL..." >&2
-  exit 2
-fi
+import opendal.services.fs
+from opendal import Operator
 
-artifact=$1
-shift
-expected=$(printf '%s\n' "$@" | LC_ALL=C sort -u)
-actual=$(
-  nm --dynamic --defined-only --extern-only --format=posix "$artifact" \
-    | awk '{ print $1 }' \
-    | sed 's/@.*//' \
-    | LC_ALL=C sort -u
-)
+with TemporaryDirectory(prefix="opendal-shared-artifact-poc-") as root:
+    with Operator("fs", root=root) as operator:
+        operator.write("python.txt", b"same runtime and FS artifacts")
+        assert operator.read("python.txt") == b"same runtime and FS artifacts"
 
-if [ "$actual" != "$expected" ]; then
-  echo "unexpected exports in $artifact" >&2
-  echo "expected: $expected" >&2
-  echo "actual:" >&2
-  echo "$actual" >&2
-  exit 1
-fi
-
-echo "$artifact exports only the expected symbols"
+print({"adapter": "ctypes", "same_native_artifacts": True, "fs_round_trip": True})

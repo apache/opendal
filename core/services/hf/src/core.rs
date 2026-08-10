@@ -1058,10 +1058,8 @@ mod uri {
             // Match special refs: refs/(convert|pr)/<segment>
             if let Some(rest) = rev_and_path.strip_prefix("refs/convert/") {
                 return if let Some(slash) = rest.find('/') {
-                    (
-                        rev_and_path[..14 + slash].to_string(),
-                        rest[slash + 1..].to_string(),
-                    )
+                    let revision = format!("refs/convert/{}", &rest[..slash]);
+                    (revision, rest[slash + 1..].to_string())
                 } else {
                     (rev_and_path.to_string(), String::new())
                 };
@@ -1265,6 +1263,15 @@ mod uri {
             assert_eq!(p.repo.repo_id, "squad");
             assert_eq!(p.repo.revision.as_deref(), Some("refs/convert/parquet"));
             assert_eq!(p.path, "");
+        }
+
+        #[test]
+        fn resolve_refs_convert_revision_with_path() {
+            let p = resolve("datasets/squad@refs/convert/parquet/default/train/0000.parquet");
+            assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
+            assert_eq!(p.repo.repo_id, "squad");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/convert/parquet"));
+            assert_eq!(p.path, "default/train/0000.parquet");
         }
 
         #[test]

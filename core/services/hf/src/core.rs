@@ -806,6 +806,7 @@ mod error {
             StatusCode::PRECONDITION_FAILED => {
                 (ErrorKind::ConditionNotMatch, branch_updated_conflict)
             }
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

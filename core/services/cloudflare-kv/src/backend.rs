@@ -37,7 +37,6 @@ use super::writer::CloudflareWriter;
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
-    pub(super) default_ttl: Option<Duration>,
 }
 
 impl Debug for CloudflareKvBuilder {
@@ -77,7 +76,7 @@ impl CloudflareKvBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.default_ttl = Some(ttl);
+        self.config.default_ttl = Some(ttl);
         self
     }
 
@@ -97,14 +96,6 @@ impl Builder for CloudflareKvBuilder {
     type Config = CloudflareKvConfig;
 
     fn build(self) -> Result<impl Service> {
-        let default_ttl = match self.default_ttl {
-            Some(ttl) => Some(ttl),
-            None => self
-                .config
-                .default_ttl
-                .map(signed_duration_to_duration)
-                .transpose()?,
-        };
         let api_token = match &self.config.api_token {
             Some(api_token) => format_authorization_by_bearer(api_token)?,
             None => {
@@ -130,7 +121,7 @@ impl Builder for CloudflareKvBuilder {
         };
 
         // Validate default TTL is at least 60 seconds if specified
-        if let Some(ttl) = default_ttl
+        if let Some(ttl) = self.config.default_ttl
             && ttl < Duration::from_secs(60)
         {
             return Err(Error::new(
@@ -152,7 +143,7 @@ impl Builder for CloudflareKvBuilder {
                 api_token,
                 account_id,
                 namespace_id,
-                expiration_ttl: default_ttl,
+                expiration_ttl: self.config.default_ttl,
                 info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, &root, ""),
                 capability: Capability {
                     create_dir: true,

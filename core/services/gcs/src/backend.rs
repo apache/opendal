@@ -357,6 +357,9 @@ impl Builder for GcsBuilder {
             write_with_content_type: true,
             write_with_content_encoding: true,
             write_with_user_metadata: true,
+            // Honored on single-shot writes (JSON upload + ifGenerationMatch=0).
+            // Multipart XML uploads cannot enforce preconditions and return
+            // Unsupported when if_not_exists is set — see GcsWriter::initiate_part.
             write_with_if_not_exists: true,
 
             // The min multipart size of Gcs is 5 MiB.

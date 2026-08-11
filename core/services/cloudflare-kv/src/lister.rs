@@ -34,6 +34,22 @@ pub struct CloudflareKvLister {
     recursive: bool,
 }
 
+/// Strip the service root from a root-prefixed key.
+///
+/// The keys returned by the KV API carry the service root as a prefix, so only that prefix may be
+/// removed. `str::replace` removes *every* occurrence anywhere in the key, which silently mangles
+/// any key that repeats the root as an inner path segment.
+///
+/// The sibling object-store listers reach for `build_rel_path` here, but that helper
+/// `debug_assert!`s that the path really does start with the root -- a guarantee this service does
+/// not enforce on the values the API hands back -- so this stays total and leaves a
+/// non-root-prefixed key untouched.
+fn relative_to_root(root: &str, name: &str) -> String {
+    name.strip_prefix(root.trim_start_matches('/'))
+        .unwrap_or(name)
+        .to_string()
+}
+
 impl CloudflareKvLister {
     pub fn new(
         core: Arc<CloudflareKvCore>,
@@ -60,7 +76,7 @@ impl CloudflareKvLister {
             name += "/";
         }
 
-        let mut name = name.replace(root.trim_start_matches('/'), "");
+        let mut name = relative_to_root(root, &name);
 
         // If it is the root directory, it needs to be processed as /
         if name.is_empty() {
@@ -91,7 +107,7 @@ impl CloudflareKvLister {
             let entry = self.build_entry_for_item(item, root)?;
             ctx.entries.push_back(entry);
         } else if !result.is_empty() {
-            let path_name = self.path.replace(root.trim_start_matches('/'), "");
+            let path_name = relative_to_root(root, &self.path);
             let entry = oio::Entry::new(
                 &format!("{path_name}/"),
                 Metadata::new(EntryMode::DIR)
@@ -169,5 +185,35 @@ impl oio::PageList for CloudflareKvLister {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_to_root_strips_only_the_prefix() {
+        // The root repeated as an inner segment must survive; only the leading copy goes.
+        assert_eq!(
+            relative_to_root("/data/", "data/backup/data/file.txt"),
+            "backup/data/file.txt"
+        );
+        assert_eq!(relative_to_root("/data/", "data/file.txt"), "file.txt");
+    }
+
+    #[test]
+    fn relative_to_root_does_not_match_mid_key() {
+        // "replace" would turn this into "xfile.txt" by deleting a substring that is not a prefix.
+        assert_eq!(
+            relative_to_root("/data/", "xdata/file.txt"),
+            "xdata/file.txt"
+        );
+    }
+
+    #[test]
+    fn relative_to_root_handles_the_root_itself_and_a_bare_root() {
+        assert_eq!(relative_to_root("/data/", "data/"), "");
+        assert_eq!(relative_to_root("/", "file.txt"), "file.txt");
     }
 }

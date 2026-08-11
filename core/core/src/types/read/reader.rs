@@ -628,7 +628,7 @@ mod tests {
     ) -> Reader {
         let op = Operator::new(services::Memory::default()).unwrap();
         Reader::new(ReadContext::new(
-            op.context().clone(),
+            op.context().with_executor(crate::test_executor()),
             op.service().clone(),
             "test_file".to_string(),
             OpRead::new(),
@@ -767,6 +767,8 @@ mod tests {
     #[tokio::test]
     async fn test_reader_read_with_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -843,6 +845,8 @@ mod tests {
     #[tokio::test]
     async fn test_reader_read_suffix_with_chunk_and_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
         op.write(path, Buffer::from("HelloWorld")).await?;
 

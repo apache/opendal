@@ -22,6 +22,7 @@ members = [
   "benches/vs_*",
   "core",
   "edge/*",
+  "executors/*",
   "examples/*",
   "fuzz",
   "http-transports/*",
@@ -44,7 +45,9 @@ version = "0.58.1"
 [workspace.dependencies]
 base64 = "0.23"
 bytes = "1.10"
+compio = "0.19.1"
 ctor = "1.0.7"
+cyper = { version = "0.9.0", default-features = false }
 futures = { version = "0.3", default-features = false }
 http = "1.4"
 log = { version = "0.4.32" }
@@ -52,6 +55,8 @@ logforth = { version = "0.30.1", features = ["starter-log"] }
 mea = "0.6"
 quick-xml = { version = "0.41.0", default-features = false }
 rand = "0.10.1"
+rustls = { version = "0.23", default-features = false }
+send_wrapper = "0.6"
 serde = { version = "1", default-features = false }
 serde_json = "1"
 sha2 = "0.11.0"
@@ -82,9 +87,9 @@ unused_async = "warn"
 all-features = true
 
 [features]
-# Install facade defaults before `main`: register enabled services and, when
-# configured, install the default HTTP transport. Disable this feature when the
-# application needs to install its own process-wide HTTP transport.
+# Install facade defaults before `main`: register enabled services and install
+# configured runtime defaults. Disable this feature when the application needs
+# to install its own process-wide defaults.
 auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
@@ -96,7 +101,20 @@ default = [
   "layers-retry",
   "layers-timeout",
 ]
-executors-tokio = ["opendal-core/executors-tokio"]
+executors-compio = ["dep:opendal-executor-compio"]
+executors-tokio = ["dep:opendal-executor-tokio"]
+# Use Cyper with Rustls and platform certificate verification.
+http-transport-cyper = ["http-transport-cyper-rustls"]
+# Use Cyper with platform TLS via native-tls.
+http-transport-cyper-native-tls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/native-tls",
+]
+# Use Cyper with Rustls and platform certificate verification.
+http-transport-cyper-rustls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/rustls",
+]
 # Default http-transport-reqwest transport feature, used for:
 # - install default http transport
 # - feature gate for various of bindings dependency
@@ -242,6 +260,9 @@ required-features = ["tests"]
 [dependencies]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.58.1", default-features = false }
+opendal-executor-compio = { path = "executors/compio", version = "0.58.1", optional = true, default-features = false }
+opendal-executor-tokio = { path = "executors/tokio", version = "0.58.1", optional = true, default-features = false }
+opendal-http-transport-cyper = { path = "http-transports/cyper", version = "0.58.1", optional = true, default-features = false }
 opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.58.1", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.58.1", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.58.1", optional = true, default-features = false }

@@ -499,6 +499,7 @@ mod tests {
     use super::*;
     use opendal_core::Operator;
     use opendal_core::services;
+    use opendal_executor_tokio::TokioExecutor;
     use std::future::pending;
     use std::sync::Arc;
     use std::time::Duration;
@@ -1017,7 +1018,9 @@ mod tests {
             }),
         )
         .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(EchoTransport)),
+            OperationContext::new()
+                .with_http_transport(HttpTransporter::new(EchoTransport))
+                .with_executor(Executor::with(TokioExecutor::default())),
         )
         .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2));
 

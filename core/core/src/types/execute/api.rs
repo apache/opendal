@@ -19,6 +19,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 
 use futures::FutureExt;
 use futures::future::RemoteHandle;
@@ -58,16 +59,16 @@ pub trait Execute: Send + Sync + 'static {
     /// - Implementor MUST NOT drop futures until it's resolved.
     fn execute(&self, f: BoxedStaticFuture<()>);
 
-    /// Return a future that will be resolved after the given timeout.
-    ///
-    /// Default implementation returns None.
-    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
-        None
-    }
+    /// Return a future that resolves after the given timeout.
+    fn timeout(&self, _: Duration) -> BoxedStaticFuture<()>;
 }
 
 impl Execute for () {
     fn execute(&self, _: BoxedStaticFuture<()>) {
+        panic!("concurrent tasks executed with no executor has been enabled")
+    }
+
+    fn timeout(&self, _: Duration) -> BoxedStaticFuture<()> {
         panic!("concurrent tasks executed with no executor has been enabled")
     }
 }

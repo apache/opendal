@@ -25,30 +25,56 @@
 
 pub use opendal_core::*;
 
+/// Runtime executor implementations.
+pub mod executors {
+    #[cfg(feature = "executors-compio")]
+    pub use opendal_executor_compio::CompioExecutor;
+    #[cfg(feature = "executors-tokio")]
+    pub use opendal_executor_tokio::TokioExecutor;
+}
+
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
 /// Install the global defaults provided by the facade crate.
 ///
 /// This function is safe to call multiple times. It registers enabled services
-/// and installs the default HTTP transport when the corresponding feature is
-/// enabled.
+/// and installs the default executor and HTTP transport when their
+/// corresponding features are enabled.
 ///
-/// # Process-wide HTTP transport
+/// # Process-wide defaults
 ///
 /// When `auto-register-services` is enabled, a process constructor calls this
-/// function before `main`. If a default HTTP transport feature is also enabled,
-/// that transport occupies the process-wide default because
-/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+/// function before `main`. Enabled executor and HTTP transport integrations
+/// occupy their process-wide defaults using first-installed-wins semantics.
 ///
 /// Applications that need to install their own process-wide transport should
 /// disable `auto-register-services`, call [`init_default_registry`] explicitly
 /// when URI-based construction is needed, and install the transport themselves.
-/// Per-operator transports can be configured regardless of this setting.
+/// They must also call [`Executor::install_default`] or configure an executor through
+/// [`OperationContext`]. Per-operator runtime resources can be configured
+/// regardless of this setting.
 pub fn install_default() {
     init_default_registry();
 
-    #[cfg(feature = "http-transport-reqwest")]
+    #[cfg(feature = "executors-tokio")]
+    opendal_executor_tokio::install_default();
+
+    #[cfg(any(
+        feature = "http-transport-cyper",
+        feature = "http-transport-cyper-native-tls",
+        feature = "http-transport-cyper-rustls"
+    ))]
+    opendal_http_transport_cyper::install_default();
+
+    #[cfg(all(
+        not(any(
+            feature = "http-transport-cyper",
+            feature = "http-transport-cyper-native-tls",
+            feature = "http-transport-cyper-rustls"
+        )),
+        feature = "http-transport-reqwest"
+    ))]
     opendal_http_transport_reqwest::install_default();
 }
 

@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL Compfs service implementation"
-name = "opendal-service-compfs"
+description = "Apache OpenDAL Cyper HTTP transport implementation"
+name = "opendal-http-transport-cyper"
 readme = "README.md"
 
 authors = { workspace = true }
@@ -31,19 +31,22 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = ["rustls"]
+# Use platform TLS via Cyper's native-tls feature.
+native-tls = ["cyper/native-tls"]
+# Use Rustls with platform certificate verification.
+rustls = ["cyper/rustls", "dep:rustls"]
+
 [dependencies]
-compio = { workspace = true, features = [
-  "bytes",
-  "dispatcher",
-  "fs",
-  "io",
-  "polling",
-  "runtime",
-  "sync",
-] }
+cyper = { workspace = true, features = ["stream"] }
+futures = { workspace = true, features = ["std"] }
+http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
-serde = { workspace = true, features = ["derive"] }
+rustls = { workspace = true, features = ["ring"], optional = true }
+send_wrapper = { workspace = true, features = ["futures"] }
 
 [dev-dependencies]
-bytes = { workspace = true }
-rand = { workspace = true }
+compio = { workspace = true, features = ["runtime"] }
+opendal-executor-compio = { path = "../../executors/compio", version = "0.58.1" }
+opendal-service-http = { path = "../../services/http", version = "0.58.1" }

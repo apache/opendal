@@ -39,4 +39,5 @@ opendal-core = { path = "../../core", version = "0.58.1", default-features = fal
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.58.1" }
+opendal-executor-tokio = { path = "../../executors/tokio", version = "0.58.1" }
 tokio = { workspace = true, features = ["macros", "rt", "time"] }

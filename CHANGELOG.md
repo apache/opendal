@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.58.2] - 2026-08-11
+
+### Breaking Changes
+* integrations/object_store: `object_store_opendal` 0.59 implements the `object_store` 0.14 API. Update direct `object_store` dependencies to 0.14. Projects that require `object_store` 0.13, including DataFusion 54 users, should pin `object_store_opendal = "=0.58.0"`. We missed `object_store` breaking version changes in previous opendal 0.58 releases. We yanked bad `object_store_opendal` releases so you can expect `object_store_opendal` follows SemVer.
+
+### Added
+* feat(binding/cpp): Expose writer api by @dentiny in https://github.com/apache/opendal/pull/7981
+* feat(bindings/dotnet): add throttle and mime-guess layers, HTTP concurrent limit by @Fatorin in https://github.com/apache/opendal/pull/7984
+* feat(binding/cpp): expose positional read API by @dentiny in https://github.com/apache/opendal/pull/7986
+* feat(bindings/cpp): expose options to cpp bindings by @dentiny in https://github.com/apache/opendal/pull/7989
+* feat(binding/cpp): expose batch deletion API to C++ by @dentiny in https://github.com/apache/opendal/pull/8015
+* feat(services): retry HTTP 429 responses by @ddupg in https://github.com/apache/opendal/pull/8035
+* feat(services/s3): support explicit AWS profiles by @Xuanwo in https://github.com/apache/opendal/pull/7949
+* feat(services/azblob): support if_match writes and honor preconditions on block commit by @tenzinplatter in https://github.com/apache/opendal/pull/8028
+
+### Changed
+* refactor(bindings/dotnet): rework the FFI boundary and add zero-copy IO paths by @Fatorin in https://github.com/apache/opendal/pull/8020
+* refactor(bindings/dotnet): bind the executor at operator construction by @Fatorin in https://github.com/apache/opendal/pull/8031
+
+### Fixed
+* fix: Update missing HuggingFace write capabilities by @mhambre in https://github.com/apache/opendal/pull/7992
+* fix(services/hf): stop advertising append support by @Xuanwo in https://github.com/apache/opendal/pull/7996
+* fix(bindings/cpp): construct reader with options by @Xuanwo in https://github.com/apache/opendal/pull/7997
+* fix(ci): pass nuget.org username to NuGet login by @Fatorin in https://github.com/apache/opendal/pull/8004
+* fix(bindings/dotnet): forward read options to the streaming reader by @Fatorin in https://github.com/apache/opendal/pull/8016
+* fix(ci): fix failed CI due to pyo3 upgrade by @dentiny in https://github.com/apache/opendal/pull/8018
+* fix(bindings/python): annotate `**kwargs` types in generated stubs by @trim21 in https://github.com/apache/opendal/pull/8012
+* fix(services/oss): honor if_not_exists on multipart uploads by @Xuanwo in https://github.com/apache/opendal/pull/8041
+* fix(services/hf): correct the refs/convert revision split by @PDGGK in https://github.com/apache/opendal/pull/8045
+
+### Docs
+* docs: add conditional operation recipes by @Xuanwo in https://github.com/apache/opendal/pull/7988
+* docs(services/s3): document SeaweedFS as a compatible service by @chrislusf in https://github.com/apache/opendal/pull/7994
+* RFC-7948: Add S3 provider presets by @Xuanwo in https://github.com/apache/opendal/pull/7948
+* docs: fix release doc and polish releases by @erickguan in https://github.com/apache/opendal/pull/8002
+* docs: require searching for similar work before opening PRs by @Xuanwo in https://github.com/apache/opendal/pull/8019
+* doc(s3): document compatibility with OCI object storage S3 API by @dentiny in https://github.com/apache/opendal/pull/8006
+
+### CI
+* ci: derive Python RC versions from tags by @Xuanwo in https://github.com/apache/opendal/pull/7978
+* ci(services/s3): run behavior tests against SeaweedFS by @chrislusf in https://github.com/apache/opendal/pull/7995
+* ci(bindings/dotnet): reduce native library size and simplify test workflow by @Fatorin in https://github.com/apache/opendal/pull/7998
+* ci: group behavior test setups by service by @rohankumardubey in https://github.com/apache/opendal/pull/8017
+
+### New Contributors
+* @chrislusf made their first contribution in https://github.com/apache/opendal/pull/7995
+* @subotac made their first contribution in https://github.com/apache/opendal/pull/7983
+* @tenzinplatter made their first contribution in https://github.com/apache/opendal/pull/8028
+* @rohankumardubey made their first contribution in https://github.com/apache/opendal/pull/8017
+* @PDGGK made their first contribution in https://github.com/apache/opendal/pull/8045
+
+**Full Changelog**: https://github.com/apache/opendal/compare/v0.58.1...v0.58.2
+
 ## [v0.58.1] - 2026-07-27
 
 ### Added

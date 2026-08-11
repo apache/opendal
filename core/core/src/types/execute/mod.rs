@@ -22,4 +22,21 @@ pub(crate) use api::Task;
 mod executor;
 pub use executor::Executor;
 
-pub mod executors;
+#[cfg(test)]
+pub(crate) fn test_executor() -> Executor {
+    Executor::with(TestExecutor)
+}
+
+#[cfg(test)]
+struct TestExecutor;
+
+#[cfg(test)]
+impl Execute for TestExecutor {
+    fn execute(&self, f: crate::raw::BoxedStaticFuture<()>) {
+        let _handle = tokio::task::spawn(f);
+    }
+
+    fn timeout(&self, timeout: std::time::Duration) -> crate::raw::BoxedStaticFuture<()> {
+        Box::pin(tokio::time::sleep(timeout))
+    }
+}

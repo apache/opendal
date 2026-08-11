@@ -361,7 +361,6 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::raw::Layer as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};

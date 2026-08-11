@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL Compfs service implementation"
-name = "opendal-service-compfs"
+description = "Apache OpenDAL Compio executor implementation"
+name = "opendal-executor-compio"
 readme = "README.md"
 
 authors = { workspace = true }
@@ -32,18 +32,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-compio = { workspace = true, features = [
-  "bytes",
-  "dispatcher",
-  "fs",
-  "io",
-  "polling",
-  "runtime",
-  "sync",
-] }
+compio = { workspace = true, features = ["dispatcher", "runtime", "time"] }
+futures = { workspace = true, features = ["std"] }
 opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
-serde = { workspace = true, features = ["derive"] }
-
-[dev-dependencies]
-bytes = { workspace = true }
-rand = { workspace = true }

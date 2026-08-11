@@ -364,7 +364,7 @@ mod tests {
         let inner = TestCopy {
             state: state.clone(),
         };
-        let mut copier = BlockCopier::new(Executor::default(), inner, None, 0, 2, 2);
+        let mut copier = BlockCopier::new(crate::test_executor(), inner, None, 0, 2, 2);
 
         while copier.next().await?.is_some() {}
 

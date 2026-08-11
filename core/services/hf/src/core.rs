@@ -1057,19 +1057,15 @@ mod uri {
 
             // Match special refs: refs/(convert|pr)/<segment>
             if let Some(rest) = rev_and_path.strip_prefix("refs/convert/") {
-                return if let Some(slash) = rest.find('/') {
-                    let revision = format!("refs/convert/{}", &rest[..slash]);
-                    (revision, rest[slash + 1..].to_string())
-                } else {
-                    (rev_and_path.to_string(), String::new())
+                return match rest.split_once('/') {
+                    Some((segment, path)) => (format!("refs/convert/{segment}"), path.to_string()),
+                    None => (rev_and_path.to_string(), String::new()),
                 };
             }
             if let Some(rest) = rev_and_path.strip_prefix("refs/pr/") {
-                return if let Some(slash) = rest.find('/') {
-                    let revision = format!("refs/pr/{}", &rest[..slash]);
-                    (revision, rest[slash + 1..].to_string())
-                } else {
-                    (rev_and_path.to_string(), String::new())
+                return match rest.split_once('/') {
+                    Some((segment, path)) => (format!("refs/pr/{segment}"), path.to_string()),
+                    None => (rev_and_path.to_string(), String::new()),
                 };
             }
 

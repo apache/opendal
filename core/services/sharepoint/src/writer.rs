@@ -43,7 +43,12 @@ impl SharePointWriter {
     // Choose a value smaller than `MAX_SIMPLE_SIZE`
     const CHUNK_SIZE_FACTOR: usize = 327_680 * 12; // floor(MAX_SIMPLE_SIZE / 320KB)
 
-    pub fn new(core: Arc<SharePointCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+    pub fn new(
+        core: Arc<SharePointCore>,
+        ctx: OperationContext,
+        op: OpWrite,
+        path: String,
+    ) -> Self {
         SharePointWriter {
             core,
             ctx,

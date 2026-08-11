@@ -37,7 +37,7 @@ pub const GENERAL_SELECT_PARAM: &str =
 pub const VERSION_SELECT_PARAM: &str = "$select=id,size,lastModifiedDateTime";
 
 /// We `$select` only what is needed to anchor the operator on a `driveItem`.
-pub const ANCHOR_SELECT_PARAM: &str = "$select=id,name,parentReference,webUrl";
+pub const ANCHOR_SELECT_PARAM: &str = "$select=id,name,parentReference";
 
 /// The `driveItem` returned when resolving a sharing URL through `/shares`.
 ///
@@ -48,7 +48,6 @@ pub struct SharePointAnchorItem {
     pub id: String,
     pub name: String,
     pub parent_reference: AnchorParentReference,
-    pub web_url: Option<String>,
 }
 
 /// A trimmed `itemReference`.
@@ -252,7 +251,6 @@ mod tests {
 
         let item: SharePointAnchorItem = serde_json::from_str(data).unwrap();
         assert_eq!(item.name, "Documents");
-        assert!(item.web_url.is_none());
         assert_eq!(
             item.parent_reference.drive_id,
             "b!xYzLongOpaqueDriveIdentifierValue0123456789"
@@ -335,8 +333,7 @@ mod tests {
             "value": []
         }"#;
 
-        let response: GraphApiSharePointListResponse =
-            serde_json::from_str(response_json).unwrap();
+        let response: GraphApiSharePointListResponse = serde_json::from_str(response_json).unwrap();
         assert!(response.value.is_empty());
         assert!(response.next_link.is_some());
     }

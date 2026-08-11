@@ -131,17 +131,12 @@ impl oio::PageList for SharePointLister {
         let prefix = self.entry_prefix();
 
         for drive_item in decoded_response.value {
-            let mut path = format!("{prefix}{}", drive_item.name);
+            let item_path = format!("{prefix}{}", drive_item.name);
 
             let entry_mode = match drive_item.item_type {
                 ItemType::Folder { .. } => EntryMode::DIR,
                 ItemType::File { .. } => EntryMode::FILE,
             };
-
-            // Add the trailing `/` because Graph returns a directory with the name
-            if entry_mode == EntryMode::DIR {
-                path.push('/');
-            }
 
             let mut meta = Metadata::new(entry_mode)
                 .with_etag(drive_item.e_tag)
@@ -153,14 +148,27 @@ impl oio::PageList for SharePointLister {
             // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
             // N+1 is horrendous but we can't do any better without Graph's API support.
             // When Graph supports listing with versions API, remove this.
-            if list_with_versions {
-                let versions = self.core.sharepoint_list_versions(&self.ctx, &path).await?;
+            //
+            // Only files are queried: a folder has no versions, so asking would
+            // spend a request per folder to get an error back.
+            if list_with_versions && entry_mode == EntryMode::FILE {
+                let versions = self
+                    .core
+                    .sharepoint_list_versions(&self.ctx, &item_path)
+                    .await?;
                 if let Some(version) = versions.first() {
                     meta.set_version(&version.id);
                 }
             }
 
-            let entry = oio::Entry::new(&path, meta);
+            // Add the trailing `/` because Graph returns a directory with the name
+            let entry_path = if entry_mode == EntryMode::DIR {
+                format!("{item_path}/")
+            } else {
+                item_path
+            };
+
+            let entry = oio::Entry::new(&entry_path, meta);
             ctx.entries.push_back(entry)
         }
 

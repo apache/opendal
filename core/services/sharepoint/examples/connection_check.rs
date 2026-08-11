@@ -50,8 +50,8 @@ use http::header;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
-use opendal_core::Operator;
 use opendal_core::OperationContext;
+use opendal_core::Operator;
 use opendal_core::Result;
 use opendal_core::raw::percent_encode_path;
 use opendal_service_sharepoint::Sharepoint;
@@ -112,7 +112,11 @@ struct TokenErrorResponse {
     error_description: Option<String>,
 }
 
-async fn post_form(ctx: &OperationContext, url: &str, body: String) -> Result<(StatusCode, Buffer)> {
+async fn post_form(
+    ctx: &OperationContext,
+    url: &str,
+    body: String,
+) -> Result<(StatusCode, Buffer)> {
     let request = Request::post(url)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(Buffer::from(body))
@@ -139,10 +143,7 @@ async fn device_code_login(
     let (status, body) = post_form(
         ctx,
         &format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode"),
-        format!(
-            "client_id={}&scope={SCOPE}",
-            percent_encode_path(client_id)
-        ),
+        format!("client_id={}&scope={SCOPE}", percent_encode_path(client_id)),
     )
     .await?;
 
@@ -224,8 +225,7 @@ async fn main() -> Result<()> {
 
     let folder_url = require("OPENDAL_SHAREPOINT_FOLDER_URL")?;
     let client_id = require("OPENDAL_SHAREPOINT_CLIENT_ID")?;
-    let tenant_id =
-        env_var("OPENDAL_SHAREPOINT_TENANT_ID").unwrap_or_else(|| "common".to_string());
+    let tenant_id = env_var("OPENDAL_SHAREPOINT_TENANT_ID").unwrap_or_else(|| "common".to_string());
     let root = env_var("OPENDAL_SHAREPOINT_ROOT").unwrap_or_else(|| "/".to_string());
 
     println!("SharePoint connection check");
@@ -283,10 +283,7 @@ async fn main() -> Result<()> {
 
     // Round-trip a throwaway file. The name is prefixed so a failed run leaves
     // something obviously identifiable behind.
-    let probe_path = format!(
-        ".opendal-connection-check-{}.txt",
-        std::process::id()
-    );
+    let probe_path = format!(".opendal-connection-check-{}.txt", std::process::id());
     let payload = b"opendal sharepoint connection check".as_slice();
 
     op.write(&probe_path, payload).await?;
@@ -298,7 +295,11 @@ async fn main() -> Result<()> {
 
     let mut round_trip_ok = true;
     if read_back.as_ref() != payload {
-        println!("        MISMATCH: read back {} bytes, expected {}", read_back.len(), payload.len());
+        println!(
+            "        MISMATCH: read back {} bytes, expected {}",
+            read_back.len(),
+            payload.len()
+        );
         round_trip_ok = false;
     }
     if stat.content_length() != payload.len() as u64 {
@@ -329,7 +330,9 @@ async fn main() -> Result<()> {
                 "A refresh token was obtained ({} chars). Re-run with --print-refresh-token",
                 refresh_token.len()
             );
-            println!("to print it for OPENDAL_SHAREPOINT_REFRESH_TOKEN and skip sign-in next time.");
+            println!(
+                "to print it for OPENDAL_SHAREPOINT_REFRESH_TOKEN and skip sign-in next time."
+            );
         }
     }
 

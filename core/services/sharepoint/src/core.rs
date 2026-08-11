@@ -115,9 +115,8 @@ impl SharePointCore {
                 .with_operation("resolve_anchor"));
         }
 
-        let item: SharePointAnchorItem =
-            serde_json::from_reader(response.into_body().reader())
-                .map_err(new_json_deserialize_error)?;
+        let item: SharePointAnchorItem = serde_json::from_reader(response.into_body().reader())
+            .map_err(new_json_deserialize_error)?;
 
         Ok(DriveAnchor {
             drive_id: item.parent_reference.drive_id,
@@ -353,10 +352,31 @@ impl SharePointCore {
         self.sign(ctx, &mut request).await?;
 
         let response = ctx.http_transport().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
+
         let decoded_response: GraphApiSharePointVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
         Ok(decoded_response.value)
+    }
+
+    /// Build the `children` collection URL for `path`.
+    ///
+    /// The anchor itself is addressed as `items/{id}/children`; anything below it
+    /// takes the path form `items/{id}:/{path}:/children`. Graph rejects the path
+    /// form applied to the anchor, the same class of bug that
+    /// "fix(services/onedrive): build correct children URL when listing root"
+    /// addressed for OneDrive. Both callers must agree, so the branch lives in
+    /// one place.
+    pub(crate) fn sharepoint_children_url(&self, base_url: &str, path: &str) -> String {
+        let item_url = self.sharepoint_item_url(base_url, path, true);
+        if item_url == base_url {
+            format!("{item_url}/children?{GENERAL_SELECT_PARAM}")
+        } else {
+            format!("{item_url}:/children?{GENERAL_SELECT_PARAM}")
+        }
     }
 
     /// Build the request that lists the children of `path`.
@@ -369,14 +389,7 @@ impl SharePointCore {
         path: &str,
         limit: Option<usize>,
     ) -> Result<Request<Buffer>> {
-        let item_url = self.sharepoint_item_url(base_url, path, true);
-        // The anchor itself is addressed as `items/{id}/children`, not the path
-        // form `items/{id}:/:/children`.
-        let mut url = if item_url == base_url {
-            format!("{item_url}/children?{GENERAL_SELECT_PARAM}")
-        } else {
-            format!("{item_url}:/children?{GENERAL_SELECT_PARAM}")
-        };
+        let mut url = self.sharepoint_children_url(base_url, path);
         if let Some(limit) = limit {
             url += &format!("&$top={limit}");
         }
@@ -436,7 +449,10 @@ impl SharePointCore {
     ) -> Result<Response<HttpBody>> {
         let base_url = self.base_url(ctx).await?;
         // We can't "select" the Graph API response fields when reading because "select" shadows not found error
-        let url: String = format!("{}:/content", self.sharepoint_item_url(&base_url, path, true));
+        let url: String = format!(
+            "{}:/content",
+            self.sharepoint_item_url(&base_url, path, true)
+        );
 
         let mut request = Request::get(&url).header(header::RANGE, range.to_header());
         if let Some(etag) = args.if_none_match() {
@@ -596,14 +612,7 @@ impl SharePointCore {
         let basename = get_basename(path);
         let folder_name = basename.strip_suffix('/').unwrap_or(basename);
 
-        let item_url = self.sharepoint_item_url(&base_url, parent_path, true);
-        // Same anchor special case as listing: the anchor takes `/children`
-        // directly, nested paths take the `:/children` path form.
-        let url = if item_url == base_url {
-            format!("{item_url}/children?{GENERAL_SELECT_PARAM}")
-        } else {
-            format!("{item_url}:/children?{GENERAL_SELECT_PARAM}")
-        };
+        let url = self.sharepoint_children_url(&base_url, parent_path);
 
         let payload = CreateDirPayload::new(folder_name.to_string());
         let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
@@ -693,7 +702,10 @@ impl SharePointCore {
         }
 
         let base_url = self.base_url(ctx).await?;
-        let url: String = format!("{}:/copy", self.sharepoint_item_url(&base_url, source, true));
+        let url: String = format!(
+            "{}:/copy",
+            self.sharepoint_item_url(&base_url, source, true)
+        );
 
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let buffer = Buffer::from(Bytes::from(body_bytes));
@@ -917,12 +929,16 @@ mod tests {
     const DRIVE_ID: &str = "b!driveid";
     const ITEM_ID: &str = "01ANCHOR";
 
-    const ANCHOR_RESPONSE: &str = r#"{"id":"01ANCHOR","name":"Reports","parentReference":{"driveId":"b!driveid"}}"#;
+    const ANCHOR_RESPONSE: &str =
+        r#"{"id":"01ANCHOR","name":"Reports","parentReference":{"driveId":"b!driveid"}}"#;
     const ANCHOR_STAT_RESPONSE: &str = r#"{"id":"01ANCHOR","name":"Reports","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":0,"parentReference":{"path":"/drives/b!driveid/root:/Shared Documents","driveId":"b!driveid","id":"01PARENT"},"folder":{"childCount":1}}"#;
     const CHILDREN_RESPONSE: &str = r#"{"value":[{"id":"01CHILD","name":"test.txt","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":5,"parentReference":{"path":"/drives/b!driveid/root:/Shared Documents/Reports","driveId":"b!driveid","id":"01ANCHOR"},"file":{"mimeType":"text/plain"}}]}"#;
 
     fn base_url() -> String {
-        format!("{}/drives/{DRIVE_ID}/items/{ITEM_ID}", SharePointCore::GRAPH_URL)
+        format!(
+            "{}/drives/{DRIVE_ID}/items/{ITEM_ID}",
+            SharePointCore::GRAPH_URL
+        )
     }
 
     #[derive(Clone)]
@@ -1015,7 +1031,9 @@ mod tests {
     fn list_request_for_nested_path_uses_path_addressing() {
         let core = test_core("/");
         let base = base_url();
-        let request = core.sharepoint_list_request(&base, "foo/", Some(10)).unwrap();
+        let request = core
+            .sharepoint_list_request(&base, "foo/", Some(10))
+            .unwrap();
         assert_eq!(
             request.uri().to_string(),
             format!("{base}:/foo:/children?{GENERAL_SELECT_PARAM}&$top=10")
@@ -1029,6 +1047,38 @@ mod tests {
         let request = core.sharepoint_list_request(&base, "", None).unwrap();
         assert_eq!(
             request.uri().to_string(),
+            format!("{base}:/base:/children?{GENERAL_SELECT_PARAM}")
+        );
+    }
+
+    // `create_dir` posts to the *parent's* children collection, so it hits the
+    // same anchor-vs-path branch as listing. OneDrive gets this wrong for the
+    // root case, so both branches are pinned here.
+    #[test]
+    fn create_dir_url_for_top_level_folder_targets_anchor_children() {
+        let core = test_core("/");
+        let base = base_url();
+        let url = core.sharepoint_children_url(&base, get_parent("foo/"));
+        assert_eq!(url, format!("{base}/children?{GENERAL_SELECT_PARAM}"));
+    }
+
+    #[test]
+    fn create_dir_url_for_nested_folder_uses_path_addressing() {
+        let core = test_core("/");
+        let base = base_url();
+        let url = core.sharepoint_children_url(&base, get_parent("a/b/"));
+        assert_eq!(url, format!("{base}:/a:/children?{GENERAL_SELECT_PARAM}"));
+    }
+
+    #[test]
+    fn create_dir_url_under_custom_root_uses_path_addressing() {
+        let core = test_core("/base/");
+        let base = base_url();
+        // The operator root is never the anchor, so even a top-level folder
+        // resolves through the path form.
+        let url = core.sharepoint_children_url(&base, get_parent("foo/"));
+        assert_eq!(
+            url,
             format!("{base}:/base:/children?{GENERAL_SELECT_PARAM}")
         );
     }

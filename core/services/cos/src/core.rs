@@ -28,6 +28,9 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
+use percent_encoding::AsciiSet;
+use percent_encoding::NON_ALPHANUMERIC;
+use percent_encoding::utf8_percent_encode;
 use reqsign_core::{Context, Signer};
 use reqsign_tencent_cos::Credential;
 use serde::Deserialize;
@@ -43,6 +46,16 @@ pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
 
     pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
+}
+
+static COS_QUERY_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
+fn percent_encode_query(value: &str) -> String {
+    utf8_percent_encode(value, &COS_QUERY_ENCODE_SET).to_string()
 }
 
 pub struct CosCore {
@@ -141,7 +154,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -255,7 +268,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -287,6 +300,17 @@ impl CosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
+        let req = self.cos_delete_object_request(path, args)?;
+        let req = self.sign(ctx, req).await?;
+
+        self.send(ctx, req).await
+    }
+
+    pub fn cos_delete_object_request(
+        &self,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -296,7 +320,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ))
         }
         if !query_args.is_empty() {
@@ -310,9 +334,8 @@ impl CosCore {
             .extension(ServiceOperation("DeleteObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(ctx, req).await?;
 
-        self.send(ctx, req).await
+        Ok(req)
     }
 
     pub fn cos_append_object_request(
@@ -733,9 +756,194 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bytes::Buf;
+    use reqsign_core::ProvideCredentialChain;
+    use reqsign_tencent_cos::RequestSigner;
+    use reqsign_tencent_cos::StaticCredentialProvider;
 
     use super::*;
+
+    const VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a+b/c=d%25&e!()*'";
+    const ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS: &str = "a%2Bb%2Fc%3Dd%2525%26e%21%28%29%2A%27";
+
+    fn assert_version_id_query_encoded(uri: &http::Uri) {
+        let query = uri.query().unwrap_or_default();
+        assert!(
+            query.split('&').any(|pair| {
+                pair == format!("versionId={ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS}")
+            }),
+            "uri query should keep versionId encoded: {uri}"
+        );
+        assert!(
+            !query.split('&').any(|pair| pair == "e"),
+            "uri query should not expose versionId suffix as a query parameter: {uri}"
+        );
+    }
+
+    fn test_core() -> CosCore {
+        CosCore {
+            info: ServiceInfo::new("cos", "", "test"),
+            capability: Capability::default(),
+            bucket: "test".to_string(),
+            root: "/".to_string(),
+            endpoint: "https://test.cos.ap-beijing.myqcloud.com".to_string(),
+            signer: Signer::new(
+                Context::new(),
+                ProvideCredentialChain::<Credential>::new()
+                    .push(StaticCredentialProvider::new("secret_id", "secret_key")),
+                RequestSigner::new(),
+            ),
+        }
+    }
+
+    #[test]
+    fn test_get_object_encodes_version_id() {
+        let req = test_core()
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_head_object_encodes_version_id() {
+        let req = test_core()
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[test]
+    fn test_delete_object_encodes_version_id() {
+        let req = test_core()
+            .cos_delete_object_request(
+                "test.txt",
+                &OpDelete::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        assert_eq!(
+            req.uri().to_string(),
+            format!(
+                "https://test.cos.ap-beijing.myqcloud.com/test.txt?versionId={}",
+                ENCODED_VERSION_WITH_QUERY_RESERVED_CHARS
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_signed_get_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_signed_head_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_signed_delete_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_delete_object_request(
+                "test.txt",
+                &OpDelete::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign(&OperationContext::new(), req)
+            .await
+            .expect("request must be signed");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_presigned_get_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_get_object_request(
+                "test.txt",
+                BytesRange::default(),
+                &OpRead::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign_query(&OperationContext::new(), req, Duration::from_secs(3600))
+            .await
+            .expect("request must be presigned");
+
+        assert_version_id_query_encoded(req.uri());
+    }
+
+    #[tokio::test]
+    async fn test_presigned_head_object_keeps_version_id_encoded() {
+        let core = test_core();
+        let req = core
+            .cos_head_object_request(
+                "test.txt",
+                &OpStat::default().with_version(VERSION_WITH_QUERY_RESERVED_CHARS),
+            )
+            .expect("request must be built");
+
+        let req = core
+            .sign_query(&OperationContext::new(), req, Duration::from_secs(3600))
+            .await
+            .expect("request must be presigned");
+
+        assert_version_id_query_encoded(req.uri());
+    }
 
     #[test]
     fn test_parse_xml() {

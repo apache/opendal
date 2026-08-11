@@ -570,7 +570,7 @@ pub async fn test_stat_with_version(op: Operator) -> Result<()> {
         .expect("stat must success");
     assert_eq!(first_meta, first_versioning_meta);
 
-    op.write(path.as_str(), content)
+    op.write(path.as_str(), b"second version".to_vec())
         .await
         .expect("write must success");
     let second_meta = op.stat(path.as_str()).await.expect("stat must success");
@@ -584,6 +584,13 @@ pub async fn test_stat_with_version(op: Operator) -> Result<()> {
         .await
         .expect("stat must success");
     assert_eq!(first_meta, meta);
+
+    let meta = op
+        .stat_with(path.as_str())
+        .version(second_version)
+        .await
+        .expect("stat must success");
+    assert_eq!(second_meta, meta);
 
     Ok(())
 }

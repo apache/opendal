@@ -16,45 +16,63 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import asyncio
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+
 from constants import PACKAGES
 
 
-def check_single_package(root):
-    if (Path(root) / "Cargo.toml").exists():
+def check_single_package(root: Path) -> None:
+    if (root / "Cargo.toml").exists():
         print(f"Checking dependencies of {root}")
-        subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
-    else:
-        print(f"Skipping {root} as Cargo.toml does not exist")
-
-
-def check_deps():
-    cargo_dirs = PACKAGES
-    for d in cargo_dirs:
-        check_single_package(d)
-
-
-def generate_single_package(root):
-    if (Path(root) / "Cargo.toml").exists():
-        print(f"Generating dependencies {root}")
-        result = subprocess.check_output(
-            ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
-            cwd=root,
-            text=True,
+        subprocess.run(
+            ["cargo", "deny", "check", "licenses"], cwd=root, check=True
         )
-        with open(f"{root}/DEPENDENCIES.rust.tsv", "w") as f:
-            f.write(result)
     else:
         print(f"Skipping {root} as Cargo.toml does not exist")
 
 
-def generate_deps():
-    cargo_dirs = PACKAGES
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        executor.map(generate_single_package, cargo_dirs)
+def check_deps() -> None:
+    failures: list[Path] = []
+    for root in PACKAGES:
+        try:
+            check_single_package(root)
+        except subprocess.CalledProcessError:
+            failures.append(root)
+    if failures:
+        roots = ", ".join(str(root) for root in failures)
+        raise RuntimeError(f"dependency checks failed for: {roots}")
+
+
+async def generate_single_package(root: Path) -> None:
+    if (root / "Cargo.toml").exists():
+        print(f"Generating dependencies {root}")
+        command = ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"]
+        process = await asyncio.create_subprocess_exec(
+            *command, cwd=root, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, command)
+        (root / "DEPENDENCIES.rust.tsv").write_bytes(stdout)
+    else:
+        print(f"Skipping {root} as Cargo.toml does not exist")
+
+
+async def generate_all_deps() -> None:
+    results = await asyncio.gather(
+        *(generate_single_package(root) for root in PACKAGES),
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            raise result
+
+
+def generate_deps() -> None:
+    asyncio.run(generate_all_deps())
 
 
 if __name__ == "__main__":

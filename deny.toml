@@ -39,6 +39,22 @@ exceptions = [
     "MPL-2.0",
   ] },
 
+  # colored and option-ext are runtime dependencies of the Hugging Face Xet
+  # client enabled by the Java, .NET, Node.js, and Python release builds. Their
+  # source is not bundled in ASF source releases.
+  { crate = "colored", allow = [
+    "MPL-2.0",
+  ] },
+  { crate = "option-ext", allow = [
+    "MPL-2.0",
+  ] },
+
+  # persy implements the Persy service enabled by the Java, .NET, Node.js, and
+  # Python release builds. Its source is not bundled in ASF source releases.
+  { crate = "persy", allow = [
+    "MPL-2.0",
+  ] },
+
   # malachite and its subcrates are introduced in the Python bindings (pyo3-stub-gen)
   # they are only used in proc-macro so they won't be included in the final library
   { crate = "malachite", allow = [

@@ -265,6 +265,9 @@
                             <classifier>${jni.classifier}</classifier>
                             <includes>
                                 <include>native/**</include>
+                                <include>META-INF/DEPENDENCIES</include>
+                                <include>META-INF/LICENSE-MPL-2.0.txt</include>
+                                <include>META-INF/NOTICE</include>
                             </includes>
                         </configuration>
                     </execution>

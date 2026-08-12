@@ -39,3 +39,8 @@ def list_packages() -> list[Path]:
 
 
 PACKAGES = list_packages()
+
+PACKAGE_FEATURES: dict[Path, list[str]] = {
+    Path("bindings/nodejs"): ["services-all"],
+    Path("bindings/python"): ["services-all"],
+}

@@ -6,7 +6,11 @@
   ],
   "main": "opendal.win32-arm64-msvc.node",
   "files": [
-    "opendal.win32-arm64-msvc.node"
+    "opendal.win32-arm64-msvc.node",
+    "LICENSE",
+    "LICENSE-MPL-2.0.txt",
+    "NOTICE",
+    "README.md"
   ],
   "description": "Apache OpenDAL: One Layer, All Storage.",
   "keywords": [

@@ -6,7 +6,11 @@
   ],
   "main": "opendal.linux-x64-gnu.node",
   "files": [
-    "opendal.linux-x64-gnu.node"
+    "opendal.linux-x64-gnu.node",
+    "LICENSE",
+    "LICENSE-MPL-2.0.txt",
+    "NOTICE",
+    "README.md"
   ],
   "description": "Apache OpenDAL: One Layer, All Storage.",
   "keywords": [

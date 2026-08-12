@@ -18,18 +18,62 @@
 
 import asyncio
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from contextlib import contextmanager
 from pathlib import Path
 import subprocess
+from typing import Iterator
 
-from constants import PACKAGES
+from constants import PACKAGE_FEATURES, PACKAGES
+
+
+def is_tracked(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", path.name],
+        cwd=path.parent,
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
+def cargo_deny_command(root: Path, *args: str, locked: bool = False) -> list[str]:
+    command = ["cargo", "deny"]
+    if locked:
+        command.append("--locked")
+    features = PACKAGE_FEATURES.get(root)
+    if features:
+        command.extend(["--features", ",".join(features)])
+    command.extend(args)
+    return command
+
+
+@contextmanager
+def resolved_dependencies(root: Path) -> Iterator[bool]:
+    lockfile = root / "Cargo.lock"
+    if is_tracked(lockfile):
+        yield True
+        return
+
+    original_lockfile = lockfile.read_bytes() if lockfile.exists() else None
+    lockfile.unlink(missing_ok=True)
+    try:
+        yield False
+    finally:
+        lockfile.unlink(missing_ok=True)
+        if original_lockfile is not None:
+            lockfile.write_bytes(original_lockfile)
 
 
 def check_single_package(root: Path) -> None:
     if (root / "Cargo.toml").exists():
         print(f"Checking dependencies of {root}")
-        subprocess.run(
-            ["cargo", "deny", "check", "licenses"], cwd=root, check=True
-        )
+        with resolved_dependencies(root) as locked:
+            subprocess.run(
+                cargo_deny_command(root, "check", "licenses", locked=locked),
+                cwd=root,
+                check=True,
+            )
     else:
         print(f"Skipping {root} as Cargo.toml does not exist")
 
@@ -49,14 +93,17 @@ def check_deps() -> None:
 async def generate_single_package(root: Path) -> None:
     if (root / "Cargo.toml").exists():
         print(f"Generating dependencies {root}")
-        command = ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"]
-        process = await asyncio.create_subprocess_exec(
-            *command, cwd=root, stdout=asyncio.subprocess.PIPE
-        )
-        stdout, _ = await process.communicate()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command)
-        (root / "DEPENDENCIES.rust.tsv").write_bytes(stdout)
+        with resolved_dependencies(root) as locked:
+            command = cargo_deny_command(
+                root, "list", "-f", "tsv", "-t", "0.6", locked=locked
+            )
+            process = await asyncio.create_subprocess_exec(
+                *command, cwd=root, stdout=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, command)
+            (root / "DEPENDENCIES.rust.tsv").write_bytes(stdout)
     else:
         print(f"Skipping {root} as Cargo.toml does not exist")
 

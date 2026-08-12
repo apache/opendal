@@ -23,8 +23,6 @@ use std::sync::LazyLock;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use constants::X_AMZ_META_PREFIX;
-use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -1093,21 +1091,7 @@ impl Service for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
-
-                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
-                if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
-                }
-
-                if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
-                    meta.set_version(v);
-                }
-
-                Ok(RpStat::new(meta))
-            }
+            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
             _ => Err(parse_error(resp)),
         }
     }

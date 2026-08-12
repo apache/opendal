@@ -16,7 +16,10 @@
 // under the License.
 
 use crate::backend::*;
+use crate::core::constants::X_AMZ_META_PREFIX;
+use crate::core::constants::X_AMZ_VERSION_ID;
 use crate::core::parse_error;
+use http::HeaderMap;
 use http::Response;
 use http::StatusCode;
 use opendal_core::raw::*;
@@ -56,7 +59,7 @@ impl oio::StreamRead for S3Reader {
         let status = resp.status();
         let (rp, stream) = match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
+                RpRead::new(parse_into_s3_metadata(path, resp.headers())?),
                 resp.into_body(),
             ),
             _ => {
@@ -68,4 +71,18 @@ impl oio::StreamRead for S3Reader {
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
+}
+
+pub(super) fn parse_into_s3_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> {
+    let mut meta = parse_into_metadata(path, headers)?;
+
+    let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
+    if !user_meta.is_empty() {
+        meta = meta.with_user_metadata(user_meta);
+    }
+
+    if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
+        meta.set_version(v);
+    }
+    Ok(meta)
 }

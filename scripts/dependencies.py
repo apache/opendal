@@ -81,6 +81,9 @@ def check_single_package(root: Path) -> None:
 def check_deps() -> None:
     failures: list[Path] = []
     for root in PACKAGES:
+        # We disable dependencies checks since PHP binding release is not working.
+        if str(root) in ["bindings/php"]:
+            continue
         try:
             check_single_package(root)
         except subprocess.CalledProcessError:

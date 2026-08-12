@@ -140,7 +140,7 @@ impl oio::PageList for OneDriveLister {
             // N+1 is horrendous but we can't do any better without OneDrive's API support.
             // When OneDrive supports listing with versions API, remove this.
             if list_with_versions {
-                let versions = self.core.onedrive_list_versions(&self.ctx, &path).await?;
+                let versions = self.core.onedrive_list_versions(&self.ctx, &normalized_path).await?;
                 if let Some(version) = versions.first() {
                     meta.set_version(&version.id);
                 }

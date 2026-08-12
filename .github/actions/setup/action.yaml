@@ -147,7 +147,7 @@ runs:
       if: inputs.need-deny == 'true'
       uses: taiki-e/install-action@v2
       with:
-        tool: cargo-deny@0.14.22
+        tool: cargo-deny@0.20.2
 
     - name: Setup rocksdb on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'

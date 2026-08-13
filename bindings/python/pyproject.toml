@@ -25,7 +25,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
 ]
 description = "Apache OpenDAL™ Python Binding"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "LICENSE-MPL-2.0.txt", "NOTICE"]
 name = "opendal"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -58,7 +59,6 @@ test = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-include = [{ path = "LICENSE-MPL-2.0.txt", format = "wheel" }]
 module-name = "opendal._opendal"
 python-source = "python"
 

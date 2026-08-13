@@ -253,6 +253,12 @@
                             <excludes>
                                 <exclude>native/**</exclude>
                             </excludes>
+                            <includes>
+                                <include>META-INF/DEPENDENCIES</include>
+                                <include>META-INF/LICENSE</include>
+                                <include>META-INF/LICENSE-MPL-2.0.txt</include>
+                                <include>META-INF/NOTICE</include>
+                            </includes>
                         </configuration>
                     </execution>
                     <!--  Generate the JAR that contains the native library in it.  -->
@@ -266,6 +272,7 @@
                             <includes>
                                 <include>native/**</include>
                                 <include>META-INF/DEPENDENCIES</include>
+                                <include>META-INF/LICENSE</include>
                                 <include>META-INF/LICENSE-MPL-2.0.txt</include>
                                 <include>META-INF/NOTICE</include>
                             </includes>

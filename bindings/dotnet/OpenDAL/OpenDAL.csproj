@@ -20,8 +20,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="../README.md" Pack="true" PackagePath="/" />
-        <None Include="../LICENSE-MPL-2.0.txt" Pack="true" PackagePath="/" />
+        <!-- Include files without an extension in the NuGet package.
+        See https://learn.microsoft.com/en-us/nuget/reference/msbuild-targets#packing-a-file-without-an-extension -->
+        <None Include="../README.md" Pack="true" PackagePath="" />
+        <None Include="../LICENSE" Pack="true" PackagePath="" />
+        <None Include="../LICENSE-MPL-2.0.txt" Pack="true" PackagePath="" />
+        <None Include="../NOTICE" Pack="true" PackagePath="" />
         <None Include="runtimes\win-x64\native\opendal_dotnet.dll"
             Pack="true"
             PackagePath="runtimes/win-x64/native/" />

@@ -508,8 +508,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
 
     /// Controls the optimization strategy for range reads in [`Reader::fetch`].
     ///
-    /// When performing range reads, if the gap between two requested ranges is smaller than
-    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// When performing range reads, if the gap between two requested ranges is less than or
+    /// equal to the configured `gap` size, OpenDAL will merge these ranges into a single read request
     /// and discard the unrequested data in between. This helps reduce the number of API calls
     /// to remote storage services.
     ///
@@ -517,7 +517,10 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// that are close to each other, as it reduces the overhead of multiple network requests
     /// at the cost of transferring some additional data.
     ///
-    /// In this example, if two requested ranges are separated by less than 1MiB,
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or adjacent ranges
+    /// are still merged.
+    ///
+    /// In this example, if two requested ranges are separated by no more than 1 MiB,
     /// they will be merged into a single read request:
     ///
     /// ```

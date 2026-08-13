@@ -58,6 +58,7 @@ use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
 const DEFAULT_CONCURRENT: usize = 8;
+const DEFAULT_GET_RANGES_GAP: usize = object_store::OBJECT_STORE_COALESCE_DEFAULT as usize;
 
 fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
     let mut attributes = Attributes::new();
@@ -181,6 +182,7 @@ fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::E
 pub struct OpendalStore {
     info: Arc<OperatorInfo>,
     inner: Operator,
+    get_ranges_gap: usize,
 }
 
 impl OpendalStore {
@@ -189,7 +191,18 @@ impl OpendalStore {
         Self {
             info: op.info().into(),
             inner: op,
+            get_ranges_gap: DEFAULT_GET_RANGES_GAP,
         }
+    }
+
+    /// Set the maximum gap that [`ObjectStore::get_ranges`] coalesces.
+    ///
+    /// The default is [`object_store::OBJECT_STORE_COALESCE_DEFAULT`] (1 MiB).
+    /// Set this value to `0` to avoid merging ranges separated by any bytes.
+    /// Overlapping or adjacent ranges are still merged without over-fetching.
+    pub fn with_get_ranges_gap(mut self, gap: usize) -> Self {
+        self.get_ranges_gap = gap;
+        self
     }
 
     /// Get the Operator info.
@@ -391,6 +404,7 @@ impl Debug for OpendalStore {
             .field("name", &self.info.name())
             .field("root", &self.info.root())
             .field("capability", &self.info.capability())
+            .field("get_ranges_gap", &self.get_ranges_gap)
             .finish()
     }
 }
@@ -555,28 +569,20 @@ impl ObjectStore for OpendalStore {
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
-            .reader(&raw_location)
+            .reader_with(&raw_location)
+            .concurrent(DEFAULT_CONCURRENT)
+            .gap(self.get_ranges_gap)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let location_ref: Arc<str> = Arc::from(location.as_ref());
-        futures::stream::iter(ranges.iter().cloned())
-            .map(|range| {
-                let reader = reader.clone();
-                let location_ref = location_ref.clone();
-                async move {
-                    reader
-                        .read(range)
-                        .into_send()
-                        .await
-                        .map(|buf| buf.to_bytes())
-                        .map_err(|err| format_object_store_error(err, &location_ref))
-                }
-            })
-            .buffered(DEFAULT_CONCURRENT)
-            .try_collect()
+        let buffers = reader
+            .fetch(ranges.to_vec())
+            .into_send()
             .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        Ok(buffers.into_iter().map(|buf| buf.to_bytes()).collect())
     }
 
     fn delete_stream(
@@ -1014,19 +1020,29 @@ mod tests {
         );
     }
 
-    /// Custom layer that counts stat operations for testing
+    /// Custom layer that counts stat operations and optionally records read ranges.
     mod stat_counter {
         use super::*;
+        use std::sync::Mutex as StdMutex;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         #[derive(Debug, Clone)]
         pub struct StatCounterLayer {
             count: Arc<AtomicUsize>,
+            read_ranges: Option<Arc<StdMutex<Vec<BytesRange>>>>,
         }
 
         impl StatCounterLayer {
             pub fn new(count: Arc<AtomicUsize>) -> Self {
-                Self { count }
+                Self {
+                    count,
+                    read_ranges: None,
+                }
+            }
+
+            pub fn with_read_ranges(mut self, read_ranges: Arc<StdMutex<Vec<BytesRange>>>) -> Self {
+                self.read_ranges = Some(read_ranges);
+                self
             }
         }
 
@@ -1035,6 +1051,7 @@ mod tests {
                 Arc::new(StatCounterService {
                     srv,
                     count: self.count.clone(),
+                    read_ranges: self.read_ranges.clone(),
                 })
             }
         }
@@ -1043,6 +1060,32 @@ mod tests {
         pub struct StatCounterService {
             srv: opendal::raw::Servicer,
             count: Arc<AtomicUsize>,
+            read_ranges: Option<Arc<StdMutex<Vec<BytesRange>>>>,
+        }
+
+        struct ReadCounter {
+            inner: opendal::raw::oio::Reader,
+            ranges: Arc<StdMutex<Vec<BytesRange>>>,
+        }
+
+        impl opendal::raw::oio::Read for ReadCounter {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> opendal::Result<(
+                opendal::raw::RpRead,
+                Box<dyn opendal::raw::oio::ReadStreamDyn>,
+            )> {
+                self.inner.open(range).await
+            }
+
+            async fn read(
+                &self,
+                range: BytesRange,
+            ) -> opendal::Result<(opendal::raw::RpRead, Buffer)> {
+                self.ranges.lock().unwrap().push(range);
+                self.inner.read(range).await
+            }
         }
 
         impl opendal::raw::Service for StatCounterService {
@@ -1085,7 +1128,14 @@ mod tests {
                 path: &str,
                 args: opendal::raw::OpRead,
             ) -> opendal::Result<Self::Reader> {
-                self.srv.read(ctx, path, args)
+                let reader = self.srv.read(ctx, path, args)?;
+                match &self.read_ranges {
+                    Some(ranges) => Ok(Box::new(ReadCounter {
+                        inner: reader,
+                        ranges: ranges.clone(),
+                    })),
+                    None => Ok(reader),
+                }
             }
 
             fn write(
@@ -1140,6 +1190,72 @@ mod tests {
                 self.srv.presign(ctx, path, args).await
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_ranges_gap_configuration() {
+        use std::sync::Mutex as StdMutex;
+        use std::sync::atomic::AtomicUsize;
+
+        let read_ranges = Arc::new(StdMutex::new(Vec::new()));
+        let op = Operator::new(opendal::services::Memory::default())
+            .unwrap()
+            .layer(
+                stat_counter::StatCounterLayer::new(Arc::new(AtomicUsize::new(0)))
+                    .with_read_ranges(read_ranges.clone()),
+            );
+        let store = OpendalStore::new(op);
+        let location = "test_get_ranges_fetch.txt".into();
+        store
+            .put(&location, Bytes::from_static(b"0123456789abcdefgh").into())
+            .await
+            .unwrap();
+
+        let ranges = [15..17, 0..4, 8..10];
+        let result = store.get_ranges(&location, &ranges).await.unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Bytes::from_static(b"fg"),
+                Bytes::from_static(b"0123"),
+                Bytes::from_static(b"89"),
+            ]
+        );
+        assert_eq!(
+            read_ranges.lock().unwrap().as_slice(),
+            &[BytesRange::new(0, Some(17))]
+        );
+
+        read_ranges.lock().unwrap().clear();
+        store
+            .clone()
+            .with_get_ranges_gap(0)
+            .get_ranges(&location, &ranges)
+            .await
+            .unwrap();
+        let mut actual = read_ranges.lock().unwrap().clone();
+        actual.sort_unstable_by_key(BytesRange::offset);
+        assert_eq!(
+            actual,
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(8, Some(2)),
+                BytesRange::new(15, Some(2)),
+            ]
+        );
+
+        read_ranges.lock().unwrap().clear();
+        store
+            .with_get_ranges_gap(4)
+            .get_ranges(&location, &ranges)
+            .await
+            .unwrap();
+        let mut actual = read_ranges.lock().unwrap().clone();
+        actual.sort_unstable_by_key(BytesRange::offset);
+        assert_eq!(
+            actual,
+            vec![BytesRange::new(0, Some(10)), BytesRange::new(15, Some(2))]
+        );
     }
 
     #[tokio::test]

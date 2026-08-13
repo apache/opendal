@@ -165,6 +165,8 @@ impl Reader {
     /// non-overlapping ranges. Users may also specify a `gap` to merge
     /// close ranges. Merged ranges will be split by `chunk`, then executed
     /// with `concurrent` and `prefetch`.
+    /// Set `gap` to `0` to avoid merging ranges separated by any bytes.
+    /// Overlapping or adjacent ranges are still merged.
     ///
     /// The returning `Buffer` may share the same underlying memory without
     /// any extra copy.
@@ -909,6 +911,13 @@ mod tests {
         let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
         let merged = reader.merge_ranges(ranges);
         assert_eq!(merged, vec![0..30, 40..60]);
+
+        let reader = op.reader_with(path).gap(0).await.unwrap();
+        let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
+        let merged = reader.merge_ranges(ranges);
+        assert_eq!(merged, vec![0..20, 21..30, 40..60]);
+
+        assert_eq!(OpReader::new().with_gap(0).gap(), Some(0));
         Ok(())
     }
 

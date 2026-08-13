@@ -134,10 +134,13 @@ pub struct ReadOptions {
     pub chunk: Option<usize>,
     /// Controls the optimization strategy for range reads in [`crate::Reader::fetch`].
     ///
-    /// When performing range reads, if the gap between two requested ranges is smaller than
-    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// When performing range reads, if the gap between two requested ranges is less than or
+    /// equal to the configured `gap` size, OpenDAL will merge these ranges into a single read request
     /// and discard the unrequested data in between. This helps reduce the number of API calls
     /// to remote storage services.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or adjacent ranges
+    /// are still merged.
     ///
     /// This optimization is particularly useful when performing multiple small range reads
     /// that are close to each other, as it reduces the overhead of multiple network requests
@@ -228,10 +231,13 @@ pub struct ReaderOptions {
     pub chunk: Option<usize>,
     /// Controls the optimization strategy for range reads in [`crate::Reader::fetch`].
     ///
-    /// When performing range reads, if the gap between two requested ranges is smaller than
-    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// When performing range reads, if the gap between two requested ranges is less than or
+    /// equal to the configured `gap` size, OpenDAL will merge these ranges into a single read request
     /// and discard the unrequested data in between. This helps reduce the number of API calls
     /// to remote storage services.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or adjacent ranges
+    /// are still merged.
     ///
     /// This optimization is particularly useful when performing multiple small range reads
     /// that are close to each other, as it reduces the overhead of multiple network requests

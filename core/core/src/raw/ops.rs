@@ -479,8 +479,11 @@ impl OpReader {
     }
 
     /// Set the gap size.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or
+    /// adjacent ranges are still merged.
     pub fn with_gap(mut self, gap: usize) -> Self {
-        self.gap = Some(gap.max(1));
+        self.gap = Some(gap);
         self
     }
 

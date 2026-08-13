@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
-## [v0.58.2] - 2026-08-11
+## [v0.58.2] - 2026-08-13
 
 ### Breaking Changes
 * integrations/object_store: `object_store_opendal` 0.59 implements the `object_store` 0.14 API. Update direct `object_store` dependencies to 0.14. Projects that require `object_store` 0.13, including DataFusion 54 users, should pin `object_store_opendal = "=0.58.0"`. We missed `object_store` breaking version changes in previous opendal 0.58 releases. We yanked bad `object_store_opendal` releases so you can expect `object_store_opendal` follows SemVer.
@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(bindings/python): annotate `**kwargs` types in generated stubs by @trim21 in https://github.com/apache/opendal/pull/8012
 * fix(services/oss): honor if_not_exists on multipart uploads by @Xuanwo in https://github.com/apache/opendal/pull/8041
 * fix(services/hf): correct the refs/convert revision split by @PDGGK in https://github.com/apache/opendal/pull/8045
+* Include user-defined metadata in S3Backend read response by @matt-goroff in https://github.com/apache/opendal/pull/8060
 
 ### Docs
 * docs: add conditional operation recipes by @Xuanwo in https://github.com/apache/opendal/pull/7988

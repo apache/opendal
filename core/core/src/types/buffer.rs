@@ -323,12 +323,21 @@ impl Buffer {
         match &self.0 {
             Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
             Inner::NonContiguous {
-                parts, idx, offset, ..
+                parts,
+                size,
+                idx,
+                offset,
             } => {
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
                 let mut new_offset = *offset;
+                let mut remaining = *size;
                 for part in parts.iter().skip(*idx) {
-                    ret.push(IoSlice::new(&part[new_offset..]));
+                    if remaining == 0 {
+                        break;
+                    }
+                    let n = (part.len() - new_offset).min(remaining);
+                    ret.push(IoSlice::new(&part[new_offset..new_offset + n]));
+                    remaining -= n;
                     new_offset = 0;
                 }
                 ret
@@ -553,22 +562,29 @@ impl Buf for Buffer {
                 1
             }
             Inner::NonContiguous {
-                parts, idx, offset, ..
+                parts,
+                size,
+                idx,
+                offset,
             } => {
                 if dst.is_empty() {
                     return 0;
                 }
 
                 let mut new_offset = *offset;
-                parts
-                    .iter()
-                    .skip(*idx)
-                    .zip(dst.iter_mut())
-                    .map(|(part, dst)| {
-                        *dst = IoSlice::new(&part[new_offset..]);
-                        new_offset = 0;
-                    })
-                    .count()
+                let mut remaining = *size;
+                let mut count = 0;
+                for (part, dst) in parts.iter().skip(*idx).zip(dst.iter_mut()) {
+                    if remaining == 0 {
+                        break;
+                    }
+                    let n = (part.len() - new_offset).min(remaining);
+                    *dst = IoSlice::new(&part[new_offset..new_offset + n]);
+                    remaining -= n;
+                    new_offset = 0;
+                    count += 1;
+                }
+                count
             }
         }
     }
@@ -1308,5 +1324,79 @@ mod tests {
             end = cur + at;
             // Continue with the head part
         }
+    }
+
+    /// Returns the bytes exposed by `to_io_slice` and by `Buf::chunks_vectored`.
+    fn vectored_bytes(buf: &Buffer) -> (Bytes, Bytes) {
+        let from_io_slice = buf
+            .to_io_slice()
+            .iter()
+            .flat_map(|s| s.iter())
+            .copied()
+            .collect::<Bytes>();
+
+        let mut dst = [IoSlice::new(EMPTY_SLICE); 8];
+        let n = buf.chunks_vectored(&mut dst);
+        let from_chunks_vectored = dst[..n]
+            .iter()
+            .flat_map(|s| s.iter())
+            .copied()
+            .collect::<Bytes>();
+
+        (from_io_slice, from_chunks_vectored)
+    }
+
+    #[test]
+    fn test_vectored_views_after_slice() {
+        let buf = Buffer::from(vec![Bytes::from("abc"), Bytes::from("def")]);
+
+        let view = buf.slice(0..2);
+        assert_eq!(view.remaining(), 2);
+        assert_eq!(view.to_bytes(), Bytes::from("ab"));
+        assert_eq!(
+            vectored_bytes(&view),
+            (Bytes::from("ab"), Bytes::from("ab"))
+        );
+
+        let view = buf.slice(1..4);
+        assert_eq!(view.remaining(), 3);
+        assert_eq!(view.to_bytes(), Bytes::from("bcd"));
+        assert_eq!(
+            vectored_bytes(&view),
+            (Bytes::from("bcd"), Bytes::from("bcd"))
+        );
+    }
+
+    #[test]
+    fn test_vectored_views_after_split_to() {
+        let mut buf = Buffer::from(vec![Bytes::from("abc"), Bytes::from("def")]);
+        let head = buf.split_to(2);
+
+        assert_eq!(head.remaining(), 2);
+        assert_eq!(
+            vectored_bytes(&head),
+            (Bytes::from("ab"), Bytes::from("ab"))
+        );
+
+        assert_eq!(buf.remaining(), 4);
+        assert_eq!(
+            vectored_bytes(&buf),
+            (Bytes::from("cdef"), Bytes::from("cdef"))
+        );
+    }
+
+    #[test]
+    fn test_vectored_views_after_split_off() {
+        let mut buf = Buffer::from(vec![Bytes::from("abc"), Bytes::from("def")]);
+        let tail = buf.split_off(2);
+
+        assert_eq!(buf.remaining(), 2);
+        assert_eq!(vectored_bytes(&buf), (Bytes::from("ab"), Bytes::from("ab")));
+
+        assert_eq!(tail.remaining(), 4);
+        assert_eq!(
+            vectored_bytes(&tail),
+            (Bytes::from("cdef"), Bytes::from("cdef"))
+        );
     }
 }

@@ -104,6 +104,17 @@ impl GridfsBuilder {
     }
 }
 
+/// The GridFS default chunk size, in bytes.
+///
+/// `GridFsBucketOptions::chunk_size_bytes` is measured in bytes, and both the driver
+/// (`mongodb::gridfs::DEFAULT_CHUNK_SIZE_BYTES`) and [`GridfsBuilder::chunk_size`]'s own
+/// documentation put the default at 255 KiB -- so the default has to be spelled in bytes too.
+const DEFAULT_CHUNK_SIZE_BYTES: u32 = 255 * 1024;
+
+fn resolve_chunk_size(configured: Option<u32>) -> u32 {
+    configured.unwrap_or(DEFAULT_CHUNK_SIZE_BYTES)
+}
+
 impl Builder for GridfsBuilder {
     type Config = GridfsConfig;
 
@@ -128,7 +139,7 @@ impl Builder for GridfsBuilder {
             Some(v) => v.clone(),
             None => "fs".to_string(),
         };
-        let chunk_size = self.config.chunk_size.unwrap_or(255);
+        let chunk_size = resolve_chunk_size(self.config.chunk_size);
 
         let root = normalize_root(
             self.config
@@ -307,5 +318,22 @@ impl Service for GridfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_chunk_size_is_the_documented_255_kib() {
+        // `chunk_size_bytes` is in bytes: 255 would configure 255-byte chunks, a 1024x
+        // discrepancy against both this builder's rustdoc and the driver's own default.
+        assert_eq!(resolve_chunk_size(None), 261_120);
+    }
+
+    #[test]
+    fn an_explicit_chunk_size_is_passed_through_unchanged() {
+        assert_eq!(resolve_chunk_size(Some(4096)), 4096);
     }
 }

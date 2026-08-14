@@ -135,10 +135,16 @@ impl oio::BlockWrite for WebhdfsWriter {
     }
 
     async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+        let Some(ref atomic_write_dir) = self.core.atomic_write_dir else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write multi is not supported when atomic is not set",
+            ));
+        };
         for block_id in block_ids {
             let resp = self
                 .core
-                .webhdfs_delete(&self.ctx, &block_id.to_string())
+                .webhdfs_delete(&self.ctx, &format!("{atomic_write_dir}{block_id}"))
                 .await?;
             match resp.status() {
                 StatusCode::OK => {}

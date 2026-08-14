@@ -96,7 +96,7 @@ impl VercelBlobCore {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), "").await?;
 
         // Use the mtach url to download the file
         let url = resolve_blob(resp.blobs, p);
@@ -161,7 +161,7 @@ impl VercelBlobCore {
     pub async fn head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), "").await?;
 
         let url = resolve_blob(resp.blobs, p);
 
@@ -194,7 +194,7 @@ impl VercelBlobCore {
     ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let resp = self.list(ctx, &from, Some(1)).await?;
+        let resp = self.list(ctx, &from, Some(1), "").await?;
 
         let from_url = resolve_blob(resp.blobs, from);
 
@@ -229,17 +229,9 @@ impl VercelBlobCore {
         ctx: &OperationContext,
         prefix: &str,
         limit: Option<usize>,
+        cursor: &str,
     ) -> Result<ListResponse> {
-        let prefix = if prefix == "/" { "" } else { prefix };
-
-        let mut url = format!(
-            "https://blob.vercel-storage.com?prefix={}",
-            percent_encode_path(prefix)
-        );
-
-        if let Some(limit) = limit {
-            url.push_str(&format!("&limit={limit}"))
-        }
+        let url = build_list_url(prefix, limit, cursor);
 
         let req = Request::get(&url);
 
@@ -271,7 +263,7 @@ impl VercelBlobCore {
     pub async fn vercel_delete_blob(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), "").await?;
 
         let url = resolve_blob(resp.blobs, p);
 
@@ -408,6 +400,31 @@ impl VercelBlobCore {
 
         self.send(ctx, req).await
     }
+}
+
+/// Build the `list` request URL.
+///
+/// `cursor` is the token the previous page returned; Vercel documents it alongside `prefix` and
+/// `limit` as "a string obtained from a previous list response to be used for reading the next
+/// page of results". Without it every page request is identical to the first, and a truncated
+/// listing never advances.
+fn build_list_url(prefix: &str, limit: Option<usize>, cursor: &str) -> String {
+    let prefix = if prefix == "/" { "" } else { prefix };
+
+    let mut url = format!(
+        "https://blob.vercel-storage.com?prefix={}",
+        percent_encode_path(prefix)
+    );
+
+    if let Some(limit) = limit {
+        url.push_str(&format!("&limit={limit}"))
+    }
+
+    if !cursor.is_empty() {
+        url.push_str(&format!("&cursor={}", percent_encode_path(cursor)));
+    }
+
+    url
 }
 
 pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
@@ -572,3 +589,47 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_first_page_carries_no_cursor() {
+        let url = build_list_url("dir/", Some(100), "");
+
+        assert_eq!(url, "https://blob.vercel-storage.com?prefix=dir/&limit=100");
+    }
+
+    #[test]
+    fn a_later_page_resumes_from_the_cursor() {
+        // Without this parameter the second request is byte-identical to the first, so a
+        // truncated listing re-emits the same page for as long as `hasMore` stays true.
+        let url = build_list_url("dir/", Some(100), "eyJvZmZzZXQiOjEwMH0");
+
+        assert_eq!(
+            url,
+            "https://blob.vercel-storage.com?prefix=dir/&limit=100&cursor=eyJvZmZzZXQiOjEwMH0"
+        );
+    }
+
+    #[test]
+    fn the_cursor_is_percent_encoded() {
+        // The cursor is an opaque server token; an unescaped `&` or `=` would silently graft
+        // extra parameters onto the query.
+        let url = build_list_url("", None, "a&b=c d");
+
+        assert_eq!(
+            url,
+            "https://blob.vercel-storage.com?prefix=&cursor=a%26b%3Dc%20d"
+        );
+    }
+
+    #[test]
+    fn the_root_prefix_is_sent_empty() {
+        assert_eq!(
+            build_list_url("/", None, ""),
+            "https://blob.vercel-storage.com?prefix="
+        );
+    }
+}

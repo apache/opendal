@@ -52,12 +52,18 @@ impl oio::PageList for VercelBlobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let p = build_abs_path(&self.core.root, &self.path);
 
-        let resp = self.core.list(&self.ctx, &p, self.limit).await?;
+        let resp = self
+            .core
+            .list(&self.ctx, &p, self.limit, &ctx.token)
+            .await?;
 
         ctx.done = !resp.has_more;
 
-        if let Some(cursor) = resp.cursor {
-            ctx.token = cursor;
+        match resp.cursor {
+            Some(cursor) => ctx.token = cursor,
+            // More pages were reported but nothing was handed back to resume from. Stopping
+            // truncates the listing; the alternative is re-requesting the same page forever.
+            None => ctx.done = true,
         }
 
         for blob in resp.blobs {

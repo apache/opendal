@@ -447,17 +447,15 @@ impl OneDriveCore {
     /// This endpoint supports `If-None-Match` but [`onedrive_upload_simple()`] doesn't.
     ///
     /// Read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
-    pub(crate) async fn onedrive_create_upload_session(
+    pub(crate) fn onedrive_create_upload_session_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
-    ) -> Result<Response<Buffer>> {
-        let parent_path = get_parent(path);
+    ) -> Result<Request<Buffer>> {
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
-            self.onedrive_item_url(parent_path, true) + "/" + file_name,
+            self.onedrive_item_url(path, true),
         );
         let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 
@@ -468,11 +466,20 @@ impl OneDriveCore {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        let mut request = request
+        request
             .extension(Operation::Write)
             .extension(ServiceOperation("CreateUploadSession"))
             .body(body)
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
+
+    pub(crate) async fn onedrive_create_upload_session(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let mut request = self.onedrive_create_upload_session_request(path, args)?;
 
         self.sign(ctx, &mut request).await?;
 
@@ -888,6 +895,36 @@ mod tests {
                 "{}:/base:/children?{}",
                 OneDriveCore::DRIVE_ROOT_URL,
                 GENERAL_SELECT_PARAM
+            )
+        );
+    }
+
+    #[test]
+    fn upload_session_request_for_root_file_uses_path_addressing() {
+        let core = test_core("/");
+        let request = core
+            .onedrive_create_upload_session_request("file.bin", &OpWrite::default())
+            .unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}:/file.bin:/createUploadSession",
+                OneDriveCore::DRIVE_ROOT_URL
+            )
+        );
+    }
+
+    #[test]
+    fn upload_session_request_percent_encodes_file_name() {
+        let core = test_core("/");
+        let request = core
+            .onedrive_create_upload_session_request("upload session #1.bin", &OpWrite::default())
+            .unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}:/upload%20session%20%231.bin:/createUploadSession",
+                OneDriveCore::DRIVE_ROOT_URL
             )
         );
     }

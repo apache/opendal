@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::time::Duration;
 
 use http::Request;
 use http::Response;
@@ -97,6 +98,27 @@ impl TosCore {
                 .with_http_send(ctx.http_transport().clone())
                 .with_env(OsEnv),
         )
+    }
+
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
+        let (mut parts, body) = req.into_parts();
+        self.signer(ctx)
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        parts.headers.remove(HOST);
+
+        Ok(Request::from_parts(parts, body))
     }
 
     pub async fn send(
@@ -413,12 +435,11 @@ impl TosCore {
         self.send(ctx, req).await
     }
 
-    pub async fn tos_delete_object(
+    pub fn tos_delete_object_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         args: &OpDelete,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -444,11 +465,19 @@ impl TosCore {
 
         let req = Request::delete(&url);
 
-        let req = req
-            .extension(Operation::Delete)
+        req.extension(Operation::Delete)
             .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn tos_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
+        let req = self.tos_delete_object_request(path, args)?;
 
         self.send(ctx, req).await
     }

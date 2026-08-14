@@ -250,15 +250,16 @@
                     <execution>
                         <id>default-jar</id>
                         <configuration>
+                            <!--
+                                Without an includes list, maven-jar-plugin packages every file from
+                                ${project.build.outputDirectory}, including compiled classes and META-INF licensing
+                                files. Adding an <includes> list replaces that all-files default with only the matching
+                                patterns. A licensing-only list would therefore omit compiled classes such as
+                                org/apache/opendal/NativeLibrary.class from the default JAR.
+                            -->
                             <excludes>
                                 <exclude>native/**</exclude>
                             </excludes>
-                            <includes>
-                                <include>META-INF/DEPENDENCIES</include>
-                                <include>META-INF/LICENSE</include>
-                                <include>META-INF/LICENSE-MPL-2.0.txt</include>
-                                <include>META-INF/NOTICE</include>
-                            </includes>
                         </configuration>
                     </execution>
                     <!--  Generate the JAR that contains the native library in it.  -->
@@ -269,6 +270,11 @@
                         </goals>
                         <configuration>
                             <classifier>${jni.classifier}</classifier>
+                            <!--
+                                This <includes> allowlist limits each classified JAR to its native library and the
+                                licensing files required when that JAR is distributed independently. Compiled Java
+                                classes remain in the default JAR.
+                            -->
                             <includes>
                                 <include>native/**</include>
                                 <include>META-INF/DEPENDENCIES</include>

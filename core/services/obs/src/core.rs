@@ -351,7 +351,7 @@ impl ObsCore {
             url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            url = url.push("marker", next_marker);
+            url = url.push("marker", &percent_encode_path(next_marker));
         }
 
         let req = Request::get(url.finish())

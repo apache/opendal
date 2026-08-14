@@ -86,6 +86,21 @@ async fn main() {
 }
 ```
 
+### Tune vectored reads
+
+`OpendalStore` coalesces ranges separated by up to 1 MiB by default, matching
+`object_store::OBJECT_STORE_COALESCE_DEFAULT`. Workloads that need to limit
+over-fetching can configure the gap when constructing the store:
+
+```rust
+let object_store = OpendalStore::new(operator).with_get_ranges_gap(0);
+```
+
+A gap of `0` disables merging ranges separated by bytes. Overlapping or adjacent
+ranges are still merged without over-fetching. Set an intermediate value to trade
+fewer backend requests for additional bytes read. A gap of `0` can be useful for
+HDFS scans that are sensitive to retaining large coalesced backing buffers.
+
 ## WASM support
 
 To build with `wasm32-unknown-unknown` target, you need to enable the `send_wrapper` feature:

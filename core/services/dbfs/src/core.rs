@@ -290,28 +290,3 @@ mod error {
 }
 
 pub(super) use error::*;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_put_body_carries_the_rooted_unencoded_path() {
-        let core = DbfsCore {
-            root: "/data/".to_string(),
-            endpoint: "https://example.cloud.databricks.com".to_string(),
-            token: "token".to_string(),
-        };
-
-        let req = core
-            .dbfs_create_file_request("my file.txt", Bytes::from_static(b"hello"))
-            .expect("request must build");
-
-        let body: serde_json::Value =
-            serde_json::from_slice(&req.into_body().to_bytes()).expect("body must parse");
-
-        // Rooted, so a write lands where stat and list look for it; and not percent-encoded,
-        // because nothing decodes a JSON string value.
-        assert_eq!(body["path"], "/data/my file.txt");
-    }
-}

@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 

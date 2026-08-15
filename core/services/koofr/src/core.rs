@@ -19,6 +19,8 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -26,8 +28,6 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 use http::request;
-use mea::mutex::Mutex;
-use mea::once::OnceCell;
 use serde::Deserialize;
 use serde_json::json;
 

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::MySqlPool;
 use sqlx::mysql::MySqlConnectOptions;
 

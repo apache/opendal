@@ -32,7 +32,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-mea = { workspace = true }
+asyncband = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "sqlite"] }

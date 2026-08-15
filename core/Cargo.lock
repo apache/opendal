@@ -436,6 +436,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "asyncband"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94a214ba60d6231afd0e805e3c27c45a1626d9debaa5a5061c45a1ea1b2f1ed0"
+dependencies = [
+ "hashbrown 0.17.1",
+ "slab",
+]
+
+[[package]]
 name = "atoi"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4136,9 +4146,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hashlink"
@@ -4872,7 +4882,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
- "hashbrown 0.17.0",
+ "hashbrown 0.17.1",
  "serde",
  "serde_core",
 ]
@@ -6451,6 +6461,7 @@ name = "opendal-core"
 version = "0.58.2"
 dependencies = [
  "anyhow",
+ "asyncband",
  "base64 0.23.0",
  "bytes",
  "futures",
@@ -6459,7 +6470,6 @@ dependencies = [
  "log",
  "logforth",
  "md-5 0.11.0",
- "mea",
  "percent-encoding",
  "pretty_assertions",
  "quick-xml",
@@ -6567,9 +6577,9 @@ dependencies = [
 name = "opendal-layer-concurrent-limit"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "futures",
  "http 1.4.2",
- "mea",
  "opendal-core",
  "tokio",
 ]
@@ -6790,10 +6800,10 @@ dependencies = [
 name = "opendal-service-aliyun-drive"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6839,11 +6849,11 @@ dependencies = [
 name = "opendal-service-azdls"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "base64 0.23.0",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "opendal-service-azure-common",
  "quick-xml",
@@ -6884,10 +6894,10 @@ dependencies = [
 name = "opendal-service-b2"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6984,9 +6994,9 @@ dependencies = [
 name = "opendal-service-dropbox"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7081,10 +7091,10 @@ dependencies = [
 name = "opendal-service-gdrive"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7141,8 +7151,8 @@ dependencies = [
 name = "opendal-service-gridfs"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "futures",
- "mea",
  "mongodb",
  "opendal-core",
  "serde",
@@ -7233,10 +7243,10 @@ dependencies = [
 name = "opendal-service-koofr"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7293,7 +7303,7 @@ name = "opendal-service-mongodb"
 version = "0.58.2"
 dependencies = [
  "anyhow",
- "mea",
+ "asyncband",
  "mongodb",
  "opendal-core",
  "serde",
@@ -7317,7 +7327,7 @@ dependencies = [
 name = "opendal-service-mysql"
 version = "0.58.2"
 dependencies = [
- "mea",
+ "asyncband",
  "opendal-core",
  "serde",
  "sqlx",
@@ -7344,11 +7354,11 @@ dependencies = [
 name = "opendal-service-onedrive"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "futures",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7412,7 +7422,7 @@ dependencies = [
 name = "opendal-service-postgresql"
 version = "0.58.2"
 dependencies = [
- "mea",
+ "asyncband",
  "opendal-core",
  "serde",
  "sqlx",
@@ -7478,10 +7488,10 @@ dependencies = [
 name = "opendal-service-seafile"
 version = "0.58.2"
 dependencies = [
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7518,7 +7528,7 @@ dependencies = [
 name = "opendal-service-sqlite"
 version = "0.58.2"
 dependencies = [
- "mea",
+ "asyncband",
  "opendal-core",
  "serde",
  "sqlx",
@@ -7529,7 +7539,7 @@ dependencies = [
 name = "opendal-service-surrealdb"
 version = "0.58.2"
 dependencies = [
- "mea",
+ "asyncband",
  "opendal-core",
  "serde",
  "surrealdb",
@@ -7560,7 +7570,7 @@ dependencies = [
 name = "opendal-service-tikv"
 version = "0.58.2"
 dependencies = [
- "mea",
+ "asyncband",
  "opendal-core",
  "serde",
  "tikv-client",
@@ -7633,10 +7643,10 @@ name = "opendal-service-webdav"
 version = "0.58.2"
 dependencies = [
  "anyhow",
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "quick-xml",
  "serde",
@@ -7648,10 +7658,10 @@ name = "opendal-service-webhdfs"
 version = "0.58.2"
 dependencies = [
  "anyhow",
+ "asyncband",
  "bytes",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "serde",
  "serde_json",

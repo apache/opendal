@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 
 use super::MONGODB_SCHEME;
 use super::config::MongodbConfig;

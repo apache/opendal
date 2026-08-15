@@ -23,10 +23,10 @@ use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
-use mea::mutex::Mutex;
 use pyo3::IntoPyObjectExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;

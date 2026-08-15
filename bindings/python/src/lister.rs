@@ -17,8 +17,8 @@
 
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
 use futures::TryStreamExt;
-use mea::mutex::Mutex;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::prelude::*;

@@ -79,13 +79,16 @@ impl oio::PageList for IpmfsLister {
         ctx.done = true;
 
         for object in entries_body.entries.unwrap_or_default() {
+            let prefix = if self.path == "/" {
+                ""
+            } else {
+                self.path.as_str()
+            };
             let path = match object.mode() {
-                EntryMode::FILE => format!("{}{}", self.path, object.name),
-                EntryMode::DIR => format!("{}{}/", self.path, object.name),
+                EntryMode::FILE => format!("{prefix}{}", object.name),
+                EntryMode::DIR => format!("{prefix}{}/", object.name),
                 EntryMode::Unknown => unreachable!(),
             };
-
-            let path = build_rel_path(&self.root, &path);
 
             ctx.entries.push_back(oio::Entry::new(
                 &path,

@@ -87,7 +87,7 @@ impl oio::PageList for GithubLister {
             let path = if self.path == "/" {
                 t.path
             } else {
-                format!("{}/{}", self.path, t.path)
+                format!("{}/{}", self.path.trim_end_matches('/'), t.path)
             };
             let entry = if t.type_field == "tree" {
                 let path = format!("{path}/");

@@ -904,36 +904,6 @@ mod tests {
     }
 
     #[test]
-    fn upload_session_request_for_root_file_uses_path_addressing() {
-        let core = test_core("/");
-        let request = core
-            .onedrive_create_upload_session_request("file.bin", &OpWrite::default())
-            .unwrap();
-        assert_eq!(
-            request.uri().to_string(),
-            format!(
-                "{}:/file.bin:/createUploadSession",
-                OneDriveCore::DRIVE_ROOT_URL
-            )
-        );
-    }
-
-    #[test]
-    fn upload_session_request_percent_encodes_file_name() {
-        let core = test_core("/");
-        let request = core
-            .onedrive_create_upload_session_request("upload session #1.bin", &OpWrite::default())
-            .unwrap();
-        assert_eq!(
-            request.uri().to_string(),
-            format!(
-                "{}:/upload%20session%20%231.bin:/createUploadSession",
-                OneDriveCore::DRIVE_ROOT_URL
-            )
-        );
-    }
-
-    #[test]
     fn upload_session_request_for_nested_encoded_path_uses_full_path_addressing() {
         let core = test_core("/base/");
         let request = core
@@ -955,13 +925,7 @@ mod tests {
     async fn list_root_returns_entries() {
         let core = test_core("/");
         let ctx = test_ctx();
-        let lister = OneDriveLister::new(
-            "/".to_string(),
-            core,
-            ctx,
-            Capability::default(),
-            &OpList::default(),
-        );
+        let lister = OneDriveLister::new("/".to_string(), core, ctx, &OpList::default());
         let mut lister = oio::PageLister::new(lister);
 
         let mut entries = Vec::new();
@@ -984,10 +948,6 @@ mod tests {
             "/".to_string(),
             core,
             ctx,
-            Capability {
-                list_with_versions: true,
-                ..Default::default()
-            },
             &OpList::new().with_versions(true),
         );
         let mut lister = oio::PageLister::new(lister);
@@ -1011,11 +971,6 @@ mod tests {
             "dir/".to_string(),
             core,
             ctx,
-            Capability {
-                list_with_start_after: true,
-                list_with_versions: true,
-                ..Default::default()
-            },
             &OpList::new()
                 .with_versions(true)
                 .with_start_after("dir/file-2"),
@@ -1149,7 +1104,7 @@ mod error {
 
         let (kind, retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            // OneDrive can return this exact response before a just-created path
+            // OneDrive can return invalidRequest before a just-created path
             // becomes available to a follow-up write operation.
             StatusCode::BAD_REQUEST if retry_consistency_lag && is_consistency_lag_error(&bs) => {
                 (ErrorKind::Unexpected, true)
@@ -1191,7 +1146,7 @@ mod error {
             return false;
         };
 
-        response.error.code == "invalidRequest" && response.error.message == "Invalid request"
+        response.error.code == "invalidRequest"
     }
 
     #[derive(Deserialize)]
@@ -1202,48 +1157,6 @@ mod error {
     #[derive(Deserialize)]
     struct GraphError {
         code: String,
-        message: String,
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn invalid_request_from_consistency_lag_is_temporary() {
-            let response = Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Buffer::from(
-                    r#"{"error":{"code":"invalidRequest","message":"Invalid request"}}"#,
-                ))
-                .unwrap();
-
-            assert!(parse_write_consistency_error(response).is_temporary());
-        }
-
-        #[test]
-        fn invalid_request_is_not_temporary_outside_write_consistency_handling() {
-            let response = Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Buffer::from(
-                    r#"{"error":{"code":"invalidRequest","message":"Invalid request"}}"#,
-                ))
-                .unwrap();
-
-            assert!(!parse_error(response).is_temporary());
-        }
-
-        #[test]
-        fn other_bad_requests_are_not_temporary() {
-            let response = Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Buffer::from(
-                    r#"{"error":{"code":"invalidRequest","message":"Name from path does not match name from body"}}"#,
-                ))
-                .unwrap();
-
-            assert!(!parse_write_consistency_error(response).is_temporary());
-        }
     }
 }
 

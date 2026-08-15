@@ -38,10 +38,10 @@ pub struct OnedriveConfig {
     pub client_id: Option<String>,
     /// Microsoft Graph API Application client secret that is in the Azure's app registration portal
     pub client_secret: Option<String>,
-    /// Deprecated: OneDrive version listing is enabled by default.
+    /// Deprecated: OneDrive versioning capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive version listing is enabled by default and this option is no longer needed."
+        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
     )]
     pub enable_versioning: bool,
 }

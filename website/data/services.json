@@ -3188,9 +3188,9 @@
           "group": "General",
           "deprecated": {
             "since": "0.57.0",
-            "note": "OneDrive version listing is enabled by default and this option is no longer needed."
+            "note": "OneDrive versioning capability is enabled by default and this option is no longer needed."
           },
-          "comments": "Deprecated: OneDrive version listing is enabled by default."
+          "comments": "Deprecated: OneDrive versioning capability is enabled by default."
         }
       ],
       "examples": [

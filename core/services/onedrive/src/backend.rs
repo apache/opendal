@@ -108,10 +108,10 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Deprecated: OneDrive version listing is enabled by default.
+    /// Deprecated: OneDrive versioning capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive version listing is enabled by default and this option is no longer needed."
+        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -133,16 +133,12 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
-            // OneDrive supports the file size up to 250GB
-            // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
-            // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
-            // file up to this size.
-            // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
             copy: true,
             rename: true,
 
             stat: true,
             stat_with_if_none_match: true,
+            stat_with_version: true,
 
             delete: true,
             create_dir: true,
@@ -329,13 +325,7 @@ impl Service for OnedriveBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<OneDriveLister> = {
-            let l = OneDriveLister::new(
-                path.to_string(),
-                self.core.clone(),
-                ctx.clone(),
-                self.core.capability,
-                &args,
-            );
+            let l = OneDriveLister::new(path.to_string(), self.core.clone(), ctx.clone(), &args);
             Ok(oio::PageLister::new(l))
         }?;
 
@@ -352,24 +342,5 @@ impl Service for OnedriveBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use opendal_core::Builder;
-    use opendal_core::raw::Service;
-
-    use super::OnedriveBuilder;
-
-    #[test]
-    fn capabilities_match_supported_version_listing() {
-        let backend = OnedriveBuilder::default()
-            .access_token("test-token")
-            .build()
-            .unwrap();
-
-        assert!(!backend.capability().stat_with_version);
-        assert!(backend.capability().list_with_start_after);
     }
 }

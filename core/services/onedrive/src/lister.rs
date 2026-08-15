@@ -31,7 +31,6 @@ use super::graph_model::ItemType;
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,
     ctx: OperationContext,
-    capability: Capability,
     path: String,
     op: OpList,
 }
@@ -43,13 +42,11 @@ impl OneDriveLister {
         path: String,
         core: Arc<OneDriveCore>,
         ctx: OperationContext,
-        capability: Capability,
         args: &OpList,
     ) -> Self {
         Self {
             core,
             ctx,
-            capability,
             path,
             op: args.clone(),
         }
@@ -87,7 +84,7 @@ impl oio::PageList for OneDriveLister {
         let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
-        let list_with_versions = self.op.versions() && self.capability.list_with_versions;
+        let list_with_versions = self.op.versions();
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {

@@ -23,7 +23,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::core::OneDriveCore;
-use super::core::parse_error;
+use super::core::parse_write_consistency_error;
 use super::deleter::OneDriveDeleter;
 use super::lister::OneDriveLister;
 use super::reader::*;
@@ -244,7 +244,7 @@ impl Service for OnedriveBackend {
         let response = self.core.onedrive_create_dir(ctx, path).await?;
         match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(response)),
+            _ => Err(parse_write_consistency_error(response)),
         }
     }
 

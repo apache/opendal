@@ -132,7 +132,7 @@ impl OneDriveCore {
                         serde_json::from_reader(bytes.reader())
                             .map_err(new_json_deserialize_error)?
                     }
-                    _ => return Err(parse_error(response)),
+                    _ => return Err(parse_write_consistency_error(response)),
                 }
             }
             _ => return Err(parse_error(response)),
@@ -620,7 +620,7 @@ impl OneDriveCore {
                     )
                 })
                 .map(String::from),
-            _ => Err(parse_error(response)),
+            _ => Err(parse_write_consistency_error(response)),
         }
     }
 
@@ -1039,17 +1039,34 @@ mod tests {
 mod error {
     use http::Response;
     use http::StatusCode;
+    use serde::Deserialize;
 
     use opendal_core::raw::*;
     use opendal_core::*;
 
     /// Parse error response into Error.
     pub(crate) fn parse_error(response: Response<Buffer>) -> Error {
+        parse_error_with_consistency_retry(response, false)
+    }
+
+    pub(crate) fn parse_write_consistency_error(response: Response<Buffer>) -> Error {
+        parse_error_with_consistency_retry(response, true)
+    }
+
+    fn parse_error_with_consistency_retry(
+        response: Response<Buffer>,
+        retry_consistency_lag: bool,
+    ) -> Error {
         let (parts, body) = response.into_parts();
         let bs = body.to_bytes();
 
         let (kind, retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+            // OneDrive can return this exact response before a just-created path
+            // becomes available to a follow-up write operation.
+            StatusCode::BAD_REQUEST if retry_consistency_lag && is_consistency_lag_error(&bs) => {
+                (ErrorKind::Unexpected, true)
+            }
             // The OneDrive service replaces resources.
             // However, the Onedrive doesn't have Strong Read-After-Write properties,
             // the concurrent requests to create directories might result in errors.
@@ -1080,6 +1097,66 @@ mod error {
         }
 
         err
+    }
+
+    fn is_consistency_lag_error(body: &[u8]) -> bool {
+        let Ok(response) = serde_json::from_slice::<GraphErrorResponse>(body) else {
+            return false;
+        };
+
+        response.error.code == "invalidRequest" && response.error.message == "Invalid request"
+    }
+
+    #[derive(Deserialize)]
+    struct GraphErrorResponse {
+        error: GraphError,
+    }
+
+    #[derive(Deserialize)]
+    struct GraphError {
+        code: String,
+        message: String,
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn invalid_request_from_consistency_lag_is_temporary() {
+            let response = Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Buffer::from(
+                    r#"{"error":{"code":"invalidRequest","message":"Invalid request"}}"#,
+                ))
+                .unwrap();
+
+            assert!(parse_write_consistency_error(response).is_temporary());
+        }
+
+        #[test]
+        fn invalid_request_is_not_temporary_outside_write_consistency_handling() {
+            let response = Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Buffer::from(
+                    r#"{"error":{"code":"invalidRequest","message":"Invalid request"}}"#,
+                ))
+                .unwrap();
+
+            assert!(!parse_error(response).is_temporary());
+        }
+
+        #[test]
+        fn other_bad_requests_are_not_temporary() {
+            let response = Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Buffer::from(
+                    r#"{"error":{"code":"invalidRequest","message":"Name from path does not match name from body"}}"#,
+                ))
+                .unwrap();
+
+            assert!(!parse_write_consistency_error(response).is_temporary());
+        }
     }
 }
 

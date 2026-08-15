@@ -107,9 +107,6 @@ impl oio::PageList for YandexDiskLister {
                     return Ok(());
                 }
 
-                // A folder answers with `_embedded`; a file has none, and the response is that
-                // file's own metainformation. Falling through here without touching `done` is
-                // what left `PageLister` re-issuing the same request for ever.
                 let rel = resp
                     .path
                     .strip_prefix("disk:")

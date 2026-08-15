@@ -62,7 +62,7 @@ impl DbfsCore {
             .to_string();
 
         let req_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
         });
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
@@ -91,7 +91,7 @@ impl DbfsCore {
             .to_string();
 
         let request_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
             // TODO: support recursive toggle, should we add a new field in OpDelete?
             "recursive": true,
         });
@@ -123,8 +123,8 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "source_path": percent_encode_path(&source),
-            "destination_path": percent_encode_path(&target),
+            "source_path": source,
+            "destination_path": target,
         });
 
         let body = Buffer::from(Bytes::from(req_body.to_string()));
@@ -172,7 +172,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "path": path,
+            "path": build_rooted_abs_path(&self.root, path),
             "contents": contents,
             "overwrite": true,
         });
@@ -290,3 +290,28 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_put_body_carries_the_rooted_unencoded_path() {
+        let core = DbfsCore {
+            root: "/data/".to_string(),
+            endpoint: "https://example.cloud.databricks.com".to_string(),
+            token: "token".to_string(),
+        };
+
+        let req = core
+            .dbfs_create_file_request("my file.txt", Bytes::from_static(b"hello"))
+            .expect("request must build");
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&req.into_body().to_bytes()).expect("body must parse");
+
+        // Rooted, so a write lands where stat and list look for it; and not percent-encoded,
+        // because nothing decodes a JSON string value.
+        assert_eq!(body["path"], "/data/my file.txt");
+    }
+}

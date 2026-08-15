@@ -52,10 +52,13 @@ impl oio::PageList for VercelBlobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let p = build_abs_path(&self.core.root, &self.path);
 
-        let resp = self
-            .core
-            .list(&self.ctx, &p, self.limit, &ctx.token)
-            .await?;
+        let cursor = if ctx.token.is_empty() {
+            None
+        } else {
+            Some(ctx.token.as_str())
+        };
+
+        let resp = self.core.list(&self.ctx, &p, self.limit, cursor).await?;
 
         ctx.done = !resp.has_more;
 

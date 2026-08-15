@@ -23,13 +23,15 @@ on:
       - main
     tags:
       - '*'
+    paths: &paths
+      - "bindings/ruby/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_ruby.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/ruby/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_ruby.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

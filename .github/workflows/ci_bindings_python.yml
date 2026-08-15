@@ -21,13 +21,15 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-    paths:
+    paths: &paths
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_python.yml"
       - "bindings/python/**"
       - "core/**"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

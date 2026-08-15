@@ -23,16 +23,18 @@ on:
       - main
     tags:
       - "v*"
-  pull_request:
-    branches:
-      - main
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/**"
       - "integrations/**"
       - "website/**"
+      - ".github/actions/setup/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/docs.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

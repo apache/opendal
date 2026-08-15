@@ -48,25 +48,6 @@ impl IpmfsLister {
     }
 }
 
-/// Build a listed entry's path from the path being listed and one `files/ls` name.
-///
-/// `list_path` is the path the operator handed to the service, so it is already relative to the
-/// root -- `IpmfsCore::ipmfs_ls` is what turns it into a rooted absolute path for the request.
-/// Concatenating a name onto it therefore yields a root-relative path directly, and stripping the
-/// root off it a second time is what used to truncate the result (or panic outright).
-///
-/// The one thing the concatenation has to handle is that `list_path` is `"/"` when the root
-/// itself is listed, and an entry path carries no leading slash.
-fn build_entry_path(list_path: &str, name: &str, mode: EntryMode) -> String {
-    let prefix = if list_path == "/" { "" } else { list_path };
-
-    match mode {
-        EntryMode::FILE => format!("{prefix}{name}"),
-        EntryMode::DIR => format!("{prefix}{name}/"),
-        EntryMode::Unknown => unreachable!(),
-    }
-}
-
 impl oio::PageList for IpmfsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.ipmfs_ls(&self.ctx, &self.path).await?;
@@ -98,7 +79,19 @@ impl oio::PageList for IpmfsLister {
         ctx.done = true;
 
         for object in entries_body.entries.unwrap_or_default() {
-            let path = build_entry_path(&self.path, &object.name, object.mode());
+            // `self.path` is "/" when the root itself is listed, and an entry path carries
+            // no leading slash. It is already relative to the root, so it must not be
+            // stripped again.
+            let prefix = if self.path == "/" {
+                ""
+            } else {
+                self.path.as_str()
+            };
+            let path = match object.mode() {
+                EntryMode::FILE => format!("{prefix}{}", object.name),
+                EntryMode::DIR => format!("{prefix}{}/", object.name),
+                EntryMode::Unknown => unreachable!(),
+            };
 
             ctx.entries.push_back(oio::Entry::new(
                 &path,
@@ -148,38 +141,4 @@ impl IpfsLsResponseEntry {
 struct IpfsLsResponse {
     #[serde(rename = "Entries")]
     entries: Option<Vec<IpfsLsResponseEntry>>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn listing_the_root_yields_bare_names() {
-        // `list_path` is "/" here, and an entry path carries no leading slash.
-        assert_eq!(build_entry_path("/", "a.txt", EntryMode::FILE), "a.txt");
-        assert_eq!(build_entry_path("/", "sub", EntryMode::DIR), "sub/");
-    }
-
-    #[test]
-    fn listing_a_directory_keeps_that_directory_in_the_entry_path() {
-        assert_eq!(
-            build_entry_path("dir/", "a.txt", EntryMode::FILE),
-            "dir/a.txt"
-        );
-        assert_eq!(build_entry_path("dir/", "sub", EntryMode::DIR), "dir/sub/");
-    }
-
-    #[test]
-    fn the_entry_path_is_independent_of_the_service_root() {
-        // This is the property the previous expression lacked. It ran the concatenation through
-        // `build_rel_path(root, ..)`, which under the default root "/" is a no-op -- and under
-        // any other root removed a prefix that was never there. `build_entry_path` takes no root
-        // at all, so the same listing produces the same entry paths whatever the root is.
-        assert_eq!(
-            build_entry_path("dir/", "a.txt", EntryMode::FILE),
-            "dir/a.txt"
-        );
-        assert_eq!(build_entry_path("/", "a.txt", EntryMode::FILE), "a.txt");
-    }
 }

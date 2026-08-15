@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - "*"
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/dart/**"
       - ".github/actions/setup/**"
@@ -31,11 +31,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "bindings/dart/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_dart.yml"
+    paths: *paths
   workflow_dispatch:
 
 env:

@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - '*'
-    paths:
+    paths: &paths
       - "bindings/dotnet/**"
       - "core/**"
       - ".github/actions/setup/**"
@@ -31,11 +31,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/dotnet/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_dotnet.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

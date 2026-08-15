@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - "*"
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/c/**"
       - "bindings/zig/**"
@@ -32,12 +32,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "bindings/c/**"
-      - "bindings/zig/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_zig.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

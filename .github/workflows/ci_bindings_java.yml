@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - '*'
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/java/**"
       - ".github/actions/setup/**"
@@ -31,11 +31,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "bindings/java/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_java.yml"
+    paths: *paths
   schedule:
     - cron: '30 1 * * 1'
   workflow_dispatch:

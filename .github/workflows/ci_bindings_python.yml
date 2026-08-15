@@ -21,7 +21,7 @@ on:
   push:
     branches:
       - main
-    paths:
+    paths: &paths
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_python.yml"
       - "bindings/python/**"
@@ -29,11 +29,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_python.yml"
-      - "bindings/python/**"
-      - "core/**"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

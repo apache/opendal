@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - "*"
-    paths:
+    paths: &paths
       - "bindings/ocaml/**"
       - "core/**"
       - ".github/actions/setup-ocaml/**"
@@ -31,11 +31,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/ocaml/**"
-      - "core/**"
-      - ".github/actions/setup-ocaml/**"
-      - ".github/workflows/ci_bindings_ocaml.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

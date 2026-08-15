@@ -31,7 +31,7 @@ on:
       - main
     tags:
       - "*"
-    paths:
+    paths: &paths
       - "bindings/nodejs/**"
       - "core/**"
       - ".github/actions/setup/**"
@@ -39,11 +39,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/nodejs/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_nodejs.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

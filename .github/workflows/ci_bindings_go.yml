@@ -23,7 +23,7 @@ on:
       - main
     tags:
       - '*'
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/c/**"
       - "bindings/go/**"
@@ -32,12 +32,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "bindings/c/**"
-      - "bindings/go/**"
-      - ".github/workflows/ci_bindings_go.yml"
-      - ".github/scripts/test_go_binding/matrix.yaml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

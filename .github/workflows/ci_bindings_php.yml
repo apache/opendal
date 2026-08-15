@@ -23,17 +23,14 @@ on:
       - main
     tags:
       - '*'
-    paths:
+    paths: &paths
       - "bindings/php/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_php.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/php/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_php.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

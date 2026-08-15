@@ -95,10 +95,10 @@ impl SqliteCore {
         let pool = self.get_client().await?;
 
         sqlx::query_scalar(&format!(
-            r#"SELECT COUNT(*) FROM "{}" WHERE "{}" LIKE $1 LIMIT 1"#,
+            r#"SELECT COUNT(*) FROM "{}" WHERE instr("{}", $1) = 1 LIMIT 1"#,
             self.table, self.key_field
         ))
-        .bind(format!("{}%", path))
+        .bind(path.to_string())
         .fetch_one(pool)
         .await
         .map_err(parse_sqlite_error)

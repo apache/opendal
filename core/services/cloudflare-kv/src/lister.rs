@@ -193,6 +193,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_listed_directory_reports_the_etag_the_wire_response_carries() {
+        // A `list keys` response as the Cloudflare API returns it. The metadata blob is what
+        // this service itself wrote through `set`, so a directory key carries the same
+        // CfKvMetadata a file does -- including the etag `stat` later compares if_match against.
+        let body = r#"{
+            "errors": [],
+            "messages": [],
+            "success": true,
+            "result": [
+                {
+                    "name": "data/sub/",
+                    "metadata": {
+                        "etag": "sub/.AvaaBbxz",
+                        "last_modified": "2024-01-01T00:00:00Z",
+                        "content_length": 0,
+                        "is_dir": true
+                    }
+                },
+                {
+                    "name": "data/a.txt",
+                    "metadata": {
+                        "etag": "a.txt.xHzwzn53",
+                        "last_modified": "2024-01-01T00:00:00Z",
+                        "content_length": 7,
+                        "is_dir": false
+                    }
+                }
+            ],
+            "result_info": { "cursor": "" }
+        }"#;
+
+        let resp: CfKvListResponse = serde_json::from_str(body).expect("response must parse");
+        let items = resp.result.expect("result must be present");
+
+        let lister = CloudflareKvLister::new(
+            Arc::new(CloudflareKvCore {
+                api_token: "token".to_string(),
+                account_id: "account".to_string(),
+                namespace_id: "namespace".to_string(),
+                expiration_ttl: None,
+                info: ServiceInfo::new(crate::CLOUDFLARE_KV_SCHEME, "/data/", "namespace"),
+                capability: Capability::default(),
+            }),
+            OperationContext::default(),
+            "/",
+            false,
+            None,
+        );
+
+        let dir = lister
+            .build_entry_for_item(&items[0], "/data/")
+            .expect("directory entry");
+        assert_eq!(dir.path(), "sub/");
+        assert_eq!(dir.metadata().etag(), Some("sub/.AvaaBbxz"));
+
+        let file = lister
+            .build_entry_for_item(&items[1], "/data/")
+            .expect("file entry");
+        assert_eq!(file.path(), "a.txt");
+        assert_eq!(file.metadata().etag(), Some("a.txt.xHzwzn53"));
+    }
+
+    #[test]
     fn relative_to_root_strips_only_the_prefix() {
         // The root repeated as an inner segment must survive; only the leading copy goes.
         assert_eq!(

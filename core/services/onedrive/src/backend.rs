@@ -31,8 +31,8 @@ use super::writer::OneDriveWriter;
 
 use std::fmt::Debug;
 
+use asyncband::mutex::Mutex;
 use log::debug;
-use mea::mutex::Mutex;
 
 use super::ONEDRIVE_SCHEME;
 use super::config::OnedriveConfig;

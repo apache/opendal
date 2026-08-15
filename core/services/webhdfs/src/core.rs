@@ -17,13 +17,13 @@
 
 use std::fmt::Debug;
 
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use mea::once::OnceCell;
 use serde::Deserialize;
 
 use opendal_core::raw::*;

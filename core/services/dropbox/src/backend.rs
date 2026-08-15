@@ -30,7 +30,7 @@ use opendal_core::*;
 
 use std::fmt::Debug;
 
-use mea::mutex::Mutex;
+use asyncband::mutex::Mutex;
 
 use super::DROPBOX_SCHEME;
 use super::config::DropboxConfig;

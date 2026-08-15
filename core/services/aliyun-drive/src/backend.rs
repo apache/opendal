@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
 use bytes::Buf;
 use log::debug;
-use mea::mutex::Mutex;
 
 use super::ALIYUN_DRIVE_SCHEME;
 use super::config::AliyunDriveConfig;

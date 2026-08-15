@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::rwlock::RwLock;
 use http::Request;
 use http::StatusCode;
 use log::debug;
-use mea::rwlock::RwLock;
 
 use super::B2_SCHEME;
 use super::config::B2Config;

@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::postgres::PgConnectOptions;
 
 use super::POSTGRESQL_SCHEME;

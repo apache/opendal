@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::mysql::MySqlConnectOptions;
 
 use super::MYSQL_SCHEME;

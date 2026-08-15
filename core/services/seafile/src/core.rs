@@ -18,13 +18,13 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::rwlock::RwLock;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use mea::rwlock::RwLock;
 use serde::Deserialize;
 
 use opendal_core::raw::*;

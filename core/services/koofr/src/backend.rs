@@ -18,11 +18,11 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use mea::mutex::Mutex;
-use mea::once::OnceCell;
 
 use super::KOOFR_SCHEME;
 use super::config::KoofrConfig;

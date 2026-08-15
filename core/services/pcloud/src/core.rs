@@ -425,10 +425,16 @@ impl PcloudCore {
     ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
+        let path = normalize_root(&path);
+
         let path = path.trim_end_matches('/');
 
+        // Trimming leaves nothing when the target is the service root; every other
+        // method here sends `/` for it rather than an empty parameter.
+        let path = if path.is_empty() { "/" } else { path };
+
         let url = format!(
-            "{}/listfolder?path=/{}&username={}&password={}",
+            "{}/listfolder?path={}&username={}&password={}",
             self.endpoint,
             percent_encode_path(path),
             self.username,

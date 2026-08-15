@@ -133,9 +133,9 @@ impl D1Core {
         let key_field = &self.key_field;
         let value_field = &self.value_field;
         let query = format!(
-            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}") \
-                VALUES ('?', ?) \
-                ON CONFLICT ("{key_field}") \
+            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
+                VALUES (?, ?)
+                ON CONFLICT ("{key_field}")
                     DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
         );
 

@@ -108,10 +108,10 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Deprecated: OneDrive versioning capability is enabled by default.
+    /// Deprecated: OneDrive version listing is enabled by default.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+        note = "OneDrive version listing is enabled by default and this option is no longer needed."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -143,7 +143,6 @@ impl Builder for OnedriveBuilder {
 
             stat: true,
             stat_with_if_none_match: true,
-            stat_with_version: true,
 
             delete: true,
             create_dir: true,
@@ -352,5 +351,23 @@ impl Service for OnedriveBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use opendal_core::Builder;
+    use opendal_core::raw::Service;
+
+    use super::OnedriveBuilder;
+
+    #[test]
+    fn capability_does_not_advertise_versioned_stat() {
+        let backend = OnedriveBuilder::default()
+            .access_token("test-token")
+            .build()
+            .unwrap();
+
+        assert!(!backend.capability().stat_with_version);
     }
 }

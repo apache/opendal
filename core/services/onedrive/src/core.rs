@@ -263,6 +263,9 @@ impl OneDriveCore {
         self.sign(ctx, &mut request).await?;
 
         let response = ctx.http_transport().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -805,6 +808,7 @@ mod tests {
 
     const ROOT_STAT_RESPONSE: &str = r#"{"id":"0","name":"root","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":0,"parentReference":{"path":"","driveId":"d","id":"p"},"folder":{"childCount":1}}"#;
     const ROOT_CHILDREN_RESPONSE: &str = r#"{"value":[{"id":"1","name":"test.txt","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":5,"parentReference":{"path":"/drive/root:","driveId":"d","id":"p"},"file":{"mimeType":"text/plain"}}]}"#;
+    const VERSION_RESPONSE: &str = r#"{"value":[{"id":"2.0","lastModifiedDateTime":"2026-01-02T00:00:00Z","size":6},{"id":"1.0","lastModifiedDateTime":"2026-01-01T00:00:00Z","size":5}]}"#;
 
     #[derive(Clone)]
     struct MockHttpTransport;
@@ -969,6 +973,66 @@ mod tests {
         assert_eq!(entries[0].mode(), EntryMode::DIR);
         assert_eq!(entries[1].path(), "test.txt");
         assert_eq!(entries[1].mode(), EntryMode::FILE);
+    }
+
+    #[tokio::test]
+    async fn list_with_versions_returns_each_file_version() {
+        let core = test_core("/");
+        let ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(VersionMockHttpTransport));
+        let lister = OneDriveLister::new(
+            "/".to_string(),
+            core,
+            ctx,
+            Capability {
+                list_with_versions: true,
+                ..Default::default()
+            },
+            &OpList::new().with_versions(true),
+        );
+        let mut lister = oio::PageLister::new(lister);
+
+        let mut entries = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            entries.push(entry);
+        }
+
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[1].metadata().version(), Some("2.0"));
+        assert_eq!(entries[2].metadata().version(), Some("1.0"));
+    }
+
+    #[derive(Clone)]
+    struct VersionMockHttpTransport;
+
+    impl HttpTransport for VersionMockHttpTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let url = req.uri().to_string();
+            let root_url = OneDriveCore::DRIVE_ROOT_URL;
+            let (status, body) = if url == format!("{root_url}/children?{GENERAL_SELECT_PARAM}") {
+                (StatusCode::OK, ROOT_CHILDREN_RESPONSE)
+            } else if url == root_url {
+                (StatusCode::OK, ROOT_STAT_RESPONSE)
+            } else if url == format!("{root_url}:/test.txt:/versions?{VERSION_SELECT_PARAM}") {
+                (StatusCode::OK, VERSION_RESPONSE)
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error":{"code":"itemNotFound","message":"Item not found"}}"#,
+                )
+            };
+
+            let data = Bytes::from_static(body.as_bytes());
+            let size = data.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .header(header::CONTENT_LENGTH, size)
+                .body(HttpBody::new(
+                    stream::iter(vec![Ok(Buffer::from(data))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
     }
 }
 

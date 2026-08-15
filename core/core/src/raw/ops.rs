@@ -520,9 +520,9 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
                 content_length_hint: value.content_length_hint,
             },
             OpReader {
-                // Ensure concurrent is at least 1
+                // Ensure concurrent and chunk are at least 1
                 concurrent: value.concurrent.max(1),
-                chunk: value.chunk,
+                chunk: value.chunk.map(|v| v.max(1)),
                 gap: value.gap,
                 prefetch: 0,
             },
@@ -545,9 +545,9 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 content_length_hint: value.content_length_hint,
             },
             OpReader {
-                // Ensure concurrent is at least 1
+                // Ensure concurrent and chunk are at least 1
                 concurrent: value.concurrent.max(1),
-                chunk: value.chunk,
+                chunk: value.chunk.map(|v| v.max(1)),
                 gap: value.gap,
                 prefetch: value.prefetch,
             },

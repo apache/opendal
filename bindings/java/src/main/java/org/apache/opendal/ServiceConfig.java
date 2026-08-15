@@ -2320,9 +2320,9 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
-         * <p>Deprecated: OneDrive versioning capability is enabled by default.</p>
+         * <p>Deprecated: OneDrive version listing is enabled by default.</p>
          *
-         * @deprecated OneDrive versioning capability is enabled by default and this option is no longer needed.
+         * @deprecated OneDrive version listing is enabled by default and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**

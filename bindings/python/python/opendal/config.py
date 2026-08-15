@@ -576,7 +576,7 @@ class OnedriveConfig(TypedDict):
     client_secret: NotRequired[str]
     """Microsoft Graph API Application client secret that is in the Azure's app registration portal"""
     enable_versioning: NotRequired[bool]
-    """Deprecated: OneDrive versioning capability is enabled by default. [Deprecated since 0.57.0] OneDrive versioning capability is enabled by default and this option is no longer needed."""
+    """Deprecated: OneDrive version listing is enabled by default. [Deprecated since 0.57.0] OneDrive version listing is enabled by default and this option is no longer needed."""
     refresh_token: NotRequired[str]
     """Microsoft Graph API (also OneDrive API) refresh token"""
     root: NotRequired[str | os.PathLike[str]]

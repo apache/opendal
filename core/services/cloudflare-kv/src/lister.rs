@@ -194,9 +194,11 @@ mod tests {
 
     #[test]
     fn a_listed_directory_reports_the_etag_the_wire_response_carries() {
-        // A `list keys` response as the Cloudflare API returns it. The metadata blob is what
-        // this service itself wrote through `set`, so a directory key carries the same
-        // CfKvMetadata a file does -- including the etag `stat` later compares if_match against.
+        // Reconstructed, not captured: the envelope is the subset of the `list keys` response
+        // that CfKvListResponse reads, and the metadata blob is CfKvMetadata as serde emits it,
+        // since `set` sends `serde_json::to_string(&metadata)` as the metadata form part. The
+        // etags are shaped the way `build_tmp_path_of` mints them at write time. The point it
+        // pins is that a directory key carries the same CfKvMetadata a file does.
         let body = r#"{
             "errors": [],
             "messages": [],

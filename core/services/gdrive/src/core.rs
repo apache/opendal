@@ -786,6 +786,18 @@ impl GdrivePathQuery {
     }
 }
 
+/// Escape a value for use inside a single-quoted Google Drive search literal.
+///
+/// The Drive query grammar treats both `\` and `'` as special inside a `'...'`
+/// literal, so the backslash has to be escaped before the quote. Escaping only
+/// the quote lets a key that contains a backslash consume the escape character
+/// and close the literal early, so the rest of the key is parsed as query terms.
+///
+/// ref: <https://developers.google.com/drive/api/guides/ref-search-terms>
+fn escape_query_literal(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
 impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
     async fn root(&self, _: &OperationContext) -> Result<String> {
         Ok("root".to_string())
@@ -798,12 +810,9 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
         name: &str,
     ) -> Result<Option<String>> {
         let mut queries = vec![
-            // Make sure name has been replaced with escaped name.
-            //
-            // ref: <https://developers.google.com/drive/api/guides/ref-search-terms>
             format!(
                 "name = '{}'",
-                name.replace('\'', "\\'").trim_end_matches('/')
+                escape_query_literal(name.trim_end_matches('/'))
             ),
             format!("'{}' in parents", parent_id),
             "trashed = false".to_string(),
@@ -923,6 +932,24 @@ pub(crate) struct GdriveFileList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_escape_query_literal() {
+        // A plain name is unchanged.
+        assert_eq!(escape_query_literal("file.txt"), "file.txt");
+        // A quote is escaped.
+        assert_eq!(escape_query_literal("a'b"), "a\\'b");
+        // A backslash is escaped, so it cannot swallow a following quote.
+        assert_eq!(escape_query_literal("a\\b"), "a\\\\b");
+        // A trailing backslash stays escaped instead of closing the literal.
+        assert_eq!(escape_query_literal("file\\"), "file\\\\");
+        // A crafted key cannot break out of the `name = '...'` literal.
+        let name = "x\\' or name != '";
+        assert_eq!(
+            format!("name = '{}'", escape_query_literal(name)),
+            "name = 'x\\\\\\' or name != \\''"
+        );
+    }
 
     fn mock_gdrive_core() -> GdriveCore {
         let info = ServiceInfo::new("gdrive", "", "");

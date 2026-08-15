@@ -142,7 +142,7 @@ impl Builder for HdfsBuilder {
             client.create_dir(&root).map_err(new_std_io_error)?
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir;
+        let atomic_write_dir = self.config.atomic_write_dir.as_deref().map(normalize_root);
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir

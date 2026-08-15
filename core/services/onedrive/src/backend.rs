@@ -149,6 +149,7 @@ impl Builder for OnedriveBuilder {
 
             list: true,
             list_with_limit: true,
+            list_with_start_after: true,
             list_with_versions: true,
 
             shared: true,
@@ -362,12 +363,13 @@ mod tests {
     use super::OnedriveBuilder;
 
     #[test]
-    fn capability_does_not_advertise_versioned_stat() {
+    fn capabilities_match_supported_version_listing() {
         let backend = OnedriveBuilder::default()
             .access_token("test-token")
             .build()
             .unwrap();
 
         assert!(!backend.capability().stat_with_version);
+        assert!(backend.capability().list_with_start_after);
     }
 }

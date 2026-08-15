@@ -54,6 +54,12 @@ impl OneDriveLister {
             op: args.clone(),
         }
     }
+
+    fn is_after_start(&self, path: &str) -> bool {
+        self.op
+            .start_after()
+            .is_none_or(|start_after| path > start_after)
+    }
 }
 
 impl oio::PageList for OneDriveLister {
@@ -100,8 +106,10 @@ impl oio::PageList for OneDriveLister {
 
             // skip `list_with_versions` intentionally because a folder doesn't have versions
 
-            let entry = oio::Entry::new(&path, meta);
-            ctx.entries.push_back(entry);
+            if self.is_after_start(&path) {
+                let entry = oio::Entry::new(&path, meta);
+                ctx.entries.push_back(entry);
+            }
         }
 
         if let Some(next_link) = decoded_response.next_link {
@@ -127,6 +135,10 @@ impl oio::PageList for OneDriveLister {
             // Add the trailing `/` because OneDrive returns a directory with the name
             if entry_mode == EntryMode::DIR {
                 normalized_path.push('/');
+            }
+
+            if !self.is_after_start(&normalized_path) {
+                continue;
             }
 
             let mut meta = Metadata::new(entry_mode)

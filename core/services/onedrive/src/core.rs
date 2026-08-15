@@ -1002,6 +1002,44 @@ mod tests {
         assert_eq!(entries[2].metadata().version(), Some("1.0"));
     }
 
+    #[tokio::test]
+    async fn list_with_versions_respects_start_after() {
+        let core = test_core("/");
+        let ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(StartAfterMockHttpTransport));
+        let lister = OneDriveLister::new(
+            "dir/".to_string(),
+            core,
+            ctx,
+            Capability {
+                list_with_start_after: true,
+                list_with_versions: true,
+                ..Default::default()
+            },
+            &OpList::new()
+                .with_versions(true)
+                .with_start_after("dir/file-2"),
+        );
+        let mut lister = oio::PageLister::new(lister);
+
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            paths.push(entry.path().to_string());
+        }
+
+        assert_eq!(
+            paths,
+            [
+                "dir/file-3",
+                "dir/file-3",
+                "dir/file-4",
+                "dir/file-4",
+                "dir/file-5",
+                "dir/file-5",
+            ]
+        );
+    }
+
     #[derive(Clone)]
     struct VersionMockHttpTransport;
 
@@ -1023,6 +1061,55 @@ mod tests {
             };
 
             let data = Bytes::from_static(body.as_bytes());
+            let size = data.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .header(header::CONTENT_LENGTH, size)
+                .body(HttpBody::new(
+                    stream::iter(vec![Ok(Buffer::from(data))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[derive(Clone)]
+    struct StartAfterMockHttpTransport;
+
+    impl HttpTransport for StartAfterMockHttpTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let url = req.uri().to_string();
+            let root_url = OneDriveCore::DRIVE_ROOT_URL;
+
+            let (status, body) = if url
+                == format!("{root_url}:/dir:/children?{GENERAL_SELECT_PARAM}")
+            {
+                let items = (0..6)
+                    .map(|index| {
+                        format!(
+                            r#"{{"id":"{index}","name":"file-{index}","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"tag-{index}","size":5,"parentReference":{{"path":"/drive/root:/dir","driveId":"d","id":"p"}},"file":{{"mimeType":"text/plain"}}}}"#
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                (StatusCode::OK, format!(r#"{{"value":[{items}]}}"#))
+            } else if url == format!("{root_url}:/dir") {
+                (
+                    StatusCode::OK,
+                    r#"{"id":"dir","name":"dir","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"dir-tag","size":0,"parentReference":{"path":"/drive/root:","driveId":"d","id":"p"},"folder":{"childCount":6}}"#.to_string(),
+                )
+            } else if url.starts_with(&format!("{root_url}:/dir/file-"))
+                && url.ends_with(&format!(":/versions?{VERSION_SELECT_PARAM}"))
+            {
+                (StatusCode::OK, VERSION_RESPONSE.to_string())
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error":{"code":"itemNotFound","message":"Item not found"}}"#.to_string(),
+                )
+            };
+
+            let data = Bytes::from(body);
             let size = data.len() as u64;
             Ok(Response::builder()
                 .status(status)

@@ -42,6 +42,7 @@ rust-version = "1.91"
 version = "0.58.2"
 
 [workspace.dependencies]
+asyncband = { version = "0.6" }
 base64 = "0.23"
 bytes = "1.10"
 ctor = "1.0.7"
@@ -49,7 +50,6 @@ futures = { version = "0.3", default-features = false }
 http = "1.4"
 log = { version = "0.4.32" }
 logforth = { version = "0.30.1", features = ["starter-log"] }
-asyncband = { version = "0.6" }
 quick-xml = { version = "0.41.0", default-features = false }
 rand = "0.10.1"
 serde = { version = "1", default-features = false }

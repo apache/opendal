@@ -32,8 +32,8 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-futures = { workspace = true }
 asyncband = { workspace = true }
+futures = { workspace = true }
 mongodb = "3.3.0"
 opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 serde = { workspace = true, features = ["derive"] }

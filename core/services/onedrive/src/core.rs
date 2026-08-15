@@ -929,6 +929,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn upload_session_request_for_nested_encoded_path_uses_full_path_addressing() {
+        let core = test_core("/base/");
+        let request = core
+            .onedrive_create_upload_session_request(
+                "nested directory/upload session #1.bin",
+                &OpWrite::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            request.uri().to_string(),
+            format!(
+                "{}:/base/nested%20directory/upload%20session%20%231.bin:/createUploadSession",
+                OneDriveCore::DRIVE_ROOT_URL
+            )
+        );
+    }
+
     #[tokio::test]
     async fn list_root_returns_entries() {
         let core = test_core("/");

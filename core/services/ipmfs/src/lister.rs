@@ -79,9 +79,6 @@ impl oio::PageList for IpmfsLister {
         ctx.done = true;
 
         for object in entries_body.entries.unwrap_or_default() {
-            // `self.path` is "/" when the root itself is listed, and an entry path carries
-            // no leading slash. It is already relative to the root, so it must not be
-            // stripped again.
             let prefix = if self.path == "/" {
                 ""
             } else {

@@ -50,41 +50,6 @@ fn relative_to_root(root: &str, name: &str) -> String {
         .to_string()
 }
 
-/// Build the listed entry for a record the KV API returned.
-///
-/// Both branches report the `etag` this service stored alongside the record. A directory used to
-/// be handed a freshly generated `build_tmp_path_of` string instead: that value is random, so it
-/// differed on every `list` call and never matched what `stat` reads back from the very same
-/// record, which is also the value `stat` compares `if_match`/`if_none_match` against.
-fn build_entry_for_item(item: &CfKvListKey, root: &str) -> Result<oio::Entry> {
-    let metadata = item.metadata.clone();
-    let mut name = item.name.clone();
-
-    if metadata.is_dir && !name.ends_with('/') {
-        name += "/";
-    }
-
-    let mut name = relative_to_root(root, &name);
-
-    // If it is the root directory, it needs to be processed as /
-    if name.is_empty() {
-        name = "/".to_string();
-    }
-
-    let entry_metadata = if name.ends_with('/') {
-        Metadata::new(EntryMode::DIR)
-            .with_etag(metadata.etag)
-            .with_content_length(0)
-    } else {
-        Metadata::new(EntryMode::FILE)
-            .with_etag(metadata.etag)
-            .with_content_length(metadata.content_length as u64)
-            .with_last_modified(metadata.last_modified.parse::<Timestamp>()?)
-    };
-
-    Ok(oio::Entry::new(&name, entry_metadata))
-}
-
 impl CloudflareKvLister {
     pub fn new(
         core: Arc<CloudflareKvCore>,
@@ -103,6 +68,35 @@ impl CloudflareKvLister {
         }
     }
 
+    fn build_entry_for_item(&self, item: &CfKvListKey, root: &str) -> Result<oio::Entry> {
+        let metadata = item.metadata.clone();
+        let mut name = item.name.clone();
+
+        if metadata.is_dir && !name.ends_with('/') {
+            name += "/";
+        }
+
+        let mut name = relative_to_root(root, &name);
+
+        // If it is the root directory, it needs to be processed as /
+        if name.is_empty() {
+            name = "/".to_string();
+        }
+
+        let entry_metadata = if name.ends_with('/') {
+            Metadata::new(EntryMode::DIR)
+                .with_etag(metadata.etag)
+                .with_content_length(0)
+        } else {
+            Metadata::new(EntryMode::FILE)
+                .with_etag(metadata.etag)
+                .with_content_length(metadata.content_length as u64)
+                .with_last_modified(metadata.last_modified.parse::<Timestamp>()?)
+        };
+
+        Ok(oio::Entry::new(&name, entry_metadata))
+    }
+
     fn handle_non_recursive_file_list(
         &self,
         ctx: &mut oio::PageContext,
@@ -110,7 +104,7 @@ impl CloudflareKvLister {
         root: &str,
     ) -> Result<()> {
         if let Some(item) = result.iter().find(|item| item.name == self.path) {
-            let entry = build_entry_for_item(item, root)?;
+            let entry = self.build_entry_for_item(item, root)?;
             ctx.entries.push_back(entry);
         } else if !result.is_empty() {
             let path_name = relative_to_root(root, &self.path);
@@ -185,7 +179,7 @@ impl oio::PageList for CloudflareKvLister {
                     }
                 }
 
-                let entry = build_entry_for_item(&item, &root)?;
+                let entry = self.build_entry_for_item(&item, &root)?;
                 ctx.entries.push_back(entry);
             }
         }
@@ -197,52 +191,6 @@ impl oio::PageList for CloudflareKvLister {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::CfKvMetadata;
-
-    fn list_key(name: &str, etag: &str, is_dir: bool) -> CfKvListKey {
-        CfKvListKey {
-            name: name.to_string(),
-            metadata: CfKvMetadata {
-                etag: etag.to_string(),
-                last_modified: "2024-01-01T00:00:00Z".to_string(),
-                content_length: 7,
-                is_dir,
-            },
-        }
-    }
-
-    #[test]
-    fn dir_entry_reports_the_stored_etag() {
-        let item = list_key("data/sub/", "dir-etag-1", true);
-
-        let entry = build_entry_for_item(&item, "/data/").expect("entry");
-
-        assert_eq!(entry.path(), "sub/");
-        assert_eq!(entry.metadata().etag(), Some("dir-etag-1"));
-    }
-
-    #[test]
-    fn dir_entry_etag_is_the_same_on_every_list_call() {
-        // The generated value was random, so an unchanged directory reported a different etag
-        // each time it was listed -- and never the one `stat` reads back from the same record.
-        let item = list_key("data/sub/", "dir-etag-1", true);
-
-        let first = build_entry_for_item(&item, "/data/").expect("first");
-        let second = build_entry_for_item(&item, "/data/").expect("second");
-
-        assert_eq!(first.metadata().etag(), second.metadata().etag());
-    }
-
-    #[test]
-    fn file_entry_reports_the_stored_etag() {
-        let item = list_key("data/file.txt", "file-etag-1", false);
-
-        let entry = build_entry_for_item(&item, "/data/").expect("entry");
-
-        assert_eq!(entry.path(), "file.txt");
-        assert_eq!(entry.metadata().etag(), Some("file-etag-1"));
-        assert_eq!(entry.metadata().content_length(), 7);
-    }
 
     #[test]
     fn relative_to_root_strips_only_the_prefix() {

@@ -23,6 +23,12 @@ on:
       - main
     tags:
       - "*"
+    paths:
+      - "core/**"
+      - "bindings/c/**"
+      - "bindings/zig/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_zig.yml"
   pull_request:
     branches:
       - main
@@ -30,6 +36,7 @@ on:
       - "core/**"
       - "bindings/c/**"
       - "bindings/zig/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_zig.yml"
   workflow_dispatch:
 

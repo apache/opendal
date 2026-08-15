@@ -23,12 +23,18 @@ on:
       - main
     tags:
       - "*"
+    paths:
+      - "core/**"
+      - "bindings/dart/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_dart.yml"
   pull_request:
     branches:
       - main
     paths:
       - "core/**"
       - "bindings/dart/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_dart.yml"
   workflow_dispatch:
 

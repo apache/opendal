@@ -31,12 +31,18 @@ on:
       - main
     tags:
       - "*"
+    paths:
+      - "bindings/nodejs/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_nodejs.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/nodejs/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_nodejs.yml"
   workflow_dispatch:
 

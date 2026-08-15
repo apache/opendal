@@ -23,12 +23,18 @@ on:
       - main
     tags:
       - "*"
+    paths:
+      - "bindings/haskell/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_haskell.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/haskell/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_haskell.yml"
   workflow_dispatch:
 

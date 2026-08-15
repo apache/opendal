@@ -23,6 +23,14 @@ on:
       - main
     tags:
       - "v*"
+    paths:
+      - "core/**"
+      - "bindings/**"
+      - "integrations/**"
+      - "website/**"
+      - ".github/actions/setup/**"
+      - ".github/actions/setup-ocaml/**"
+      - ".github/workflows/docs.yml"
   pull_request:
     branches:
       - main
@@ -31,6 +39,7 @@ on:
       - "bindings/**"
       - "integrations/**"
       - "website/**"
+      - ".github/actions/setup/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/docs.yml"
 

@@ -23,12 +23,19 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/cpp/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_cpp.yml"
+      - "examples/cpp/**"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/cpp/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_cpp.yml"
       - "examples/cpp/**"
   workflow_dispatch:

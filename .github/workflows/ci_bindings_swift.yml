@@ -23,6 +23,12 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/swift/**"
+      - "bindings/c/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_swift.yml"
   pull_request:
     branches:
       - main
@@ -30,6 +36,7 @@ on:
       - "bindings/swift/**"
       - "bindings/c/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_swift.yml"
   workflow_dispatch:
 

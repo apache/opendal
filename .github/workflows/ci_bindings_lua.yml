@@ -23,12 +23,18 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/lua/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_lua.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/lua/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_lua.yml"
   workflow_dispatch:
 

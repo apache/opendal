@@ -23,6 +23,12 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "core/**"
+      - "bindings/c/**"
+      - "bindings/go/**"
+      - ".github/workflows/ci_bindings_go.yml"
+      - ".github/scripts/test_go_binding/matrix.yaml"
   pull_request:
     branches:
       - main

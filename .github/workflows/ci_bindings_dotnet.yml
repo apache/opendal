@@ -23,12 +23,18 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/dotnet/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_dotnet.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/dotnet/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_dotnet.yml"
   workflow_dispatch:
 

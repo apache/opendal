@@ -23,11 +23,16 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/php/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_php.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/php/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_php.yml"
   workflow_dispatch:
 

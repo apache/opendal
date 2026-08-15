@@ -23,12 +23,18 @@ on:
       - main
     tags:
       - '*'
+    paths:
+      - "bindings/ruby/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_ruby.yml"
   pull_request:
     branches:
       - main
     paths:
       - "bindings/ruby/**"
       - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_ruby.yml"
   workflow_dispatch:
 

@@ -74,10 +74,10 @@ impl oio::PageList for YandexDiskLister {
             http::StatusCode::OK => {
                 let body = resp.into_body();
 
-                let resp: MetainformationResponse =
+                let mut resp: MetainformationResponse =
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
-                if let Some(embedded) = resp.embedded {
+                if let Some(embedded) = resp.embedded.take() {
                     let n = embedded.items.len();
 
                     for mf in embedded.items {
@@ -106,16 +106,29 @@ impl oio::PageList for YandexDiskLister {
 
                     return Ok(());
                 }
+
+                let rel = resp
+                    .path
+                    .strip_prefix("disk:")
+                    .map(|p| build_rel_path(&self.core.root, p));
+                if let Some(rel) = rel {
+                    let md = parse_info(resp)?;
+                    let path = if md.mode().is_dir() {
+                        format!("{rel}/")
+                    } else {
+                        rel
+                    };
+                    ctx.entries.push_back(Entry::new(&path, md));
+                }
+                ctx.done = true;
+
+                Ok(())
             }
             http::StatusCode::NOT_FOUND => {
                 ctx.done = true;
-                return Ok(());
+                Ok(())
             }
-            _ => {
-                return Err(parse_error(resp));
-            }
+            _ => Err(parse_error(resp)),
         }
-
-        Ok(())
     }
 }

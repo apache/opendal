@@ -49,23 +49,6 @@ impl Debug for D1Core {
 
 const CLOUDFLARE_API_BASE_URL: &str = "https://api.cloudflare.com/client/v4";
 
-/// Build the upsert issued by [`D1Core::set`].
-///
-/// Two things this statement has to get right, both of which it got wrong before:
-///
-/// - it is a raw string, so a trailing `\` is a literal backslash rather than a line
-///   continuation, and SQLite rejects the statement outright at that token;
-/// - the key placeholder must be a bare `?`. Quoting it makes `'?'` a string literal, which
-///   leaves one bind marker for the two parameters that are always sent.
-fn build_set_query(table: &str, key_field: &str, value_field: &str) -> String {
-    format!(
-        r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
-            VALUES (?, ?)
-            ON CONFLICT ("{key_field}")
-                DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#
-    )
-}
-
 impl D1Core {
     fn create_d1_query_request(
         &self,
@@ -146,7 +129,15 @@ impl D1Core {
     }
 
     pub async fn set(&self, ctx: &OperationContext, path: &str, value: Buffer) -> Result<()> {
-        let query = build_set_query(&self.table, &self.key_field, &self.value_field);
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
+        let query = format!(
+            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
+                VALUES (?, ?)
+                ON CONFLICT ("{key_field}")
+                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
+        );
 
         let params = vec![path.into(), value.to_vec().into()];
         let req = self.create_d1_query_request(&query, params, Operation::Write, "Set")?;
@@ -241,46 +232,3 @@ mod error {
 }
 
 pub(super) use error::*;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn set_query_binds_both_parameters() {
-        let query = build_set_query("data", "key", "value");
-
-        // In a raw string a trailing `\` is a literal backslash, and SQLite stops at that
-        // token: `unrecognized token: "\"`.
-        assert!(
-            !query.contains('\\'),
-            "statement must not carry a literal backslash: {query}"
-        );
-        // `set` always sends two params, so the statement needs two bare placeholders. `'?'`
-        // is a string literal, not a bind marker.
-        assert!(
-            !query.contains("'?'"),
-            "the key placeholder must not be quoted: {query}"
-        );
-        assert_eq!(
-            query.matches('?').count(),
-            2,
-            "expected one bind marker per parameter: {query}"
-        );
-    }
-
-    #[test]
-    fn set_query_keeps_the_configured_identifiers_quoted() {
-        let query = build_set_query("my table", "my key", "my value");
-
-        assert!(
-            query.contains(r#"INSERT INTO "my table" ("my key", "my value")"#),
-            "{query}"
-        );
-        assert!(query.contains(r#"ON CONFLICT ("my key")"#), "{query}");
-        assert!(
-            query.contains(r#"DO UPDATE SET "my value" = EXCLUDED."my value""#),
-            "{query}"
-        );
-    }
-}

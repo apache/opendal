@@ -285,14 +285,22 @@ impl oio::PageList for DirStream {
             .map(|v| v.name.unwrap())
             .collect::<Vec<String>>();
 
-        for mut name in names {
-            let meta = self.core.ipfs_stat(&self.ctx, &name).await?;
+        for name in names {
+            let child = if self.path == "/" {
+                name
+            } else {
+                format!("{}{}", self.path, name)
+            };
 
-            if meta.mode().is_dir() {
-                name += "/";
-            }
+            let meta = self.core.ipfs_stat(&self.ctx, &child).await?;
 
-            ctx.entries.push_back(oio::Entry::new(&name, meta))
+            let child = if meta.mode().is_dir() {
+                format!("{child}/")
+            } else {
+                child
+            };
+
+            ctx.entries.push_back(oio::Entry::new(&child, meta))
         }
 
         ctx.done = true;

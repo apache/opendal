@@ -108,10 +108,10 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Deprecated: OneDrive versioning capability is enabled by default.
+    /// Deprecated: OneDrive supports version listing without this option.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+        note = "OneDrive supports version listing without this option."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -133,13 +133,19 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
+            write_total_max_size: if cfg!(target_pointer_width = "64") {
+                Some(250 * 1024 * 1024 * 1024)
+            } else {
+                None
+            },
             copy: true,
             rename: true,
 
             stat: true,
             stat_with_if_none_match: true,
-            stat_with_version: true,
-
+            // Microsoft Graph doesn't preserve complete metadata for previous
+            // file versions, so OneDrive can't implement stat_with_version.
+            // See https://learn.microsoft.com/en-us/graph/api/driveitem-list-versions?view=graph-rest-1.0#remarks
             delete: true,
             create_dir: true,
 

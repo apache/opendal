@@ -164,24 +164,14 @@ const MONITOR_WAIT_SECOND: u64 = 1;
 // `services-onedrive` uses the file path based API for simplicity.
 // Read more at https://learn.microsoft.com/en-us/graph/onedrive-addressing-driveitems
 impl OneDriveCore {
-    /// Send a stat request about a particular path, including:
-    ///
-    /// - Get stat object only if ETag not matches
-    /// - whether to get the object version
-    ///
-    /// See also [`onedrive_get_stat_plain()`].
+    /// Send a stat request about a particular path.
     pub(crate) async fn onedrive_stat(
         &self,
         ctx: &OperationContext,
         path: &str,
         args: OpStat,
     ) -> Result<Metadata> {
-        let mut url: String = self.onedrive_item_url(path, true);
-        if args.version().is_some() {
-            url += "?$expand=versions(";
-            url += VERSION_SELECT_PARAM;
-            url += ")";
-        }
+        let url: String = self.onedrive_item_url(path, true);
 
         let mut request = Request::get(&url);
         if let Some(etag) = args.if_none_match() {
@@ -213,22 +203,6 @@ impl OneDriveCore {
         let mut meta = Metadata::new(entry_mode)
             .with_etag(decoded_response.e_tag)
             .with_content_length(decoded_response.size.max(0) as u64);
-
-        if let Some(version) = args.version() {
-            for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
-                if item_version.id == version {
-                    meta.set_version(version);
-                    break; // early exit
-                }
-            }
-
-            if meta.version().is_none() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "cannot find this version of the item",
-                ));
-            }
-        }
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;

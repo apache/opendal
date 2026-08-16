@@ -429,8 +429,6 @@ impl PcloudCore {
 
         let path = path.trim_end_matches('/');
 
-        // Trimming leaves nothing when the target is the service root; every other
-        // method here sends `/` for it rather than an empty parameter.
         let path = if path.is_empty() { "/" } else { path };
 
         let url = format!(

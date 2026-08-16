@@ -76,7 +76,11 @@ pub struct SharePointItem {
     pub id: String,
     pub name: String,
     pub last_modified_date_time: String,
-    pub e_tag: String,
+    // Absent for the document library root itself (same Graph quirk as
+    // `ParentReference`'s `path`/`id` above) — every ordinary file/folder
+    // has one.
+    #[serde(default)]
+    pub e_tag: Option<String>,
     pub size: i64,
     pub parent_reference: ParentReference,
     #[serde(flatten)]
@@ -84,12 +88,23 @@ pub struct SharePointItem {
     pub versions: Option<Vec<SharePointItemVersion>>,
 }
 
+/// `path`/`id` are absent for a `SharePointItem` whose parent is the
+/// document library root itself — the same Graph quirk `AnchorParentReference`
+/// documents above, but hit here when *listing* the root's direct children
+/// (their own `parentReference` still omits both) rather than when resolving
+/// the root as an anchor. Neither field is read anywhere in this crate (only
+/// `drive_id` is) — they exist purely to round-trip through
+/// `SharePointPatchRequestBody` for copy/rename, which sends its own
+/// synthetic values regardless (see `core.rs`'s two `ParentReference`
+/// construction sites) — so making them optional costs nothing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParentReference {
-    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     pub drive_id: String,
-    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 /// Additional properties when represents a facet of a "DriveItem":
@@ -324,6 +339,43 @@ mod tests {
         } else {
             panic!("item_type is not a file");
         }
+    }
+
+    /// A direct child of the document library root has a `parentReference`
+    /// missing `path`/`id`, and can itself be missing `eTag` too — the same
+    /// root-item quirk `test_parse_share_point_anchor_item_without_parent_path_json`
+    /// covers for the `/shares` anchor lookup, but hit here via
+    /// `GET .../children` when the operator itself is anchored at the
+    /// library root.
+    #[test]
+    fn test_parse_share_point_list_response_for_root_child_without_parent_path_json() {
+        let data = r#"{
+            "value": [
+                {
+                    "id": "01ABCDEF0000000000000000000000000000000001",
+                    "lastModifiedDateTime": "2025-02-23T11:45:26Z",
+                    "name": "Reports",
+                    "size": 0,
+                    "parentReference": {
+                        "driveType": "documentLibrary",
+                        "driveId": "b!xYzLongOpaqueDriveIdentifierValue0123456789",
+                        "siteId": "5f1f11f3-a6b4-4414-aee0-215c774f80db"
+                    },
+                    "folder": {
+                        "childCount": 3
+                    }
+                }
+            ]
+        }"#;
+
+        let response: GraphApiSharePointListResponse = serde_json::from_str(data).unwrap();
+        assert_eq!(response.value.len(), 1);
+        let item = &response.value[0];
+        assert_eq!(item.name, "Reports");
+        assert!(item.e_tag.is_none());
+        assert!(item.parent_reference.path.is_none());
+        assert!(item.parent_reference.id.is_none());
+        assert_eq!(item.parent_reference.drive_id, "b!xYzLongOpaqueDriveIdentifierValue0123456789");
     }
 
     #[test]

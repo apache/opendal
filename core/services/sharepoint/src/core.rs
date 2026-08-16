@@ -298,9 +298,10 @@ impl SharePointCore {
             ItemType::File { .. } => EntryMode::FILE,
         };
 
-        let mut meta = Metadata::new(entry_mode)
-            .with_etag(decoded_response.e_tag)
-            .with_content_length(decoded_response.size.max(0) as u64);
+        let mut meta = Metadata::new(entry_mode).with_content_length(decoded_response.size.max(0) as u64);
+        if let Some(etag) = decoded_response.e_tag {
+            meta = meta.with_etag(etag);
+        }
 
         if let Some(version) = args.version() {
             for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
@@ -677,9 +678,9 @@ impl SharePointCore {
         let item = self.ensure_directory(ctx, &destination_parent).await?;
         let body = SharePointPatchRequestBody {
             parent_reference: ParentReference {
-                path: "".to_string(), // irrelevant for copy
+                path: None, // irrelevant for copy
                 drive_id: item.parent_reference.drive_id,
-                id: item.id,
+                id: Some(item.id),
             },
             name: basename.to_string(),
         };
@@ -783,10 +784,10 @@ impl SharePointCore {
         let item = self.ensure_directory(ctx, &destination_parent).await?;
         let body = SharePointPatchRequestBody {
             parent_reference: ParentReference {
-                path: "".to_string(), // irrelevant for update
+                path: None, // irrelevant for update
                 // reusing `ParentReference` for convenience. The API requires this value to be correct.
                 drive_id: item.parent_reference.drive_id,
-                id: item.id,
+                id: Some(item.id),
             },
             name: basename.to_string(),
         };

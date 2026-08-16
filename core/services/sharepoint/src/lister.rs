@@ -138,9 +138,10 @@ impl oio::PageList for SharePointLister {
                 ItemType::File { .. } => EntryMode::FILE,
             };
 
-            let mut meta = Metadata::new(entry_mode)
-                .with_etag(drive_item.e_tag)
-                .with_content_length(drive_item.size.max(0) as u64);
+            let mut meta = Metadata::new(entry_mode).with_content_length(drive_item.size.max(0) as u64);
+            if let Some(etag) = drive_item.e_tag {
+                meta = meta.with_etag(etag);
+            }
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
             meta.set_last_modified(last_modified);
 

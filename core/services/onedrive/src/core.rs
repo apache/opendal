@@ -132,7 +132,10 @@ impl OneDriveCore {
                         serde_json::from_reader(bytes.reader())
                             .map_err(new_json_deserialize_error)?
                     }
-                    _ => return Err(parse_write_consistency_error(response)),
+                    StatusCode::BAD_REQUEST => {
+                        return Err(parse_error_with_retry(response));
+                    }
+                    _ => return Err(parse_error(response)),
                 }
             }
             _ => return Err(parse_error(response)),
@@ -424,14 +427,6 @@ impl OneDriveCore {
     /// This endpoint supports `If-None-Match` but [`onedrive_upload_simple()`] doesn't.
     ///
     /// Read more at https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
-    pub(crate) fn onedrive_create_upload_session_request(
-        &self,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Request<Buffer>> {
-
-    }
-
     pub(crate) async fn onedrive_create_upload_session(
         &self,
         ctx: &OperationContext,
@@ -452,11 +447,11 @@ impl OneDriveCore {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        request = request
+        let mut request = request
             .extension(Operation::Write)
             .extension(ServiceOperation("CreateUploadSession"))
             .body(body)
-            .map_err(new_request_build_error)
+            .map_err(new_request_build_error)?;
 
         self.sign(ctx, &mut request).await?;
 
@@ -594,7 +589,8 @@ impl OneDriveCore {
                     )
                 })
                 .map(String::from),
-            _ => Err(parse_write_consistency_error(response)),
+            StatusCode::BAD_REQUEST => Err(parse_error_with_retry(response)),
+            _ => Err(parse_error(response)),
         }
     }
 
@@ -898,34 +894,18 @@ mod tests {
 mod error {
     use http::Response;
     use http::StatusCode;
-    use serde::Deserialize;
 
+    use crate::graph_model::GraphErrorResponse;
     use opendal_core::raw::*;
     use opendal_core::*;
 
     /// Parse error response into Error.
     pub(crate) fn parse_error(response: Response<Buffer>) -> Error {
-        parse_error_with_consistency_retry(response, false)
-    }
-
-    pub(crate) fn parse_write_consistency_error(response: Response<Buffer>) -> Error {
-        parse_error_with_consistency_retry(response, true)
-    }
-
-    fn parse_error_with_consistency_retry(
-        response: Response<Buffer>,
-        retry_consistency_lag: bool,
-    ) -> Error {
         let (parts, body) = response.into_parts();
         let bs = body.to_bytes();
 
         let (kind, retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            // OneDrive can return invalidRequest before a just-created path
-            // becomes available to a follow-up write operation.
-            StatusCode::BAD_REQUEST if retry_consistency_lag && is_consistency_lag_error(&bs) => {
-                (ErrorKind::Unexpected, true)
-            }
             // The OneDrive service replaces resources.
             // However, the Onedrive doesn't have Strong Read-After-Write properties,
             // the concurrent requests to create directories might result in errors.
@@ -958,22 +938,22 @@ mod error {
         err
     }
 
+    /// Parse a consistency-lag error and mark it temporary.
+    ///
+    /// Other errors retain the classification from [`parse_error`].
+    pub(crate) fn parse_error_with_retry(response: Response<Buffer>) -> Error {
+        let retryable = is_consistency_lag_error(&response.body().to_bytes());
+        let err = parse_error(response);
+
+        if retryable { err.set_temporary() } else { err }
+    }
+
     fn is_consistency_lag_error(body: &[u8]) -> bool {
         let Ok(response) = serde_json::from_slice::<GraphErrorResponse>(body) else {
             return false;
         };
 
         response.error.code == "invalidRequest"
-    }
-
-    #[derive(Deserialize)]
-    struct GraphErrorResponse {
-        error: GraphError,
-    }
-
-    #[derive(Deserialize)]
-    struct GraphError {
-        code: String,
     }
 }
 

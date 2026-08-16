@@ -19,6 +19,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Debug, Deserialize)]
+pub struct GraphErrorResponse {
+    pub error: GraphError,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphError {
+    pub code: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct GraphOAuthRefreshTokenResponseBody {
     pub access_token: String,
     pub refresh_token: String,

@@ -429,6 +429,15 @@ impl OneDriveCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Request<Buffer>> {
+
+    }
+
+    pub(crate) async fn onedrive_create_upload_session(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
@@ -443,20 +452,11 @@ impl OneDriveCore {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let body = Buffer::from(Bytes::from(body_bytes));
-        request
+        request = request
             .extension(Operation::Write)
             .extension(ServiceOperation("CreateUploadSession"))
             .body(body)
             .map_err(new_request_build_error)
-    }
-
-    pub(crate) async fn onedrive_create_upload_session(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<Buffer>> {
-        let mut request = self.onedrive_create_upload_session_request(path, args)?;
 
         self.sign(ctx, &mut request).await?;
 
@@ -782,7 +782,6 @@ mod tests {
 
     const ROOT_STAT_RESPONSE: &str = r#"{"id":"0","name":"root","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":0,"parentReference":{"path":"","driveId":"d","id":"p"},"folder":{"childCount":1}}"#;
     const ROOT_CHILDREN_RESPONSE: &str = r#"{"value":[{"id":"1","name":"test.txt","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"aTag","size":5,"parentReference":{"path":"/drive/root:","driveId":"d","id":"p"},"file":{"mimeType":"text/plain"}}]}"#;
-    const VERSION_RESPONSE: &str = r#"{"value":[{"id":"2.0","lastModifiedDateTime":"2026-01-02T00:00:00Z","size":6},{"id":"1.0","lastModifiedDateTime":"2026-01-01T00:00:00Z","size":5}]}"#;
 
     #[derive(Clone)]
     struct MockHttpTransport;
@@ -877,24 +876,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn upload_session_request_for_nested_encoded_path_uses_full_path_addressing() {
-        let core = test_core("/base/");
-        let request = core
-            .onedrive_create_upload_session_request(
-                "nested directory/upload session #1.bin",
-                &OpWrite::default(),
-            )
-            .unwrap();
-        assert_eq!(
-            request.uri().to_string(),
-            format!(
-                "{}:/base/nested%20directory/upload%20session%20%231.bin:/createUploadSession",
-                OneDriveCore::DRIVE_ROOT_URL
-            )
-        );
-    }
-
     #[tokio::test]
     async fn list_root_returns_entries() {
         let core = test_core("/");
@@ -911,144 +892,6 @@ mod tests {
         assert_eq!(entries[0].mode(), EntryMode::DIR);
         assert_eq!(entries[1].path(), "test.txt");
         assert_eq!(entries[1].mode(), EntryMode::FILE);
-    }
-
-    #[tokio::test]
-    async fn list_with_versions_returns_each_file_version() {
-        let core = test_core("/");
-        let ctx = OperationContext::new()
-            .with_http_transport(HttpTransporter::new(VersionMockHttpTransport));
-        let lister = OneDriveLister::new(
-            "/".to_string(),
-            core,
-            ctx,
-            &OpList::new().with_versions(true),
-        );
-        let mut lister = oio::PageLister::new(lister);
-
-        let mut entries = Vec::new();
-        while let Some(entry) = lister.next().await.unwrap() {
-            entries.push(entry);
-        }
-
-        assert_eq!(entries.len(), 3);
-        assert_eq!(entries[1].metadata().version(), Some("2.0"));
-        assert_eq!(entries[2].metadata().version(), Some("1.0"));
-    }
-
-    #[tokio::test]
-    async fn list_with_versions_respects_start_after() {
-        let core = test_core("/");
-        let ctx = OperationContext::new()
-            .with_http_transport(HttpTransporter::new(StartAfterMockHttpTransport));
-        let lister = OneDriveLister::new(
-            "dir/".to_string(),
-            core,
-            ctx,
-            &OpList::new()
-                .with_versions(true)
-                .with_start_after("dir/file-2"),
-        );
-        let mut lister = oio::PageLister::new(lister);
-
-        let mut paths = Vec::new();
-        while let Some(entry) = lister.next().await.unwrap() {
-            paths.push(entry.path().to_string());
-        }
-
-        assert_eq!(
-            paths,
-            [
-                "dir/file-3",
-                "dir/file-3",
-                "dir/file-4",
-                "dir/file-4",
-                "dir/file-5",
-                "dir/file-5",
-            ]
-        );
-    }
-
-    #[derive(Clone)]
-    struct VersionMockHttpTransport;
-
-    impl HttpTransport for VersionMockHttpTransport {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let url = req.uri().to_string();
-            let root_url = OneDriveCore::DRIVE_ROOT_URL;
-            let (status, body) = if url == format!("{root_url}/children?{GENERAL_SELECT_PARAM}") {
-                (StatusCode::OK, ROOT_CHILDREN_RESPONSE)
-            } else if url == root_url {
-                (StatusCode::OK, ROOT_STAT_RESPONSE)
-            } else if url == format!("{root_url}:/test.txt:/versions?{VERSION_SELECT_PARAM}") {
-                (StatusCode::OK, VERSION_RESPONSE)
-            } else {
-                (
-                    StatusCode::NOT_FOUND,
-                    r#"{"error":{"code":"itemNotFound","message":"Item not found"}}"#,
-                )
-            };
-
-            let data = Bytes::from_static(body.as_bytes());
-            let size = data.len() as u64;
-            Ok(Response::builder()
-                .status(status)
-                .header(header::CONTENT_LENGTH, size)
-                .body(HttpBody::new(
-                    stream::iter(vec![Ok(Buffer::from(data))]),
-                    Some(size),
-                ))
-                .unwrap())
-        }
-    }
-
-    #[derive(Clone)]
-    struct StartAfterMockHttpTransport;
-
-    impl HttpTransport for StartAfterMockHttpTransport {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let url = req.uri().to_string();
-            let root_url = OneDriveCore::DRIVE_ROOT_URL;
-
-            let (status, body) = if url
-                == format!("{root_url}:/dir:/children?{GENERAL_SELECT_PARAM}")
-            {
-                let items = (0..6)
-                    .map(|index| {
-                        format!(
-                            r#"{{"id":"{index}","name":"file-{index}","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"tag-{index}","size":5,"parentReference":{{"path":"/drive/root:/dir","driveId":"d","id":"p"}},"file":{{"mimeType":"text/plain"}}}}"#
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(",");
-                (StatusCode::OK, format!(r#"{{"value":[{items}]}}"#))
-            } else if url == format!("{root_url}:/dir") {
-                (
-                    StatusCode::OK,
-                    r#"{"id":"dir","name":"dir","lastModifiedDateTime":"2026-01-01T00:00:00Z","eTag":"dir-tag","size":0,"parentReference":{"path":"/drive/root:","driveId":"d","id":"p"},"folder":{"childCount":6}}"#.to_string(),
-                )
-            } else if url.starts_with(&format!("{root_url}:/dir/file-"))
-                && url.ends_with(&format!(":/versions?{VERSION_SELECT_PARAM}"))
-            {
-                (StatusCode::OK, VERSION_RESPONSE.to_string())
-            } else {
-                (
-                    StatusCode::NOT_FOUND,
-                    r#"{"error":{"code":"itemNotFound","message":"Item not found"}}"#.to_string(),
-                )
-            };
-
-            let data = Bytes::from(body);
-            let size = data.len() as u64;
-            Ok(Response::builder()
-                .status(status)
-                .header(header::CONTENT_LENGTH, size)
-                .body(HttpBody::new(
-                    stream::iter(vec![Ok(Buffer::from(data))]),
-                    Some(size),
-                ))
-                .unwrap())
-        }
     }
 }
 

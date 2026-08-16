@@ -133,11 +133,8 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
-            write_total_max_size: if cfg!(target_pointer_width = "64") {
-                Some(250 * 1024 * 1024 * 1024)
-            } else {
-                None
-            },
+            // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
+            write_total_max_size: Some(250 * 1024 * 1024 * 1024), // 250GB
             copy: true,
             rename: true,
 

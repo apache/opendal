@@ -1624,6 +1624,7 @@ func TestFfiDeleterSignatures(t *testing.T) {
 	}{
 		{name: "ffiOperatorDeleter", opts: ffiOperatorDeleter.opts, rType: &typeResultOperatorDeleter, aTypesLen: 1},
 		{name: "ffiDeleterDelete", opts: ffiDeleterDelete.opts, rType: &ffi.TypePointer, aTypesLen: 2},
+		{name: "ffiDeleterDeleteMany", opts: ffiDeleterDeleteMany.opts, rType: &ffi.TypePointer, aTypesLen: 3},
 		{name: "ffiDeleterDeleteWith", opts: ffiDeleterDeleteWith.opts, rType: &ffi.TypePointer, aTypesLen: 3},
 		{name: "ffiDeleterClose", opts: ffiDeleterClose.opts, rType: &ffi.TypePointer, aTypesLen: 1},
 		{name: "ffiDeleterFree", opts: ffiDeleterFree.opts, rType: &ffi.TypeVoid, aTypesLen: 1},
@@ -1640,6 +1641,57 @@ func TestFfiDeleterSignatures(t *testing.T) {
 				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", tc.name, i, at)
 			}
 		}
+	}
+}
+
+func TestFfiDeleterDeleteManyMarshalsPaths(t *testing.T) {
+	deleterInner := &opendalDeleter{}
+	want := []string{"a.txt", "b.txt", "nested/c.txt"}
+	calls := 0
+
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		calls++
+		if len(aValues) != 3 {
+			t.Fatalf("delete many received %d arguments, want 3", len(aValues))
+		}
+		if got := *(**opendalDeleter)(aValues[0]); got != deleterInner {
+			t.Fatalf("deleter = %p, want %p", got, deleterInner)
+		}
+
+		pathsLen := *(*uint)(aValues[2])
+		if pathsLen != uint(len(want)) {
+			t.Fatalf("paths len = %d, want %d", pathsLen, len(want))
+		}
+		pathsPtr := *(***byte)(aValues[1])
+		paths := unsafe.Slice(pathsPtr, int(pathsLen))
+		for i, path := range paths {
+			if got := BytePtrToString(path); got != want[i] {
+				t.Fatalf("path[%d] = %q, want %q", i, got, want[i])
+			}
+		}
+		*(**opendalError)(rValue) = nil
+	})
+
+	if err := deleteMany(deleterInner, want); err != nil {
+		t.Fatalf("delete many failed: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("delete many called FFI %d times, want 1", calls)
+	}
+}
+
+func TestFfiDeleterDeleteManyRejectsNulBeforeCall(t *testing.T) {
+	called := false
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(unsafe.Pointer, ...unsafe.Pointer) {
+		called = true
+	})
+
+	err := deleteMany(&opendalDeleter{}, []string{"a.txt", "bad\x00path"})
+	if err == nil {
+		t.Fatal("delete many with a nul path succeeded")
+	}
+	if called {
+		t.Fatal("delete many called FFI after path validation failed")
 	}
 }
 
@@ -1772,26 +1824,23 @@ func TestRemoveQueuesEveryPathThenCloses(t *testing.T) {
 	}
 }
 
-func TestRemoveReleasesDeleterWhenDeleteFails(t *testing.T) {
+func TestRemoveReleasesDeleterWhenDeleteManyFails(t *testing.T) {
 	deleterInner := &opendalDeleter{}
 	var deleted []string
 	closed := 0
 	freed := 0
 	deleteErr := errors.New("delete failed")
 
-	ctx := newDeleterTestContext(t, deleterInner, &deleted, &closed, &freed, func(path string) error {
-		if path == "b.txt" {
-			return deleteErr
-		}
-		return nil
+	ctx := newDeleterTestContext(t, deleterInner, &deleted, &closed, &freed, func([]string) error {
+		return deleteErr
 	})
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
 	if err := op.Remove([]string{"a.txt", "b.txt", "c.txt"}); !errors.Is(err, deleteErr) {
 		t.Fatalf("Remove = %v, want delete error", err)
 	}
-	if len(deleted) != 2 {
-		t.Fatalf("queued %v, want the paths up to the failure", deleted)
+	if len(deleted) != 3 {
+		t.Fatalf("bulk delete received %v, want every path", deleted)
 	}
 	if freed != 1 {
 		t.Fatalf("deleter freed %d times, want 1", freed)
@@ -1810,7 +1859,7 @@ func TestRemoveWithoutPathsSkipsDeleter(t *testing.T) {
 	}
 }
 
-func newDeleterTestContext(t *testing.T, inner *opendalDeleter, deleted *[]string, closed, freed *int, deleteFn func(string) error) context.Context {
+func newDeleterTestContext(t *testing.T, inner *opendalDeleter, deleted *[]string, closed, freed *int, deleteFn func([]string) error) context.Context {
 	t.Helper()
 
 	ctx := context.Background()
@@ -1820,13 +1869,13 @@ func newDeleterTestContext(t *testing.T, inner *opendalDeleter, deleted *[]strin
 		}
 		return inner, nil
 	})
-	ctx = context.WithValue(ctx, ffiDeleterDelete.opts.sym, func(d *opendalDeleter, path string) error {
+	ctx = context.WithValue(ctx, ffiDeleterDeleteMany.opts.sym, func(d *opendalDeleter, paths []string) error {
 		if d != inner {
 			t.Fatalf("deleter = %p, want %p", d, inner)
 		}
-		*deleted = append(*deleted, path)
+		*deleted = append(*deleted, paths...)
 		if deleteFn != nil {
-			return deleteFn(path)
+			return deleteFn(paths)
 		}
 		return nil
 	})

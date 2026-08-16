@@ -937,6 +937,7 @@ typedef struct opendal_result_operator_copier {
  *
  * @see opendal_operator_deleter()
  * @see opendal_deleter_delete()
+ * @see opendal_deleter_delete_many()
  * @see opendal_deleter_close()
  */
 typedef struct opendal_deleter {
@@ -3193,6 +3194,35 @@ void opendal_copier_free(struct opendal_copier *ptr);
  * * If the `path` points to NULL, this function panics
  */
 struct opendal_error *opendal_deleter_delete(struct opendal_deleter *self, const char *path);
+
+/**
+ * \brief Queue multiple paths for deletion.
+ *
+ * This function queues every path in one call, avoiding repeated crossings
+ * of the C boundary. The paths are not necessarily removed when this
+ * function returns: call `opendal_deleter_close` to flush the queue and wait
+ * for the deletions to complete.
+ *
+ * @param paths The designated paths you want to delete
+ * @param paths_len The number of paths in `paths`
+ * @return NULL if all paths are queued, otherwise it contains the error code
+ * and error message.
+ *
+ * # Safety
+ *
+ * * When `paths_len` is greater than zero, `paths` must point to an array of
+ *   `paths_len` pointers.
+ * * Every pointer in `paths` must point to a string with a valid nul
+ *   terminator.
+ *
+ * # Panic
+ *
+ * * If `paths` or any pointer in `paths` is NULL when `paths_len` is greater
+ *   than zero, this function panics.
+ */
+struct opendal_error *opendal_deleter_delete_many(struct opendal_deleter *self,
+                                                  const char *const *paths,
+                                                  uintptr_t paths_len);
 
 /**
  * \brief Queue `path` for deletion with options.

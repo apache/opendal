@@ -116,6 +116,16 @@ func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
 	return err
 }
 
+func (d *Deleter) deleteMany(paths []string) error {
+	if d.inner == nil {
+		return ErrDeleterClosed
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	return ffiDeleterDeleteMany.symbol(d.ctx)(d.inner, paths)
+}
+
 // Close flushes the queued deletions, waits for them to complete, and releases
 // the resources held by the Deleter.
 //
@@ -163,12 +173,10 @@ func (op *Operator) Remove(paths []string) error {
 	if err != nil {
 		return err
 	}
-	for _, path := range paths {
-		if err := deleter.Delete(path); err != nil {
-			// Close releases the deleter; the queued paths are dropped.
-			_ = deleter.Close()
-			return err
-		}
+	if err := deleter.deleteMany(paths); err != nil {
+		// Close flushes any paths still queued and releases the deleter.
+		_ = deleter.Close()
+		return err
 	}
 	return deleter.Close()
 }
@@ -207,6 +215,41 @@ var ffiDeleterDelete = newFFI(ffiOpts{
 			unsafe.Pointer(&d),
 			unsafe.Pointer(&bytePath),
 		)
+		return parseError(ctx, e)
+	}
+})
+
+var ffiDeleterDeleteMany = newFFI(ffiOpts{
+	sym:    "opendal_deleter_delete_many",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(d *opendalDeleter, paths []string) error {
+	return func(d *opendalDeleter, paths []string) error {
+		pathData := make([][]byte, len(paths))
+		pathPointers := make([]*byte, len(paths))
+		for i, path := range paths {
+			data, err := byteSliceFromString(path)
+			if err != nil {
+				return err
+			}
+			pathData[i] = data
+			pathPointers[i] = &data[0]
+		}
+
+		var pathsPtr **byte
+		if len(pathPointers) > 0 {
+			pathsPtr = &pathPointers[0]
+		}
+		var e *opendalError
+		pathsLen := uint(len(paths))
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&d),
+			unsafe.Pointer(&pathsPtr),
+			unsafe.Pointer(&pathsLen),
+		)
+		runtime.KeepAlive(pathData)
+		runtime.KeepAlive(pathPointers)
 		return parseError(ctx, e)
 	}
 })

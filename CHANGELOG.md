@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
-## [v0.58.2] - 2026-08-13
+## [v0.58.2] - 2026-08-17
 
 ### Breaking Changes
 * integrations/object_store: `object_store_opendal` 0.59 implements the `object_store` 0.14 API. Update direct `object_store` dependencies to 0.14. Projects that require `object_store` 0.13, including DataFusion 54 users, should pin `object_store_opendal = "=0.58.0"`. We missed `object_store` breaking version changes in previous opendal 0.58 releases. We yanked bad `object_store_opendal` releases so you can expect `object_store_opendal` follows SemVer.
@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services): retry HTTP 429 responses by @ddupg in https://github.com/apache/opendal/pull/8035
 * feat(services/s3): support explicit AWS profiles by @Xuanwo in https://github.com/apache/opendal/pull/7949
 * feat(services/azblob): support if_match writes and honor preconditions on block commit by @tenzinplatter in https://github.com/apache/opendal/pull/8028
+* Include user-defined metadata in S3Backend read response by @matt-goroff in https://github.com/apache/opendal/pull/8060
+* feat(services/tos): support presigned URLs by @ddupg in https://github.com/apache/opendal/pull/8044
 
 ### Changed
 * refactor(bindings/dotnet): rework the FFI boundary and add zero-copy IO paths by @Fatorin in https://github.com/apache/opendal/pull/8020
@@ -34,30 +36,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(bindings/dotnet): forward read options to the streaming reader by @Fatorin in https://github.com/apache/opendal/pull/8016
 * fix(ci): fix failed CI due to pyo3 upgrade by @dentiny in https://github.com/apache/opendal/pull/8018
 * fix(bindings/python): annotate `**kwargs` types in generated stubs by @trim21 in https://github.com/apache/opendal/pull/8012
+* fix(core): deserialize duration config values from strings by @subotac in https://github.com/apache/opendal/pull/7983
 * fix(services/oss): honor if_not_exists on multipart uploads by @Xuanwo in https://github.com/apache/opendal/pull/8041
 * fix(services/hf): correct the refs/convert revision split by @PDGGK in https://github.com/apache/opendal/pull/8045
-* Include user-defined metadata in S3Backend read response by @matt-goroff in https://github.com/apache/opendal/pull/8060
+* Fix dependency license audit by @erickguan in https://github.com/apache/opendal/pull/8051
+* fix(core): Respect logical length in Buffer vectored views by @codeAnqiang-ma in https://github.com/apache/opendal/pull/8064
+* fix(services/cos): keep the port and stop doubling the bucket label by @PDGGK in https://github.com/apache/opendal/pull/8066
+* fix(services/upyun): do not panic when creating the service root by @PDGGK in https://github.com/apache/opendal/pull/8050
+* fix(services/cloudflare-kv): strip only the root prefix from listed keys by @PDGGK in https://github.com/apache/opendal/pull/8048
+* fix(services/cos): honor if_not_exists on multipart uploads by @aysha-afrah26 in https://github.com/apache/opendal/pull/8043
+* fix(services/onedrive): fix OneDrive path construction for listing by @projekter in https://github.com/apache/opendal/pull/8055
+* fix(services): percent-encode the pagination marker in list queries by @PDGGK in https://github.com/apache/opendal/pull/8073
+* fix(services/webhdfs): encode startAfter and abort the blocks that were written by @PDGGK in https://github.com/apache/opendal/pull/8075
+* fix(services/b2): percent-encode the object path in presigned requests by @PDGGK in https://github.com/apache/opendal/pull/8076
+* fix(services/gridfs): default the chunk size to 255 KiB, not 255 bytes by @PDGGK in https://github.com/apache/opendal/pull/8069
+* fix(services/d1): repair the upsert statement that breaks every write by @PDGGK in https://github.com/apache/opendal/pull/8068
+* fix(services/vercel-blob): send the pagination cursor so listing terminates by @PDGGK in https://github.com/apache/opendal/pull/8071
+* fix(services/ipmfs): stop stripping the root twice from listed entries by @PDGGK in https://github.com/apache/opendal/pull/8070
+* fix(services/dbfs): root the put path and stop encoding paths in JSON bodies by @PDGGK in https://github.com/apache/opendal/pull/8079
+* fix(services/yandex-disk): end the listing when a response has no _embedded by @PDGGK in https://github.com/apache/opendal/pull/8072
+* fix(services/lakefs): follow the pagination cursor instead of stopping after one page by @PDGGK in https://github.com/apache/opendal/pull/8088
+* fix(core): do not panic when a range has no valid header representation by @PDGGK in https://github.com/apache/opendal/pull/8084
+* fix(services/dbfs): make listed entry paths relative to the root by @PDGGK in https://github.com/apache/opendal/pull/8083
+* fix(services/github): do not double the separator in recursive listings by @PDGGK in https://github.com/apache/opendal/pull/8082
+* fix(services/sqlite): match the directory prefix exactly instead of with LIKE by @PDGGK in https://github.com/apache/opendal/pull/8085
+* fix(services/pcloud): send the service root as / rather than empty by @PDGGK in https://github.com/apache/opendal/pull/8081
+* fix(services/ipfs): address listed children by their full path by @PDGGK in https://github.com/apache/opendal/pull/8086
+* fix(services/onedrive): fix upload and listing behavior by @erickguan in https://github.com/apache/opendal/pull/8080
 
 ### Docs
 * docs: add conditional operation recipes by @Xuanwo in https://github.com/apache/opendal/pull/7988
 * docs(services/s3): document SeaweedFS as a compatible service by @chrislusf in https://github.com/apache/opendal/pull/7994
 * RFC-7948: Add S3 provider presets by @Xuanwo in https://github.com/apache/opendal/pull/7948
 * docs: fix release doc and polish releases by @erickguan in https://github.com/apache/opendal/pull/8002
-* docs: require searching for similar work before opening PRs by @Xuanwo in https://github.com/apache/opendal/pull/8019
 * doc(s3): document compatibility with OCI object storage S3 API by @dentiny in https://github.com/apache/opendal/pull/8006
+* docs: require searching for similar work before opening PRs by @Xuanwo in https://github.com/apache/opendal/pull/8019
+* docs: update release notes by @erickguan in https://github.com/apache/opendal/pull/8047
 
 ### CI
 * ci: derive Python RC versions from tags by @Xuanwo in https://github.com/apache/opendal/pull/7978
 * ci(services/s3): run behavior tests against SeaweedFS by @chrislusf in https://github.com/apache/opendal/pull/7995
 * ci(bindings/dotnet): reduce native library size and simplify test workflow by @Fatorin in https://github.com/apache/opendal/pull/7998
 * ci: group behavior test setups by service by @rohankumardubey in https://github.com/apache/opendal/pull/8017
+* chore: GitHub action optimization by @mingcheng in https://github.com/apache/opendal/pull/8077
 
-### New Contributors
+### Chore
+* chore(release): prepare v0.58.2 by @erickguan in https://github.com/apache/opendal/pull/8027
+* chore(release): fix licenses by @erickguan in https://github.com/apache/opendal/pull/8061
+* chore(release): fix jar packaging by @erickguan in https://github.com/apache/opendal/pull/8065
+* chore: migrate mea to asyncband by @mingcheng in https://github.com/apache/opendal/pull/8074
+
+## New Contributors
 * @chrislusf made their first contribution in https://github.com/apache/opendal/pull/7995
 * @subotac made their first contribution in https://github.com/apache/opendal/pull/7983
 * @tenzinplatter made their first contribution in https://github.com/apache/opendal/pull/8028
 * @rohankumardubey made their first contribution in https://github.com/apache/opendal/pull/8017
 * @PDGGK made their first contribution in https://github.com/apache/opendal/pull/8045
+* @matt-goroff made their first contribution in https://github.com/apache/opendal/pull/8060
+* @codeAnqiang-ma made their first contribution in https://github.com/apache/opendal/pull/8064
+* @aysha-afrah26 made their first contribution in https://github.com/apache/opendal/pull/8043
+* @projekter made their first contribution in https://github.com/apache/opendal/pull/8055
+* @mingcheng made their first contribution in https://github.com/apache/opendal/pull/8074
 
 **Full Changelog**: https://github.com/apache/opendal/compare/v0.58.1...v0.58.2
 

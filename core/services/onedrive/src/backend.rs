@@ -134,6 +134,8 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
+            // disable because usize is too small on armhf and other arch to represent more than 4GB
+            #[cfg(target_pointer_width = "64")]
             // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
             write_total_max_size: Some(250 * 1024 * 1024 * 1024), // 250GB
             copy: true,

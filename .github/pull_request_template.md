@@ -33,5 +33,10 @@ If there are any breaking changes to public APIs, please add the `breaking-chang
 # AI Usage Statement
 
 <!--
-If you are using AI tools to build this PR, please include a statement specifying the tool and models you are using.
+If you used AI tools to build this PR, name the tools and models, briefly
+describe how you verified their output, and disclose important assumptions or
+unknowns. Do not paste raw AI output. You must understand every submitted claim
+and change well enough to explain and defend it during review.
+
+If you did not use AI tools, write "None".
 -->

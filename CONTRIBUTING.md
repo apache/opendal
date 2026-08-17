@@ -47,7 +47,8 @@ guides the work and remains accountable for it.
   verify AI-assisted analysis before sharing it with the community.
 - Understand every submitted claim and change well enough to explain and defend
   it during review.
-- Disclose important assumptions, unknowns, and the AI tools and models used.
+- Disclose material AI involvement and any assumptions or unknowns that affect
+  review.
 
 The contributor, not the AI tool, is responsible for the accuracy, relevance,
 and quality of every submission.

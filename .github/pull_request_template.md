@@ -33,5 +33,10 @@ If there are any breaking changes to public APIs, please add the `breaking-chang
 # AI Usage Statement
 
 <!--
-If you are using AI tools to build this PR, please include a statement specifying the tool and models you are using.
+If AI materially assisted this PR, briefly describe its role and disclose any
+assumptions or unknowns that affect review. Do not include routine command output
+or repeat information provided elsewhere.
+
+The author remains responsible for every submitted claim and change. If AI did
+not materially assist this PR, write "None".
 -->

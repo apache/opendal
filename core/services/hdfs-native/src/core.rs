@@ -24,19 +24,6 @@ use hdfs_native::WriteOptions;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-fn map_hdfs_rename_error(err: HdfsError, if_not_exists: bool, to_path: &str) -> Error {
-    if if_not_exists && matches!(err, HdfsError::AlreadyExists(_)) {
-        return Error::new(
-            ErrorKind::ConditionNotMatch,
-            "target path already exists while if_not_exists is set",
-        )
-        .with_context("input", to_path)
-        .set_source(err);
-    }
-
-    parse_hdfs_error(err)
-}
-
 /// HdfsNativeCore contains code that directly interacts with HDFS Native client.
 #[derive(Clone)]
 pub struct HdfsNativeCore {
@@ -201,14 +188,10 @@ impl HdfsNativeCore {
             }
             Err(err) => match &err {
                 HdfsError::FileNotFound(_) => {
-                    // `WriteOptions::default()` does not overwrite, so this also fails when
-                    // another writer took the target between the stat above and here.
                     self.client
                         .create(&to_path, WriteOptions::default().create_parent(true))
                         .await
-                        .map_err(|err| {
-                            map_hdfs_rename_error(err, args.if_not_exists(), &to_path)
-                        })?;
+                        .map_err(parse_hdfs_error)?;
                 }
                 _ => return Err(parse_hdfs_error(err)),
             },

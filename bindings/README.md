@@ -19,6 +19,7 @@ This folder contains the bindings for OpenDAL. Currently, we support the followi
 * [Go](go/README.md)
 * [Haskell](haskell/README.md)
 * [Lua](lua/README.md)
+* [MoonBit](moonbit/README.md)
 * [OCaml](ocaml/README.md)
 * [PHP](php/README.md)
 * [Ruby](ruby/README.md)

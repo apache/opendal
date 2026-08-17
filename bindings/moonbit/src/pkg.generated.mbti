@@ -1,0 +1,59 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "apache/opendal"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub suberror OpenDalError {
+  OpenDalError(ErrorInfo)
+} derive(Eq, @debug.Debug)
+pub fn OpenDalError::info(Self) -> ErrorInfo
+pub fn OpenDalError::kind(Self) -> ErrorKind
+pub impl Show for OpenDalError
+
+// Types and methods
+pub struct ErrorInfo {
+  kind : ErrorKind
+  message : String
+  operation : Operation
+  path : String?
+} derive(Eq, @debug.Debug)
+
+pub enum ErrorKind {
+  Unexpected
+  Unsupported
+  ConfigInvalid
+  NotFound
+  PermissionDenied
+  IsADirectory
+  NotADirectory
+  AlreadyExists
+  RateLimited
+  IsSameFile
+  ConditionNotMatch
+  RangeNotSatisfied
+  ResourceClosed
+  BufferTooLarge
+  InvalidArgument
+  Unknown(Int)
+} derive(Eq, @debug.Debug)
+
+pub enum Operation {
+  NewOperator
+  Read
+  Write
+} derive(Eq, @debug.Debug)
+
+pub type Operator
+pub fn Operator::close(Self) -> Unit
+pub fn Operator::new(StringView) -> Self raise OpenDalError
+pub fn Operator::read(Self, StringView) -> Bytes raise OpenDalError
+pub fn Operator::write(Self, StringView, BytesView) -> Unit raise OpenDalError
+
+// Type aliases
+
+// Traits

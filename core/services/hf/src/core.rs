@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use asyncband::mutex::Mutex;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -22,6 +23,8 @@ use http::Response;
 use http::header;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
@@ -160,6 +163,52 @@ pub(super) struct XetFileResponse {
     pub size: u64,
 }
 
+/// Response shape of HF's `xet-{read,write}-token` endpoint. Matches
+/// `CasJWTInfo` in the vendored `xet` crate (`xet_client::hub_client::types`)
+/// — the same three fields regardless of read or write token.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct XetTokenResponse {
+    cas_url: String,
+    exp: u64,
+    access_token: String,
+}
+
+/// A cached CAS access token, so a new [`XetDownloadStreamGroup`] doesn't
+/// have to fetch its own on every creation.
+#[derive(Clone)]
+struct XetToken {
+    cas_url: String,
+    access_token: String,
+    /// Unix timestamp (seconds) at which HF says this token actually
+    /// expires.
+    expires_at: u64,
+}
+
+/// How much earlier than a token's real expiry to refresh it ourselves.
+/// Larger than the `xet` crate's own internal 30s buffer
+/// (`xet_client::cas_client::auth::REFRESH_BUFFER_SEC`) so a group we just
+/// built has headroom left, instead of immediately tripping that buffer and
+/// refreshing again itself via its own unmocked, uncounted HTTP client.
+const XET_TOKEN_REFRESH_BUFFER_SECS: u64 = 120;
+
+/// Which CAS token scope to fetch/cache -- reads and writes are distinct HF
+/// API token scopes, each with their own cache slot on [`HfCore`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum XetTokenScope {
+    Read,
+    Write,
+}
+
+impl XetTokenScope {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+        }
+    }
+}
+
 #[derive(serde::Deserialize, Debug)]
 pub(super) struct CommitResponse {
     #[allow(dead_code)]
@@ -244,6 +293,13 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
+    /// Cached CAS read token, shared by every `XetDownloadStreamGroup` this
+    /// core creates, so at most one `xet-read-token` request happens per
+    /// token lifetime instead of one per group (one per file read).
+    xet_read_token: Arc<Mutex<Option<XetToken>>>,
+    /// Same idea for `XetUploadCommit`'s `xet-write-token`. Separate slot:
+    /// read and write are distinct HF API token scopes.
+    xet_write_token: Arc<Mutex<Option<XetToken>>>,
 }
 
 impl Debug for HfCore {
@@ -277,6 +333,8 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
+            xet_read_token: Arc::new(Mutex::new(None)),
+            xet_write_token: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -315,18 +373,24 @@ impl HfCore {
         headers
     }
 
-    /// Create a new XET upload commit with token refresh configured.
-    ///
-    /// Each call creates a fresh upload commit from the shared XET session.
-    pub(super) async fn xet_upload_commit(&self) -> Result<XetUploadCommit> {
-        let refresh_url = self.repo.xet_token_url(&self.endpoint, "write");
-        let refresh_headers = self.xet_token_refresh_headers();
+    /// Create a new XET upload commit, seeded with a cached CAS write token
+    /// so it doesn't have to fetch its own. Still creates a fresh commit
+    /// each call -- only the token (and its `/api` request) is reused; see
+    /// [`Self::xet_download_group`] for why the object itself isn't cached.
+    pub(super) async fn xet_upload_commit(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<XetUploadCommit> {
+        let (token, refresh_url, refresh_headers) =
+            self.xet_auth(ctx, XetTokenScope::Write).await?;
         self.xet_session
             .new_upload_commit()
             .map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
                     .set_source(err)
             })?
+            .with_endpoint(token.cas_url)
+            .with_token_info(token.access_token, token.expires_at)
             .with_token_refresh_url(refresh_url, refresh_headers)
             .build()
             .await
@@ -336,12 +400,77 @@ impl HfCore {
             })
     }
 
-    /// Create a new XET download stream group with token refresh configured.
-    ///
-    /// Each call creates a fresh download group from the shared XET session.
-    pub(super) async fn xet_download_group(&self) -> Result<XetDownloadStreamGroup> {
-        let refresh_url = self.repo.xet_token_url(&self.endpoint, "read");
+    /// A cached token for `scope`, plus the URL/headers to configure
+    /// automatic refresh on a builder that outlives this call. Shared by
+    /// [`Self::xet_upload_commit`] and [`Self::xet_download_group`], which
+    /// otherwise differ only in which builder they seed with it.
+    async fn xet_auth(
+        &self,
+        ctx: &OperationContext,
+        scope: XetTokenScope,
+    ) -> Result<(XetToken, String, http::HeaderMap)> {
+        let token = self.cached_xet_token(ctx, scope).await?;
+        let refresh_url = self.repo.xet_token_url(&self.endpoint, scope);
         let refresh_headers = self.xet_token_refresh_headers();
+        Ok((token, refresh_url, refresh_headers))
+    }
+
+    /// Get a still-valid cached token for `scope`, fetching and caching a
+    /// fresh one if missing or close to expiry. The lock is held across the
+    /// refresh request so concurrent callers single-flight onto one fetch.
+    ///
+    /// On a clock failure, `now` falls back to `u64::MAX` so the token is
+    /// treated as stale (extra `/api` traffic) rather than `0`, which would
+    /// pin a stale token as valid forever.
+    async fn cached_xet_token(
+        &self,
+        ctx: &OperationContext,
+        scope: XetTokenScope,
+    ) -> Result<XetToken> {
+        let cache = match scope {
+            XetTokenScope::Read => &self.xet_read_token,
+            XetTokenScope::Write => &self.xet_write_token,
+        };
+        let mut cached = cache.lock().await;
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(u64::MAX);
+        if let Some(token) = cached.as_ref()
+            && token.expires_at > now.saturating_add(XET_TOKEN_REFRESH_BUFFER_SECS)
+        {
+            return Ok(token.clone());
+        }
+
+        let url = self.repo.xet_token_url(&self.endpoint, scope);
+        let req = self
+            .request(http::Method::GET, &url, Operation::Read, "XetToken")?
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let (_, info): (_, XetTokenResponse) = self.send_parse(ctx, req).await?;
+        let fresh = XetToken {
+            cas_url: info.cas_url,
+            access_token: info.access_token,
+            expires_at: info.exp,
+        };
+        *cached = Some(fresh.clone());
+        Ok(fresh)
+    }
+
+    /// Create a new XET download stream group, seeded with a cached CAS read
+    /// token so it doesn't have to fetch its own. Called once per `HfReader`
+    /// (see `xet_group` in reader.rs) rather than cached on `HfCore`: its
+    /// internal progress tracking (`GroupProgress.items`) has no eviction, so
+    /// sharing one group across every reader on an `Operator` would grow it
+    /// without bound. Scoping to a reader's lifetime keeps that growth
+    /// bounded by the reader instead. Same reasoning applies to
+    /// `xet_upload_commit`'s commit objects.
+    pub(super) async fn xet_download_group(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<XetDownloadStreamGroup> {
+        let (token, refresh_url, refresh_headers) = self.xet_auth(ctx, XetTokenScope::Read).await?;
         self.xet_session
             .new_download_stream_group()
             .map_err(|err| {
@@ -351,6 +480,8 @@ impl HfCore {
                 )
                 .set_source(err)
             })?
+            .with_endpoint(token.cas_url)
+            .with_token_info(token.access_token, token.expires_at)
             .with_token_refresh_url(refresh_url, refresh_headers)
             .build()
             .await
@@ -468,7 +599,9 @@ impl HfCore {
     ///
     /// In `Xet` mode adds `Accept: application/vnd.xet-fileinfo+json` so the
     /// server returns XET metadata instead of redirecting; in `Http` mode the
-    /// redirect is followed and the file bytes are streamed directly.
+    /// redirect is followed and the file bytes are streamed directly. Either
+    /// way, the response may carry an `x-xet-hash` header -- interpreting
+    /// that is up to the caller, not this method's concern.
     pub(super) async fn resolve(
         &self,
         ctx: &OperationContext,
@@ -590,6 +723,9 @@ pub(crate) mod test_utils {
     pub(crate) struct MockHttpTransport {
         url: Arc<Mutex<Option<String>>>,
         body: Arc<Mutex<Option<String>>>,
+        request_count: Arc<Mutex<usize>>,
+        /// `exp` returned by the mocked `xet-{read,write}-token` endpoint.
+        xet_token_expires_at: Arc<Mutex<u64>>,
     }
 
     impl MockHttpTransport {
@@ -597,7 +733,15 @@ pub(crate) mod test_utils {
             Self {
                 url: Arc::new(Mutex::new(None)),
                 body: Arc::new(Mutex::new(None)),
+                request_count: Arc::new(Mutex::new(0)),
+                xet_token_expires_at: Arc::new(Mutex::new(u64::MAX)),
             }
+        }
+
+        /// Controls the `exp` field returned by the mocked
+        /// `xet-{read,write}-token` endpoint for subsequent requests.
+        pub(crate) fn set_xet_token_expires_at(&self, expires_at: u64) {
+            *self.xet_token_expires_at.lock().unwrap() = expires_at;
         }
 
         pub(crate) fn get_captured_url(&self) -> String {
@@ -607,20 +751,32 @@ pub(crate) mod test_utils {
         pub(crate) fn get_captured_body(&self) -> String {
             self.body.lock().unwrap().clone().unwrap_or_default()
         }
+
+        pub(crate) fn request_count(&self) -> usize {
+            *self.request_count.lock().unwrap()
+        }
     }
 
     impl HttpTransport for MockHttpTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            *self.url.lock().unwrap() = Some(req.uri().to_string());
+            // Yield once so concurrent callers (`futures::join!` in the
+            // single-flight tests) actually interleave instead of running to
+            // completion one at a time -- without this, a fully synchronous
+            // mock never gives the executor a chance to poll a second caller
+            // while the first is still "in flight", so tests asserting on
+            // single-flighted locking would pass even if the locking were
+            // broken.
+            tokio::task::yield_now().await;
+            *self.request_count.lock().unwrap() += 1;
+            let url = req.uri().to_string();
+            *self.url.lock().unwrap() = Some(url.clone());
             *self.body.lock().unwrap() = Some(
                 String::from_utf8(req.body().to_bytes().to_vec())
                     .expect("request body must be utf-8 for test payloads"),
             );
 
             // Return a minimal valid JSON response for API requests
-            let (body, content_length) = if req.uri().to_string().contains("/paths-info/")
-                || req.uri().to_string().contains("/tree/")
-            {
+            let (body, content_length) = if url.contains("/paths-info/") || url.contains("/tree/") {
                 let data =
                     Bytes::from(r#"[{"type":"file","oid":"abc123","size":100,"path":"test.txt"}]"#);
                 let size = data.len() as u64;
@@ -629,8 +785,19 @@ pub(crate) mod test_utils {
                     HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
                     size,
                 )
-            } else if req.uri().to_string().contains("/commit/") {
+            } else if url.contains("/commit/") {
                 let data = Bytes::from(r#"{}"#);
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
+            } else if url.contains("xet-read-token") || url.contains("xet-write-token") {
+                let exp = *self.xet_token_expires_at.lock().unwrap();
+                let data = Bytes::from(format!(
+                    r#"{{"casUrl":"https://cas.example.com","exp":{exp},"accessToken":"mock-token"}}"#
+                ));
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
                 (
@@ -771,6 +938,112 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_xet_read_token_is_cached_across_calls() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        let first = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 1);
+        assert_eq!(first.access_token, "mock-token");
+        assert_eq!(first.cas_url, "https://cas.example.com");
+
+        // A second call with the cached token nowhere near expiry must not
+        // hit the network again.
+        let second = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 1);
+        assert_eq!(second.access_token, first.access_token);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_xet_read_token_refreshes_once_stale() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        // Already within the refresh buffer of "now" -- immediately stale.
+        mock_client.set_xet_token_expires_at(0);
+
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 1);
+
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(
+            mock_client.request_count(),
+            2,
+            "a token that's always stale must be refreshed on every call, not cached"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_xet_read_and_write_tokens_are_cached_independently() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 1);
+
+        // A write token request must not be satisfied by the read token's
+        // cache slot -- read and write are distinct HF API scopes.
+        core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+        assert_eq!(mock_client.request_count(), 2);
+        assert!(mock_client.get_captured_url().contains("write"));
+
+        // Both are now warm; neither call should hit the network again.
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+        assert_eq!(mock_client.request_count(), 2);
+
+        Ok(())
+    }
+
+    /// The whole point of holding the cache's mutex across the refresh
+    /// call: concurrent callers racing on a stale/missing token queue
+    /// behind one in-flight refresh instead of each firing their own.
+    #[tokio::test]
+    async fn test_concurrent_stale_token_refresh_is_single_flighted() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        let (r1, r2, r3) = futures::join!(
+            core.cached_xet_token(&ctx, XetTokenScope::Read),
+            core.cached_xet_token(&ctx, XetTokenScope::Read),
+            core.cached_xet_token(&ctx, XetTokenScope::Read),
+        );
+        r1?;
+        r2?;
+        r3?;
+
+        assert_eq!(
+            mock_client.request_count(),
+            1,
+            "concurrent callers racing on a cold/stale token must share one refresh"
+        );
+
+        Ok(())
+    }
 }
 
 mod error {
@@ -873,6 +1146,7 @@ mod uri {
     use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
     pub use super::HfRepoType;
+    use super::XetTokenScope;
     use crate::HUGGINGFACE_SCHEME;
     use opendal_core::raw::*;
 
@@ -932,7 +1206,8 @@ mod uri {
         }
 
         /// Build the XET token API URL for this repository.
-        pub fn xet_token_url(&self, endpoint: &str, token_type: &str) -> String {
+        pub fn xet_token_url(&self, endpoint: &str, scope: XetTokenScope) -> String {
+            let token_type = scope.as_str();
             match self.repo_type {
                 HfRepoType::Bucket => {
                     format!(
@@ -1388,8 +1663,12 @@ mod uri {
         #[test]
         fn test_bucket_xet_token_urls() {
             let p = resolve("buckets/user/bucket");
-            let read_url = p.repo.xet_token_url("https://huggingface.co", "read");
-            let write_url = p.repo.xet_token_url("https://huggingface.co", "write");
+            let read_url = p
+                .repo
+                .xet_token_url("https://huggingface.co", XetTokenScope::Read);
+            let write_url = p
+                .repo
+                .xet_token_url("https://huggingface.co", XetTokenScope::Write);
             assert_eq!(
                 read_url,
                 "https://huggingface.co/api/buckets/user/bucket/xet-read-token"

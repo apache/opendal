@@ -932,9 +932,8 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     public void RemoveAll(string path)
     {
-        ObjectDisposedException.ThrowIf(IsInvalid, this);
-        var result = NativeMethods.operator_remove_all(this, path);
-        ThrowIfErrorAndRelease(result);
+        var options = new DeleteOptions { Recursive = true };
+        Delete(path, options);
     }
 
     /// <summary>
@@ -945,22 +944,8 @@ public partial class Operator : SafeHandle
     /// <returns>A task that completes when the native callback reports completion.</returns>
     public Task RemoveAllAsync(string path, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(IsInvalid, this);
-
-        return SubmitAsyncOperation(SubmitRemoveAllAsync, cancellationToken);
-
-        OpenDALResult SubmitRemoveAllAsync(long context)
-        {
-            unsafe
-            {
-                return NativeMethods.operator_remove_all_async(
-                    this,
-                    path,
-                    &OnRemoveAllCompleted,
-                    context
-                );
-            }
-        }
+        var options = new DeleteOptions { Recursive = true };
+        return DeleteAsync(path, options, cancellationToken);
     }
 
     /// <summary>
@@ -1582,17 +1567,6 @@ public partial class Operator : SafeHandle
     /// <param name="result">Rename completion result returned by the native layer.</param>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnRenameCompleted(long context, OpenDALResult result)
-    {
-        CompleteAsyncCallback(context, result);
-    }
-
-    /// <summary>
-    /// Native callback invoked when an asynchronous remove-all operation finishes.
-    /// </summary>
-    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
-    /// <param name="result">Remove-all completion result returned by the native layer.</param>
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnRemoveAllCompleted(long context, OpenDALResult result)
     {
         CompleteAsyncCallback(context, result);
     }

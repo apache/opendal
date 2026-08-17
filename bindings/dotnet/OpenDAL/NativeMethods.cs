@@ -440,26 +440,6 @@ internal partial class NativeMethods
 
     #endregion
 
-    #region RemoveAll
-
-    [LibraryImport(__DllName, EntryPoint = "operator_remove_all", StringMarshalling = StringMarshalling.Utf8)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_remove_all(
-        Operator op,
-        string path
-    );
-
-    [LibraryImport(__DllName, EntryPoint = "operator_remove_all_async", StringMarshalling = StringMarshalling.Utf8)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static unsafe partial OpenDALResult operator_remove_all_async(
-        Operator op,
-        string path,
-        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
-        long context
-    );
-
-    #endregion
-
     #region Presign
 
     [LibraryImport(__DllName, EntryPoint = "operator_presign_read_async", StringMarshalling = StringMarshalling.Utf8)]

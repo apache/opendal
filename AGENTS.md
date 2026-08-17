@@ -11,7 +11,7 @@ Guidance for AI coding agents working in this repository.
 
 ## AI-Assisted Contributions
 
-Follow the [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
+Follow [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
 policy.
 
 - Do not publish an Issue, Pull Request, Discussion, or review comment unless a

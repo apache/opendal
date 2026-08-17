@@ -130,6 +130,22 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region DeleteOption
+
+    [LibraryImport(__DllName, EntryPoint = "delete_option_build", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOptionsResult delete_option_build(
+        [In] string[] keys,
+        [In] string[] values,
+        nuint len
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "delete_option_free")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void delete_option_free(IntPtr options);
+
+    #endregion
+
     #endregion
 
     #region Layer
@@ -340,18 +356,20 @@ internal partial class NativeMethods
 
     #region Delete
 
-    [LibraryImport(__DllName, EntryPoint = "operator_delete", StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_with_options", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_delete(
-        Operator op,
-        string path
-    );
-
-    [LibraryImport(__DllName, EntryPoint = "operator_delete_async", StringMarshalling = StringMarshalling.Utf8)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static unsafe partial OpenDALResult operator_delete_async(
+    internal static partial OpenDALResult operator_delete_with_options(
         Operator op,
         string path,
+        IntPtr options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_delete_with_options_async(
+        Operator op,
+        string path,
+        IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
     );

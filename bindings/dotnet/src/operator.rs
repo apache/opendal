@@ -22,7 +22,10 @@ use crate::{
     executor::executor_or_default,
     metadata::OpendalMetadata,
     operator_info::{OpendalOperatorInfo, into_operator_info},
-    options::{parse_list_options, parse_read_options, parse_stat_options, parse_write_options},
+    options::{
+        parse_delete_options, parse_list_options, parse_read_options, parse_stat_options,
+        parse_write_options,
+    },
     presign::into_presigned_request_ptr,
     result::{
         OpendalEntryListResult, OpendalMetadataResult, OpendalOperatorInfoResult,
@@ -259,6 +262,42 @@ pub unsafe extern "C" fn list_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn list_option_free(options: *mut opendal::options::ListOptions) {
+    if options.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(options));
+    }
+}
+
+/// Build delete options from raw C string key/value arrays.
+///
+/// On success, the returned pointer must be released by `delete_option_free`.
+/// # Safety
+///
+/// - When `len > 0`, `keys` and `values` must be non-null pointers to arrays
+///   containing at least `len` C-string pointers.
+/// - Each key/value entry must be a valid null-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn delete_option_build(
+    keys: *const *const c_char,
+    values: *const *const c_char,
+    len: usize,
+) -> OpendalOptionsResult {
+    match unsafe { collect_options(keys, values, len) }
+        .and_then(|values| parse_delete_options(&values))
+    {
+        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
+        Err(error) => OpendalOptionsResult::from_error(error),
+    }
+}
+
+/// # Safety
+///
+/// - `options` must be null or a pointer returned by `delete_option_build`.
+/// - This function must be called at most once for the same pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn delete_option_free(options: *mut opendal::options::DeleteOptions) {
     if options.is_null() {
         return;
     }
@@ -623,59 +662,71 @@ fn operator_duplicate_inner(op_handle: *const OperatorHandle) -> Result<*mut c_v
     Ok(Box::into_raw(Box::new(handle.with_operator(handle.operator()))) as *mut c_void)
 }
 
-/// Delete `path` synchronously.
+/// Delete `path` synchronously with options.
 /// # Safety
 ///
 /// - `op_handle` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
+/// - `options` must be null or a pointer returned by `delete_option_build`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_delete(
+pub extern "C" fn operator_delete_with_options(
     op_handle: *const OperatorHandle,
     path: *const c_char,
+    options: *const opendal::options::DeleteOptions,
 ) -> OpendalResult {
-    match operator_delete_inner(op_handle, path) {
+    match operator_delete_with_options_inner(op_handle, path, options) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_delete_inner(
+fn operator_delete_with_options_inner(
     op_handle: *const OperatorHandle,
     path: *const c_char,
+    options: *const opendal::options::DeleteOptions,
 ) -> Result<(), OpenDALError> {
     let handle = require_op_handle(op_handle)?;
     let executor = handle.executor.clone();
     let path = require_cstr(path, "path")?;
 
+    let options = if options.is_null() {
+        opendal::options::DeleteOptions::default()
+    } else {
+        unsafe { (&*options).clone() }
+    };
+
     executor
-        .block_on(handle.delete(path))
+        .block_on(handle.delete_options(path, options))
         .map_err(OpenDALError::from_opendal_error)
 }
 
-/// Delete `path` asynchronously.
+/// Delete `path` asynchronously with options.
 ///
 /// The callback is invoked exactly once with the final result.
 /// # Safety
 ///
 /// - `op_handle` must be a valid operator pointer from `operator_construct`.
 /// - `path` must be a valid null-terminated UTF-8 string.
+/// - `options` must be null or a pointer returned by `delete_option_build`.
 /// - `callback` must be a valid function pointer and remain callable until invoked.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_delete_async(
+pub extern "C" fn operator_delete_with_options_async(
     op_handle: *const OperatorHandle,
     path: *const c_char,
+    options: *const opendal::options::DeleteOptions,
     callback: Option<WriteCallback>,
     context: i64,
 ) -> OpendalResult {
-    match operator_delete_async_inner(op_handle, path, callback, context) {
+    match operator_delete_with_options_async_inner(op_handle, path, options, callback, context) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_delete_async_inner(
+fn operator_delete_with_options_async_inner(
     op_handle: *const OperatorHandle,
     path: *const c_char,
+    options: *const opendal::options::DeleteOptions,
     callback: Option<WriteCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
@@ -684,10 +735,16 @@ fn operator_delete_async_inner(
     let path = require_cstr(path, "path")?.to_string();
     let callback = require_callback(callback)?;
 
+    let options = if options.is_null() {
+        opendal::options::DeleteOptions::default()
+    } else {
+        unsafe { (&*options).clone() }
+    };
+
     let op = handle.operator();
     executor.spawn(async move {
         let result = op
-            .delete(&path)
+            .delete_options(&path, options)
             .await
             .map_err(OpenDALError::from_opendal_error);
 

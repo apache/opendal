@@ -766,10 +766,12 @@ public partial class Operator : SafeHandle
     /// Deletes the file at the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
-    public void Delete(string path)
+    /// <param name="options">Additional delete options.</param>
+    public void Delete(string path, DeleteOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
-        var result = NativeMethods.operator_delete(this, path);
+        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        var result = NativeMethods.operator_delete_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
         ThrowIfErrorAndRelease(result);
     }
 
@@ -777,21 +779,23 @@ public partial class Operator : SafeHandle
     /// Deletes the file at the specified path asynchronously.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="options">Additional delete options.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
     /// <returns>A task that completes when the native callback reports completion.</returns>
-    public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(string path, DeleteOptions? options = null, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation(SubmitDeleteAsync, cancellationToken);
+        return SubmitAsyncOperation(options, SubmitDeleteAsync, cancellationToken);
 
-        OpenDALResult SubmitDeleteAsync(long context)
+        OpenDALResult SubmitDeleteAsync(long context, IntPtr optionsHandle)
         {
             unsafe
             {
-                return NativeMethods.operator_delete_async(
+                return NativeMethods.operator_delete_with_options_async(
                     this,
                     path,
+                    optionsHandle,
                     &OnDeleteCompleted,
                     context
                 );
@@ -1276,6 +1280,39 @@ public partial class Operator : SafeHandle
     {
         cancellationToken.ThrowIfCancellationRequested();
         var context = AsyncStateRegistry.Register<TOutput>(out var asyncState);
+        try
+        {
+            using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+            var submitResult = submit(context, GetOptionsHandle(nativeOptionsHandle));
+            ThrowIfErrorAndRelease(submitResult);
+            asyncState.BindCancellation(cancellationToken);
+            return asyncState.Completion.Task;
+        }
+        catch
+        {
+            AsyncStateRegistry.Unregister(context);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Submits a native async operation and binds it to a managed task completion source.
+    /// </summary>
+    /// <typeparam name="TOptions">Managed options type.</typeparam>
+    /// <param name="options">Optional managed options for this operation.</param>
+    /// <param name="submit">Submission delegate that invokes the native async API.</param>
+    /// <param name="cancellationToken">Cancellation token for managed task observation.</param>
+    /// <returns>A task completed by the corresponding native callback.</returns>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
+    /// <exception cref="OpenDALException">Native submission returns an immediate error.</exception>
+    internal static Task SubmitAsyncOperation<TOptions>(
+        TOptions? options,
+        Func<long, IntPtr, OpenDALResult> submit,
+        CancellationToken cancellationToken)
+        where TOptions : class, IOptions
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var context = AsyncStateRegistry.Register<bool>(out var asyncState);
         try
         {
             using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();

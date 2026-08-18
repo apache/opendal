@@ -22,6 +22,7 @@ use http::Response;
 use http::header;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
@@ -160,6 +161,11 @@ pub(super) struct XetFileResponse {
     pub size: u64,
 }
 
+#[derive(Deserialize)]
+pub(super) struct RepoInfoResponse {
+    pub id: String,
+}
+
 #[derive(serde::Deserialize, Debug)]
 pub(super) struct CommitResponse {
     #[allow(dead_code)]
@@ -244,6 +250,7 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
+    canonical_repo: Arc<Mutex<Option<HfRepo>>>,
 }
 
 impl Debug for HfCore {
@@ -277,6 +284,7 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
+            canonical_repo: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -318,8 +326,14 @@ impl HfCore {
     /// Create a new XET upload commit with token refresh configured.
     ///
     /// Each call creates a fresh upload commit from the shared XET session.
-    pub(super) async fn xet_upload_commit(&self) -> Result<XetUploadCommit> {
-        let refresh_url = self.repo.xet_token_url(&self.endpoint, "write");
+    pub(super) async fn xet_upload_commit(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<XetUploadCommit> {
+        let refresh_url = self
+            .canonical_repo(ctx)
+            .await?
+            .xet_token_url(&self.endpoint, "write");
         let refresh_headers = self.xet_token_refresh_headers();
         self.xet_session
             .new_upload_commit()
@@ -339,8 +353,14 @@ impl HfCore {
     /// Create a new XET download stream group with token refresh configured.
     ///
     /// Each call creates a fresh download group from the shared XET session.
-    pub(super) async fn xet_download_group(&self) -> Result<XetDownloadStreamGroup> {
-        let refresh_url = self.repo.xet_token_url(&self.endpoint, "read");
+    pub(super) async fn xet_download_group(
+        &self,
+        ctx: &OperationContext,
+    ) -> Result<XetDownloadStreamGroup> {
+        let refresh_url = self
+            .canonical_repo(ctx)
+            .await?
+            .xet_token_url(&self.endpoint, "read");
         let refresh_headers = self.xet_token_refresh_headers();
         self.xet_session
             .new_download_stream_group()
@@ -396,9 +416,57 @@ impl HfCore {
         Ok(req)
     }
 
-    /// Build an [`HfUri`] for the given operator-relative path.
-    pub(super) fn uri(&self, path: &str) -> HfUri {
-        self.repo.uri(&self.root, path)
+    /// Return the repo handle with the server's canonical repo id, resolving
+    /// and caching it on first use.
+    ///
+    /// HF resolves repo ids case-insensitively but replies 307 to any request
+    /// for a non-canonically-cased id (e.g. `user/repo` for `user/Repo`).
+    /// The transport cannot replay bodied requests (commit, paths-info)
+    /// through a redirect. Building every URL from the canonical id avoids
+    /// depending on redirect behavior entirely, removing the inconsistency across
+    /// operations.
+    pub(super) async fn canonical_repo(&self, ctx: &OperationContext) -> Result<HfRepo> {
+        // Buckets are addressed by opaque ids
+        if self.repo.is_bucket() {
+            return Ok(self.repo.clone());
+        }
+
+        if let Some(repo) = self
+            .canonical_repo
+            .lock()
+            .expect("canonical repo lock must not be poisoned")
+            .clone()
+        {
+            return Ok(repo);
+        }
+
+        let url = format!(
+            "{}/api/{}/{}",
+            self.endpoint,
+            self.repo.repo_type.as_plural_str(),
+            self.repo.repo_id,
+        );
+        let req = self
+            .request(http::Method::GET, &url, Operation::Stat, "RepoInfo")?
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let (_, info) = self.send_parse::<RepoInfoResponse>(ctx, req).await?;
+
+        let mut repo = self.repo.clone();
+        repo.repo_id = info.id;
+
+        *self
+            .canonical_repo
+            .lock()
+            .expect("canonical repo lock must not be poisoned") = Some(repo.clone());
+
+        Ok(repo)
+    }
+
+    /// Build an [`HfUri`] for the given operator-relative path, using the
+    /// canonical repo id.
+    pub(super) async fn canonical_uri(&self, ctx: &OperationContext, path: &str) -> Result<HfUri> {
+        Ok(self.canonical_repo(ctx).await?.uri(&self.root, path))
     }
 
     /// Convert an operator-relative path to a repo-absolute path
@@ -445,7 +513,7 @@ impl HfCore {
     }
 
     pub(super) async fn path_info(&self, ctx: &OperationContext, path: &str) -> Result<PathInfo> {
-        let uri = self.uri(path);
+        let uri = self.canonical_uri(ctx, path).await?;
         let url = uri.paths_info_url(&self.endpoint);
         let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
 
@@ -476,7 +544,7 @@ impl HfCore {
         range: BytesRange,
         mode: HfDownloadMode,
     ) -> Result<Response<HttpBody>> {
-        let uri = self.uri(path);
+        let uri = self.canonical_uri(ctx, path).await?;
         let url = uri.resolve_url(&self.endpoint, self.repo.revision());
 
         let mut req = self.request(http::Method::GET, &url, Operation::Read, "Resolve")?;
@@ -519,7 +587,10 @@ impl HfCore {
         deleted_files: Vec<DeletedFile>,
         deleted_folders: Vec<DeletedFolder>,
     ) -> Result<CommitResponse> {
-        let url = self.repo.git_commit_url(&self.endpoint);
+        let url = self
+            .canonical_repo(ctx)
+            .await?
+            .git_commit_url(&self.endpoint);
 
         let payload = MixedCommitPayload {
             summary: "Commit via OpenDAL".to_string(),
@@ -631,6 +702,16 @@ pub(crate) mod test_utils {
                 )
             } else if req.uri().to_string().contains("/commit/") {
                 let data = Bytes::from(r#"{}"#);
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                (
+                    HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size)),
+                    size,
+                )
+            } else if let Some(rest) = req.uri().path().strip_prefix("/api/") {
+                // Repo-info: echo the requested id back as the canonical id.
+                let id = rest.split_once('/').map(|(_, id)| id).unwrap_or(rest);
+                let data = Bytes::from(format!(r#"{{"id":"{id}"}}"#));
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
                 (
@@ -768,6 +849,112 @@ mod tests {
             url,
             "https://huggingface.co/api/spaces/test-user/test-space/paths-info/main"
         );
+
+        Ok(())
+    }
+
+    /// A scripted transport mirroring how HF serves a repo whose configured id
+    /// is not canonically cased: repo-info returns the canonical id, and only
+    /// the canonical commit URL accepts the commit.
+    #[derive(Clone, Default)]
+    struct CanonicalCaseTransport {
+        requests: Arc<Mutex<Vec<(String, String, String)>>>,
+    }
+
+    impl HttpTransport for CanonicalCaseTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let uri = req.uri().to_string();
+            let auth = req
+                .headers()
+                .get(header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            self.requests
+                .lock()
+                .unwrap()
+                .push((req.method().to_string(), uri.clone(), auth));
+
+            let body = match uri.as_str() {
+                "https://huggingface.co/api/models/test-user/uppercase-repo" => {
+                    Bytes::from_static(br#"{"id":"test-user/Uppercase-Repo"}"#)
+                }
+                "https://huggingface.co/api/models/test-user/Uppercase-Repo/commit/main" => {
+                    Bytes::from_static(b"{}")
+                }
+                other => panic!("unexpected request to {other}"),
+            };
+            let len = body.len() as u64;
+            Ok(Response::builder()
+                .status(http::StatusCode::OK)
+                .header(header::CONTENT_LENGTH, len)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(Buffer::from(body))]),
+                    Some(len),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_commit_uses_canonical_repo_id() -> Result<()> {
+        let transport = CanonicalCaseTransport::default();
+        let ctx = OperationContext::from_parts(
+            HttpTransporter::new(transport.clone()),
+            Executor::default(),
+        );
+
+        let xet_session = XetSessionBuilder::new()
+            .build()
+            .expect("failed to create xet session");
+        let core = HfCore::new(
+            ServiceInfo::new("hf", "", ""),
+            Capability::default(),
+            HfRepo::new(
+                HfRepoType::Model,
+                "test-user/uppercase-repo".to_string(),
+                Some("main".to_string()),
+            ),
+            "/".to_string(),
+            Some("hf_dummy".to_string()),
+            "https://huggingface.co".to_string(),
+            xet_session,
+            HfDownloadMode::Xet,
+        );
+
+        let lfs_file = |path: &str| LfsFile {
+            path: path.to_string(),
+            oid: "deadbeef".to_string(),
+            algo: "sha256".to_string(),
+            size: 2812,
+        };
+        core.commit_git(&ctx, vec![], vec![lfs_file("a.md")], vec![], vec![])
+            .await?;
+        core.commit_git(&ctx, vec![], vec![lfs_file("b.md")], vec![], vec![])
+            .await?;
+
+        let requests = transport.requests.lock().unwrap();
+        let expected = [
+            (
+                "GET",
+                "https://huggingface.co/api/models/test-user/uppercase-repo",
+            ),
+            (
+                "POST",
+                "https://huggingface.co/api/models/test-user/Uppercase-Repo/commit/main",
+            ),
+            // The canonical id is cached: no second repo-info request.
+            (
+                "POST",
+                "https://huggingface.co/api/models/test-user/Uppercase-Repo/commit/main",
+            ),
+        ];
+        assert_eq!(requests.len(), expected.len());
+        for ((method, uri, auth), (exp_method, exp_uri)) in requests.iter().zip(expected) {
+            assert_eq!(method, exp_method);
+            assert_eq!(uri, exp_uri);
+            assert_eq!(auth, "Bearer hf_dummy");
+        }
 
         Ok(())
     }

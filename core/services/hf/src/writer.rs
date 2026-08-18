@@ -89,7 +89,7 @@ impl HfWriter {
     /// subsequent [`write`](oio::Write::write) calls can stream data
     /// directly into the XET CAS.
     pub async fn try_new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Result<Self> {
-        let commit = core.xet_upload_commit().await?;
+        let commit = core.xet_upload_commit(&ctx).await?;
         let stream = commit
             .upload_stream(None, Sha256Policy::Compute)
             .await

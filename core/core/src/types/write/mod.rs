@@ -18,6 +18,10 @@
 mod writer;
 pub use writer::Writer;
 
+mod checksum;
+pub use checksum::Checksum;
+pub use checksum::ChecksumAlgorithm;
+
 mod buffer_sink;
 pub use buffer_sink::BufferSink;
 mod futures_async_writer;

@@ -1047,8 +1047,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cffb0e931875b666fc4fcb20fee52e9bbd1ef836fd9e9e04ec21555f9f85f7ef"
 dependencies = [
  "fastrand",
+]
+
+[[package]]
+name = "backon"
+version = "1.6.0"
+source = "git+https://github.com/ddupg/backon.git?rev=7eeed718cb85bb89752194797cbbcc85e3271299#7eeed718cb85bb89752194797cbbcc85e3271299"
+dependencies = [
+ "fastrand",
  "gloo-timers",
  "tokio",
+ "web-time",
 ]
 
 [[package]]
@@ -6730,7 +6739,7 @@ dependencies = [
 name = "opendal-layer-retry"
 version = "0.58.2"
 dependencies = [
- "backon",
+ "backon 1.6.0 (git+https://github.com/ddupg/backon.git?rev=7eeed718cb85bb89752194797cbbcc85e3271299)",
  "bytes",
  "futures",
  "log",
@@ -9056,7 +9065,7 @@ dependencies = [
  "arc-swap",
  "arcstr",
  "async-lock",
- "backon",
+ "backon 1.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes",
  "cfg-if 1.0.4",
  "combine",

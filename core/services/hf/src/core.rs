@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -22,7 +23,6 @@ use http::Response;
 use http::header;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
@@ -250,7 +250,7 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
-    canonical_repo: Arc<Mutex<Option<HfRepo>>>,
+    canonical_repo: OnceCell<HfRepo>,
 }
 
 impl Debug for HfCore {
@@ -284,7 +284,7 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
-            canonical_repo: Arc::new(Mutex::new(None)),
+            canonical_repo: OnceCell::new(),
         }
     }
 
@@ -431,36 +431,26 @@ impl HfCore {
             return Ok(self.repo.clone());
         }
 
-        if let Some(repo) = self
-            .canonical_repo
-            .lock()
-            .expect("canonical repo lock must not be poisoned")
-            .clone()
-        {
-            return Ok(repo);
-        }
+        self.canonical_repo
+            .get_or_try_init(|| async {
+                let url = format!(
+                    "{}/api/{}/{}",
+                    self.endpoint,
+                    self.repo.repo_type.as_plural_str(),
+                    self.repo.repo_id,
+                );
+                let req = self
+                    .request(http::Method::GET, &url, Operation::Stat, "RepoInfo")?
+                    .body(Buffer::new())
+                    .map_err(new_request_build_error)?;
+                let (_, info) = self.send_parse::<RepoInfoResponse>(ctx, req).await?;
 
-        let url = format!(
-            "{}/api/{}/{}",
-            self.endpoint,
-            self.repo.repo_type.as_plural_str(),
-            self.repo.repo_id,
-        );
-        let req = self
-            .request(http::Method::GET, &url, Operation::Stat, "RepoInfo")?
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        let (_, info) = self.send_parse::<RepoInfoResponse>(ctx, req).await?;
-
-        let mut repo = self.repo.clone();
-        repo.repo_id = info.id;
-
-        *self
-            .canonical_repo
-            .lock()
-            .expect("canonical repo lock must not be poisoned") = Some(repo.clone());
-
-        Ok(repo)
+                let mut repo = self.repo.clone();
+                repo.repo_id = info.id;
+                Ok(repo)
+            })
+            .await
+            .cloned()
     }
 
     /// Build an [`HfUri`] for the given operator-relative path, using the
@@ -769,6 +759,8 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use super::super::core::HfRepoType;
     use super::test_utils::create_test_core;
     use super::*;

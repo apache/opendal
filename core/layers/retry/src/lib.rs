@@ -1479,7 +1479,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn max_elapsed_time_zero_should_not_retry_stat() -> Result<()> {
+    async fn test_max_elapsed_time_stat() -> Result<()> {
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?.layer(
             RetryLayer::default()
@@ -1495,7 +1495,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn max_elapsed_time_zero_should_not_retry_writer_close() -> Result<()> {
+    async fn test_max_elapsed_time_writer_close() -> Result<()> {
         #[derive(Clone, Default)]
         struct Recorder {
             retries: Arc<Mutex<usize>>,

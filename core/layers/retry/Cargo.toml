@@ -32,7 +32,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-backon = { git = "https://github.com/ddupg/backon.git", rev = "7f084670950ee31a4ccaba2af60a8fdcc4abcd0d", features = ["tokio-sleep"] }
+backon = { git = "https://github.com/ddupg/backon.git", rev = "e5c333bdfa6598b0644133b023c72c4d16a1acc0", features = ["tokio-sleep"] }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 

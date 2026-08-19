@@ -312,6 +312,75 @@ mod tests {
         Ok(())
     }
 
+    /// A failed classifying resolve must not permanently cache a failure:
+    /// the next `open()` on the same reader should retry rather than being
+    /// stuck erroring for the reader's whole lifetime.
+    #[tokio::test]
+    async fn test_classification_retries_after_resolve_failure() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        let reader = hf_reader(core, ctx, "plain.txt");
+        mock_client.fail_next_requests(1);
+
+        // The injected failure hits the canonical repo id lookup, the first
+        // request a classifying resolve makes.
+        let result = reader.open(BytesRange::new(0, Some(1))).await;
+        assert!(
+            result.is_err(),
+            "a failed classifying resolve must surface as an error"
+        );
+        assert_eq!(mock_client.request_count(), 1);
+
+        let (_, mut stream) = reader.open(BytesRange::new(0, Some(1))).await?;
+        stream.read().await?;
+        assert_eq!(
+            mock_client.request_count(),
+            4,
+            "classification must retry (canonical repo id + resolve) then fetch the range (1 more)"
+        );
+
+        Ok(())
+    }
+
+    /// Same guarantee as the non-XET version below, but for a file that
+    /// classifies as XET-backed: concurrent opens must share both the one
+    /// classifying resolve and the one `xet_group` build (and, via that
+    /// group, the one CAS read-token fetch) rather than each independently
+    /// racing to build its own group.
+    #[tokio::test]
+    async fn test_concurrent_cold_opens_on_xet_file_share_one_group() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_backed(&"00".repeat(32), 4);
+        mock_client.set_xet_token_expires_at(u64::MAX);
+        let reader = hf_reader(core, ctx, "xet-file.bin");
+
+        let (r1, r2, r3) = futures::join!(
+            reader.open(BytesRange::new(0, Some(1))),
+            reader.open(BytesRange::new(1, Some(1))),
+            reader.open(BytesRange::new(2, Some(1))),
+        );
+        r1?;
+        r2?;
+        r3?;
+
+        // 1 shared canonical repo id lookup + 1 shared classifying resolve +
+        // 1 shared xet-read-token fetch for the shared group build. Fetching
+        // actual bytes from the group would need a real CAS server, so this
+        // test only covers open().
+        assert_eq!(mock_client.request_count(), 3);
+
+        Ok(())
+    }
+
     /// Concurrent opens on a cold reader share exactly one classifying
     /// resolve (`object_store::get_ranges` drives up to 8 by default) --
     /// they must not each independently probe the path before finding out

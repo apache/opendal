@@ -158,7 +158,7 @@ pub(super) struct MixedCommitPayload {
 
 // API response types
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub(super) struct XetFileResponse {
     pub hash: String,
     pub size: u64,
@@ -781,6 +781,13 @@ pub(crate) mod test_utils {
         request_count: Arc<Mutex<usize>>,
         /// `exp` returned by the mocked `xet-{read,write}-token` endpoint.
         xet_token_expires_at: Arc<Mutex<u64>>,
+        /// Number of upcoming `fetch` calls that must fail with a 500
+        /// before resuming normal responses.
+        fail_next: Arc<Mutex<usize>>,
+        /// When set, a `/resolve/` request carries `x-xet-hash` and the
+        /// mocked [`XetFileResponse`] body instead of plain bytes, so tests
+        /// can exercise the XET classification path without real network.
+        xet_file: Arc<Mutex<Option<XetFileResponse>>>,
     }
 
     impl MockHttpTransport {
@@ -790,6 +797,8 @@ pub(crate) mod test_utils {
                 body: Arc::new(Mutex::new(None)),
                 request_count: Arc::new(Mutex::new(0)),
                 xet_token_expires_at: Arc::new(Mutex::new(u64::MAX)),
+                fail_next: Arc::new(Mutex::new(0)),
+                xet_file: Arc::new(Mutex::new(None)),
             }
         }
 
@@ -797,6 +806,22 @@ pub(crate) mod test_utils {
         /// `xet-{read,write}-token` endpoint for subsequent requests.
         pub(crate) fn set_xet_token_expires_at(&self, expires_at: u64) {
             *self.xet_token_expires_at.lock().unwrap() = expires_at;
+        }
+
+        /// Makes the next `n` calls to `fetch` return a 500 response instead
+        /// of their normal mocked payload.
+        pub(crate) fn fail_next_requests(&self, n: usize) {
+            *self.fail_next.lock().unwrap() = n;
+        }
+
+        /// Makes every subsequent `/resolve/` request report the path as
+        /// XET-backed with the given hash/size, via `x-xet-hash` and a
+        /// mocked [`XetFileResponse`] body.
+        pub(crate) fn set_xet_backed(&self, hash: &str, size: u64) {
+            *self.xet_file.lock().unwrap() = Some(XetFileResponse {
+                hash: hash.to_string(),
+                size,
+            });
         }
 
         pub(crate) fn get_captured_url(&self) -> String {
@@ -823,12 +848,45 @@ pub(crate) mod test_utils {
             // broken.
             tokio::task::yield_now().await;
             *self.request_count.lock().unwrap() += 1;
+
+            {
+                let mut fail_next = self.fail_next.lock().unwrap();
+                if *fail_next > 0 {
+                    *fail_next -= 1;
+                    return Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("x-error-message", "mock injected failure")
+                        .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                        .unwrap());
+                }
+            }
+
             let url = req.uri().to_string();
             *self.url.lock().unwrap() = Some(url.clone());
             *self.body.lock().unwrap() = Some(
                 String::from_utf8(req.body().to_bytes().to_vec())
                     .expect("request body must be utf-8 for test payloads"),
             );
+
+            if url.contains("/resolve/")
+                && let Some(info) = self.xet_file.lock().unwrap().clone()
+            {
+                let data = Bytes::from(format!(
+                    r#"{{"hash":"{}","size":{}}}"#,
+                    info.hash, info.size
+                ));
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_LENGTH, size)
+                    .header("x-xet-hash", info.hash)
+                    .body(HttpBody::new(
+                        futures::stream::iter(vec![Ok(buffer)]),
+                        Some(size),
+                    ))
+                    .unwrap());
+            }
 
             // Return a minimal valid JSON response for API requests
             let (body, content_length) = if url.contains("/paths-info/") || url.contains("/tree/") {
@@ -1165,6 +1223,36 @@ mod tests {
         Ok(())
     }
 
+    /// A failed refresh must not poison the cache: the next call should
+    /// retry against the network rather than being permanently stuck on an
+    /// error or on a stale/absent token.
+    #[tokio::test]
+    async fn test_cached_xet_token_retries_after_fetch_failure() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+        mock_client.fail_next_requests(1);
+
+        // The injected failure hits the canonical repo id lookup, the first
+        // request `cached_xet_token` makes.
+        match core.cached_xet_token(&ctx, XetTokenScope::Read).await {
+            Err(err) => assert!(err.to_string().contains("mock injected failure")),
+            Ok(_) => panic!("a failed token fetch must surface as an error"),
+        }
+        assert_eq!(mock_client.request_count(), 1);
+
+        // Retry: canonical repo id lookup succeeds, then the token itself.
+        let token = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(token.access_token, "mock-token");
+        assert_eq!(mock_client.request_count(), 3);
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_xet_read_and_write_tokens_are_cached_independently() -> Result<()> {
         let (core, ctx, mock_client) = create_test_core(
@@ -1191,6 +1279,101 @@ mod tests {
         core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
         core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
         assert_eq!(mock_client.request_count(), 3);
+
+        Ok(())
+    }
+
+    /// The point of caching isn't just `cached_xet_token` in isolation --
+    /// `xet_download_group`/`xet_upload_commit` must actually go through it.
+    /// A regression that bypassed the cache in their wiring wouldn't be
+    /// caught by the `cached_xet_token`-only tests above.
+    #[tokio::test]
+    async fn test_xet_download_group_reuses_cached_read_token() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        // 2 requests: one to resolve the canonical repo id, one for the
+        // read token itself.
+        core.xet_download_group(&ctx).await?;
+        assert_eq!(mock_client.request_count(), 2);
+
+        // A second group build must reuse the cached read token (and
+        // canonical repo id) rather than fetching its own.
+        core.xet_download_group(&ctx).await?;
+        assert_eq!(mock_client.request_count(), 2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_xet_upload_commit_reuses_cached_write_token() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        // 2 requests: one to resolve the canonical repo id, one for the
+        // write token itself.
+        core.xet_upload_commit(&ctx).await?;
+        assert_eq!(mock_client.request_count(), 2);
+        assert!(mock_client.get_captured_url().contains("write"));
+
+        // A second commit build must reuse the cached write token (and
+        // canonical repo id) rather than fetching its own.
+        core.xet_upload_commit(&ctx).await?;
+        assert_eq!(mock_client.request_count(), 2);
+
+        Ok(())
+    }
+
+    /// Locks in the strict `>` in `cached_xet_token`'s freshness check: a
+    /// token expiring exactly at the edge of the refresh buffer counts as
+    /// stale (refetched), not fresh.
+    #[tokio::test]
+    async fn test_token_at_refresh_buffer_boundary_is_stale() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Exactly at the buffer boundary: `expires_at > now + BUFFER` is
+        // false, so this must be treated as stale. The first call also pays
+        // for the one-time canonical repo id lookup.
+        mock_client.set_xet_token_expires_at(now + XET_TOKEN_REFRESH_BUFFER_SECS);
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 2);
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(
+            mock_client.request_count(),
+            3,
+            "a token expiring exactly at the refresh buffer must be refetched, not reused"
+        );
+
+        // One second past the boundary: now fresh, so cached and reused.
+        mock_client.set_xet_token_expires_at(now + XET_TOKEN_REFRESH_BUFFER_SECS + 1);
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(mock_client.request_count(), 4);
+        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        assert_eq!(
+            mock_client.request_count(),
+            4,
+            "a token expiring past the refresh buffer must be cached and reused"
+        );
 
         Ok(())
     }

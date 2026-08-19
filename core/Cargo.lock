@@ -1052,7 +1052,7 @@ dependencies = [
 [[package]]
 name = "backon"
 version = "1.6.0"
-source = "git+https://github.com/ddupg/backon.git?rev=7f084670950ee31a4ccaba2af60a8fdcc4abcd0d#7f084670950ee31a4ccaba2af60a8fdcc4abcd0d"
+source = "git+https://github.com/ddupg/backon.git?rev=e5c333bdfa6598b0644133b023c72c4d16a1acc0#e5c333bdfa6598b0644133b023c72c4d16a1acc0"
 dependencies = [
  "fastrand",
  "gloo-timers",
@@ -6739,7 +6739,7 @@ dependencies = [
 name = "opendal-layer-retry"
 version = "0.58.2"
 dependencies = [
- "backon 1.6.0 (git+https://github.com/ddupg/backon.git?rev=7f084670950ee31a4ccaba2af60a8fdcc4abcd0d)",
+ "backon 1.6.0 (git+https://github.com/ddupg/backon.git?rev=e5c333bdfa6598b0644133b023c72c4d16a1acc0)",
  "bytes",
  "futures",
  "log",

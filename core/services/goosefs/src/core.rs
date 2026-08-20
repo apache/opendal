@@ -322,7 +322,7 @@ impl GoosefsCore {
                 // Master maps a missing dest parent to FileDoesNotExistException
                 // (`LockedInodePath.getParentInodeDirectory`) → gRPC NOT_FOUND.
                 // Source-missing uses the same status; we only mkdir-and-retry
-                // when dst has a createable parent (nested path).
+                // when dst has a creatable parent (nested path).
                 if should_create_dest_parent(e.kind(), &dst)
                     && let Some(parent) = parent_of(&dst)
                 {

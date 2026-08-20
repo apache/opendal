@@ -92,18 +92,33 @@ public sealed class StatBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
-    public void StatBehavior_IfModifiedSince_ReturnsConditionNotMatchWhenUnsupportedByTime()
+    public void StatBehavior_WithIfModifiedSince_AppliesCondition()
     {
         if (!Supports(c => c.Stat && c.Write && c.StatWithIfModifiedSince))
         {
             return;
         }
 
+        var content = RandomBytes(10);
         var path = NewPath("stat-if-modified-since");
-        Op.Write(path, RandomBytes(10));
+        Op.Write(path, content);
 
+        var meta = Op.Stat(path);
+        Assert.True(meta.IsFile);
+        Assert.Equal((ulong)content.LongLength, meta.ContentLength);
+        Assert.NotNull(meta.LastModified);
+
+        var since = meta.LastModified.Value.AddSeconds(-1);
+        var res = Op.Stat(path, new Options.StatOptions { IfModifiedSince = since });
+        Assert.Equal(meta.LastModified, res.LastModified);
+
+        // The next timestamp must not be in the future.
+        // AWS ignores a future If-Modified-Since and returns 200 instead of 304.
+        Thread.Sleep(1000);
+
+        since = meta.LastModified.Value.AddSeconds(1);
         var ex = Assert.Throws<OpenDALException>(() =>
-            Op.Stat(path, new OpenDAL.Options.StatOptions { IfModifiedSince = DateTimeOffset.UtcNow.AddDays(1) }));
+            Op.Stat(path, new Options.StatOptions { IfModifiedSince = since }));
 
         Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
     }

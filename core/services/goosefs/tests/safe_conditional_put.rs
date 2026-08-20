@@ -146,6 +146,36 @@ async fn overwrite_rename_still_works() {
     let _ = op.delete(&dst).await;
 }
 
+/// T6: a rename whose source is missing must leave the destination intact.
+/// Master rename is attempted before the overwrite delete, so the doomed
+/// rename cannot destroy `dst`.
+#[tokio::test]
+async fn rename_missing_source_preserves_dst() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+
+    let src = unique("t6-missing-src");
+    let dst = unique("t6-dst");
+    op.write(&dst, "dst-original").await.expect("write dst");
+
+    let err = op
+        .rename(&src, &dst)
+        .await
+        .expect_err("rename must fail when src is missing");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let dst_after = op
+        .read(&dst)
+        .await
+        .expect("dst must survive a failed rename")
+        .to_bytes();
+    assert_eq!(&dst_after[..], b"dst-original");
+
+    let _ = op.delete(&dst).await;
+}
+
 /// T1: concurrent Create on the same path — exactly one wins; content is winner's.
 #[tokio::test]
 async fn concurrent_write_if_not_exists_exactly_one_wins() {

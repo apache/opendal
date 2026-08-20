@@ -260,18 +260,20 @@ impl GoosefsCore {
     /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
     /// contract for rename:
     ///
-    /// 1. Destination parent directory is created on demand — but only when
-    ///    Master rename reports the parent missing. Pre-creating an already
-    ///    persisted parent is not a cheap no-op on GooseFS (CACHE_THROUGH
-    ///    still syncs UFS / fingerprint).
-    /// 2. If the destination exists as a file and `if_not_exists` is false,
-    ///    overwrite by deleting it first. Never delete when `if_not_exists`
-    ///    is true (that would destroy Master no-replace and re-introduce
-    ///    TOCTOU overwrite).
+    /// 1. Master rename runs first. It is authoritative for source existence
+    ///    and for the no-replace conflict, so the common path needs no probe.
+    /// 2. On a destination conflict with `if_not_exists` false, delete the
+    ///    destination and retry. The delete runs only after Master has
+    ///    confirmed the source exists, so a doomed rename never destroys the
+    ///    destination. Never delete when `if_not_exists` is true (that would
+    ///    destroy Master no-replace and re-introduce TOCTOU overwrite).
     /// 3. If the destination exists as a directory, surface `IsADirectory`.
+    /// 4. If the destination parent is missing, create it and retry.
+    ///    Pre-creating an already persisted parent is not a cheap no-op on
+    ///    GooseFS (CACHE_THROUGH still syncs UFS / fingerprint).
     ///
-    /// Source NotFound is reported by the underlying `rename` RPC, so we
-    /// don't pre-stat the source.
+    /// Every recovery is one-shot: its retry result is returned as-is, so a
+    /// persistently failing rename costs a bounded number of RPCs.
     pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
         let src = self.full_path(from);
         let dst = self.full_path(to);
@@ -281,70 +283,70 @@ impl GoosefsCore {
         ctx.invalidate_file_info(&src);
         ctx.invalidate_file_info(&dst);
 
-        match master.get_status(&dst).await {
-            Ok(info) => {
-                if info.folder.unwrap_or(false) {
-                    return Err(Error::new(
-                        ErrorKind::IsADirectory,
-                        "rename destination is a directory",
-                    )
-                    .with_context("service", super::GOOSEFS_SCHEME)
-                    .with_context("from", from)
-                    .with_context("to", to));
-                }
-                if if_not_exists {
-                    // Fast-path only. Authoritative race check is master.rename
-                    // below (AlreadyExists → ConditionNotMatch).
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "target path already exists while if_not_exists is set",
-                    )
-                    .with_context("service", super::GOOSEFS_SCHEME)
-                    .with_context("from", from)
-                    .with_context("to", to));
-                }
-                // Overwrite path ONLY. Master rename rejects existing dst;
-                // delete first so overwrite can proceed.
-                master.delete(&dst, false).await.map_err(parse_error)?;
+        let err = match Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await
+        {
+            Ok(()) => return Ok(()),
+            Err(e) => e,
+        };
+
+        // Master rejected the destination as existing. `rename_inode` already
+        // translated that to ConditionNotMatch when `if_not_exists` is set.
+        if matches!(
+            err.kind(),
+            ErrorKind::AlreadyExists | ErrorKind::ConditionNotMatch
+        ) {
+            // A directory destination is reported the same way, so classify it
+            // to keep surfacing IsADirectory. A failed probe means the
+            // destination is already gone again; fall through and let the
+            // overwrite retry settle it.
+            if let Ok(info) = master.get_status(&dst).await
+                && info.folder.unwrap_or(false)
+            {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "rename destination is a directory",
+                )
+                .with_context("service", super::GOOSEFS_SCHEME)
+                .with_context("from", from)
+                .with_context("to", to));
             }
-            Err(goosefs_sdk::error::Error::NotFound { .. }) => {
-                // Destination is absent. Skip create_directory here: the parent
-                // almost always already exists (write-via-temp uses the same
-                // directory; Lance commit writes into an existing prefix).
-                // Missing parents are recovered after rename returns NotFound.
+
+            if if_not_exists {
+                return Err(err);
             }
-            Err(e) => return Err(parse_error(e)),
+
+            // Overwrite path ONLY. Master rename never replaces an existing
+            // destination, so remove it and publish again — now that the
+            // source is known to exist.
+            ctx.invalidate_file_info(&dst);
+            master.delete(&dst, false).await.map_err(parse_error)?;
+            return Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await;
         }
 
-        match Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                // Master maps a missing dest parent to FileDoesNotExistException
-                // (`LockedInodePath.getParentInodeDirectory`) → gRPC NOT_FOUND.
-                // Source-missing uses the same status; we only mkdir-and-retry
-                // when dst has a creatable parent (nested path).
-                if should_create_dest_parent(e.kind(), &dst)
-                    && let Some(parent) = parent_of(&dst)
-                {
-                    // Speculative recovery: the mkdir only helps when a missing
-                    // dest parent caused the failure. When it fails, the
-                    // original rename error is what the caller asked about
-                    // (e.g. a missing source must stay `NotFound`).
-                    if let Err(mkdir_err) = master.create_directory(parent, true).await {
-                        log::warn!(
-                            "GoosefsCore::rename: creating dest parent {} failed ({}), \
-                             surfacing original rename error",
-                            parent,
-                            mkdir_err
-                        );
-                        return Err(e);
-                    }
-                    Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await
-                } else {
-                    Err(e)
-                }
+        // Master maps a missing dest parent to FileDoesNotExistException
+        // (`LockedInodePath.getParentInodeDirectory`) → gRPC NOT_FOUND.
+        // Source-missing uses the same status; we only mkdir-and-retry when
+        // dst has a creatable parent (nested path).
+        if should_create_dest_parent(err.kind(), &dst)
+            && let Some(parent) = parent_of(&dst)
+        {
+            // Speculative recovery: the mkdir only helps when a missing dest
+            // parent caused the failure. When it fails, the original rename
+            // error is what the caller asked about (e.g. a missing source must
+            // stay `NotFound`).
+            if let Err(mkdir_err) = master.create_directory(parent, true).await {
+                log::warn!(
+                    "GoosefsCore::rename: creating dest parent {} failed ({}), \
+                     surfacing original rename error",
+                    parent,
+                    mkdir_err
+                );
+                return Err(err);
             }
+            return Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await;
         }
+
+        Err(err)
     }
 
     /// Issue Master `rename` and map no-replace conflict / success.

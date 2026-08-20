@@ -29,9 +29,10 @@ Features:
 - **All WriteTypes**: Supports MUST_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH.
 - **Conditional Create**: `write_with_if_not_exists` publishes via Master no-replace
   rename (`rename_with_if_not_exists`); destination is never deleted on the Create path.
-- **Rename parent directory**: destination parent is created only when Master rename
-  reports it missing. An already-existing parent is not pre-created (`create_directory`
-  on a persisted GooseFS directory is not a cheap no-op).
+- **Rename**: Master rename is attempted first and is authoritative for source
+  existence and destination conflicts. The destination parent is created only when
+  Master reports it missing, and an overwrite deletes the destination only after the
+  source is confirmed to exist.
 
 ## Configuration
 

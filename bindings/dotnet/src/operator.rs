@@ -1293,7 +1293,14 @@ fn next_chunk_to_buffer(
                     source.to_string(),
                 )
             } else {
-                OpenDALError::from_error(ErrorCode::Unexpected, err.to_string())
+                let code = match err.kind() {
+                    std::io::ErrorKind::NotFound => ErrorCode::NotFound,
+                    std::io::ErrorKind::PermissionDenied => ErrorCode::PermissionDenied,
+                    std::io::ErrorKind::AlreadyExists => ErrorCode::AlreadyExists,
+                    std::io::ErrorKind::Unsupported => ErrorCode::Unsupported,
+                    _ => ErrorCode::Unexpected,
+                };
+                OpenDALError::from_error(code, err.to_string())
             }
         })
         .map(|chunk| {
@@ -1319,6 +1326,22 @@ mod input_stream_tests {
         };
 
         assert_eq!(error.code, ErrorCode::ConditionNotMatch as i32);
+        crate::result::opendal_error_release(error);
+    }
+
+    #[test]
+    fn next_chunk_preserves_io_error_kind() {
+        let value = Some(Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "not supported",
+        )));
+
+        let error = match next_chunk_to_buffer(value) {
+            Ok(_) => panic!("expected stream error"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.code, ErrorCode::Unsupported as i32);
         crate::result::opendal_error_release(error);
     }
 }

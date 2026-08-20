@@ -503,6 +503,7 @@ impl From<Error> for io::Error {
         let kind = match err.kind() {
             ErrorKind::NotFound => io::ErrorKind::NotFound,
             ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
+            ErrorKind::Unsupported => io::ErrorKind::Unsupported,
             _ => io::ErrorKind::Other,
         };
 

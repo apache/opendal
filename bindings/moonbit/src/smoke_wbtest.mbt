@@ -15,18 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
+///|
+extern "C" fn native_smoke() -> Int = "moonbit_opendal_smoke"
 
-use opendal::Operator;
-use opendal::services::Memory;
-
-const SMOKE_OK: i32 = 0;
-const SMOKE_ERROR: i32 = 1;
-
-#[unsafe(no_mangle)]
-pub extern "C" fn opendal_moonbit_smoke() -> i32 {
-    match catch_unwind(AssertUnwindSafe(|| Operator::new(Memory::default()))) {
-        Ok(Ok(_)) => SMOKE_OK,
-        Ok(Err(_)) | Err(_) => SMOKE_ERROR,
-    }
+///|
+test "native bridge constructs a memory operator" {
+  assert_eq(native_smoke(), 0)
 }

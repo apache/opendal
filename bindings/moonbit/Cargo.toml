@@ -33,7 +33,4 @@ name = "opendal_moonbit"
 path = "native/lib.rs"
 
 [dependencies]
-opendal = { version = ">=0", path = "../../core", default-features = false, features = [
-  "blocking",
-] }
-tokio = { version = "1", features = ["rt-multi-thread"] }
+opendal = { version = ">=0", path = "../../core", default-features = false }

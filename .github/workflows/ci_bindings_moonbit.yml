@@ -45,7 +45,7 @@ env:
   MOONBIT_VERSION: 0.10.6+80dc50f24
 
 jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +69,7 @@ jobs:
           cargo --version
           moon version --all
 
-      - name: Check binding
+      - name: Check MoonBit source
         working-directory: bindings/moonbit
         run: |
           moon check --target native --deny-warn
@@ -89,6 +89,13 @@ jobs:
       - name: Check C adapter
         working-directory: bindings/moonbit
         run: cc -std=c11 -Wall -Wextra -Werror -I"$HOME/.moon/include" -fsyntax-only src/opendal_stub.c
+
+      - name: Run native smoke test
+        working-directory: bindings/moonbit
+        env:
+          LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
+          LD_LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
+        run: moon test --target native --release --deny-warn
 
       - name: Check generated files
         run: git diff --exit-code

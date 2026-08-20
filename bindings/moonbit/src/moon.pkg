@@ -17,11 +17,6 @@
 
 supported_targets = "native"
 
-import {
-  "moonbitlang/core/debug",
-  "moonbitlang/core/encoding/utf8",
-}
-
 options(
   "native-stub": [ "opendal_stub.c" ],
   link: { "native": { "cc-link-flags": "-lopendal_moonbit" } },

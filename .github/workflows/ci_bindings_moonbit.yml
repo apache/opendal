@@ -25,7 +25,6 @@ on:
       - "*"
     paths: &paths
       - "core/**"
-      - "bindings/c/**"
       - "bindings/moonbit/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_moonbit.yml"
@@ -57,7 +56,7 @@ jobs:
       - name: Install native build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config uuid-dev
+          sudo apt-get install -y build-essential
 
       - name: Install MoonBit
         run: |
@@ -72,11 +71,28 @@ jobs:
 
       - name: Check binding
         working-directory: bindings/moonbit
-        run: make check
+        run: |
+          moon check --target native --deny-warn
+          moon fmt --check
+          moon info --target native
+
+      - name: Check Rust bridge
+        working-directory: bindings/moonbit
+        run: |
+          cargo fmt -- --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Build Rust bridge
+        working-directory: bindings/moonbit
+        run: cargo build --release
 
       - name: Run tests
         working-directory: bindings/moonbit
-        run: make test
+        env:
+          LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
+          LD_LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
+        run: moon test --target native --release
 
       - name: Check generated files
         run: git diff --exit-code

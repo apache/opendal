@@ -16,12 +16,22 @@ Build the binding from an Apache OpenDAL source checkout. It currently requires:
 - A C compiler supported by MoonBit.
 - MoonBit compiler `0.10.6+80dc50f24`.
 
-The binding links to the sibling [`bindings/c`](../c) library and does not ship
-prebuilt native artifacts or a MoonBit package registry release. Build the C
-library from `bindings/moonbit` before compiling a consumer:
+The binding owns a small Rust `cdylib` that depends directly on OpenDAL core.
+It does not ship prebuilt native artifacts or a MoonBit package registry
+release. From `bindings/moonbit`, build the native bridge in release mode:
 
 ```shell
-make build-c
+cargo build --release
+```
+
+Then expose the resulting library to the native linker and loader in the
+current shell:
+
+```shell
+export OPENDAL_MOONBIT_LIB_DIR="$(cd target/release && pwd)"
+export LIBRARY_PATH="$OPENDAL_MOONBIT_LIB_DIR${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$OPENDAL_MOONBIT_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="$OPENDAL_MOONBIT_LIB_DIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 ```
 
 ## Usage
@@ -37,45 +47,51 @@ operator.write("hello.txt", b"Hello, MoonBit!")
 let content = operator.read("hello.txt")
 ```
 
-The source build currently links the shared library produced in
-`bindings/c/target/debug`. `make test` configures its runtime lookup path. For a
-different native executable launched from `bindings/moonbit`, expose the same
-directory first:
-
-```shell
-# Linux
-export LD_LIBRARY_PATH="$(pwd)/../c/target/debug:${LD_LIBRARY_PATH:-}"
-
-# macOS
-export DYLD_LIBRARY_PATH="$(pwd)/../c/target/debug:${DYLD_LIBRARY_PATH:-}"
-```
+`moon.pkg` declares only the logical `opendal_moonbit` native dependency; it
+does not encode Cargo output directories or build profiles. Cargo does not run
+automatically when Moon builds this module. Any native executable using this
+source module must make a compatible `libopendal_moonbit` available to its
+linker and loader. With MoonBit 0.10.6, the final executable package must also
+repeat `-lopendal_moonbit` in its native link flags because dependency link
+flags are not propagated. This phase requires an OpenDAL source checkout and
+is not zero-configuration downstream consumption.
 
 Fallible operations raise `OpenDalError`. Its `ErrorInfo` preserves a stable
 error kind, the operation, the original path when available, and OpenDAL's
 message. `close` is idempotent; reads and writes after close raise
 `ResourceClosed`. A finalizer releases an operator that is not closed explicitly.
 
-Whole-object reads collect data through the C binding's reader API and reject
-objects larger than 64 MiB before allocating their contents. Streaming APIs are
-outside this phase.
+Whole-object reads use OpenDAL's reader API and reject objects larger than 64
+MiB before growing the binding-owned output buffer beyond that limit. Streaming
+APIs are outside this phase.
 
 ## Development
 
-From `bindings/moonbit`, build the OpenDAL C binding and check the MoonBit source:
+The MoonBit source checks do not require a built Rust bridge. From
+`bindings/moonbit`, run:
 
 ```shell
-make check
+moon check --target native --deny-warn
+moon fmt --check
+moon info --target native
 ```
 
-`make check` builds `bindings/c`, checks the native package with warnings denied,
-verifies formatting, and regenerates the public package interface.
+These commands type-check the native package with warnings denied, verify
+formatting, and regenerate the public package interface. Run the Rust checks
+separately:
+
+```shell
+cargo fmt -- --check
+cargo clippy --all-targets -- -D warnings
+```
 
 ## Testing
 
-Run the native memory tests with:
+After completing the native bridge setup from Installation, run the native
+memory tests with:
 
 ```shell
-make test
+moon test --target native --release
 ```
 
 The tests cover binary and empty round-trips, Unicode paths, invalid text, typed
@@ -85,4 +101,6 @@ close, explicit release, and finalizer release.
 ## Current scope
 
 This phase intentionally does not include other services, async APIs, streaming,
-operation options, WebAssembly, JavaScript, packaging, or release artifacts.
+operation options, WebAssembly, JavaScript, Windows support, packaging, or
+release artifacts. CI currently verifies the Linux native target only. The Rust
+C ABI is private to this experimental binding.

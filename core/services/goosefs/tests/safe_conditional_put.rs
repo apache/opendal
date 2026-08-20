@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Acceptance tests for GooseFS safe Create / conditional rename (doc §8.8).
+//! Acceptance tests for GooseFS safe Create / conditional rename.
 //!
 //! Requires a live GooseFS master. Skip unless `OPENDAL_GOOSEFS_MASTER_ADDR`
 //! is set (same env the behavior CI fixture exports).
@@ -64,7 +64,7 @@ async fn capability_declares_rename_with_if_not_exists() {
     assert!(cap.rename_with_if_not_exists);
 }
 
-/// T0 / T4: conditional rename against an existing dst → ConditionNotMatch;
+/// Conditional rename against an existing dst → ConditionNotMatch;
 /// destination content is unchanged (Master no-replace).
 #[tokio::test]
 async fn rename_if_not_exists_rejects_existing_dst() {
@@ -73,8 +73,8 @@ async fn rename_if_not_exists_rejects_existing_dst() {
         return;
     };
 
-    let src = unique("t0-src");
-    let dst = unique("t0-dst");
+    let src = unique("cond-rename-src");
+    let dst = unique("cond-rename-dst");
     op.write(&src, "from-src").await.expect("write src");
     op.write(&dst, "dst-original").await.expect("write dst");
 
@@ -92,7 +92,7 @@ async fn rename_if_not_exists_rejects_existing_dst() {
     let _ = op.delete(&dst).await;
 }
 
-/// T3: serial second Create (write_with if_not_exists) must fail.
+/// Serial second Create (write_with if_not_exists) must fail.
 #[tokio::test]
 async fn write_if_not_exists_serial_conflict() {
     let Some(op) = maybe_operator() else {
@@ -100,7 +100,7 @@ async fn write_if_not_exists_serial_conflict() {
         return;
     };
 
-    let path = unique("t3-create");
+    let path = unique("serial-create");
     op.write_with(&path, "winner")
         .if_not_exists(true)
         .await
@@ -119,13 +119,13 @@ async fn write_if_not_exists_serial_conflict() {
     let meta = op.stat(&path).await.expect("stat");
     assert!(
         meta.etag().is_some(),
-        "P1 etag (file_id) should be present after write"
+        "etag (file_id) should be present after write"
     );
 
     let _ = op.delete(&path).await;
 }
 
-/// T5: overwrite (if_not_exists=false) still replaces an existing file.
+/// Overwrite (if_not_exists=false) still replaces an existing file.
 #[tokio::test]
 async fn overwrite_rename_still_works() {
     let Some(op) = maybe_operator() else {
@@ -133,8 +133,8 @@ async fn overwrite_rename_still_works() {
         return;
     };
 
-    let src = unique("t5-src");
-    let dst = unique("t5-dst");
+    let src = unique("overwrite-src");
+    let dst = unique("overwrite-dst");
     op.write(&src, "new-content").await.expect("write src");
     op.write(&dst, "old-content").await.expect("write dst");
 
@@ -146,7 +146,37 @@ async fn overwrite_rename_still_works() {
     let _ = op.delete(&dst).await;
 }
 
-/// T1: concurrent Create on the same path — exactly one wins; content is winner's.
+/// A rename whose source is missing must leave the destination intact.
+/// Master rename is attempted before the overwrite delete, so the doomed
+/// rename cannot destroy `dst`.
+#[tokio::test]
+async fn rename_missing_source_preserves_dst() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+
+    let src = unique("missing-src");
+    let dst = unique("missing-src-dst");
+    op.write(&dst, "dst-original").await.expect("write dst");
+
+    let err = op
+        .rename(&src, &dst)
+        .await
+        .expect_err("rename must fail when src is missing");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let dst_after = op
+        .read(&dst)
+        .await
+        .expect("dst must survive a failed rename")
+        .to_bytes();
+    assert_eq!(&dst_after[..], b"dst-original");
+
+    let _ = op.delete(&dst).await;
+}
+
+/// Concurrent Create on the same path — exactly one wins; content is winner's.
 #[tokio::test]
 async fn concurrent_write_if_not_exists_exactly_one_wins() {
     let Some(op) = maybe_operator() else {
@@ -154,7 +184,7 @@ async fn concurrent_write_if_not_exists_exactly_one_wins() {
         return;
     };
     let op = Arc::new(op);
-    let path = unique("t1-concurrent");
+    let path = unique("concurrent-create");
 
     let rounds = 8u32;
     for round in 0..rounds {

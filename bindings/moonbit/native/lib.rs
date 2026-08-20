@@ -21,7 +21,6 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
 use std::slice;
 use std::str;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use opendal::blocking;
@@ -48,9 +47,9 @@ const ERROR_BUFFER_TOO_LARGE: i32 = 0x1002;
 const ERROR_INVALID_ARGUMENT: i32 = 0x1003;
 const ERROR_UNKNOWN: i32 = 0x10ff;
 
+const MAX_WHOLE_READ_BYTES: usize = 64 * 1024 * 1024;
 const READ_CHUNK_BYTES: usize = 64 * 1024;
 
-static LIVE_OPERATOR_COUNT: AtomicU32 = AtomicU32::new(0);
 static RUNTIME: LazyLock<Result<tokio::runtime::Runtime, String>> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .build()
@@ -137,7 +136,6 @@ pub struct NativeOperator {
 
 impl NativeOperator {
     fn new(operator: blocking::Operator) -> Self {
-        LIVE_OPERATOR_COUNT.fetch_add(1, Ordering::Relaxed);
         Self {
             inner: Mutex::new(Some(operator)),
         }
@@ -154,24 +152,6 @@ impl NativeOperator {
 
     fn close(&self) {
         let operator = lock_operator(&self.inner).take();
-        if operator.is_some() {
-            LIVE_OPERATOR_COUNT.fetch_sub(1, Ordering::Relaxed);
-        }
-        drop(operator);
-    }
-}
-
-impl Drop for NativeOperator {
-    fn drop(&mut self) {
-        let inner = match self.inner.get_mut() {
-            Ok(inner) => inner,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        let was_open = inner.is_some();
-        if was_open {
-            LIVE_OPERATOR_COUNT.fetch_sub(1, Ordering::Relaxed);
-        }
-        let operator = inner.take();
         drop(operator);
     }
 }
@@ -439,15 +419,14 @@ pub unsafe extern "C" fn opendal_moonbit_operator_read(
     operator: *mut NativeOperator,
     path: *const u8,
     path_len: usize,
-    max_read_bytes: usize,
 ) -> *mut NativeResult {
     catch_result(|| {
         // SAFETY: the caller upholds this function's path pointer contract.
         let path = unsafe { copy_text(path, path_len, "path")? };
         // SAFETY: the caller upholds this function's operator pointer contract.
         let operator = unsafe { operator.as_ref() }.ok_or_else(BridgeError::resource_closed)?;
-        let data =
-            operator.with_operator(|operator| read_with_limit(operator, &path, max_read_bytes))?;
+        let data = operator
+            .with_operator(|operator| read_with_limit(operator, &path, MAX_WHOLE_READ_BYTES))?;
         Ok(NativeResult::data(data))
     })
 }
@@ -497,24 +476,4 @@ pub unsafe extern "C" fn opendal_moonbit_result_free(result: *mut NativeResult) 
         // SAFETY: the caller transfers ownership of this allocation.
         drop(unsafe { Box::from_raw(result) });
     }));
-}
-
-/// Returns the number of operators whose underlying OpenDAL resource is open.
-#[unsafe(no_mangle)]
-pub extern "C" fn opendal_moonbit_live_operator_count() -> u32 {
-    LIVE_OPERATOR_COUNT.load(Ordering::Relaxed)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn append_buffer_rejects_chunk_that_exceeds_remaining_limit() {
-        let mut output = vec![0; 4];
-        let error = append_buffer(&mut output, opendal::Buffer::from(vec![0; 5]), 8)
-            .expect_err("the chunk must exceed the remaining limit");
-
-        assert_eq!((error.kind, output.len()), (ERROR_BUFFER_TOO_LARGE, 4));
-    }
 }

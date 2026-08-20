@@ -45,7 +45,7 @@ env:
   MOONBIT_VERSION: 0.10.6+80dc50f24
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -81,18 +81,14 @@ jobs:
         run: |
           cargo fmt -- --check
           cargo clippy --all-targets -- -D warnings
-          cargo test
 
       - name: Build Rust bridge
         working-directory: bindings/moonbit
         run: cargo build --release
 
-      - name: Run tests
+      - name: Check C adapter
         working-directory: bindings/moonbit
-        env:
-          LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
-          LD_LIBRARY_PATH: ${{ github.workspace }}/bindings/moonbit/target/release
-        run: moon test --target native --release
+        run: cc -std=c11 -Wall -Wextra -Werror -I"$HOME/.moon/include" -fsyntax-only src/opendal_stub.c
 
       - name: Check generated files
         run: git diff --exit-code

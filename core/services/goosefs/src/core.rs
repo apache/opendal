@@ -326,10 +326,19 @@ impl GoosefsCore {
                 if should_create_dest_parent(e.kind(), &dst)
                     && let Some(parent) = parent_of(&dst)
                 {
-                    master
-                        .create_directory(parent, true)
-                        .await
-                        .map_err(parse_error)?;
+                    // Speculative recovery: the mkdir only helps when a missing
+                    // dest parent caused the failure. When it fails, the
+                    // original rename error is what the caller asked about
+                    // (e.g. a missing source must stay `NotFound`).
+                    if let Err(mkdir_err) = master.create_directory(parent, true).await {
+                        log::warn!(
+                            "GoosefsCore::rename: creating dest parent {} failed ({}), \
+                             surfacing original rename error",
+                            parent,
+                            mkdir_err
+                        );
+                        return Err(e);
+                    }
                     Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await
                 } else {
                     Err(e)

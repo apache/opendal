@@ -1272,11 +1272,12 @@ fn next_chunk_to_buffer(
 ) -> Result<OpendalReadBuffer, OpenDALError> {
     value
         .transpose()
-        .map_err(|err| {
-            OpenDALError::from_opendal_error(opendal::Error::new(
+        .map_err(|err| match err.downcast::<opendal::Error>() {
+            Ok(error) => OpenDALError::from_opendal_error(error),
+            Err(err) => OpenDALError::from_opendal_error(opendal::Error::new(
                 opendal::ErrorKind::Unexpected,
                 err.to_string(),
-            ))
+            )),
         })
         .map(|chunk| {
             chunk

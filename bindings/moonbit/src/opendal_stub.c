@@ -26,41 +26,46 @@
 typedef struct opendal_moonbit_operator opendal_moonbit_operator_t;
 
 typedef struct {
-  const uint8_t *data;
+  uint8_t *data;
   size_t len;
 } opendal_moonbit_bytes_t;
 
 typedef struct {
-  int32_t status;
-  int32_t error_kind;
+  int32_t kind;
   opendal_moonbit_bytes_t message;
-  opendal_moonbit_operator_t *operator_;
-  opendal_moonbit_bytes_t data;
-  uint8_t has_data;
-} opendal_moonbit_result_t;
+} opendal_moonbit_error_t;
 
-extern opendal_moonbit_result_t *
-opendal_moonbit_operator_new(const uint8_t *scheme, size_t scheme_len);
+typedef struct {
+  opendal_moonbit_error_t error;
+  opendal_moonbit_operator_t *operator_;
+} opendal_moonbit_new_result_t;
+
+typedef struct {
+  opendal_moonbit_error_t error;
+  opendal_moonbit_bytes_t data;
+} opendal_moonbit_read_result_t;
+
+_Static_assert(offsetof(opendal_moonbit_new_result_t, error) == 0, "error");
+_Static_assert(offsetof(opendal_moonbit_read_result_t, error) == 0, "error");
+
+extern opendal_moonbit_new_result_t
+opendal_moonbit_operator_new(const uint8_t *scheme, uint32_t scheme_len);
+extern opendal_moonbit_read_result_t opendal_moonbit_operator_read(
+    opendal_moonbit_operator_t *operator_, const uint8_t *path,
+    uint32_t path_len);
+extern opendal_moonbit_error_t opendal_moonbit_operator_write(
+    opendal_moonbit_operator_t *operator_, const uint8_t *path,
+    uint32_t path_len, const uint8_t *data, uint32_t data_len);
 extern void opendal_moonbit_operator_close(opendal_moonbit_operator_t *operator_);
 extern void opendal_moonbit_operator_free(opendal_moonbit_operator_t *operator_);
-extern opendal_moonbit_result_t *opendal_moonbit_operator_read(
-    opendal_moonbit_operator_t *operator_, const uint8_t *path,
-    size_t path_len);
-extern opendal_moonbit_result_t *opendal_moonbit_operator_write(
-    opendal_moonbit_operator_t *operator_, const uint8_t *path,
-    size_t path_len, const uint8_t *data, size_t data_len);
-extern void opendal_moonbit_result_free(opendal_moonbit_result_t *result);
+extern void opendal_moonbit_bytes_free(opendal_moonbit_bytes_t *bytes);
 
 typedef struct {
   opendal_moonbit_operator_t *inner;
 } moonbit_opendal_operator_t;
 
-typedef struct {
-  opendal_moonbit_result_t *inner;
-} moonbit_opendal_result_t;
-
-static size_t moonbit_bytes_len(moonbit_bytes_t bytes) {
-  return (size_t)(uint32_t)Moonbit_array_length(bytes);
+static uint32_t moonbit_bytes_len(moonbit_bytes_t bytes) {
+  return (uint32_t)Moonbit_array_length(bytes);
 }
 
 static moonbit_bytes_t copy_bytes(const uint8_t *data, size_t len) {
@@ -77,8 +82,7 @@ static moonbit_bytes_t copy_bytes(const uint8_t *data, size_t len) {
 }
 
 static void operator_finalize(void *payload) {
-  moonbit_opendal_operator_t *operator_ =
-      (moonbit_opendal_operator_t *)payload;
+  moonbit_opendal_operator_t *operator_ = payload;
   if (operator_->inner != NULL) {
     opendal_moonbit_operator_free(operator_->inner);
     operator_->inner = NULL;
@@ -87,34 +91,59 @@ static void operator_finalize(void *payload) {
 
 static moonbit_opendal_operator_t *
 operator_external(opendal_moonbit_operator_t *inner) {
-  moonbit_opendal_operator_t *operator_ =
-      (moonbit_opendal_operator_t *)moonbit_make_external_object(
-          operator_finalize, (uint32_t)sizeof(moonbit_opendal_operator_t));
+  moonbit_opendal_operator_t *operator_ = moonbit_make_external_object(
+      operator_finalize, (uint32_t)sizeof(moonbit_opendal_operator_t));
   operator_->inner = inner;
   return operator_;
 }
 
-static void result_finalize(void *payload) {
-  moonbit_opendal_result_t *result = (moonbit_opendal_result_t *)payload;
-  if (result->inner != NULL) {
-    opendal_moonbit_result_free(result->inner);
-    result->inner = NULL;
+static void new_result_finalize(void *payload) {
+  opendal_moonbit_new_result_t *result = payload;
+  if (result->operator_ != NULL) {
+    opendal_moonbit_operator_free(result->operator_);
   }
+  opendal_moonbit_bytes_free(&result->error.message);
 }
 
-static moonbit_opendal_result_t *
-result_external(opendal_moonbit_result_t *inner) {
-  moonbit_opendal_result_t *result =
-      (moonbit_opendal_result_t *)moonbit_make_external_object(
-          result_finalize, (uint32_t)sizeof(moonbit_opendal_result_t));
-  result->inner = inner;
+static void read_result_finalize(void *payload) {
+  opendal_moonbit_read_result_t *result = payload;
+  opendal_moonbit_bytes_free(&result->data);
+  opendal_moonbit_bytes_free(&result->error.message);
+}
+
+static void write_result_finalize(void *payload) {
+  opendal_moonbit_error_t *error = payload;
+  opendal_moonbit_bytes_free(&error->message);
+}
+
+MOONBIT_FFI_EXPORT opendal_moonbit_new_result_t *
+moonbit_opendal_operator_new(moonbit_bytes_t scheme) {
+  opendal_moonbit_new_result_t *result = moonbit_make_external_object(
+      new_result_finalize, (uint32_t)sizeof(opendal_moonbit_new_result_t));
+  *result = opendal_moonbit_operator_new(scheme, moonbit_bytes_len(scheme));
   return result;
 }
 
-MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
-moonbit_opendal_operator_new(moonbit_bytes_t scheme) {
-  return result_external(
-      opendal_moonbit_operator_new(scheme, moonbit_bytes_len(scheme)));
+MOONBIT_FFI_EXPORT opendal_moonbit_read_result_t *
+moonbit_opendal_operator_read(moonbit_opendal_operator_t *operator_,
+                              moonbit_bytes_t path) {
+  opendal_moonbit_read_result_t *result = moonbit_make_external_object(
+      read_result_finalize, (uint32_t)sizeof(opendal_moonbit_read_result_t));
+  *result = opendal_moonbit_operator_read(
+      operator_ == NULL ? NULL : operator_->inner, path,
+      moonbit_bytes_len(path));
+  return result;
+}
+
+MOONBIT_FFI_EXPORT opendal_moonbit_error_t *
+moonbit_opendal_operator_write(moonbit_opendal_operator_t *operator_,
+                               moonbit_bytes_t path, moonbit_bytes_t data) {
+  opendal_moonbit_error_t *result = moonbit_make_external_object(
+      write_result_finalize, (uint32_t)sizeof(opendal_moonbit_error_t));
+  *result = opendal_moonbit_operator_write(
+      operator_ == NULL ? NULL : operator_->inner, path,
+      moonbit_bytes_len(path), data, moonbit_bytes_len(data));
+  return result;
 }
 
 MOONBIT_FFI_EXPORT void
@@ -124,68 +153,43 @@ moonbit_opendal_operator_close(moonbit_opendal_operator_t *operator_) {
   }
 }
 
-MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
-moonbit_opendal_operator_read(moonbit_opendal_operator_t *operator_,
-                              moonbit_bytes_t path) {
-  opendal_moonbit_operator_t *inner = operator_ == NULL ? NULL : operator_->inner;
-  return result_external(opendal_moonbit_operator_read(
-      inner, path, moonbit_bytes_len(path)));
-}
-
-MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
-moonbit_opendal_operator_write(moonbit_opendal_operator_t *operator_,
-                               moonbit_bytes_t path, moonbit_bytes_t data) {
-  opendal_moonbit_operator_t *inner = operator_ == NULL ? NULL : operator_->inner;
-  return result_external(opendal_moonbit_operator_write(
-      inner, path, moonbit_bytes_len(path), data, moonbit_bytes_len(data)));
-}
-
 MOONBIT_FFI_EXPORT int32_t
-moonbit_opendal_result_status(moonbit_opendal_result_t *result) {
-  return result == NULL || result->inner == NULL
-             ? 1
-             : result->inner->status;
-}
-
-MOONBIT_FFI_EXPORT int32_t
-moonbit_opendal_result_error_kind(moonbit_opendal_result_t *result) {
-  return result == NULL || result->inner == NULL
-             ? 0
-             : result->inner->error_kind;
+moonbit_opendal_result_error_kind(void *result) {
+  opendal_moonbit_error_t *error = result;
+  return error == NULL ? 0 : error->kind;
 }
 
 MOONBIT_FFI_EXPORT moonbit_bytes_t
-moonbit_opendal_result_error_message(moonbit_opendal_result_t *result) {
-  if (result == NULL || result->inner == NULL) {
+moonbit_opendal_result_take_error_message(void *result) {
+  opendal_moonbit_error_t *error = result;
+  if (error == NULL || error->kind == -1) {
     static const uint8_t message[] = "native result is unavailable";
     return copy_bytes(message, sizeof(message) - 1);
   }
-  return copy_bytes(result->inner->message.data, result->inner->message.len);
+  moonbit_bytes_t message =
+      copy_bytes(error->message.data, error->message.len);
+  opendal_moonbit_bytes_free(&error->message);
+  error->kind = -1;
+  return message;
 }
 
 MOONBIT_FFI_EXPORT moonbit_opendal_operator_t *
-moonbit_opendal_result_take_operator(moonbit_opendal_result_t *result) {
-  opendal_moonbit_operator_t *inner =
-      result == NULL || result->inner == NULL ? NULL
-                                              : result->inner->operator_;
-  if (result != NULL && result->inner != NULL) {
-    result->inner->operator_ = NULL;
+moonbit_opendal_new_result_take_operator(
+    opendal_moonbit_new_result_t *result) {
+  opendal_moonbit_operator_t *inner = result == NULL ? NULL : result->operator_;
+  if (result != NULL) {
+    result->operator_ = NULL;
   }
   return operator_external(inner);
 }
 
 MOONBIT_FFI_EXPORT moonbit_bytes_t
-moonbit_opendal_result_take_bytes(moonbit_opendal_result_t *result) {
-  if (result == NULL || result->inner == NULL || !result->inner->has_data) {
+moonbit_opendal_read_result_take_bytes(
+    opendal_moonbit_read_result_t *result) {
+  if (result == NULL) {
     return moonbit_make_bytes(0, 0);
   }
-  return copy_bytes(result->inner->data.data, result->inner->data.len);
-}
-
-MOONBIT_FFI_EXPORT void
-moonbit_opendal_result_release(moonbit_opendal_result_t *result) {
-  if (result != NULL && result->inner != NULL) {
-    opendal_moonbit_result_free(result->inner);
-    result->inner = NULL;
-  }
+  moonbit_bytes_t data = copy_bytes(result->data.data, result->data.len);
+  opendal_moonbit_bytes_free(&result->data);
+  return data;
 }

@@ -22,15 +22,8 @@ pub fn Operator::new(scheme : StringView) -> Operator raise OpenDalError {
   let result = native_operator_new(
     encode_native_text(scheme, NewOperator, None, "service scheme"),
   )
-  if native_result_status(result) != 0 {
-    raise error_from_native_result(result, NewOperator, None)
-  }
-  let operator = native_result_take_operator(result)
-  if native_result_status(result) != 0 {
-    raise error_from_native_result(result, NewOperator, None)
-  }
-  native_result_release(result)
-  operator
+  check_native_result(result, NewOperator, None)
+  native_result_take_operator(result)
 }
 
 ///|
@@ -50,15 +43,8 @@ pub fn Operator::read(
     self,
     encode_native_text(path, Read, Some(path), "path"),
   )
-  if native_result_status(result) != 0 {
-    raise error_from_native_result(result, Read, Some(path))
-  }
-  let data = native_result_take_bytes(result)
-  if native_result_status(result) != 0 {
-    raise error_from_native_result(result, Read, Some(path))
-  }
-  native_result_release(result)
-  data
+  check_native_result(result, Read, Some(path))
+  native_result_take_bytes(result)
 }
 
 ///|
@@ -74,8 +60,5 @@ pub fn Operator::write(
     encode_native_text(path, Write, Some(path), "path"),
     data.to_owned(),
   )
-  if native_result_status(result) != 0 {
-    raise error_from_native_result(result, Write, Some(path))
-  }
-  native_result_release(result)
+  check_native_result(result, Write, Some(path))
 }

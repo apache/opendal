@@ -92,13 +92,18 @@ fn encode_native_text(
 }
 
 ///|
-fn error_from_native_result(
+fn check_native_result(
   result : NativeResult,
   operation : Operation,
   path : String?,
-) -> OpenDalError {
-  let kind = error_kind_from_code(native_result_error_kind(result))
-  let message = @utf8.decode_lossy(native_result_error_message(result))
-  native_result_release(result)
-  OpenDalError({ kind, message, operation, path })
+) -> Unit raise OpenDalError {
+  let kind = native_result_error_kind(result)
+  if kind != -1 {
+    raise OpenDalError({
+      kind: error_kind_from_code(kind),
+      message: @utf8.decode_lossy(native_result_take_error_message(result)),
+      operation,
+      path,
+    })
+  }
 }

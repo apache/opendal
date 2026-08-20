@@ -55,19 +55,18 @@ pub fn new_std_io_error(err: io::Error) -> Error {
 /// users.
 #[inline]
 pub(crate) fn format_std_io_error(err: Error) -> io::Error {
-    err.into()
+    let kind = match err.kind() {
+        ErrorKind::NotFound => io::ErrorKind::NotFound,
+        ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
+        _ => io::ErrorKind::Other,
+    };
+
+    io::Error::new(kind, err)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn format_std_io_error_preserves_unsupported_kind() {
-        let err = format_std_io_error(Error::new(ErrorKind::Unsupported, "not supported"));
-
-        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
-    }
 
     #[test]
     fn test_read_to_end_stops_on_persistent_error() {

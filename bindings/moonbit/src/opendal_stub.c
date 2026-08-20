@@ -23,8 +23,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#define MOONBIT_OPENDAL_MAX_WHOLE_READ_BYTES (64u * 1024u * 1024u)
-
 typedef struct opendal_moonbit_operator opendal_moonbit_operator_t;
 
 typedef struct {
@@ -47,12 +45,11 @@ extern void opendal_moonbit_operator_close(opendal_moonbit_operator_t *operator_
 extern void opendal_moonbit_operator_free(opendal_moonbit_operator_t *operator_);
 extern opendal_moonbit_result_t *opendal_moonbit_operator_read(
     opendal_moonbit_operator_t *operator_, const uint8_t *path,
-    size_t path_len, size_t max_read_bytes);
+    size_t path_len);
 extern opendal_moonbit_result_t *opendal_moonbit_operator_write(
     opendal_moonbit_operator_t *operator_, const uint8_t *path,
     size_t path_len, const uint8_t *data, size_t data_len);
 extern void opendal_moonbit_result_free(opendal_moonbit_result_t *result);
-extern uint32_t opendal_moonbit_live_operator_count(void);
 
 typedef struct {
   opendal_moonbit_operator_t *inner;
@@ -127,26 +124,12 @@ moonbit_opendal_operator_close(moonbit_opendal_operator_t *operator_) {
   }
 }
 
-static moonbit_opendal_result_t *
-operator_read_with_limit(moonbit_opendal_operator_t *operator_,
-                         moonbit_bytes_t path, size_t max_read_bytes) {
-  opendal_moonbit_operator_t *inner = operator_ == NULL ? NULL : operator_->inner;
-  return result_external(opendal_moonbit_operator_read(
-      inner, path, moonbit_bytes_len(path), max_read_bytes));
-}
-
 MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
 moonbit_opendal_operator_read(moonbit_opendal_operator_t *operator_,
                               moonbit_bytes_t path) {
-  return operator_read_with_limit(operator_, path,
-                                  MOONBIT_OPENDAL_MAX_WHOLE_READ_BYTES);
-}
-
-MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
-moonbit_opendal_operator_read_with_limit_for_test(
-    moonbit_opendal_operator_t *operator_, moonbit_bytes_t path,
-    uint32_t max_read_bytes) {
-  return operator_read_with_limit(operator_, path, max_read_bytes);
+  opendal_moonbit_operator_t *inner = operator_ == NULL ? NULL : operator_->inner;
+  return result_external(opendal_moonbit_operator_read(
+      inner, path, moonbit_bytes_len(path)));
 }
 
 MOONBIT_FFI_EXPORT moonbit_opendal_result_t *
@@ -205,8 +188,4 @@ moonbit_opendal_result_release(moonbit_opendal_result_t *result) {
     opendal_moonbit_result_free(result->inner);
     result->inner = NULL;
   }
-}
-
-MOONBIT_FFI_EXPORT uint32_t moonbit_opendal_live_operator_count(void) {
-  return opendal_moonbit_live_operator_count();
 }

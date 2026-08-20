@@ -85,19 +85,6 @@ cargo fmt -- --check
 cargo clippy --all-targets -- -D warnings
 ```
 
-## Testing
-
-After completing the native bridge setup from Installation, run the native
-memory tests with:
-
-```shell
-moon test --target native --release
-```
-
-The tests cover binary and empty round-trips, Unicode paths, invalid text, typed
-error paths, the whole-object allocation bound, idempotent close, use after
-close, explicit release, and finalizer release.
-
 ## Current scope
 
 This phase intentionally does not include other services, async APIs, streaming,

@@ -61,9 +61,9 @@ error kind, the operation, the original path when available, and OpenDAL's
 message. `close` is idempotent; reads and writes after close raise
 `ResourceClosed`. A finalizer releases an operator that is not closed explicitly.
 
-Whole-object reads use OpenDAL's reader API and reject objects larger than 64
-MiB before growing the binding-owned output buffer beyond that limit. Streaming
-APIs are outside this phase.
+Whole-object reads load the complete object into memory. Results that cannot
+fit in a MoonBit `Bytes` value are rejected. Streaming APIs are outside this
+phase.
 
 ## Development
 

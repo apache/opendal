@@ -30,12 +30,18 @@ from opendal.exceptions import NotFound, Unsupported
 
 @pytest.fixture(scope="session")
 def config_async_operator(service_name, setup_config):
+    config = setup_config.copy()
+    for key in ("datadir", "datafile"):
+        if value := config.get(key):
+            value = value.rstrip("/\\")
+            config[key] = f"{value}-{uuid4()}"
+
     # Mirror the `async_operator` fixture but construct via `from_config`: the
     # scheme key plus the same config the constructor receives. Apply the same
     # layers and capability overrides so capability gating and equality
     # assertions match the constructor-based operator the suite uses.
     operator = (
-        opendal.AsyncOperator.from_config({"scheme": service_name, **setup_config})
+        opendal.AsyncOperator.from_config({"scheme": service_name, **config})
         .layer(opendal.layers.RetryLayer())
         .layer(opendal.layers.ConcurrentLimitLayer(1024))
         .layer(opendal.layers.MimeGuessLayer())

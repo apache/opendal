@@ -260,7 +260,10 @@ impl GoosefsCore {
     /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
     /// contract for rename:
     ///
-    /// 1. Destination parent directory is created on demand.
+    /// 1. Destination parent directory is created on demand — but only when
+    ///    Master rename reports the parent missing. Pre-creating an already
+    ///    persisted parent is not a cheap no-op on GooseFS (CACHE_THROUGH
+    ///    still syncs UFS / fingerprint).
     /// 2. If the destination exists as a file and `if_not_exists` is false,
     ///    overwrite by deleting it first. Never delete when `if_not_exists`
     ///    is true (that would destroy Master no-replace and re-introduce
@@ -305,27 +308,53 @@ impl GoosefsCore {
                 master.delete(&dst, false).await.map_err(parse_error)?;
             }
             Err(goosefs_sdk::error::Error::NotFound { .. }) => {
-                // Ensure the destination's parent directory exists.
-                // `create_directory` with recursive=true is idempotent,
-                // so calling it for a parent that already exists is a
-                // cheap metadata no-op on the master.
-                if let Some(parent) = parent_of(&dst) {
-                    master
-                        .create_directory(parent, true)
-                        .await
-                        .map_err(parse_error)?;
-                }
+                // Destination is absent. Skip create_directory here: the parent
+                // almost always already exists (write-via-temp uses the same
+                // directory; Lance commit writes into an existing prefix).
+                // Missing parents are recovered after rename returns NotFound.
             }
             Err(e) => return Err(parse_error(e)),
         }
 
-        match master.rename(&src, &dst).await {
+        match Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                // Master maps a missing dest parent to FileDoesNotExistException
+                // (`LockedInodePath.getParentInodeDirectory`) → gRPC NOT_FOUND.
+                // Source-missing uses the same status; we only mkdir-and-retry
+                // when dst has a createable parent (nested path).
+                if should_create_dest_parent(e.kind(), &dst)
+                    && let Some(parent) = parent_of(&dst)
+                {
+                    master
+                        .create_directory(parent, true)
+                        .await
+                        .map_err(parse_error)?;
+                    Self::rename_inode(&master, &ctx, &src, &dst, from, to, if_not_exists).await
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// Issue Master `rename` and map no-replace conflict / success.
+    async fn rename_inode(
+        master: &MasterClient,
+        ctx: &FileSystemContext,
+        src: &str,
+        dst: &str,
+        from: &str,
+        to: &str,
+        if_not_exists: bool,
+    ) -> Result<()> {
+        match master.rename(src, dst).await {
             Ok(()) => {
                 // Same inode id moved (Master RenameEntry.setId(srcInode.getId()))
                 // — not a fresh inode. Drop any cached FileInfo so a reader
                 // opening `dst` immediately after sees current metadata.
-                ctx.invalidate_file_info(&src);
-                ctx.invalidate_file_info(&dst);
+                ctx.invalidate_file_info(src);
+                ctx.invalidate_file_info(dst);
                 Ok(())
             }
             // Authoritative TOCTOU close: concurrent winner published between
@@ -541,6 +570,15 @@ impl GoosefsCore {
     }
 }
 
+/// Whether a failed rename should be retried after creating `dst`'s parent.
+///
+/// Master reports a missing dest parent as `NotFound`. Source-missing uses
+/// the same status, so we only mkdir-and-retry for nested destinations
+/// (`parent_of` is `Some`).
+fn should_create_dest_parent(kind: ErrorKind, dst: &str) -> bool {
+    kind == ErrorKind::NotFound && parent_of(dst).is_some()
+}
+
 /// Return the parent directory of an absolute GooseFS path, or `None`
 /// when the path has no meaningful parent to create (i.e. it already
 /// points at the filesystem root).
@@ -569,6 +607,8 @@ fn parent_of(path: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::parent_of;
+    use super::should_create_dest_parent;
+    use opendal_core::ErrorKind;
 
     #[test]
     fn parent_of_root_returns_none() {
@@ -596,6 +636,26 @@ mod tests {
         // should not panic on one.
         assert_eq!(parent_of("foo"), None);
         assert_eq!(parent_of(""), None);
+    }
+
+    #[test]
+    fn mkdir_retry_only_for_nested_not_found() {
+        assert!(should_create_dest_parent(
+            ErrorKind::NotFound,
+            "/data/nested/file"
+        ));
+        assert!(
+            !should_create_dest_parent(ErrorKind::NotFound, "/file"),
+            "top-level dest has no parent to create; missing-source must stay NotFound"
+        );
+        assert!(!should_create_dest_parent(
+            ErrorKind::AlreadyExists,
+            "/data/nested/file"
+        ));
+        assert!(!should_create_dest_parent(
+            ErrorKind::ConditionNotMatch,
+            "/data/nested/file"
+        ));
     }
 }
 

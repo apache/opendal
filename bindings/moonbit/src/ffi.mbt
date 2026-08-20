@@ -16,7 +16,8 @@
 // under the License.
 
 ///|
-/// A call-scoped result whose finalizer releases untaken C resources.
+/// An opaque, call-scoped native result. Its take function must match the
+/// operation that produced it.
 priv type NativeResult
 
 ///|
@@ -44,24 +45,16 @@ extern "C" fn native_operator_write(
 
 ///|
 #borrow(result)
-extern "C" fn native_result_status(result : NativeResult) -> Int = "moonbit_opendal_result_status"
-
-///|
-#borrow(result)
 extern "C" fn native_result_error_kind(result : NativeResult) -> Int = "moonbit_opendal_result_error_kind"
 
 ///|
 #borrow(result)
-extern "C" fn native_result_error_message(result : NativeResult) -> Bytes = "moonbit_opendal_result_error_message"
+extern "C" fn native_result_take_error_message(result : NativeResult) -> Bytes = "moonbit_opendal_result_take_error_message"
 
 ///|
 #borrow(result)
-extern "C" fn native_result_take_operator(result : NativeResult) -> Operator = "moonbit_opendal_result_take_operator"
+extern "C" fn native_result_take_operator(result : NativeResult) -> Operator = "moonbit_opendal_new_result_take_operator"
 
 ///|
 #borrow(result)
-extern "C" fn native_result_take_bytes(result : NativeResult) -> Bytes = "moonbit_opendal_result_take_bytes"
-
-///|
-#borrow(result)
-extern "C" fn native_result_release(result : NativeResult) -> Unit = "moonbit_opendal_result_release"
+extern "C" fn native_result_take_bytes(result : NativeResult) -> Bytes = "moonbit_opendal_read_result_take_bytes"

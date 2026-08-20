@@ -15,25 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-C_MANIFEST := ../c/Cargo.toml
-C_LIBRARY_DIR := $(abspath ../c/target/debug)
-C_FEATURES := opendal/services-memory
+[package]
+name = "opendal-moonbit"
+publish = false
 
-.PHONY: build-c check format test
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2024"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.91"
 
-build-c:
-	cargo build --manifest-path $(C_MANIFEST) --features="$(C_FEATURES)"
+[lib]
+crate-type = ["cdylib"]
+doc = false
+name = "opendal_moonbit"
+path = "native/lib.rs"
 
-check: build-c
-	moon check --target native --deny-warn
-	moon fmt --check
-	moon info --target native
-
-format:
-	moon fmt
-	clang-format -i src/opendal_stub.c
-
-test: build-c
-	LD_LIBRARY_PATH="$(C_LIBRARY_DIR):$${LD_LIBRARY_PATH}" \
-	DYLD_LIBRARY_PATH="$(C_LIBRARY_DIR):$${DYLD_LIBRARY_PATH}" \
-	moon test --target native
+[dependencies]
+opendal = { version = ">=0", path = "../../core", default-features = false, features = [
+  "blocking",
+] }
+tokio = { version = "1", features = ["rt-multi-thread"] }

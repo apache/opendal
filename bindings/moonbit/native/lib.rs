@@ -56,12 +56,12 @@ static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         .expect("the MoonBit binding runtime must start")
 });
 
-struct BridgeError {
+struct Error {
     kind: i32,
     message: String,
 }
 
-impl BridgeError {
+impl Error {
     fn new(kind: i32, message: impl Into<String>) -> Self {
         Self {
             kind,
@@ -78,7 +78,7 @@ impl BridgeError {
     }
 }
 
-impl From<opendal::Error> for BridgeError {
+impl From<opendal::Error> for Error {
     fn from(error: opendal::Error) -> Self {
         let kind = match error.kind() {
             opendal::ErrorKind::Unexpected => ERROR_UNEXPECTED,
@@ -98,8 +98,6 @@ impl From<opendal::Error> for BridgeError {
         Self::new(kind, error.to_string())
     }
 }
-
-type BridgeResult<T> = Result<T, BridgeError>;
 
 #[derive(Default)]
 #[repr(C)]
@@ -143,7 +141,7 @@ impl NativeError {
         }
     }
 
-    fn from_error(error: BridgeError) -> Self {
+    fn from_error(error: Error) -> Self {
         Self {
             kind: error.kind,
             message: NativeBytes::new(error.message.into_bytes()),
@@ -167,12 +165,12 @@ impl NativeOperator {
         Self(Mutex::new(Some(operator)))
     }
 
-    fn operator(&self) -> BridgeResult<blocking::Operator> {
+    fn operator(&self) -> Result<blocking::Operator, Error> {
         self.0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
-            .ok_or_else(BridgeError::resource_closed)
+            .ok_or_else(Error::resource_closed)
     }
 
     fn close(&self) {
@@ -183,13 +181,10 @@ impl NativeOperator {
     }
 }
 
-fn catch_bridge<T>(operation: impl FnOnce() -> BridgeResult<T>) -> BridgeResult<T> {
+fn protect<T>(operation: impl FnOnce() -> Result<T, Error>) -> Result<T, Error> {
     match catch_unwind(AssertUnwindSafe(operation)) {
         Ok(result) => result,
-        Err(_) => Err(BridgeError::new(
-            ERROR_UNEXPECTED,
-            "native binding panicked",
-        )),
+        Err(_) => Err(Error::new(ERROR_UNEXPECTED, "native binding panicked")),
     }
 }
 
@@ -197,37 +192,35 @@ fn ignore_panic(operation: impl FnOnce()) {
     let _ = catch_unwind(AssertUnwindSafe(operation));
 }
 
-unsafe fn input_slice<'a>(data: *const u8, len: u32, label: &str) -> BridgeResult<&'a [u8]> {
+unsafe fn input_slice<'a>(data: *const u8, len: u32, label: &str) -> Result<&'a [u8], Error> {
     if len == 0 {
         return Ok(&[]);
     }
     if data.is_null() {
-        return Err(BridgeError::invalid_argument(format!(
-            "{label} pointer is null"
-        )));
+        return Err(Error::invalid_argument(format!("{label} pointer is null")));
     }
     // SAFETY: the caller guarantees that `data` points to `len` readable bytes.
     Ok(unsafe { slice::from_raw_parts(data, len as usize) })
 }
 
-unsafe fn copy_text(data: *const u8, len: u32, label: &str) -> BridgeResult<String> {
+unsafe fn copy_text(data: *const u8, len: u32, label: &str) -> Result<String, Error> {
     // SAFETY: this function forwards the same pointer and length contract.
     let bytes = unsafe { input_slice(data, len, label)? };
     str::from_utf8(bytes)
         .map(str::to_owned)
-        .map_err(|_| BridgeError::invalid_argument(format!("{label} must be UTF-8")))
+        .map_err(|_| Error::invalid_argument(format!("{label} must be UTF-8")))
 }
 
-fn build_operator(scheme: &str) -> BridgeResult<NativeOperator> {
+fn build_operator(scheme: &str) -> Result<NativeOperator, Error> {
     if scheme != "memory" {
-        return Err(BridgeError::new(
+        return Err(Error::new(
             ERROR_UNSUPPORTED,
             "only the memory service is enabled",
         ));
     }
     let _guard = RUNTIME.enter();
-    let operator = opendal::Operator::new(Memory::default()).map_err(BridgeError::from)?;
-    let operator = blocking::Operator::new(operator).map_err(BridgeError::from)?;
+    let operator = opendal::Operator::new(Memory::default()).map_err(Error::from)?;
+    let operator = blocking::Operator::new(operator).map_err(Error::from)?;
     Ok(NativeOperator::new(operator))
 }
 
@@ -238,7 +231,7 @@ pub unsafe extern "C" fn opendal_moonbit_operator_new(
     scheme: *const u8,
     scheme_len: u32,
 ) -> NativeOperatorResult {
-    let result = catch_bridge(|| {
+    let result = protect(|| {
         // SAFETY: the caller upholds this function's pointer contract.
         let scheme = unsafe { copy_text(scheme, scheme_len, "service scheme")? };
         build_operator(&scheme)
@@ -263,17 +256,14 @@ pub unsafe extern "C" fn opendal_moonbit_operator_read(
     path: *const u8,
     path_len: u32,
 ) -> NativeReadResult {
-    let result = catch_bridge(|| {
+    let result = protect(|| {
         // SAFETY: the caller upholds this function's pointer contracts.
-        let operator = unsafe { operator.as_ref() }.ok_or_else(BridgeError::resource_closed)?;
+        let operator = unsafe { operator.as_ref() }.ok_or_else(Error::resource_closed)?;
         // SAFETY: the caller upholds this function's pointer contracts.
         let path = unsafe { copy_text(path, path_len, "path")? };
-        let data = operator
-            .operator()?
-            .read(&path)
-            .map_err(BridgeError::from)?;
+        let data = operator.operator()?.read(&path).map_err(Error::from)?;
         if data.len() > i32::MAX as usize {
-            return Err(BridgeError::new(
+            return Err(Error::new(
                 ERROR_BUFFER_TOO_LARGE,
                 "read result exceeds MoonBit Bytes capacity",
             ));
@@ -302,9 +292,9 @@ pub unsafe extern "C" fn opendal_moonbit_operator_write(
     data: *const u8,
     data_len: u32,
 ) -> NativeError {
-    let result = catch_bridge(|| {
+    let result = protect(|| {
         // SAFETY: the caller upholds this function's pointer contracts.
-        let operator = unsafe { operator.as_ref() }.ok_or_else(BridgeError::resource_closed)?;
+        let operator = unsafe { operator.as_ref() }.ok_or_else(Error::resource_closed)?;
         // SAFETY: the caller upholds this function's pointer contracts.
         let path = unsafe { copy_text(path, path_len, "path")? };
         // SAFETY: the caller upholds this function's pointer contracts.
@@ -313,7 +303,7 @@ pub unsafe extern "C" fn opendal_moonbit_operator_write(
             .operator()?
             .write(&path, data)
             .map(|_| ())
-            .map_err(BridgeError::from)
+            .map_err(Error::from)
     });
     match result {
         Ok(()) => NativeError::ok(),

@@ -39,7 +39,7 @@ def uri_async_operator(service_name, setup_config):
     # assertions match the constructor-based operator the suite uses.
     uri_scheme = service_name.replace("_", "-")
     operator = (
-        opendal.AsyncOperator.from_uri(f"{uri_scheme}://localhost/", **config)
+        opendal.AsyncOperator.from_uri(uri_scheme, **config)
         .layer(opendal.layers.RetryLayer())
         .layer(opendal.layers.ConcurrentLimitLayer(1024))
         .layer(opendal.layers.MimeGuessLayer())
@@ -63,7 +63,7 @@ def test_from_uri_returns_expected_types(uri_operator, uri_async_operator):
 def test_from_uri_matches_constructor_capability(
     uri_operator, operator, uri_async_operator, async_operator
 ):
-    # `from_uri("scheme://", **config)` and `Operator(scheme, **config)` resolve
+    # `from_uri("scheme", **config)` and `Operator(scheme, **config)` resolve
     # to the same service, so their capabilities must match.
     assert uri_operator.capability().write == operator.capability().write
     assert uri_operator.capability().read == operator.capability().read

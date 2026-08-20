@@ -1273,10 +1273,21 @@ fn next_chunk_to_buffer(
     value
         .transpose()
         .map_err(|err| {
-            if let Some(source) = err
-                .get_ref()
-                .and_then(|source| source.downcast_ref::<opendal::Error>())
-            {
+            let mut source = err.get_ref().map(|source| source as &dyn std::error::Error);
+            let mut opendal_error = None;
+            while let Some(current) = source {
+                if let Some(error) = current.downcast_ref::<opendal::Error>() {
+                    opendal_error = Some(error);
+                    break;
+                }
+                source = current
+                    .downcast_ref::<std::io::Error>()
+                    .and_then(std::io::Error::get_ref)
+                    .map(|source| source as &dyn std::error::Error)
+                    .or_else(|| current.source());
+            }
+
+            if let Some(source) = opendal_error {
                 OpenDALError::from_error(
                     ErrorCode::from_error_kind(source.kind()),
                     source.to_string(),
@@ -1299,7 +1310,8 @@ mod input_stream_tests {
     #[test]
     fn next_chunk_preserves_opendal_error_kind() {
         let source = opendal::Error::new(opendal::ErrorKind::ConditionNotMatch, "etag mismatch");
-        let value = Some(Err(std::io::Error::from(source)));
+        let wrapped = std::io::Error::other(std::io::Error::from(source));
+        let value = Some(Err(wrapped));
 
         let error = match next_chunk_to_buffer(value) {
             Ok(_) => panic!("expected stream error"),

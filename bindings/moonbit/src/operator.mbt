@@ -40,7 +40,7 @@ pub fn Operator::close(self : Operator) -> Unit {
 }
 
 ///|
-/// Read an entire object of at most 64 MiB into an owned `Bytes` value.
+/// Read an entire object into an owned `Bytes` value.
 pub fn Operator::read(
   self : Operator,
   path : StringView,

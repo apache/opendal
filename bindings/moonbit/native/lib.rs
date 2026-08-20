@@ -24,7 +24,6 @@ use std::str;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use opendal::blocking;
-use opendal::options::ReaderOptions;
 use opendal::services::Memory;
 
 const STATUS_OK: i32 = 0;
@@ -46,9 +45,6 @@ const ERROR_RESOURCE_CLOSED: i32 = 0x1001;
 const ERROR_BUFFER_TOO_LARGE: i32 = 0x1002;
 const ERROR_INVALID_ARGUMENT: i32 = 0x1003;
 const ERROR_UNKNOWN: i32 = 0x10ff;
-
-const MAX_WHOLE_READ_BYTES: usize = 64 * 1024 * 1024;
-const READ_CHUNK_BYTES: usize = 64 * 1024;
 
 static RUNTIME: LazyLock<Result<tokio::runtime::Runtime, String>> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -79,13 +75,6 @@ impl BridgeError {
 
     fn resource_closed() -> Self {
         Self::new(ERROR_RESOURCE_CLOSED, "operator is closed")
-    }
-
-    fn buffer_too_large() -> Self {
-        Self::new(
-            ERROR_BUFFER_TOO_LARGE,
-            "read result exceeds the whole-object read limit",
-        )
     }
 }
 
@@ -314,51 +303,6 @@ fn build_operator(scheme: &str) -> BridgeResult<NativeOperator> {
     Ok(NativeOperator::new(operator))
 }
 
-fn append_buffer(output: &mut Vec<u8>, buffer: opendal::Buffer, limit: usize) -> BridgeResult<()> {
-    let required = output
-        .len()
-        .checked_add(buffer.len())
-        .filter(|required| *required <= limit)
-        .ok_or_else(BridgeError::buffer_too_large)?;
-    output
-        .try_reserve_exact(required - output.len())
-        .map_err(|_| BridgeError::unexpected("unable to allocate the read result"))?;
-    for bytes in buffer {
-        output.extend_from_slice(&bytes);
-    }
-    debug_assert_eq!(output.len(), required);
-    Ok(())
-}
-
-fn read_with_limit(
-    operator: &blocking::Operator,
-    path: &str,
-    max_read_bytes: usize,
-) -> BridgeResult<Vec<u8>> {
-    let metadata = operator.stat(path).map_err(BridgeError::from)?;
-    if metadata.content_length() > max_read_bytes as u64 {
-        return Err(BridgeError::buffer_too_large());
-    }
-    let options = ReaderOptions {
-        concurrent: 1,
-        chunk: Some(READ_CHUNK_BYTES),
-        ..ReaderOptions::default()
-    };
-    let reader = operator
-        .reader_options(path, options)
-        .map_err(BridgeError::from)?;
-    let iterator = reader.into_iterator(..).map_err(BridgeError::from)?;
-    let mut output = Vec::new();
-    for buffer in iterator {
-        append_buffer(
-            &mut output,
-            buffer.map_err(BridgeError::from)?,
-            max_read_bytes,
-        )?;
-    }
-    Ok(output)
-}
-
 /// Constructs the memory operator used by the first MoonBit binding phase.
 ///
 /// # Safety
@@ -408,7 +352,7 @@ pub unsafe extern "C" fn opendal_moonbit_operator_free(operator: *mut NativeOper
     }));
 }
 
-/// Reads a whole object while bounding the binding-owned output allocation.
+/// Reads a whole object.
 ///
 /// # Safety
 ///
@@ -425,8 +369,16 @@ pub unsafe extern "C" fn opendal_moonbit_operator_read(
         let path = unsafe { copy_text(path, path_len, "path")? };
         // SAFETY: the caller upholds this function's operator pointer contract.
         let operator = unsafe { operator.as_ref() }.ok_or_else(BridgeError::resource_closed)?;
-        let data = operator
-            .with_operator(|operator| read_with_limit(operator, &path, MAX_WHOLE_READ_BYTES))?;
+        let data = operator.with_operator(|operator| {
+            let buffer = operator.read(&path).map_err(BridgeError::from)?;
+            if buffer.len() > i32::MAX as usize {
+                return Err(BridgeError::new(
+                    ERROR_BUFFER_TOO_LARGE,
+                    "read result exceeds MoonBit Bytes capacity",
+                ));
+            }
+            Ok(buffer.to_vec())
+        })?;
         Ok(NativeResult::data(data))
     })
 }

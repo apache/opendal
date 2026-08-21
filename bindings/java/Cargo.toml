@@ -87,6 +87,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-redis",
   # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
   # "services-rocksdb",
+  "services-sftp",
   "services-sled",
   "services-tikv",
   "services-vercel-artifacts",
@@ -103,12 +104,3 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-yandex-disk",
 ] }
 tokio = { version = "1.49.0", features = ["full"] }
-
-# This is not optimal. See also the Cargo issue:
-# https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954
-[target.'cfg(unix)'.dependencies.opendal]
-features = [
-  # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
-  "services-sftp",
-]
-path = "../../core"

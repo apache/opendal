@@ -600,8 +600,8 @@ mod tests {
         assert_eq!(mode, HfDownloadMode::Xet);
     }
 
-    #[test]
-    fn build_accepts_datasets_alias() {
+    #[tokio::test]
+    async fn build_accepts_datasets_alias() {
         HfBuilder::default()
             .repo_id("org/repo")
             .repo_type("datasets")
@@ -609,8 +609,8 @@ mod tests {
             .expect("builder should accept datasets alias");
     }
 
-    #[test]
-    fn build_accepts_space_repo_type() {
+    #[tokio::test]
+    async fn build_accepts_space_repo_type() {
         HfBuilder::default()
             .repo_id("org/space")
             .repo_type("space")
@@ -618,8 +618,8 @@ mod tests {
             .expect("builder should accept space repo type");
     }
 
-    #[test]
-    fn test_both_schemes_are_supported() {
+    #[tokio::test]
+    async fn test_both_schemes_are_supported() {
         use opendal_core::OperatorRegistry;
 
         let registry = OperatorRegistry::get();

@@ -289,6 +289,10 @@ impl HfCore {
         endpoint: String,
         download_mode: HfDownloadMode,
     ) -> Result<Self> {
+        drop(tokio::spawn(async {
+            tokio::task::yield_now().await;
+        }));
+
         let xet_session = XetSessionBuilder::new().build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
         })?;

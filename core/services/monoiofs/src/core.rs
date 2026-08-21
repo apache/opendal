@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use asyncband::oneshot;
 use flume::Receiver;
 use flume::Sender;
-use futures::Future;
-use futures::channel::oneshot;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 use opendal_core::raw::*;
@@ -230,9 +230,8 @@ impl MonoiofsCore {
 mod tests {
     use std::sync::Arc;
 
-    use futures::StreamExt;
-    use futures::channel::mpsc::UnboundedSender;
-    use futures::channel::mpsc::{self};
+    use asyncband::mpsc;
+    use asyncband::mpsc::UnboundedSender;
 
     use super::*;
 
@@ -261,16 +260,16 @@ mod tests {
                     })
                     .await;
                 assert_eq!(result, sleep_millis);
-                tx.unbounded_send(result).unwrap();
+                tx.send(result).unwrap();
             });
         }
 
         spawn_task(core.clone(), tx.clone(), 200);
         spawn_task(core.clone(), tx.clone(), 20);
         drop(tx);
-        let first = rx.next().await;
-        let second = rx.next().await;
-        let third = rx.next().await;
+        let first = rx.recv().await.ok();
+        let second = rx.recv().await.ok();
+        let third = rx.recv().await.ok();
         assert_eq!(first, Some(20));
         assert_eq!(second, Some(200));
         assert_eq!(third, None);

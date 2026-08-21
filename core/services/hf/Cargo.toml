@@ -33,7 +33,7 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-hf-xet = "1.5.0"
+hf-xet = "1.6.0"
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.2", default-features = false }

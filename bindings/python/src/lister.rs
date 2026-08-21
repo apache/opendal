@@ -21,7 +21,6 @@ use asyncband::mutex::Mutex;
 use futures::TryStreamExt;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyStopAsyncIteration;
-use pyo3::prelude::*;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;

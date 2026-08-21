@@ -43,6 +43,8 @@ use reqsign_aws_v4::Credential;
 use reqsign_core::{Context, Signer};
 use serde::Deserialize;
 use serde::Serialize;
+use sha2::Digest as Sha2Digest;
+use sha2::Sha256;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -123,6 +125,13 @@ fn format_crc32c_iter(body: Buffer) -> String {
 
     let crc = digest.finalize() as u32;
     BASE64_STANDARD.encode(crc.to_be_bytes())
+}
+
+fn format_sha256_iter(body: Buffer) -> String {
+    let mut hasher = Sha256::new();
+    body.for_each(|b| hasher.update(&b));
+
+    BASE64_STANDARD.encode(hasher.finalize())
 }
 
 impl Debug for S3Core {
@@ -296,6 +305,7 @@ impl S3Core {
         match self.checksum_algorithm {
             None => None,
             Some(ChecksumAlgorithm::Crc32c) => Some(format_crc32c_iter(body.clone())),
+            Some(ChecksumAlgorithm::Sha256) => Some(format_sha256_iter(body.clone())),
             Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }
@@ -1414,6 +1424,8 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
     pub checksum_crc32c: Option<String>,
+    #[serde(rename = "ChecksumSHA256", skip_serializing_if = "Option::is_none")]
+    pub checksum_sha256: Option<String>,
 }
 
 /// Output of `CompleteMultipartUpload` operation
@@ -1565,6 +1577,7 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 pub enum ChecksumAlgorithm {
     Crc32c,
+    Sha256,
     /// Mapping to the `Content-MD5` header from S3.
     Md5,
 }
@@ -1572,6 +1585,7 @@ impl ChecksumAlgorithm {
     pub fn to_header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Sha256 => HeaderName::from_static("x-amz-checksum-sha256"),
             Self::Md5 => HeaderName::from_static("content-md5"),
         }
     }
@@ -1583,6 +1597,7 @@ impl Display for ChecksumAlgorithm {
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Sha256 => "SHA256",
                 Self::Md5 => "MD5",
             }
         )
@@ -1595,6 +1610,20 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_format_sha256_iter() {
+        // Base64-encoded SHA256 of "hello".
+        assert_eq!(
+            format_sha256_iter(Buffer::from("hello")),
+            "LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ="
+        );
+        // Base64-encoded SHA256 of an empty input.
+        assert_eq!(
+            format_sha256_iter(Buffer::new()),
+            "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+        );
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

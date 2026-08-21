@@ -36,6 +36,25 @@ pub type GoosefsWriters = GoosefsWriter;
 /// suffix without pulling in a UUID dependency.
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Lifecycle position of a [`GoosefsWriter`], so that a re-entered
+/// `close()` can tell "the caller never wrote anything" apart from "a
+/// previous attempt already consumed the write". See the
+/// [`GoosefsWriter`] docs for why that distinction is load-bearing.
+#[derive(Debug)]
+enum State {
+    /// No SDK writer opened yet. `close()` here must honour OpenDAL's
+    /// `write(path, "")` contract and materialise an empty object.
+    Idle,
+    /// Streaming into `tmp_path`.
+    Streaming,
+    /// A previous `close()` consumed the SDK writer and swept the staged
+    /// temp. Nothing is left to finish and the write cannot be resumed.
+    Failed,
+    /// `close()` succeeded; the recorded metadata is replayed on re-entry.
+    /// Boxed to keep the enum small — `Metadata` dwarfs the other variants.
+    Closed(Box<Metadata>),
+}
+
 /// `GoosefsWriter` implements [`oio::Write`] on top of the goosefs-sdk
 /// high-level streaming writer (`GoosefsFileWriter`).
 ///
@@ -82,6 +101,16 @@ static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// have created the object while we were streaming). The second
 /// check is what actually enforces the contract; the first is a
 /// best-effort fast-path optimisation.
+///
+/// # Why `close()` must tolerate re-entry
+///
+/// `RetryLayer` retries a failed `close()` by calling it again on the
+/// *same* writer rather than rebuilding one, and `CompleteWriter`
+/// deliberately keeps its inner writer alive on that branch so the retry
+/// can reach us. The zero-write branch therefore cannot be keyed off
+/// "the SDK handle is gone": the first attempt consumes it, so a retry
+/// would take that branch and publish an empty object over the caller's
+/// target. [`State`] tracks the distinction explicitly.
 pub struct GoosefsWriter {
     core: Arc<GoosefsCore>,
     op: OpWrite,
@@ -94,6 +123,7 @@ pub struct GoosefsWriter {
     /// Lazily initialized SDK streaming writer, opened against
     /// `tmp_path`.
     writer: Option<ClientWriter>,
+    state: State,
 }
 
 impl GoosefsWriter {
@@ -104,7 +134,18 @@ impl GoosefsWriter {
             path,
             tmp_path: None,
             writer: None,
+            state: State::Idle,
         }
+    }
+
+    /// Error used whenever a caller re-drives a writer whose write was
+    /// already consumed. Persistent so `RetryLayer` stops immediately —
+    /// there is no staged state left to finish.
+    fn spent_error(&self, detail: &'static str) -> Error {
+        Error::new(ErrorKind::Unexpected, detail)
+            .with_context("service", super::GOOSEFS_SCHEME)
+            .with_context("path", &self.path)
+            .set_persistent()
     }
 
     /// Produce a sibling temporary path for `path`.
@@ -165,8 +206,77 @@ impl GoosefsWriter {
             let w = self.core.create_writer(&tmp).await?;
             self.tmp_path = Some(tmp);
             self.writer = Some(w);
+            self.state = State::Streaming;
         }
         Ok(self.writer.as_mut().expect("just ensured"))
+    }
+
+    /// Finish a write that streamed at least one chunk.
+    ///
+    /// On any failure the staged temp is swept and the writer is left in
+    /// [`State::Failed`], so a retried `close()` reports the write as spent
+    /// rather than silently publishing an empty object.
+    async fn close_streaming(&mut self) -> Result<Metadata> {
+        let mut writer = self
+            .writer
+            .take()
+            .ok_or_else(|| self.spent_error("writer is streaming but the SDK handle is gone"))?;
+
+        // Commit the temp inode on the master, then publish it onto the
+        // caller's final path via `finalize_rename`.
+        if let Err(e) = writer.close().await.map_err(parse_error) {
+            // Close failed — the temp is in an indeterminate state on the
+            // master; best-effort sweep to avoid leaks.
+            if let Some(tmp) = self.tmp_path.take() {
+                let _ = self.core.delete(&tmp).await;
+            }
+            return Err(e.set_persistent());
+        }
+
+        // Capture file_id before rename; Master rename keeps the same inode id.
+        let mut meta = Metadata::default();
+        if let Some(fid) = writer.file_info().file_id {
+            meta.set_etag(&fid.to_string());
+        }
+
+        self.finalize_rename()
+            .await
+            .map_err(Error::set_persistent)?;
+
+        self.state = State::Closed(Box::new(meta.clone()));
+        Ok(meta)
+    }
+
+    /// Honour OpenDAL's `write(path, "")` contract for a writer that never
+    /// received a `write()` call.
+    ///
+    /// Still goes through the temp-and-rename pipeline so overwrite /
+    /// if-not-exists semantics remain identical to the streaming path.
+    /// Every attempt allocates a fresh temp and leaves the target untouched
+    /// until the closing rename, so this path is safe to retry as-is.
+    async fn close_empty(&mut self) -> Result<Metadata> {
+        if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "target already exists and if_not_exists was set",
+            ));
+        }
+
+        let tmp = Self::make_tmp_path(&self.path);
+        let mut w = self.core.create_writer(&tmp).await?;
+        if let Err(e) = w.close().await.map_err(parse_error) {
+            let _ = self.core.delete(&tmp).await;
+            return Err(e);
+        }
+        let mut meta = Metadata::default();
+        if let Some(fid) = w.file_info().file_id {
+            meta.set_etag(&fid.to_string());
+        }
+        self.tmp_path = Some(tmp);
+        self.finalize_rename().await?;
+
+        self.state = State::Closed(Box::new(meta.clone()));
+        Ok(meta)
     }
 
     /// Finalize the temp file onto the caller's target path.
@@ -217,6 +327,10 @@ impl GoosefsWriter {
 
 impl oio::Write for GoosefsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        if matches!(self.state, State::Failed | State::Closed(_)) {
+            return Err(self.spent_error("write() called on a writer that was already finished"));
+        }
+
         let writer = self.ensure_writer().await?;
 
         // Iterate chunks directly instead of `bs.to_bytes()` — the
@@ -232,52 +346,32 @@ impl oio::Write for GoosefsWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        if let Some(mut writer) = self.writer.take() {
-            // Commit the temp inode on the master, then publish it
-            // onto the caller's final path via `finalize_rename`.
-            if let Err(e) = writer.close().await.map_err(parse_error) {
-                // Close failed — the temp is in an indeterminate state
-                // on the master; best-effort sweep to avoid leaks.
-                if let Some(tmp) = self.tmp_path.take() {
-                    let _ = self.core.delete(&tmp).await;
+        // Default to `Failed` while the attempt runs: every arm below that
+        // can legitimately be re-driven restores a better state explicitly,
+        // so an early return can never leave the writer looking untouched.
+        match std::mem::replace(&mut self.state, State::Failed) {
+            // Idempotent success — replay the recorded result rather than
+            // writing anything a second time.
+            State::Closed(meta) => {
+                self.state = State::Closed(meta.clone());
+                Ok(*meta)
+            }
+            State::Failed => {
+                Err(self
+                    .spent_error("close() already failed for this writer; write cannot be resumed"))
+            }
+            State::Streaming => self.close_streaming().await,
+            State::Idle => {
+                let res = self.close_empty().await;
+                if res.is_err() {
+                    // Nothing was consumed: `close_empty` allocates a fresh
+                    // temp per attempt and never touches the target until
+                    // the closing rename, so retrying is still safe.
+                    self.state = State::Idle;
                 }
-                return Err(e);
+                res
             }
-            // Capture file_id before rename; Master rename keeps the same inode id.
-            let mut meta = Metadata::default();
-            if let Some(fid) = writer.file_info().file_id {
-                meta.set_etag(&fid.to_string());
-            }
-            self.finalize_rename().await?;
-            return Ok(meta);
         }
-
-        // Zero-write path: the caller closed without ever calling
-        // `write()`. OpenDAL's contract for `write(path, "")` is to
-        // materialise an empty object at `path`. We honour it by
-        // opening and immediately closing a writer — still through
-        // the temp-and-rename pipeline, so overwrite / if-not-exists
-        // semantics remain identical to the streaming path.
-        if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "target already exists and if_not_exists was set",
-            ));
-        }
-
-        let tmp = Self::make_tmp_path(&self.path);
-        let mut w = self.core.create_writer(&tmp).await?;
-        if let Err(e) = w.close().await.map_err(parse_error) {
-            let _ = self.core.delete(&tmp).await;
-            return Err(e);
-        }
-        let mut meta = Metadata::default();
-        if let Some(fid) = w.file_info().file_id {
-            meta.set_etag(&fid.to_string());
-        }
-        self.tmp_path = Some(tmp);
-        self.finalize_rename().await?;
-        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -305,6 +399,129 @@ impl oio::Write for GoosefsWriter {
             // reaped it, which is the expected happy path.
             let _ = self.core.delete(&tmp).await;
         }
+
+        // An aborted writer is spent. Without this, a `close()` arriving
+        // after `abort()` would fall into the zero-write branch and
+        // materialise an empty object the caller never asked for.
+        self.state = State::Failed;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GOOSEFS_SCHEME;
+    use goosefs_sdk::config::GoosefsConfig as ClientConfig;
+    use opendal_core::raw::oio::Write as _;
+
+    /// Build a writer without touching the network: `GoosefsCore` defers the
+    /// master connection to the first RPC, and every assertion below stays on
+    /// paths that never issue one.
+    fn offline_writer() -> GoosefsWriter {
+        let core = GoosefsCore::new(
+            ServiceInfo::new(GOOSEFS_SCHEME, "/data/", ""),
+            Capability {
+                write: true,
+                ..Default::default()
+            },
+            "/data/".to_string(),
+            ClientConfig::new("127.0.0.1:9200"),
+        );
+        GoosefsWriter::new(
+            Arc::new(core),
+            OpWrite::default(),
+            "some-object".to_string(),
+        )
+    }
+
+    /// A fresh writer must still honour `write(path, "")`.
+    #[test]
+    fn idle_writer_takes_the_empty_object_branch() {
+        let w = offline_writer();
+        assert!(matches!(w.state, State::Idle));
+    }
+
+    /// `abort()` marks the writer spent so a later `close()` cannot fall
+    /// through to the zero-write branch.
+    #[tokio::test]
+    async fn close_after_abort_does_not_create_an_empty_object() {
+        let mut w = offline_writer();
+
+        // Idle abort is purely local: no SDK writer and no staged temp.
+        w.abort().await.expect("abort on an idle writer is free");
+        assert!(matches!(w.state, State::Failed));
+
+        let err = w
+            .close()
+            .await
+            .expect_err("close after abort must not publish an empty object");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.is_persistent(),
+            "the write is unrecoverable, so RetryLayer must stop: {err}"
+        );
+    }
+
+    /// Models what `RetryLayer` does after a failed `close()`: it calls
+    /// `close()` again on the *same* writer instance. `CompleteWriter`
+    /// deliberately keeps the inner writer alive on the failure branch so this
+    /// retry can happen, so the second call must report the write as spent
+    /// rather than taking the zero-write branch and publishing an empty object
+    /// over the caller's target.
+    #[tokio::test]
+    async fn retried_close_after_failure_never_publishes_an_empty_object() {
+        let mut w = offline_writer();
+        // A streaming writer whose SDK handle is already gone is exactly the
+        // shape a partially-failed close attempt leaves behind.
+        w.state = State::Streaming;
+        assert!(w.writer.is_none());
+
+        let first = w
+            .close()
+            .await
+            .expect_err("streaming close without an SDK handle must fail");
+        assert!(first.is_persistent(), "must not be retried: {first}");
+        assert!(matches!(w.state, State::Failed));
+
+        let second = w
+            .close()
+            .await
+            .expect_err("the retried close must not succeed");
+        assert!(second.is_persistent(), "must not be retried: {second}");
+        assert!(
+            matches!(w.state, State::Failed),
+            "the writer must stay spent no matter how often it is re-driven"
+        );
+    }
+
+    /// A successful `close()` is idempotent: re-entry replays the recorded
+    /// metadata rather than writing anything a second time.
+    #[tokio::test]
+    async fn close_replays_metadata_when_already_closed() {
+        let mut w = offline_writer();
+        let mut meta = Metadata::default();
+        meta.set_etag("42");
+        w.state = State::Closed(Box::new(meta));
+
+        let first = w.close().await.expect("replayed close");
+        assert_eq!(first.etag(), Some("42"));
+
+        let second = w.close().await.expect("still replayed");
+        assert_eq!(second.etag(), Some("42"));
+    }
+
+    /// Writing after the writer is finished must fail loudly rather than
+    /// silently opening a second temp that nobody will publish.
+    #[tokio::test]
+    async fn write_after_finish_is_rejected() {
+        let mut w = offline_writer();
+        w.state = State::Failed;
+
+        let err = w
+            .write(Buffer::from("late"))
+            .await
+            .expect_err("write on a spent writer must fail");
+        assert!(err.is_persistent(), "must not be retried: {err}");
     }
 }

@@ -227,3 +227,84 @@ async fn concurrent_write_if_not_exists_exactly_one_wins() {
         let _ = op.delete(&p).await;
     }
 }
+
+/// Re-closing through the public API must never disturb published data.
+///
+/// Note this exercises `CompleteWriter`, not the service writer: after a
+/// *successful* close it drops its inner writer, so the second call is
+/// rejected upstream and never reaches GooseFS. The service-level guard
+/// matters on the other branch — `CompleteWriter` deliberately keeps the
+/// inner writer when close *fails* so `RetryLayer` can retry it (see the
+/// comment in `layers/complete.rs`), and that retry is what used to fall
+/// into the zero-write path. That path is covered by the unit tests in
+/// `writer.rs`; this test is the end-to-end canary for the layer contract.
+#[tokio::test]
+async fn public_double_close_leaves_data_intact() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+    let path = unique("double-close");
+    let payload = b"payload-that-must-survive-a-repeated-close";
+
+    let mut w = op.writer(&path).await.expect("open writer");
+    w.write(payload.to_vec()).await.expect("write");
+    w.close().await.expect("first close");
+
+    assert!(
+        w.close().await.is_err(),
+        "a second close must be rejected, not silently republish the target"
+    );
+
+    let after = op.read(&path).await.expect("read back").to_bytes();
+    assert_eq!(
+        &after[..],
+        &payload[..],
+        "second close() clobbered the data"
+    );
+
+    let _ = op.delete(&path).await;
+}
+
+/// An aborted write must leave nothing behind, and must not be resurrectable
+/// as an empty object by a trailing `close()`.
+#[tokio::test]
+async fn close_after_abort_leaves_no_object() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+    let path = unique("abort-then-close");
+
+    let mut w = op.writer(&path).await.expect("open writer");
+    w.write(b"discarded".to_vec()).await.expect("write");
+    w.abort().await.expect("abort");
+
+    let _ = w.close().await;
+
+    let err = op
+        .stat(&path)
+        .await
+        .expect_err("aborted write must leave nothing behind");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+}
+
+/// The state machine must not regress OpenDAL's `write(path, "")` contract:
+/// closing a writer that never received data still materialises an empty
+/// object.
+#[tokio::test]
+async fn close_without_write_creates_empty_object() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+    let path = unique("zero-write");
+
+    let mut w = op.writer(&path).await.expect("open writer");
+    w.close().await.expect("close without any write");
+
+    let meta = op.stat(&path).await.expect("empty object must exist");
+    assert_eq!(meta.content_length(), 0);
+
+    let _ = op.delete(&path).await;
+}

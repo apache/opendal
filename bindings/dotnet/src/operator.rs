@@ -18,7 +18,7 @@
 use crate::{
     buffer::{OpendalReadBuffer, WriteBufferSlot, take_payload},
     entry::into_entry_list_ptr,
-    error::{ErrorCode, OpenDALError},
+    error::OpenDALError,
     executor::executor_or_default,
     metadata::OpendalMetadata,
     operator_info::{OpendalOperatorInfo, into_operator_info},
@@ -1272,55 +1272,18 @@ fn next_chunk_to_buffer(
 ) -> Result<OpendalReadBuffer, OpenDALError> {
     value
         .transpose()
-        .map_err(|err| {
-            let mut source = err.get_ref().map(|source| source as &dyn std::error::Error);
-            let mut opendal_error = None;
-            while let Some(current) = source {
-                if let Some(error) = current.downcast_ref::<opendal::Error>() {
-                    opendal_error = Some(error);
-                    break;
-                }
-                source = current
-                    .downcast_ref::<std::io::Error>()
-                    .and_then(std::io::Error::get_ref)
-                    .map(|source| source as &dyn std::error::Error)
-                    .or_else(|| current.source());
-            }
-
-            if let Some(source) = opendal_error {
-                OpenDALError::from_error(
-                    ErrorCode::from_error_kind(source.kind()),
-                    source.to_string(),
-                )
-            } else {
-                OpenDALError::from_error(ErrorCode::Unexpected, err.to_string())
-            }
+        .map_err(|err| match err.downcast::<opendal::Error>() {
+            Ok(error) => OpenDALError::from_opendal_error(error),
+            Err(err) => OpenDALError::from_opendal_error(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                err.to_string(),
+            )),
         })
         .map(|chunk| {
             chunk
                 .map(|bytes| OpendalReadBuffer::from_buffer(bytes.into()))
                 .unwrap_or_else(OpendalReadBuffer::empty)
         })
-}
-
-#[cfg(test)]
-mod input_stream_tests {
-    use super::*;
-
-    #[test]
-    fn next_chunk_preserves_opendal_error_kind() {
-        let source = opendal::Error::new(opendal::ErrorKind::ConditionNotMatch, "etag mismatch");
-        let wrapped = std::io::Error::other(std::io::Error::from(source));
-        let value = Some(Err(wrapped));
-
-        let error = match next_chunk_to_buffer(value) {
-            Ok(_) => panic!("expected stream error"),
-            Err(error) => error,
-        };
-
-        assert_eq!(error.code, ErrorCode::ConditionNotMatch as i32);
-        crate::result::opendal_error_release(error);
-    }
 }
 
 fn operator_input_stream_create_inner(

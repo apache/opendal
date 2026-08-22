@@ -158,6 +158,33 @@ err = op.Delete("dir/", opendal.DeleteWithRecursive(true))    // path and everyt
 
 `Delete` succeeds even if the path does not exist.
 
+## Delete many paths
+
+```go
+err := op.Remove([]string{"a.txt", "b.txt", "c.txt"})
+```
+
+`Remove` deletes the paths in batches on services that support batch deletion,
+such as S3. Drive a `Deleter` yourself when you queue paths as you discover them
+or need per-path options:
+
+```go
+deleter, err := op.Deleter()
+if err != nil {
+	log.Fatal(err)
+}
+for _, path := range paths {
+	if err := deleter.Delete(path); err != nil {
+		log.Fatal(err)
+	}
+}
+// Delete only queues a path. Close flushes the queue, waits for the deletions,
+// and reports whether they succeeded, so check its error instead of deferring it.
+if err := deleter.Close(); err != nil {
+	log.Fatal(err)
+}
+```
+
 ## Create a directory
 
 ```go

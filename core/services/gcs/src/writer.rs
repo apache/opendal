@@ -72,6 +72,21 @@ impl oio::MultipartWrite for GcsWriter {
     }
 
     async fn initiate_part(&self) -> Result<String> {
+        // GCS XML API multipart uploads cannot carry request preconditions
+        // (`ifGenerationMatch` / similar). Single-shot `write_once` honors
+        // `if_not_exists` via the JSON upload API; the multipart path must not
+        // silently overwrite an existing object when the caller asked for a
+        // conditional create.
+        //
+        // ref: https://cloud.google.com/storage/docs/request-preconditions
+        // ref: https://github.com/apache/opendal/issues/8040
+        if self.op.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "gcs multipart upload cannot honor if_not_exists; use write() for conditional creates",
+            ));
+        }
+
         let resp = self
             .core
             .gcs_initiate_multipart_upload(&self.ctx, &self.path, &self.op)

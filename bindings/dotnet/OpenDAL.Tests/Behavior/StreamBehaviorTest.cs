@@ -84,7 +84,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     [Fact]
     public async Task StreamBehavior_LargeRoundtripAsync_Works()
     {
-        if (!Supports(c => c.Read && c.Write))
+        if (!Supports(c => c.Read && c.Write && c.WriteCanMulti))
         {
             return;
         }
@@ -152,7 +152,8 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
         var path = NewPath("stream-complete-async");
         var content = RandomBytes(100_000);
 
-        await using (var output = Op.OpenWriteStream(path, bufferSize: 8 * 1024))
+        var bufferSize = Capability.WriteCanMulti ? 8 * 1024 : content.Length;
+        await using (var output = Op.OpenWriteStream(path, bufferSize: bufferSize))
         {
             await output.WriteAsync(content.AsMemory(), CT);
             await output.CompleteAsync(CT);
@@ -258,7 +259,8 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     [Fact]
     public void StreamBehavior_OpenReadStream_IfMatchUnsupported_SurfacesUnsupported()
     {
-        if (!Supports(c => c.Read && c.Write && !c.ReadWithIfMatch))
+        if (!Supports(c => c.Read && c.Write && !c.ReadWithIfMatch)
+            || CapabilityBeforeOverrides.ReadWithIfMatch)
         {
             return;
         }
@@ -280,7 +282,8 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     [Fact]
     public void StreamBehavior_OpenReadStream_VersionUnsupported_SurfacesUnsupported()
     {
-        if (!Supports(c => c.Read && c.Write && !c.ReadWithVersion))
+        if (!Supports(c => c.Read && c.Write && !c.ReadWithVersion)
+            || CapabilityBeforeOverrides.ReadWithVersion)
         {
             return;
         }

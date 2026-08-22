@@ -29,6 +29,9 @@ Features:
 - **All WriteTypes**: Supports MUST_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH.
 - **Conditional Create**: `write_with_if_not_exists` publishes via Master no-replace
   rename (`rename_with_if_not_exists`); destination is never deleted on the Create path.
+- **Rename parent directories**: `rename` creates a missing destination parent only
+  when Master reports it missing. Write-via-temp publish does not call
+  `CreateDirectory` for a parent that `CreateFile(recursive)` already created.
 
 ## Configuration
 

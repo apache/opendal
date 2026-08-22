@@ -27,6 +27,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: binding_ruby-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 defaults:
   run:
     working-directory: bindings/ruby

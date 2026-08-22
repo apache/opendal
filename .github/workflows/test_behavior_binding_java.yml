@@ -27,6 +27,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: binding_java-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   java-cache:
     runs-on: ${{ inputs.os }}

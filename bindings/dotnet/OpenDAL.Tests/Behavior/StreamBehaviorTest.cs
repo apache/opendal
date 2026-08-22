@@ -260,7 +260,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     public void StreamBehavior_OpenReadStream_IfMatchUnsupported_SurfacesUnsupported()
     {
         if (!Supports(c => c.Read && c.Write && !c.ReadWithIfMatch)
-            || BackendCapability.ReadWithIfMatch)
+            || CapabilityBeforeOverrides.ReadWithIfMatch)
         {
             return;
         }
@@ -283,7 +283,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     public void StreamBehavior_OpenReadStream_VersionUnsupported_SurfacesUnsupported()
     {
         if (!Supports(c => c.Read && c.Write && !c.ReadWithVersion)
-            || BackendCapability.ReadWithVersion)
+            || CapabilityBeforeOverrides.ReadWithVersion)
         {
             return;
         }

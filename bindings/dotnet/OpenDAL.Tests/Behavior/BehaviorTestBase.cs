@@ -34,7 +34,7 @@ public abstract class BehaviorTestBase
 
     protected Operator Op => fixture.Op;
 
-    protected Capability BackendCapability => fixture.BackendCapability;
+    protected Capability CapabilityBeforeOverrides => fixture.CapabilityBeforeOverrides;
 
     protected Capability Capability => fixture.Capability;
 

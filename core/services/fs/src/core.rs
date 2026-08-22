@@ -41,24 +41,28 @@ impl FsCore {
     /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
     /// configured `root` at syscall time. The fs backend documents that "all
     /// operations will happen under this root", so we reject any key whose
-    /// components include a `..` (parent-dir) traversal.
+    /// components include a `..` (parent-dir) traversal, a root directory, or a
+    /// path prefix: `PathBuf::join` discards the base when the key is absolute,
+    /// which covers `/etc/passwd` plus the Windows `C:\`, `\\?\` and UNC forms
+    /// that `normalize_path` leaves untouched.
     pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
         use std::path::Component;
         let trimmed = path.trim_end_matches('/');
-        if Path::new(trimmed)
-            .components()
-            .any(|c| matches!(c, Component::ParentDir))
-        {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "path escapes the configured root via `..`",
+        if Path::new(trimmed).components().any(|c| {
+            matches!(
+                c,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
             )
-            .with_context("path", path));
+        }) {
+            return Err(
+                Error::new(ErrorKind::NotFound, "path escapes the configured root")
+                    .with_context("path", path),
+            );
         }
         Ok(base.join(trimmed))
     }
 
-    /// Join a caller-supplied key onto `self.root`, rejecting `..` traversal.
+    /// Join a caller-supplied key onto `self.root`, keeping the result confined.
     #[inline]
     pub fn root_join(&self, path: &str) -> Result<PathBuf> {
         Self::confined_join(&self.root, path)
@@ -363,5 +367,60 @@ mod tests {
 
         let got = FsCore::get_user_metadata(&dst_path).unwrap();
         assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
+    }
+
+    #[test]
+    fn test_confined_join_rejects_escaping_keys() {
+        let base = Path::new("/data/root");
+        for key in ["../etc/passwd", "a/../../b", "/etc/passwd", "//etc/passwd"] {
+            let err = FsCore::confined_join(base, key).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "key should be rejected: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_confined_join_allows_normal_keys() {
+        let base = Path::new("/data/root");
+        assert_eq!(
+            FsCore::confined_join(base, "a/b.txt").unwrap(),
+            PathBuf::from("/data/root/a/b.txt")
+        );
+        assert_eq!(
+            FsCore::confined_join(base, "a/b/").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        // The root path `/` trims to empty and resolves to the base itself.
+        assert_eq!(
+            FsCore::confined_join(base, "/").unwrap(),
+            PathBuf::from("/data/root")
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_iter_rejects_absolute_path_outside_root() {
+        use opendal_core::Operator;
+
+        let root_dir = tempfile::TempDir::new().unwrap();
+        let outside_dir = tempfile::TempDir::new().unwrap();
+
+        let outside = outside_dir.path().join("outside.txt");
+        std::fs::write(&outside, b"content").unwrap();
+
+        let op =
+            Operator::new(crate::Fs::default().root(root_dir.path().to_str().unwrap())).unwrap();
+
+        // `Deleter` takes the caller's key verbatim, so an absolute key reaches
+        // `root_join` without `normalize_path` having stripped the leading `/`.
+        let err = op
+            .delete_iter([outside.to_str().unwrap().to_string()])
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(outside.exists());
     }
 }

@@ -343,13 +343,7 @@ impl Service for DropboxBackend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => {
-                    let err = parse_error(resp);
-                    match err.kind() {
-                        ErrorKind::NotFound => Ok(Metadata::default()),
-                        _ => Err(err),
-                    }
-                }
+                _ => Err(parse_error(resp)),
             }
         }))
     }
@@ -367,13 +361,7 @@ impl Service for DropboxBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(RpRename::default()),
-                    _ => Err(err),
-                }
-            }
+            _ => Err(parse_error(resp)),
         }
     }
 

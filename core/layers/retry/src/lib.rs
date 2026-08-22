@@ -115,6 +115,7 @@ use opendal_core::*;
 /// ```
 pub struct RetryLayer<I: RetryInterceptor = DefaultRetryInterceptor> {
     builder: ExponentialBuilder,
+    max_elapsed_time: Option<Duration>,
     notify: Arc<I>,
 }
 
@@ -122,6 +123,7 @@ impl<I: RetryInterceptor> Debug for RetryLayer<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryLayer")
             .field("builder", &self.builder)
+            .field("max_elapsed_time", &self.max_elapsed_time)
             .finish_non_exhaustive()
     }
 }
@@ -130,6 +132,7 @@ impl<I: RetryInterceptor> Clone for RetryLayer<I> {
     fn clone(&self) -> Self {
         Self {
             builder: self.builder,
+            max_elapsed_time: self.max_elapsed_time,
             notify: self.notify.clone(),
         }
     }
@@ -139,6 +142,7 @@ impl Default for RetryLayer {
     fn default() -> Self {
         Self {
             builder: ExponentialBuilder::default(),
+            max_elapsed_time: None,
             notify: Arc::new(DefaultRetryInterceptor),
         }
     }
@@ -168,6 +172,7 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     pub fn with_notify<NI: RetryInterceptor>(self, notify: NI) -> RetryLayer<NI> {
         RetryLayer {
             builder: self.builder,
+            max_elapsed_time: self.max_elapsed_time,
             notify: Arc::new(notify),
         }
     }
@@ -212,6 +217,16 @@ impl<I: RetryInterceptor> RetryLayer<I> {
         self.builder = self.builder.with_max_times(max_times);
         self
     }
+
+    /// Set the maximum elapsed time for each retry operation.
+    ///
+    /// The timer starts when an operation makes its first attempt. Once the elapsed time reaches
+    /// this limit, the layer returns the latest error instead of scheduling another retry. It does
+    /// not interrupt an attempt or retry sleep that is already in progress.
+    pub fn with_max_elapsed_time(mut self, max_elapsed_time: Duration) -> Self {
+        self.max_elapsed_time = Some(max_elapsed_time);
+        self
+    }
 }
 
 impl<I: RetryInterceptor> Layer for RetryLayer<I> {
@@ -226,6 +241,7 @@ impl<I: RetryInterceptor> RetryLayer<I> {
             inner,
             notify: self.notify.clone(),
             builder: self.builder,
+            max_elapsed_time: self.max_elapsed_time,
         }
     }
 }
@@ -282,6 +298,7 @@ pub struct RetryService<I: RetryInterceptor> {
     inner: Servicer,
     notify: Arc<I>,
     builder: ExponentialBuilder,
+    max_elapsed_time: Option<Duration>,
 }
 
 impl<I: RetryInterceptor> Debug for RetryService<I> {
@@ -316,6 +333,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         { || self.inner.create_dir(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -334,6 +352,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         let reader = { || self.inner.read(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -347,13 +366,19 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok(RetryReader::new(reader, self.notify.clone(), self.builder))
+        Ok(RetryReader::new(
+            reader,
+            self.notify.clone(),
+            self.builder,
+            self.max_elapsed_time,
+        ))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let mut attempt: u32 = 0;
         let writer = { || self.inner.write(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -367,13 +392,19 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok(RetryWrapper::new(writer, self.notify.clone(), self.builder))
+        Ok(RetryWrapper::new(
+            writer,
+            self.notify.clone(),
+            self.builder,
+            self.max_elapsed_time,
+        ))
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let mut attempt: u32 = 0;
         { || self.inner.stat(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -392,6 +423,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         let deleter = { || self.inner.delete(ctx) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -409,6 +441,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             deleter,
             self.notify.clone(),
             self.builder,
+            self.max_elapsed_time,
         ))
     }
 
@@ -423,6 +456,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         let copier = { || self.inner.copy(ctx, from, to, args.clone(), opts.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -436,7 +470,12 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok(RetryWrapper::new(copier, self.notify.clone(), self.builder))
+        Ok(RetryWrapper::new(
+            copier,
+            self.notify.clone(),
+            self.builder,
+            self.max_elapsed_time,
+        ))
     }
 
     async fn rename(
@@ -449,6 +488,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         { || self.inner.rename(ctx, from, to, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -467,6 +507,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         let lister = { || self.inner.list(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -480,7 +521,12 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .call()
             .map_err(|err| err.set_persistent())?;
 
-        Ok(RetryWrapper::new(lister, self.notify.clone(), self.builder))
+        Ok(RetryWrapper::new(
+            lister,
+            self.notify.clone(),
+            self.builder,
+            self.max_elapsed_time,
+        ))
     }
 
     async fn presign(
@@ -492,6 +538,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         let mut attempt: u32 = 0;
         { || self.inner.presign(ctx, path, args.clone()) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -512,14 +559,21 @@ pub struct RetryReader<R, I> {
     inner: Arc<R>,
     notify: Arc<I>,
     builder: ExponentialBuilder,
+    max_elapsed_time: Option<Duration>,
 }
 
 impl<R, I> RetryReader<R, I> {
-    fn new(inner: R, notify: Arc<I>, builder: ExponentialBuilder) -> Self {
+    fn new(
+        inner: R,
+        notify: Arc<I>,
+        builder: ExponentialBuilder,
+        max_elapsed_time: Option<Duration>,
+    ) -> Self {
         Self {
             inner: Arc::new(inner),
             notify,
             builder,
+            max_elapsed_time,
         }
     }
 }
@@ -531,6 +585,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
         let mut attempt: u32 = 0;
         let (rp, stream) = { || self.inner.open(range) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -552,6 +607,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
                 range,
                 self.notify.clone(),
                 self.builder,
+                self.max_elapsed_time,
             )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
@@ -562,6 +618,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
         let mut attempt: u32 = 0;
         { || self.inner.read(range) }
             .retry(self.builder)
+            .with_max_elapsed_time(self.max_elapsed_time)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
@@ -585,6 +642,7 @@ pub struct RetryReadStream<R, I> {
     read: u64,
     notify: Arc<I>,
     builder: ExponentialBuilder,
+    max_elapsed_time: Option<Duration>,
 }
 
 impl<R, I> RetryReadStream<R, I> {
@@ -594,6 +652,7 @@ impl<R, I> RetryReadStream<R, I> {
         range: BytesRange,
         notify: Arc<I>,
         builder: ExponentialBuilder,
+        max_elapsed_time: Option<Duration>,
     ) -> Self {
         Self {
             reader,
@@ -602,6 +661,7 @@ impl<R, I> RetryReadStream<R, I> {
             read: 0,
             notify,
             builder,
+            max_elapsed_time,
         }
     }
 }
@@ -652,6 +712,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context((stream, range, read))
         .notify(|err, dur| {
@@ -679,14 +740,21 @@ pub struct RetryWrapper<R, I> {
     notify: Arc<I>,
 
     builder: ExponentialBuilder,
+    max_elapsed_time: Option<Duration>,
 }
 
 impl<R, I> RetryWrapper<R, I> {
-    fn new(inner: R, notify: Arc<I>, backoff: ExponentialBuilder) -> Self {
+    fn new(
+        inner: R,
+        notify: Arc<I>,
+        backoff: ExponentialBuilder,
+        max_elapsed_time: Option<Duration>,
+    ) -> Self {
         Self {
             inner: Some(inner),
             notify,
             builder: backoff,
+            max_elapsed_time,
         }
     }
 
@@ -715,6 +783,7 @@ impl<R: oio::ReadStream, I: RetryInterceptor> oio::ReadStream for RetryWrapper<R
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -748,6 +817,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context((inner, bs))
         .notify(|err, dur| {
@@ -779,6 +849,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -810,6 +881,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -843,6 +915,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -881,6 +954,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -912,6 +986,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -945,6 +1020,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -976,6 +1052,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -1007,6 +1084,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
             }
         }
         .retry(self.builder)
+        .with_max_elapsed_time(self.max_elapsed_time)
         .when(|e| e.is_temporary())
         .context(inner)
         .notify(|err, dur| {
@@ -1122,7 +1200,14 @@ mod tests {
             ))
         }
 
-        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+            if path == "retryable_error" {
+                *self.attempt.lock().unwrap() += 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from stat").set_temporary(),
+                );
+            }
+
             Ok(RpStat::new(
                 Metadata::new(EntryMode::FILE).with_content_length(13),
             ))
@@ -1393,6 +1478,49 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_max_elapsed_time_stat() -> Result<()> {
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::default()
+                .with_max_times(10)
+                .with_max_elapsed_time(Duration::ZERO),
+        );
+
+        let result = op.stat("retryable_error").await;
+
+        assert!(result.is_err());
+        assert_eq!(*builder.attempt.lock().unwrap(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_max_elapsed_time_writer_close() -> Result<()> {
+        #[derive(Clone, Default)]
+        struct Recorder {
+            retries: Arc<Mutex<usize>>,
+        }
+
+        impl RetryInterceptor for Recorder {
+            fn intercept(&self, _: RetryEvent<'_>) {
+                *self.retries.lock().unwrap() += 1;
+            }
+        }
+
+        let recorder = Recorder::default();
+        let op = Operator::new(MockBuilder::default())?.layer(
+            RetryLayer::default()
+                .with_max_times(10)
+                .with_max_elapsed_time(Duration::ZERO)
+                .with_notify(recorder.clone()),
+        );
+        let result = op.writer("test").await?.close().await;
+
+        assert!(result.is_err());
+        assert_eq!(*recorder.retries.lock().unwrap(), 0);
+        Ok(())
+    }
+
     /// This test is used to reproduce the panic issue while composing retry layer with timeout layer.
     #[tokio::test]
     async fn test_retry_write_fail_on_close() -> Result<()> {
@@ -1511,6 +1639,7 @@ mod tests {
             ExponentialBuilder::default()
                 .with_min_delay(Duration::from_millis(1))
                 .with_max_delay(Duration::from_millis(1)),
+            None,
         );
 
         let (_, mut stream) = oio::Read::open(&reader, BytesRange::default()).await?;

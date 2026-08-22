@@ -549,9 +549,18 @@ mod error {
         let bs = body.to_bytes();
         let message = String::from_utf8_lossy(&bs).into_owned();
 
-        let mut err = Error::new(ErrorKind::Unexpected, message);
+        let (kind, retryable) = match parts.status.as_u16() {
+            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let mut err = Error::new(kind, message);
 
         err = with_error_response_context(err, parts);
+
+        if retryable {
+            err = err.set_temporary();
+        }
 
         err
     }
@@ -561,6 +570,33 @@ mod error {
         use http::StatusCode;
 
         use super::*;
+
+        /// A 5xx from the service is transient, so `RetryLayer` has to be able to
+        /// see it: it retries only while `Error::is_temporary` holds.
+        #[tokio::test]
+        async fn test_parse_error_marks_5xx_temporary() {
+            for status in [
+                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_GATEWAY,
+                StatusCode::SERVICE_UNAVAILABLE,
+                StatusCode::GATEWAY_TIMEOUT,
+            ] {
+                let body = Buffer::from(bytes::Bytes::from("error"));
+                let resp = Response::builder().status(status).body(body).unwrap();
+                assert!(
+                    parse_error(resp).is_temporary(),
+                    "{status} should be retryable"
+                );
+            }
+
+            // A status that is not transient must stay non-retryable.
+            let body = Buffer::from(bytes::Bytes::from("error"));
+            let resp = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(body)
+                .unwrap();
+            assert!(!parse_error(resp).is_temporary());
+        }
 
         #[tokio::test]
         async fn test_parse_error() {

@@ -198,7 +198,12 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::get(&url);
 
@@ -338,7 +343,12 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::put(&url);
 
@@ -414,7 +424,12 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::head(&url);
 
@@ -1004,6 +1019,50 @@ mod tests {
             .expect("request must sign");
 
         assert_eq!(signed.uri(), &original_uri);
+    }
+
+    #[test]
+    fn test_xml_requests_percent_encode_object_path() {
+        let sign_ctx = Context::new();
+        let signer = Signer::new(
+            sign_ctx.clone(),
+            ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
+            RequestSigner::new("storage"),
+        );
+
+        let core = GcsCore {
+            info: ServiceInfo::new("gcs", "/", "test-bucket"),
+            capability: Capability::default(),
+            endpoint: "https://storage.googleapis.com".to_string(),
+            bucket: "test-bucket".to_string(),
+            root: "/".to_string(),
+            signer,
+            sign_ctx,
+            predefined_acl: None,
+            default_storage_class: None,
+            skip_signature: false,
+        };
+
+        let path = "nested/object #1?v=2 .txt";
+        let expected = "/test-bucket/nested/object%20%231%3Fv%3D2%20.txt";
+
+        let get = core
+            .gcs_get_object_xml_request(path, BytesRange::default(), &OpRead::default())
+            .expect("request must build");
+        assert_eq!(get.uri().path(), expected);
+        assert_eq!(get.uri().query(), None);
+
+        let put = core
+            .gcs_insert_object_xml_request(path, &OpWrite::default(), Buffer::new())
+            .expect("request must build");
+        assert_eq!(put.uri().path(), expected);
+        assert_eq!(put.uri().query(), None);
+
+        let head = core
+            .gcs_head_object_xml_request(path, &OpStat::default())
+            .expect("request must build");
+        assert_eq!(head.uri().path(), expected);
+        assert_eq!(head.uri().query(), None);
     }
 
     #[test]

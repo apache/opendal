@@ -34,7 +34,7 @@ all-features = true
 [dependencies]
 base64 = { workspace = true }
 bytes = { workspace = true }
-crc-fast = "1.9.0"
+crc-fast = { version = "1.9.0", default-features = false, features = ["std"] }
 http = { workspace = true }
 log = { workspace = true }
 md-5 = "0.11.0"

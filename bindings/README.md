@@ -35,6 +35,12 @@ For example, while the `opendal` crate might be at version `0.55.0`, a binding
 might be at version `0.47.0` or `0.49.2`. For updates and compatibility, use
 the specific binding version instead of the `opendal` crate version.
 
+## Design Proposals
+
+* [Dynamic service and layer extensions](docs/dynamic-extensions/README.md)
+  explores independently installable packages for the Python, Ruby, and
+  Node.js bindings. The proposal is not implemented yet.
+
 ## Getting Started
 
 Every binding should provide a `README.md` file to help users get started.

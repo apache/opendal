@@ -314,7 +314,7 @@ impl Service for HfBackend {
         }
 
         // Buckets have no git directory entries; treat any trailing-slash path as a virtual dir.
-        if self.core.repo.is_bucket() && path.ends_with('/') {
+        if self.core.is_bucket() && path.ends_with('/') {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 

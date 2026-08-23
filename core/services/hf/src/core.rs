@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use asyncband::once::OnceCell;
+use asyncband::once::LazyCell;
+use asyncband::once::LazyCellFuture;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -240,23 +241,24 @@ pub(super) struct LastCommit {
 // Core HuggingFace client that manages API interactions, authentication
 // and shared logic for reader/writer/lister.
 
-#[derive(Clone)]
 pub struct HfCore {
     pub info: ServiceInfo,
     pub capability: Capability,
-    pub repo: HfRepo,
+    pub(super) repo: LazyCell<HfRepo, RepoInitializer>,
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
-    canonical_repo: OnceCell<HfRepo>,
 }
+
+pub(super) type RepoInitializer =
+    Box<dyn for<'a> FnMut(&'a OperationContext) -> LazyCellFuture<Result<HfRepo>> + Send>;
 
 impl Debug for HfCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HfCore")
-            .field("repo", &self.repo)
+            .field("repo", &LazyCell::get(&self.repo))
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
@@ -275,6 +277,8 @@ impl HfCore {
         xet_session: XetSession,
         download_mode: HfDownloadMode,
     ) -> Self {
+        let repo = Self::build_repo(repo, endpoint.clone(), token.clone());
+
         Self {
             info,
             capability,
@@ -284,8 +288,57 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
-            canonical_repo: OnceCell::new(),
         }
+    }
+
+    fn build_repo(
+        repo: HfRepo,
+        endpoint: String,
+        token: Option<String>,
+    ) -> LazyCell<HfRepo, RepoInitializer> {
+        if repo.is_bucket() {
+            return LazyCell::from(repo);
+        }
+
+        let initializer: RepoInitializer = Box::new(move |ctx| {
+            let ctx = ctx.clone();
+            let endpoint = endpoint.clone();
+            let mut repo = repo.clone();
+            let token = token.clone();
+
+            Box::pin(async move {
+                let url = format!(
+                    "{}/api/{}/{}",
+                    endpoint,
+                    repo.repo_type.as_plural_str(),
+                    repo.repo_id,
+                );
+                let mut req = Request::builder()
+                    .method(http::Method::GET)
+                    .uri(url)
+                    .extension(Operation::Stat)
+                    .extension(ServiceOperation("RepoInfo"));
+                if let Some(token) = token
+                    && let Ok(auth) = format_authorization_by_bearer(&token)
+                {
+                    req = req.header(header::AUTHORIZATION, auth);
+                }
+                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+                let resp = ctx.http_transport().fetch(req).await?;
+                let (parts, mut body) = resp.into_parts();
+                if !parts.status.is_success() {
+                    return Err(parse_error(parts));
+                }
+                let buffer = body.to_buffer().await?;
+                let info: RepoInfoResponse =
+                    serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
+
+                repo.repo_id = info.id;
+                Ok(repo)
+            })
+        });
+
+        LazyCell::new(initializer)
     }
 
     pub fn build(
@@ -323,6 +376,10 @@ impl HfCore {
         headers
     }
 
+    pub(super) fn is_bucket(&self) -> bool {
+        LazyCell::get(&self.repo).is_some_and(HfRepo::is_bucket)
+    }
+
     /// Create a new XET upload commit with token refresh configured.
     ///
     /// Each call creates a fresh upload commit from the shared XET session.
@@ -330,8 +387,7 @@ impl HfCore {
         &self,
         ctx: &OperationContext,
     ) -> Result<XetUploadCommit> {
-        let refresh_url = self
-            .canonical_repo(ctx)
+        let refresh_url = LazyCell::try_force_with(&self.repo, ctx)
             .await?
             .xet_token_url(&self.endpoint, "write");
         let refresh_headers = self.xet_token_refresh_headers();
@@ -357,8 +413,7 @@ impl HfCore {
         &self,
         ctx: &OperationContext,
     ) -> Result<XetDownloadStreamGroup> {
-        let refresh_url = self
-            .canonical_repo(ctx)
+        let refresh_url = LazyCell::try_force_with(&self.repo, ctx)
             .await?
             .xet_token_url(&self.endpoint, "read");
         let refresh_headers = self.xet_token_refresh_headers();
@@ -416,49 +471,6 @@ impl HfCore {
         Ok(req)
     }
 
-    /// Return the repo handle with the server's canonical repo id, resolving
-    /// and caching it on first use.
-    ///
-    /// HF resolves repo ids case-insensitively but replies 307 to any request
-    /// for a non-canonically-cased id (e.g. `user/repo` for `user/Repo`).
-    /// The transport cannot replay bodied requests (commit, paths-info)
-    /// through a redirect. Building every URL from the canonical id avoids
-    /// depending on redirect behavior entirely, removing the inconsistency across
-    /// operations.
-    pub(super) async fn canonical_repo(&self, ctx: &OperationContext) -> Result<HfRepo> {
-        // Buckets are addressed by opaque ids
-        if self.repo.is_bucket() {
-            return Ok(self.repo.clone());
-        }
-
-        self.canonical_repo
-            .get_or_try_init(|| async {
-                let url = format!(
-                    "{}/api/{}/{}",
-                    self.endpoint,
-                    self.repo.repo_type.as_plural_str(),
-                    self.repo.repo_id,
-                );
-                let req = self
-                    .request(http::Method::GET, &url, Operation::Stat, "RepoInfo")?
-                    .body(Buffer::new())
-                    .map_err(new_request_build_error)?;
-                let (_, info) = self.send_parse::<RepoInfoResponse>(ctx, req).await?;
-
-                let mut repo = self.repo.clone();
-                repo.repo_id = info.id;
-                Ok(repo)
-            })
-            .await
-            .cloned()
-    }
-
-    /// Build an [`HfUri`] for the given operator-relative path, using the
-    /// canonical repo id.
-    pub(super) async fn canonical_uri(&self, ctx: &OperationContext, path: &str) -> Result<HfUri> {
-        Ok(self.canonical_repo(ctx).await?.uri(&self.root, path))
-    }
-
     /// Convert an operator-relative path to a repo-absolute path
     /// (no leading `/`) for use in commit/delete/batch payloads.
     pub(super) fn repo_path(&self, path: &str) -> String {
@@ -503,7 +515,9 @@ impl HfCore {
     }
 
     pub(super) async fn path_info(&self, ctx: &OperationContext, path: &str) -> Result<PathInfo> {
-        let uri = self.canonical_uri(ctx, path).await?;
+        let uri = LazyCell::try_force_with(&self.repo, ctx)
+            .await?
+            .uri(&self.root, path);
         let url = uri.paths_info_url(&self.endpoint);
         let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
 
@@ -534,8 +548,10 @@ impl HfCore {
         range: BytesRange,
         mode: HfDownloadMode,
     ) -> Result<Response<HttpBody>> {
-        let uri = self.canonical_uri(ctx, path).await?;
-        let url = uri.resolve_url(&self.endpoint, self.repo.revision());
+        let uri = LazyCell::try_force_with(&self.repo, ctx)
+            .await?
+            .uri(&self.root, path);
+        let url = uri.resolve_url(&self.endpoint, uri.revision());
 
         let mut req = self.request(http::Method::GET, &url, Operation::Read, "Resolve")?;
 
@@ -577,8 +593,7 @@ impl HfCore {
         deleted_files: Vec<DeletedFile>,
         deleted_folders: Vec<DeletedFolder>,
     ) -> Result<CommitResponse> {
-        let url = self
-            .canonical_repo(ctx)
+        let url = LazyCell::try_force_with(&self.repo, ctx)
             .await?
             .git_commit_url(&self.endpoint);
 
@@ -618,7 +633,9 @@ impl HfCore {
             ));
         }
 
-        let url = self.repo.bucket_batch_url(&self.endpoint);
+        let url = LazyCell::try_force_with(&self.repo, ctx)
+            .await?
+            .bucket_batch_url(&self.endpoint);
 
         let mut body = String::new();
         for op in operations {

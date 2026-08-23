@@ -260,7 +260,12 @@ impl GoosefsCore {
     /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
     /// contract for rename:
     ///
-    /// 1. Destination parent directory is created on demand.
+    /// 1. Destination parent directory is created on demand — but only when
+    ///    Master reports it missing. Under `CACHE_THROUGH`,
+    ///    `create_directory` on an already-persisted parent is a CosN
+    ///    round-trip (tens of milliseconds), not a metadata no-op. The
+    ///    write-via-temp path already created that parent via
+    ///    `CreateFile(recursive)`, so the publish `rename` skips mkdir.
     /// 2. If the destination exists as a file and `if_not_exists` is false,
     ///    overwrite by deleting it first. Never delete when `if_not_exists`
     ///    is true (that would destroy Master no-replace and re-introduce
@@ -304,22 +309,13 @@ impl GoosefsCore {
                 // delete first so overwrite can proceed.
                 master.delete(&dst, false).await.map_err(parse_error)?;
             }
-            Err(goosefs_sdk::error::Error::NotFound { .. }) => {
-                // Ensure the destination's parent directory exists.
-                // `create_directory` with recursive=true is idempotent,
-                // so calling it for a parent that already exists is a
-                // cheap metadata no-op on the master.
-                if let Some(parent) = parent_of(&dst) {
-                    master
-                        .create_directory(parent, true)
-                        .await
-                        .map_err(parse_error)?;
-                }
-            }
+            // Parent may already exist (write-via-temp always does). Create it
+            // only if the subsequent rename reports it missing.
+            Err(goosefs_sdk::error::Error::NotFound { .. }) => {}
             Err(e) => return Err(parse_error(e)),
         }
 
-        match master.rename(&src, &dst).await {
+        match rename_creating_parent_if_missing(&master, &src, &dst).await {
             Ok(()) => {
                 // Same inode id moved (Master RenameEntry.setId(srcInode.getId()))
                 // — not a fresh inode. Drop any cached FileInfo so a reader
@@ -541,6 +537,40 @@ impl GoosefsCore {
     }
 }
 
+/// Run `rename(src, dst)`, creating `dst`'s parent only if Master reports
+/// the destination path as missing.
+///
+/// The write-via-temp publish path never takes the mkdir branch: tmp lives
+/// in the same directory as `dst`, and `CreateFile(recursive)` already
+/// created that parent. Eager `create_directory` on an existing parent is
+/// the 45–55ms `CACHE_THROUGH` no-op this helper exists to skip.
+///
+/// `rename` NotFound is also what Master returns for a missing source, so
+/// we `get_status(src)` before mkdir and only create the parent when the
+/// source still exists.
+async fn rename_creating_parent_if_missing(
+    master: &MasterClient,
+    src: &str,
+    dst: &str,
+) -> goosefs_sdk::error::Result<()> {
+    match master.rename(src, dst).await {
+        Ok(()) => Ok(()),
+        Err(e) if matches!(e, goosefs_sdk::error::Error::NotFound { .. }) => {
+            let Some(parent) = parent_of(dst) else {
+                return Err(e);
+            };
+            match master.get_status(src).await {
+                Ok(_) => {}
+                Err(goosefs_sdk::error::Error::NotFound { .. }) => return Err(e),
+                Err(status_err) => return Err(status_err),
+            }
+            master.create_directory(parent, true).await?;
+            master.rename(src, dst).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// Return the parent directory of an absolute GooseFS path, or `None`
 /// when the path has no meaningful parent to create (i.e. it already
 /// points at the filesystem root).
@@ -588,6 +618,13 @@ mod tests {
         assert_eq!(parent_of("/a/b/c"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/d"), Some("/a/b/c"));
+        // Write-via-temp publish: dst is a sibling of `.opendal.tmp.*` under
+        // an already-created parent, so retry-mkdir is gated on this being Some
+        // but is not taken on the happy path.
+        assert_eq!(
+            parent_of("/trace_test/03/data/file.lance"),
+            Some("/trace_test/03/data")
+        );
     }
 
     #[test]

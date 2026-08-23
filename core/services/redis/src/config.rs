@@ -59,7 +59,7 @@ pub struct RedisConfig {
     /// default is db 0
     pub db: i64,
     /// The default ttl for put operations.
-    pub default_ttl: Option<Duration>,
+    pub default_ttl: Option<SignedDuration>,
 }
 
 impl Debug for RedisConfig {
@@ -120,7 +120,10 @@ impl Configurator for RedisConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        RedisBuilder { config: self }
+        RedisBuilder {
+            config: self,
+            default_ttl: None,
+        }
     }
 }
 
@@ -153,6 +156,14 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 0);
         assert_eq!(cfg.root.as_deref(), Some("app/data"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_iter_parses_default_ttl() -> Result<()> {
+        let cfg = RedisConfig::from_iter([("default_ttl".to_string(), "5s".to_string())])?;
+
+        assert_eq!(cfg.default_ttl, Some(SignedDuration::from_secs(5)));
         Ok(())
     }
 

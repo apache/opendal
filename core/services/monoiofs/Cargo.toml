@@ -32,9 +32,9 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+asyncband = { workspace = true }
 bytes = { workspace = true }
 flume = "0.12"
-futures = { workspace = true, features = ["std", "async-await"] }
 monoio = { version = "0.2.4", features = [
   "sync",
   "mkdirat",

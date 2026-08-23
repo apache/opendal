@@ -22,8 +22,8 @@
 pub mod rfc_0000_example {}
 
 /// GCS Versioned Read And Write
-#[doc = include_str!("0000_gcs_versioned_read_and_write.md")]
-pub mod rfc_0000_gcs_versioned_read_and_write {}
+#[doc = include_str!("8132_gcs_versioned_read_and_write.md")]
+pub mod rfc_8132_gcs_versioned_read_and_write {}
 
 /// S3 Provider Presets
 #[doc = include_str!("7948_s3_provider_presets.md")]

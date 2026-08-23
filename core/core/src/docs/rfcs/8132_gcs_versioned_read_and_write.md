@@ -1,6 +1,6 @@
 - Proposal Name: `gcs_versioned_read_and_write`
 - Start Date: 2026-08-23
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#8132](https://github.com/apache/opendal/pull/8132)
 - Tracking Issue: [apache/opendal#7889](https://github.com/apache/opendal/issues/7889)
 - AI Assistance: This RFC was drafted using Codex (GPT-5.6 Sol) and was
   human-reviewed before publication.

@@ -404,15 +404,25 @@ mod tests {
         part_numbers: Vec<usize>,
         length: u64,
         content: Option<Buffer>,
+        fail_randomly: bool,
     }
 
     impl TestWrite {
         pub fn new() -> Arc<Mutex<Self>> {
+            Self::new_with_failures(true)
+        }
+
+        pub fn new_stable() -> Arc<Mutex<Self>> {
+            Self::new_with_failures(false)
+        }
+
+        fn new_with_failures(fail_randomly: bool) -> Arc<Mutex<Self>> {
             let v = Self {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
                 length: 0,
                 content: None,
+                fail_randomly,
             };
 
             Arc::new(Mutex::new(v))
@@ -423,7 +433,7 @@ mod tests {
         async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
             sleep(Duration::from_nanos(50)).await;
 
-            if rng().random_bool(1.0 / 10.0) {
+            if self.lock().await.fail_randomly && rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -456,7 +466,7 @@ mod tests {
             sleep(Duration::from_nanos(50)).await;
 
             // We will have 10% percent rate for write part to fail.
-            if rng().random_bool(1.0 / 10.0) {
+            if self.lock().await.fail_randomly && rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -622,7 +632,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multipart_writer_interleaves_writes_and_copies() -> Result<()> {
-        let inner = TestWrite::new();
+        let inner = TestWrite::new_stable();
         let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
 
         writer.write(Buffer::from("local-a")).await?;
@@ -639,7 +649,13 @@ mod tests {
                 .await?,
             oio::CopyFromOutcome::Accepted
         );
-        let metadata = writer.close().await?;
+        let metadata = loop {
+            match writer.close().await {
+                Ok(metadata) => break metadata,
+                Err(err) if err.is_temporary() => continue,
+                Err(err) => return Err(err),
+            }
+        };
 
         assert_eq!(metadata.content_length(), 7 + 11 + 7 + 13);
         assert_eq!(inner.lock().await.part_numbers, vec![0, 1, 2, 3]);

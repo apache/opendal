@@ -336,6 +336,8 @@ pub struct DeleteOptions {
     ///
     /// Only supported on backends that support recursive delete.
     pub recursive: Option<bool>,
+    /// The ETag that the object must match before deletion.
+    pub if_match: Option<String>,
 }
 
 impl<'a, 'py> FromPyObject<'a, 'py> for DeleteOptions {
@@ -347,6 +349,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for DeleteOptions {
         Ok(Self {
             version: extract_optional(&dict, "version")?,
             recursive: extract_optional(&dict, "recursive")?,
+            if_match: extract_optional(&dict, "if_match")?,
         })
     }
 }
@@ -356,6 +359,7 @@ impl From<DeleteOptions> for ocore::options::DeleteOptions {
         Self {
             version: opts.version,
             recursive: opts.recursive.unwrap_or(false),
+            if_match: opts.if_match,
         }
     }
 }

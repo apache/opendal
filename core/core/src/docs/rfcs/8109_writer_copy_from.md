@@ -14,10 +14,10 @@ For every input sequence, the result matches reading each source through the
 same `Operator` with its supplied `ReadOptions` and writing those bytes in call
 order. OpenDAL may use `UploadPartCopy`, `PutBlockFromURL`, or another native
 operation when it preserves source conditions, destination options, ordering,
-and writer completion semantics. Capable services keep unchanged bytes inside
-the storage service; other services stream bounded buffers through the client.
-Applications can assemble large objects without staging their complete content
-in memory or on a local filesystem and without depending on a backend protocol.
+and writer completion semantics. Native execution keeps unchanged bytes inside
+the storage service, while fallback streams bounded buffers through the client.
+Applications avoid client staging, backend-specific multipart copy, and custom
+boundary assembly.
 
 # Motivation
 
@@ -101,17 +101,19 @@ cannot preserve the operation as a native copy.
 metadata, which remains controlled by the `WriteOptions` used to create the
 writer. An empty source range is a no-op.
 
-Successful return means that the source range has been accepted in sequence by
-the writer. It does not mean that the destination has been committed. As with
-`write`, `close` performs the final commit and reports any deferred failure.
+`copy_from` shares the writer's chunk and concurrency budgets with `write` and
+applies backpressure while it schedules the range. Successful return means that
+all work produced by the call has been scheduled except for the writer's single
+retained logical suffix. It does not mean that the destination has been
+committed. As with `write`, `close` schedules the suffix, performs the final
+commit, and reports any deferred failure.
 
 `copy_from` does not expose progress within one call. Applications split a
-large logical range into multiple bounded, ordered calls. Each successful
-return marks logical acceptance of that subrange and provides a checkpoint for
-recording progress, aborting the writer, or attributing an error to the next
-subrange. OpenDAL may still split a subrange into physical requests to satisfy
-service limits; those internal part boundaries do not become public progress
-events.
+large logical range into multiple bounded, ordered calls of at most 5 GiB each.
+Each successful return provides a checkpoint for recording progress, aborting
+the writer, or attributing an error to the next subrange. OpenDAL may still
+split a subrange into physical requests to satisfy service limits; those
+internal part boundaries do not become public progress events.
 
 # Reference-level explanation
 
@@ -145,8 +147,16 @@ The source path is normalized and resolved by the `WriteContext`'s composed
 source `Operator` and does not attempt to determine whether two independently
 constructed operators address compatible storage.
 
-The public operation requires the existing read and write capabilities. Native
-range copy is an optional optimization, not a new public capability.
+The public operation requires the existing read and write capabilities. An
+unbounded range also requires OpenDAL to discover its length before writer
+mutation. Native range copy is an optional optimization, not a new public
+capability.
+
+Version 1 limits each `copy_from` call to 5 GiB. A bounded or suffix range whose
+declared length exceeds that limit returns an input error before writer
+mutation. OpenDAL resolves the length of an unbounded range before accepting
+it and applies the same limit. Applications assemble larger logical ranges with
+multiple calls.
 
 ## Read equivalence and source consistency
 
@@ -157,13 +167,24 @@ materialization, and complete streaming fallback must preserve this
 equivalence.
 
 OpenDAL must not discard a source version or condition to use a native path.
-When `version` or `if_match` is present, every split native request and fallback
-read uses the same value. Without either option, `copy_from` has the same weak
-consistency as an ordinary chunked read and does not add snapshot isolation.
+Every metadata lookup, split native request, and fallback read uses the same
+applicable values. Without `version` or `if_match`, `copy_from` has the same
+weak consistency as an ordinary chunked read and does not add snapshot
+isolation.
 
-Copying from the destination path is allowed only when `version` or `if_match`
-fixes the source object. Otherwise, `copy_from_options` returns an input error
-before accepting the range.
+Native execution requires an absolute bounded range. OpenDAL may resolve a
+suffix or unbounded public range with a stat that uses the same version and
+applicable conditions. If it cannot safely resolve the range for native
+execution, it uses streaming fallback. For an unbounded range, the metadata
+lookup or the composed reader's open response must also establish the length
+before destination mutation so OpenDAL can enforce the per-call limit;
+otherwise the operation returns `Unsupported`. Resolution does not add snapshot
+isolation: every subsequent request still uses the supplied conditions, and an
+unconditional copy retains ordinary read consistency.
+
+The normalized source path must differ from the destination path. Version 1
+rejects equal paths even when `version` or `if_match` is present because some
+services expose writes in place before the destination is committed.
 
 ## Lifecycle and observability
 
@@ -177,8 +198,12 @@ path.
 
 ## Online assembly
 
-The write generator accepts an ordered sequence of buffers and bounded source
-ranges. It retains one unscheduled logical suffix so that every scheduled
+The public `Writer` and `WriteGenerator` assemble an ordered sequence of buffers
+and bounded source ranges under one chunk and concurrency budget. A
+`copy_from` call drives its range until every eligible physical part has been
+scheduled, so arbitrary input is not deferred without bound until `close`.
+
+The generator retains one unscheduled logical suffix so that every scheduled
 physical part is legal as a non-final part. `close` schedules the suffix as the
 final part. Adjacent buffers may be combined, and contiguous ranges may be
 combined when their path and read arguments match.
@@ -193,11 +218,14 @@ the normal reader and writer paths.
 ## Native writer contract
 
 Extend `oio::Write` with an optional internal operation that accepts a source
-path, `OpRead`, and a bounded `BytesRange`. Its result distinguishes:
+path, `OpRead`, and exactly one bounded physical `BytesRange`. Following
+RFC-7660, `OpRead` contains the source conditions but not the range. The raw
+operation rejects ranges that are not absolute and bounded. Its result
+distinguishes:
 
-- accepted input;
-- unsupported input with no writer mutation;
-- execution failure.
+- `Accepted`;
+- `Unsupported` with no writer mutation;
+- an execution error.
 
 Only the no-mutation result permits streaming fallback. An execution failure
 must not trigger fallback because the native operation may already have
@@ -213,25 +241,18 @@ service provides a semantically equivalent specialized path.
 
 ## Layer contract
 
-The optional native operation belongs to `oio::Write`, so it passes through the
-complete writer wrapper stack. Each layer writer forwards it, handles it, or
-returns the no-mutation unsupported result. Tracing, metrics, retry, and
-completion wrappers may forward it while preserving their existing behavior.
-Retry repeats the same immutable range and part number, and completion
-accounting includes the accepted range length.
+The native operation passes through the complete `oio::Write` wrapper stack. A
+writer wrapper may forward it only when the layer is an identity transform for
+the source path and byte content and does not change the selected route target.
+Every other wrapper returns `Unsupported` without mutation. The public
+`Writer` then opens the source through the complete composed reader stack and
+uses streaming fallback, preserving the layer's read-to-write behavior.
 
-A layer that changes paths, routing, or byte content must handle the operation
-explicitly or report the no-mutation unsupported result. `RouteLayer`, for
-example, records the destination route when it creates the writer and resolves
-the source route for each `copy_from` call. It forwards native copy only when
-both paths select a compatible target. Otherwise, the high-level writer opens
-the source through the composed reader stack and streams it to the existing
-destination writer.
-
-Layers that cannot prove native copy equivalent to their read-to-write behavior
-must reject the optimization. Observability layers should distinguish native,
-boundary-materialized, and streamed bytes so that the transfer cost remains
-diagnosable.
+Assembly and fallback belong to the public `Writer` and `WriteGenerator`.
+Service writers only execute bounded native ranges inside their existing upload
+transaction. Retry repeats the same immutable range and part number, while
+tracing, metrics, and completion wrappers account for accepted logical, native,
+boundary-materialized, and streamed bytes.
 
 # Compatibility and migration
 
@@ -245,14 +266,15 @@ paths, routing, or bytes must intercept or reject the native operation before
 any service enables its fast path. Services can then add native support
 incrementally.
 
-Append writers reject `copy_from` because append backends do not necessarily
-use a transaction that can assemble remote ranges.
+Append writers accept `copy_from`. A service writer without a native append
+transaction returns `Unsupported` without mutation, and the public writer uses
+streaming fallback.
 
 # Drawbacks
 
-The writer must retain remote range descriptors and sometimes boundary bytes
-until a later input or `close` determines the final part layout. A call may
-therefore defer I/O and errors.
+The writer retains one logical suffix descriptor and sometimes boundary bytes
+until a later input or `close` determines the final part layout. Scheduled I/O
+and its errors may remain pending until a later call or `close`.
 
 Automatic fallback can transfer more data through the client than a user
 expects from the word "copy". Metrics and tracing make that behavior visible,
@@ -278,6 +300,11 @@ Accepting a `Reader` would implicitly broaden the operation to cross-Operator
 sources and make native compatibility depend on opaque reader and layer
 identity. This RFC keeps that problem out of the initial contract.
 
+`Access` and `Copier` operate outside an already-open destination writer and
+cannot reuse its upload transaction. A separate raw subtrait or downcast would
+bypass writer wrappers that enforce retry, transformation, routing, and
+observability semantics.
+
 A native-only method would fail valid input sequences that a normal read and
 write can handle. Defining read-to-write equivalence makes the operation
 portable while retaining native copy as an optimization.
@@ -302,4 +329,6 @@ None.
 # Future possibilities
 
 Cross-Operator sources and a blocking API can be considered separately after
-the same-Operator asynchronous contract is implemented and validated.
+the same-Operator asynchronous contract is implemented and validated. A future
+service capability may permit source and destination path equality when it
+guarantees that an open writer cannot affect reads until commit.

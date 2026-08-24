@@ -336,6 +336,7 @@ pub struct DeleteOptions {
     ///
     /// Only supported on backends that support recursive delete.
     pub recursive: Option<bool>,
+    /// The ETag that the object must match before deletion.
     pub if_match: Option<String>,
 }
 

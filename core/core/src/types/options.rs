@@ -37,7 +37,7 @@ pub struct DeleteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::delete_with_if_match`] before using this feature.
+    /// Check [`crate::Capability::delete_with_if_match`] before using this feature.
     ///
     /// ### Behavior
     ///

@@ -38,6 +38,11 @@ public abstract class BehaviorTestBase
 
     protected Capability Capability => fixture.Capability;
 
+    protected bool IsService(string scheme)
+    {
+        return string.Equals(fixture.Scheme, scheme, StringComparison.OrdinalIgnoreCase);
+    }
+
     protected bool Supports(Func<Capability, bool> predicate)
     {
         return IsEnabled && predicate(Capability);

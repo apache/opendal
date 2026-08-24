@@ -105,7 +105,26 @@ pub struct S3Core {
     pub default_acl: Option<String>,
 
     pub signer: Signer<Credential>,
+    pub session_signer: Option<Signer<Credential>>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+fn uses_s3_express_session(operation: Option<&ServiceOperation>) -> bool {
+    matches!(
+        operation.map(|operation| operation.0),
+        Some(
+            "HeadObject"
+                | "GetObject"
+                | "PutObject"
+                | "DeleteObject"
+                | "DeleteObjects"
+                | "ListObjectsV2"
+                | "CreateMultipartUpload"
+                | "UploadPart"
+                | "CompleteMultipartUpload"
+                | "AbortMultipartUpload"
+        )
+    )
 }
 
 pub(crate) struct S3UploadPartCopyRequest<'a> {
@@ -136,7 +155,24 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+    fn signer(
+        &self,
+        ctx: &OperationContext,
+        operation: Option<&ServiceOperation>,
+    ) -> Signer<Credential> {
+        let signer = match (&self.session_signer, uses_s3_express_session(operation)) {
+            (Some(signer), true) => signer,
+            _ => &self.signer,
+        };
+        signer.clone().with_context(
+            Context::new()
+                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                .with_http_send(ctx.http_transport().clone())
+                .with_env(reqsign_core::OsEnv),
+        )
+    }
+
+    fn iam_signer(&self, ctx: &OperationContext) -> Signer<Credential> {
         self.signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
@@ -158,7 +194,7 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        self.iam_signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -185,7 +221,7 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        self.signer(ctx, parts.extensions.get::<ServiceOperation>())
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -214,7 +250,7 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        self.signer(ctx, parts.extensions.get::<ServiceOperation>())
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -1595,6 +1631,41 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_s3_express_session_operation_routing() {
+        for operation in [
+            "HeadObject",
+            "GetObject",
+            "PutObject",
+            "DeleteObject",
+            "DeleteObjects",
+            "ListObjectsV2",
+            "CreateMultipartUpload",
+            "UploadPart",
+            "CompleteMultipartUpload",
+            "AbortMultipartUpload",
+        ] {
+            assert!(
+                uses_s3_express_session(Some(&ServiceOperation(operation))),
+                "{operation} must use S3 Express session credentials"
+            );
+        }
+
+        for operation in [
+            "CopyObject",
+            "UploadPartCopy",
+            "HeadBucket",
+            "CreateSession",
+            "ListObjects",
+        ] {
+            assert!(
+                !uses_s3_express_session(Some(&ServiceOperation(operation))),
+                "{operation} must use IAM credentials"
+            );
+        }
+        assert!(!uses_s3_express_session(None));
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

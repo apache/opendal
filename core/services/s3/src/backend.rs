@@ -32,6 +32,8 @@ use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
+use reqsign_aws_v4::S3ExpressSessionConfig;
+use reqsign_aws_v4::S3ExpressSessionProvider;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
@@ -559,6 +561,66 @@ impl S3Builder {
         endpoint
     }
 
+    fn is_aws_endpoint(config: &S3Config, region: &str) -> bool {
+        let Some(endpoint) = &config.endpoint else {
+            return true;
+        };
+
+        let endpoint = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            format!("https://{endpoint}")
+        };
+        let Ok(endpoint) = Url::parse(&endpoint) else {
+            return false;
+        };
+        if endpoint.path() != "/"
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+            || endpoint.port().is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return false;
+        }
+
+        let Some(host) = endpoint.host_str() else {
+            return false;
+        };
+        let host = host
+            .strip_prefix(&format!("{}.", config.bucket))
+            .unwrap_or(host);
+        let standard_suffix = format!(".{region}.amazonaws.com");
+        let china_suffix = format!(".{region}.amazonaws.com.cn");
+
+        host == "s3.amazonaws.com"
+            || host == format!("s3.{region}.amazonaws.com")
+            || host == format!("s3.{region}.amazonaws.com.cn")
+            || (host.starts_with("s3express-")
+                && (host.ends_with(&standard_suffix) || host.ends_with(&china_suffix)))
+    }
+
+    fn resolve_s3_express_config(
+        config: &S3Config,
+        region: &str,
+    ) -> Result<Option<S3ExpressSessionConfig>> {
+        if !config.bucket.ends_with("--x-s3") || !Self::is_aws_endpoint(config, region) {
+            return Ok(None);
+        }
+
+        S3ExpressSessionConfig::from_bucket(&config.bucket, region)
+            .map(Some)
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "invalid AWS S3 directory bucket configuration",
+                )
+                .with_operation("Builder::build")
+                .with_context("service", S3_SCHEME)
+                .set_source(err)
+            })
+    }
+
     /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -852,8 +914,13 @@ impl Builder for S3Builder {
             }
         }
 
+        let s3_express_config = Self::resolve_s3_express_config(&config, &region)?;
+
         // Building endpoint.
-        let endpoint = Self::build_endpoint(&config, &region);
+        let endpoint = match &s3_express_config {
+            Some(config) => config.endpoint().to_string(),
+            None => Self::build_endpoint(&config, &region),
+        };
         debug!("backend use endpoint: {endpoint}");
 
         // The base signer context only carries local config readers. HTTP
@@ -928,11 +995,27 @@ impl Builder for S3Builder {
             provider
         };
 
-        // Create request signer for S3
-        let request_signer = AwsV4Signer::new("s3", &region);
-
-        // Create the signer
-        let signer = Signer::new(ctx, provider, request_signer);
+        let (signer, session_signer) = if s3_express_config.is_some() {
+            let provider = Arc::new(provider);
+            let iam_signer = Signer::new(
+                ctx.clone(),
+                provider.clone(),
+                AwsV4Signer::new("s3express", &region).with_standard_session_token(),
+            );
+            let session_provider =
+                S3ExpressSessionProvider::new(bucket, provider).with_region(&region);
+            let session_signer = Signer::new(
+                ctx,
+                session_provider,
+                AwsV4Signer::new("s3express", &region),
+            );
+            (iam_signer, Some(session_signer))
+        } else {
+            (
+                Signer::new(ctx, provider, AwsV4Signer::new("s3", &region)),
+                None,
+            )
+        };
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -1045,6 +1128,7 @@ impl Builder for S3Builder {
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
                 signer,
+                session_signer,
                 checksum_algorithm,
                 default_acl: config.default_acl,
             }),
@@ -1297,6 +1381,53 @@ mod tests {
             let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
+    }
+
+    #[test]
+    fn test_resolve_s3_express_config() {
+        let directory_bucket = "example--usw2-az1--x-s3";
+
+        for endpoint in [
+            None,
+            Some("s3.amazonaws.com"),
+            Some("https://s3.us-west-2.amazonaws.com"),
+            Some("https://example--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com"),
+        ] {
+            let mut builder = S3Builder::default().bucket(directory_bucket);
+            if let Some(endpoint) = endpoint {
+                builder = builder.endpoint(endpoint);
+            }
+
+            let config = S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect("valid directory bucket must resolve")
+                .expect("AWS directory bucket must enable session authentication");
+            assert_eq!(
+                config.endpoint(),
+                "https://example--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com"
+            );
+        }
+    }
+
+    #[test]
+    fn test_s3_express_classification_does_not_change_compatible_services() {
+        let builder = S3Builder::default()
+            .bucket("example--usw2-az1--x-s3")
+            .endpoint("https://s3.example.com");
+
+        assert!(
+            S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect("custom endpoint classification must succeed")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_invalid_aws_directory_bucket_configuration_is_rejected() {
+        let builder = S3Builder::default().bucket("example--usw2-az1--x-s3");
+
+        let err = S3Builder::resolve_s3_express_config(&builder.config, "us-east-1")
+            .expect_err("zone and region mismatch must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 
     #[tokio::test]

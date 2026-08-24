@@ -24,8 +24,8 @@ edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.85"
-version = "0.57.0"
+rust-version = "1.91"
+version = "0.59.0"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
@@ -38,21 +38,20 @@ path = "tests/behavior/main.rs"
 
 [dependencies]
 async-trait = "0.1"
+asyncband = { version = "0.6" }
 bytes = "1"
 chrono = { version = "0.4.42", features = ["std", "clock"] }
 futures = "0.3"
-mea = "0.6"
-object_store = "0.13.1"
-opendal = { version = "0.57.0", path = "../../core", default-features = false }
+object_store = "0.14.1"
+opendal = { version = "0.58.2", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-datafusion = "54.0.0"
 libtest-mimic = "0.8.1"
-opendal = { version = "0.57.0", path = "../../core", features = [
+opendal = { version = "0.58.2", path = "../../core", features = [
   "services-fs",
   "services-memory",
   "services-s3",
@@ -60,5 +59,4 @@ opendal = { version = "0.57.0", path = "../../core", features = [
 ] }
 rand = "0.10.1"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
-url = "2.5.2"
 uuid = "1.11.0"

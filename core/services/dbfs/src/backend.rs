@@ -82,7 +82,7 @@ impl Builder for DbfsBuilder {
 
     /// Build a DbfsBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -93,7 +93,7 @@ impl Builder for DbfsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", DBFS_SCHEME)),
         }?;
-        debug!("backend use endpoint: {}", &endpoint);
+        debug!("backend use endpoint: {}", endpoint);
 
         let token = match self.config.token {
             Some(token) => token,

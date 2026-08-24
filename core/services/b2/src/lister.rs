@@ -95,10 +95,10 @@ impl oio::PageList for B2Lister {
         }
 
         for file in output.files {
-            if let Some(start_after) = self.start_after.clone() {
-                if build_abs_path(&self.core.root, &start_after) == file.file_name {
-                    continue;
-                }
+            if let Some(start_after) = self.start_after.clone()
+                && build_abs_path(&self.core.root, &start_after) == file.file_name
+            {
+                continue;
             }
             let file_name = file.file_name.clone();
             let metadata = parse_file_info(&file);

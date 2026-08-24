@@ -81,7 +81,8 @@ impl HdfsNativeBuilder {
 
     /// Set other hdfs-native client options of this backend.
     ///
-    /// Currently the supported configs refer to (https://github.com/Kimahriman/hdfs-native)
+    /// See the [hdfs-native documentation](https://github.com/Kimahriman/hdfs-native)
+    /// for the supported options.
     pub fn options(mut self, options: HashMap<String, String>) -> Self {
         self.config.options = Some(options);
         self
@@ -92,7 +93,7 @@ impl Builder for HdfsNativeBuilder {
     type Config = HdfsNativeConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let name_node = match &self.config.name_node {
             Some(v) => v,

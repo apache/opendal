@@ -71,10 +71,10 @@ impl opendal_core::Configurator for HdfsConfig {
             map.insert("name_node".to_string(), format!("hdfs://{authority}"));
         }
 
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
-            }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)

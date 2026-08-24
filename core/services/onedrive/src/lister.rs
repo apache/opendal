@@ -31,7 +31,6 @@ use super::graph_model::ItemType;
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,
     ctx: OperationContext,
-    capability: Capability,
     path: String,
     op: OpList,
 }
@@ -43,16 +42,20 @@ impl OneDriveLister {
         path: String,
         core: Arc<OneDriveCore>,
         ctx: OperationContext,
-        capability: Capability,
         args: &OpList,
     ) -> Self {
         Self {
             core,
             ctx,
-            capability,
             path,
             op: args.clone(),
         }
+    }
+
+    fn is_after_start(&self, path: &str) -> bool {
+        self.op
+            .start_after()
+            .is_none_or(|start_after| path > start_after)
     }
 }
 
@@ -81,7 +84,7 @@ impl oio::PageList for OneDriveLister {
         let decoded_response: GraphApiOneDriveListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
-        let list_with_versions = self.capability.list_with_versions;
+        let list_with_versions = self.op.versions();
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
@@ -100,8 +103,10 @@ impl oio::PageList for OneDriveLister {
 
             // skip `list_with_versions` intentionally because a folder doesn't have versions
 
-            let entry = oio::Entry::new(&path, meta);
-            ctx.entries.push_back(entry);
+            if self.is_after_start(&path) {
+                let entry = oio::Entry::new(&path, meta);
+                ctx.entries.push_back(entry);
+            }
         }
 
         if let Some(next_link) = decoded_response.next_link {
@@ -129,25 +134,50 @@ impl oio::PageList for OneDriveLister {
                 normalized_path.push('/');
             }
 
+            if !self.is_after_start(&normalized_path) {
+                continue;
+            }
+
             let mut meta = Metadata::new(entry_mode)
                 .with_etag(drive_item.e_tag)
                 .with_content_length(drive_item.size.max(0) as u64);
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
             meta.set_last_modified(last_modified);
 
-            // When listing a directory with `$expand=versions`, OneDrive returns 400 "Operation not supported".
-            // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
-            // N+1 is horrendous but we can't do any better without OneDrive's API support.
-            // When OneDrive supports listing with versions API, remove this.
-            if list_with_versions {
-                let versions = self.core.onedrive_list_versions(&self.ctx, &path).await?;
-                if let Some(version) = versions.first() {
-                    meta.set_version(&version.id);
-                }
-            }
+            // OneDrive doesn't support expanding versions while listing a directory.
+            // Query each file separately when callers request versions.
+            if list_with_versions && entry_mode == EntryMode::FILE {
+                let versions = self
+                    .core
+                    .onedrive_list_versions(&self.ctx, &normalized_path)
+                    .await?;
 
-            let entry = oio::Entry::new(&normalized_path, meta);
-            ctx.entries.push_back(entry)
+                if versions.is_empty() {
+                    ctx.entries
+                        .push_back(oio::Entry::new(&normalized_path, meta));
+                    continue;
+                }
+
+                for (index, version) in versions.into_iter().enumerate() {
+                    let mut version_meta =
+                        Metadata::new(entry_mode).with_content_length(version.size.max(0) as u64);
+                    version_meta
+                        .set_last_modified(version.last_modified_date_time.parse::<Timestamp>()?);
+                    version_meta.set_version(&version.id);
+                    version_meta.set_is_current(index == 0);
+
+                    // OneDrive exposes the ETag only for the current item.
+                    if index == 0 {
+                        version_meta.set_etag(meta.etag().unwrap_or_default());
+                    }
+
+                    ctx.entries
+                        .push_back(oio::Entry::new(&normalized_path, version_meta));
+                }
+            } else {
+                ctx.entries
+                    .push_back(oio::Entry::new(&normalized_path, meta));
+            }
         }
 
         Ok(())

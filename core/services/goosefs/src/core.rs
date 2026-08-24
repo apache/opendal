@@ -153,10 +153,10 @@ impl GoosefsCore {
         // Double-check after acquiring write lock: another task may have
         // initialised it while we were waiting.
         let pid_now = self.ctx_pid.load(Ordering::Relaxed);
-        if pid_now == current_pid {
-            if let Some(ref ctx) = *guard {
-                return Ok(Arc::clone(ctx));
-            }
+        if pid_now == current_pid
+            && let Some(ref ctx) = *guard
+        {
+            return Ok(Arc::clone(ctx));
         }
 
         // If we had a stale context from a different process, drop it.
@@ -231,7 +231,9 @@ impl GoosefsCore {
 
     pub async fn delete(&self, path: &str) -> Result<()> {
         let full = self.full_path(path);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
+        ctx.invalidate_file_info(&full);
         match master.delete(&full, false).await {
             Ok(()) => Ok(()),
             Err(e) => {
@@ -245,29 +247,42 @@ impl GoosefsCore {
         }
     }
 
-    pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
+    /// Rename `from` → `to`.
+    ///
+    /// When `if_not_exists` is true this is the authoritative publish step for
+    /// `write_with_if_not_exists` (Lance `PutMode::Create`). Conflict detection
+    /// is GooseFS Master no-replace rename
+    /// (`DefaultFileSystemMaster.renameInternal` → `FileAlreadyExistsException`
+    /// → gRPC ALREADY_EXISTS), reached via `MasterClient::rename`. Not a prior
+    /// `get_status`. Destination must never be deleted when `if_not_exists` is
+    /// true.
+    ///
+    /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
+    /// contract for rename:
+    ///
+    /// 1. Destination parent directory is created on demand — but only when
+    ///    Master reports it missing. Under `CACHE_THROUGH`,
+    ///    `create_directory` on an already-persisted parent is a CosN
+    ///    round-trip (tens of milliseconds), not a metadata no-op. The
+    ///    write-via-temp path already created that parent via
+    ///    `CreateFile(recursive)`, so the publish `rename` skips mkdir.
+    /// 2. If the destination exists as a file and `if_not_exists` is false,
+    ///    overwrite by deleting it first. Never delete when `if_not_exists`
+    ///    is true (that would destroy Master no-replace and re-introduce
+    ///    TOCTOU overwrite).
+    /// 3. If the destination exists as a directory, surface `IsADirectory`.
+    ///
+    /// Source NotFound is reported by the underlying `rename` RPC, so we
+    /// don't pre-stat the source.
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
         let src = self.full_path(from);
         let dst = self.full_path(to);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
 
-        // Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's
-        // behavior contract for rename (see `rename_test.go::testRenameNested`
-        // and `testRenameOverwrite`):
-        //
-        //   1. Destination parent directory is created on demand
-        //      (`testRenameNested` writes to `<uuid>/<uuid>/<uuid>` without
-        //      mkdir'ing intermediate levels first; S3-style backends treat
-        //      this as implicit, fs-style backends must emulate it).
-        //   2. If the destination exists as a file, overwrite by deleting
-        //      it first (`testRenameOverwrite`). GooseFS `rename` itself
-        //      would otherwise return AlreadyExists.
-        //   3. If the destination exists as a directory, surface
-        //      IsADirectory — matches the error code the behavior tests
-        //      assert in `testRenameTargetDir`.
-        //
-        // Source NotFound is reported by the underlying `rename` RPC
-        // (`testRenameNonExistingSource` expects `NotFound`), so we don't
-        // pre-stat the source.
+        ctx.invalidate_file_info(&src);
+        ctx.invalidate_file_info(&dst);
+
         match master.get_status(&dst).await {
             Ok(info) => {
                 if info.folder.unwrap_or(false) {
@@ -279,27 +294,50 @@ impl GoosefsCore {
                     .with_context("from", from)
                     .with_context("to", to));
                 }
-                // Destination is an existing file — delete it so the
-                // subsequent rename can overwrite atomically at the
-                // master level.
+                if if_not_exists {
+                    // Fast-path only. Authoritative race check is master.rename
+                    // below (AlreadyExists → ConditionNotMatch).
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "target path already exists while if_not_exists is set",
+                    )
+                    .with_context("service", super::GOOSEFS_SCHEME)
+                    .with_context("from", from)
+                    .with_context("to", to));
+                }
+                // Overwrite path ONLY. Master rename rejects existing dst;
+                // delete first so overwrite can proceed.
                 master.delete(&dst, false).await.map_err(parse_error)?;
             }
-            Err(goosefs_sdk::error::Error::NotFound { .. }) => {
-                // Ensure the destination's parent directory exists.
-                // `create_directory` with recursive=true is idempotent,
-                // so calling it for a parent that already exists is a
-                // cheap metadata no-op on the master.
-                if let Some(parent) = parent_of(&dst) {
-                    master
-                        .create_directory(parent, true)
-                        .await
-                        .map_err(parse_error)?;
-                }
-            }
+            // Parent may already exist (write-via-temp always does). Create it
+            // only if the subsequent rename reports it missing.
+            Err(goosefs_sdk::error::Error::NotFound { .. }) => {}
             Err(e) => return Err(parse_error(e)),
         }
 
-        master.rename(&src, &dst).await.map_err(parse_error)
+        match rename_creating_parent_if_missing(&master, &src, &dst).await {
+            Ok(()) => {
+                // Same inode id moved (Master RenameEntry.setId(srcInode.getId()))
+                // — not a fresh inode. Drop any cached FileInfo so a reader
+                // opening `dst` immediately after sees current metadata.
+                ctx.invalidate_file_info(&src);
+                ctx.invalidate_file_info(&dst);
+                Ok(())
+            }
+            // Authoritative TOCTOU close: concurrent winner published between
+            // get_status and this RPC. Master FileAlreadyExistsException →
+            // gRPC ALREADY_EXISTS → SDK Error::AlreadyExists.
+            Err(goosefs_sdk::error::Error::AlreadyExists { .. }) if if_not_exists => {
+                Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "target path already exists while if_not_exists is set",
+                )
+                .with_context("service", super::GOOSEFS_SCHEME)
+                .with_context("from", from)
+                .with_context("to", to))
+            }
+            Err(e) => Err(parse_error(e)),
+        }
     }
 
     // ── Data I/O Operations ──────────────────────────────────
@@ -472,10 +510,15 @@ impl GoosefsCore {
         if let Some(length) = info.length {
             metadata.set_content_length(length as u64);
         }
-        if let Some(mtime) = info.last_modification_time_ms {
-            if let Ok(ts) = Timestamp::from_millisecond(mtime) {
-                metadata.set_last_modified(ts);
-            }
+        if let Some(mtime) = info.last_modification_time_ms
+            && let Ok(ts) = Timestamp::from_millisecond(mtime)
+        {
+            metadata.set_last_modified(ts);
+        }
+        // GooseFS Master rename preserves the same inode id; use it as etag
+        // for cache keys / checkout short-circuit (not commit conflict detection).
+        if let Some(fid) = info.file_id {
+            metadata.set_etag(&fid.to_string());
         }
         metadata
     }
@@ -491,6 +534,40 @@ impl GoosefsCore {
         };
         let rel = build_rel_path(&self.root, &rel_path);
         Ok((rel, self.file_info_to_metadata(info)))
+    }
+}
+
+/// Run `rename(src, dst)`, creating `dst`'s parent only if Master reports
+/// the destination path as missing.
+///
+/// The write-via-temp publish path never takes the mkdir branch: tmp lives
+/// in the same directory as `dst`, and `CreateFile(recursive)` already
+/// created that parent. Eager `create_directory` on an existing parent is
+/// the 45–55ms `CACHE_THROUGH` no-op this helper exists to skip.
+///
+/// `rename` NotFound is also what Master returns for a missing source, so
+/// we `get_status(src)` before mkdir and only create the parent when the
+/// source still exists.
+async fn rename_creating_parent_if_missing(
+    master: &MasterClient,
+    src: &str,
+    dst: &str,
+) -> goosefs_sdk::error::Result<()> {
+    match master.rename(src, dst).await {
+        Ok(()) => Ok(()),
+        Err(e) if matches!(e, goosefs_sdk::error::Error::NotFound { .. }) => {
+            let Some(parent) = parent_of(dst) else {
+                return Err(e);
+            };
+            match master.get_status(src).await {
+                Ok(_) => {}
+                Err(goosefs_sdk::error::Error::NotFound { .. }) => return Err(e),
+                Err(status_err) => return Err(status_err),
+            }
+            master.create_directory(parent, true).await?;
+            master.rename(src, dst).await
+        }
+        Err(e) => Err(e),
     }
 }
 
@@ -541,6 +618,13 @@ mod tests {
         assert_eq!(parent_of("/a/b/c"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/d"), Some("/a/b/c"));
+        // Write-via-temp publish: dst is a sibling of `.opendal.tmp.*` under
+        // an already-created parent, so retry-mkdir is gated on this being Some
+        // but is not taken on the happy path.
+        assert_eq!(
+            parent_of("/trace_test/03/data/file.lance"),
+            Some("/trace_test/03/data")
+        );
     }
 
     #[test]

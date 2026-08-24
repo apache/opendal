@@ -282,7 +282,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -334,7 +335,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -607,7 +609,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
     ///
     /// # Examples
     ///
@@ -622,10 +624,34 @@ impl Operator {
     /// # }
     /// ```
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        self.rename_options(from, to, options::RenameOptions::default())
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::RenameOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::blocking;
+    /// use opendal_core::options::RenameOptions;
+    /// use opendal_core::Result;
+    ///
+    /// fn rename_with_options(op: blocking::Operator) -> Result<()> {
+    ///     let mut opts = RenameOptions::default();
+    ///     opts.if_not_exists = true;
+    ///     op.rename_options("path/to/file", "path/to/file2", opts)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn rename_options(&self, from: &str, to: &str, opts: options::RenameOptions) -> Result<()> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.rename(&from, &to).await })?
+        self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
     }
 
     /// Delete given path.
@@ -687,11 +713,13 @@ impl Operator {
         self.handle.block_on(self.op.delete_try_iter(try_iter))
     }
 
-    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    /// Create a [`blocking::Deleter`] to continuously remove content from
+    /// storage.
     ///
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
-    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    /// Use [`blocking::Deleter`] directly for more control over the deletion
+    /// process.
     pub fn deleter(&self) -> Result<blocking::Deleter> {
         blocking::Deleter::create(
             self.handle.clone(),
@@ -815,7 +843,8 @@ impl Operator {
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
+    /// This function creates a new [`blocking::Lister`]; dropping it stops
+    /// listing.
     ///
     /// # Semantics
     ///

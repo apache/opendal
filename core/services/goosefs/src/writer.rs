@@ -150,12 +150,10 @@ impl GoosefsWriter {
     /// path, and cache both.
     async fn ensure_writer(&mut self) -> Result<&mut ClientWriter> {
         if self.writer.is_none() {
-            // Fast-path: reject if-not-exists writes up front so we
-            // don't open a temp that will only be thrown away at
-            // finalize time. The *authoritative* check happens again
-            // at finalize (see `close()` / `finalize_rename()`), which
-            // handles the race where a concurrent writer publishes
-            // the target between here and finalize.
+            // Fast-path only. Authority is GoosefsCore::rename(..., if_not_exists=true)
+            // → Master no-replace rename (DefaultFileSystemMaster →
+            // FileAlreadyExistsException → gRPC ALREADY_EXISTS → ConditionNotMatch).
+            // Not this get_status.
             if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
                 return Err(Error::new(
                     ErrorKind::ConditionNotMatch,
@@ -186,8 +184,8 @@ impl GoosefsWriter {
             return Ok(());
         };
 
-        // Second if-not-exists check: a concurrent writer may have
-        // published the target while we were streaming.
+        // Optional fast-path (optimization, not authority). Safe to keep:
+        // a miss here is closed by rename(..., if_not_exists) below.
         if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
             // Undo our staged temp before surfacing the error.
             let _ = self.core.delete(&tmp).await;
@@ -197,16 +195,13 @@ impl GoosefsWriter {
             ));
         }
 
-        // Overwrite semantics: GooseFS rename does not silently replace
-        // an existing target, so we pre-delete the final path. NotFound
-        // is the common (fresh-write) case, so we ignore errors here
-        // and let any real failure (e.g. permission denied) surface
-        // through the rename below.
-        if !self.op.if_not_exists() {
-            let _ = self.core.delete(&self.path).await;
-        }
-
-        match self.core.rename(&tmp, &self.path).await {
+        // Authority: pass OpWrite.if_not_exists into core.rename.
+        // Overwrite delete lives only inside core.rename when if_not_exists=false.
+        match self
+            .core
+            .rename(&tmp, &self.path, self.op.if_not_exists())
+            .await
+        {
             Ok(()) => Ok(()),
             Err(e) => {
                 // Rename failed — sweep the temp so we don't leak a
@@ -248,8 +243,13 @@ impl oio::Write for GoosefsWriter {
                 }
                 return Err(e);
             }
+            // Capture file_id before rename; Master rename keeps the same inode id.
+            let mut meta = Metadata::default();
+            if let Some(fid) = writer.file_info().file_id {
+                meta.set_etag(&fid.to_string());
+            }
             self.finalize_rename().await?;
-            return Ok(Metadata::default());
+            return Ok(meta);
         }
 
         // Zero-write path: the caller closed without ever calling
@@ -271,9 +271,13 @@ impl oio::Write for GoosefsWriter {
             let _ = self.core.delete(&tmp).await;
             return Err(e);
         }
+        let mut meta = Metadata::default();
+        if let Some(fid) = w.file_info().file_id {
+            meta.set_etag(&fid.to_string());
+        }
         self.tmp_path = Some(tmp);
         self.finalize_rename().await?;
-        Ok(Metadata::default())
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {

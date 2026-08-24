@@ -1404,7 +1404,7 @@ public interface ServiceConfig {
          * <p>When multiple addresses are provided, the client uses
          * <code>PollingMasterInquireClient</code> to discover the Primary Master automatically.</p>
          * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
-         * <code>goosefs-sdk</code> <code>docs/CLIENT_CONFIGURATION.md</code> §1:</p>
+         * <a href="https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md">goosefs-sdk <code>docs/CLIENT_CONFIGURATION.md</code></a> §1:</p>
          * <ol>
          * <li>This field (when set on the builder / OpenDAL config map)</li>
          * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>
@@ -1575,11 +1575,15 @@ public interface ServiceConfig {
     class Hf implements ServiceConfig {
         /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
+         * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
+         * environment variable: a non-empty value forces <code>http</code>, otherwise it
+         * defaults to <code>xet</code>. An explicit value here takes precedence.</p>
+         * <p>See <a href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet">https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet</a>.</p>
          */
         public final String downloadMode;
         /**
          * <p>Endpoint of the Hugging Face Hub.</p>
-         * <p>Default is &quot;https://huggingface.co&quot;.</p>
+         * <p>The default is <code>https://huggingface.co</code>.</p>
          */
         public final String endpoint;
         /**
@@ -2316,9 +2320,9 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
-         * <p>Deprecated: OneDrive versioning capability is enabled by default.</p>
+         * <p>Deprecated: OneDrive supports version listing without this option.</p>
          *
-         * @deprecated OneDrive versioning capability is enabled by default and this option is no longer needed.
+         * @deprecated OneDrive supports version listing without this option.
          */
         public final Boolean enableVersioning;
         /**
@@ -3033,6 +3037,17 @@ public interface ServiceConfig {
          */
         public final String externalId;
         /**
+         * <p>AWS profile.</p>
+         * <p>By default, reqsign which is the default credential provider, supplies profile in order:</p>
+         * <ul>
+         * <li>explicit option</li>
+         * <li><code>AWS_PROFILE</code> environment variable, from which reqsign reads profile from:</li>
+         * <li><code>~/.aws/credentials</code> (or the path specified by <code>AWS_SHARED_CREDENTIALS_FILE</code>)</li>
+         * <li><code>~/.aws/config</code> (or the path specified by <code>AWS_CONFIG_FILE</code>)</li>
+         * </ul>
+         */
+        public final String profile;
+        /**
          * <p>Region represent the signing region of this endpoint. This is required
          * if you are using the default AWS S3 endpoint.</p>
          * <p>If using a custom endpoint,</p>
@@ -3180,6 +3195,9 @@ public interface ServiceConfig {
             }
             if (externalId != null) {
                 map.put("external_id", externalId);
+            }
+            if (profile != null) {
+                map.put("profile", profile);
             }
             if (region != null) {
                 map.put("region", region);

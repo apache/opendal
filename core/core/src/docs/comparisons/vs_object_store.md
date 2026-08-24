@@ -145,8 +145,8 @@ opendal has an idea called [`Capability`][crate::Capability], so it's services m
 | list      | list_with_delimiter  | -                                            |
 | -         | copy                 | -                                            |
 | -         | copy_if_not_exists   | -                                            |
-| -         | rename               | -                                            |
-| -         | rename_if_not_exists | -                                            |
+| rename    | rename               | -                                            |
+| rename_with(if_not_exists) | rename_if_not_exists | -                            |
 | presign   | -                    | get a presign URL of object                  |
 | multipart | multipart            | both support, but API is different           |
 | blocking  | -                    | opendal supports blocking API                |

@@ -7,7 +7,10 @@
 A native Java binding for Apache OpenDAL™: access S3, GCS, Azure Blob, HDFS, the
 local filesystem, and many more services through one API.
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL Java binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Java binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 
@@ -110,4 +113,15 @@ Check out the [users](./users.md) list for more details on who is using OpenDAL.
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
+
+Compiled distributions include the following Mozilla Public License 2.0
+components. Their source code is available from the linked project pages:
+
+### Third-party software
+
+- `colored` 3.1.1 ([source](https://crates.io/crates/colored/3.1.1), [homepage](https://github.com/mackwic/colored)), licensed under MPL-2.0.
+- `option-ext` 0.2.0 ([source](https://crates.io/crates/option-ext/0.2.0), [homepage](https://github.com/soc/option-ext)), licensed under MPL-2.0.
+- `persy` 1.8.1 ([source](https://crates.io/crates/persy/1.8.1), [homepage](https://persy.rs)), licensed under MPL-2.0.
+
+The distribution includes the MPL-2.0 text in `META-INF/LICENSE-MPL-2.0.txt`.
 </content>

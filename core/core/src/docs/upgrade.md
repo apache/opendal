@@ -1,3 +1,50 @@
+# Upgrade to v0.58
+
+## Public API
+
+### `Operator::new` returns a finished operator
+
+`Operator::new(builder)` now returns `Result<Operator>` directly. Remove the old `finish()` call from construction code:
+
+```diff
+- let op = Operator::new(builder)?.finish();
++ let op = Operator::new(builder)?;
+```
+
+### Runtime composition APIs consolidated
+
+Operator runtime resources now live in `OperationContext`, which is exported from the crate root instead of `raw`.
+
+- Replace `raw::OperationContext` imports with `opendal::OperationContext`.
+- Replace `Operator::http_transport(...)` and `Operator::executor(...)` with `Operator::with_context(...)`.
+- Replace `Operator::from_service(...)` with `Operator::from_parts(ctx, service)`.
+- Replace `Operator::inner()`, `Operator::into_inner()`, and `Operator::executor_ref()` with `service()`, `context()`, or `into_parts()` depending on whether you need borrowed or owned composed state.
+- `Operator::from_inner(...)` is deprecated; use `Operator::from_parts(...)`.
+
+### Native and full capability APIs removed
+
+`OperatorInfo::native_capability()` has been removed. `OperatorInfo::capability()` is now the public availability contract for the composed operator stack.
+
+### Suffix reads use public `BytesRange`
+
+`BytesRange` is now part of the public type layer. Reader APIs accept values convertible into `BytesRange`, and suffix reads can be requested with `BytesRange::suffix(size)`. Code that imported raw HTTP range helpers should use `opendal::BytesRange` instead.
+
+## Raw API
+
+### Services and layers use the new composition boundary
+
+Out-of-tree services must implement `raw::Service` instead of the old accessor pipeline. Services now return immutable identity through `ServiceInfo`, report availability through `capability()`, and receive `&OperationContext` at each operation boundary.
+
+Out-of-tree layers must implement `Layer::apply_service` and, when they replace runtime resources, `Layer::apply_context`. The old typed layer pipeline, including `TypedLayer`, `RuntimeResourceLayer`, `TypeEraseLayer`, `OperatorBuilder<S>`, and `typed_layer`, has been removed.
+
+### Stateful operation factories are synchronous
+
+`Service` and `ServiceDyn` factories for `read`, `write`, `delete`, `list`, and `copy` now return OIO bodies synchronously. Move asynchronous work into the returned body implementation instead of returning `(Rp*, body)` futures from the factory.
+
+### Removed raw helpers
+
+The unused `raw::AtomicContentLength`, `raw::PathCacher`, and `raw::PathQuery` helpers have been removed. The `internal-path-cache` feature has also been removed.
+
 # Upgrade to v0.57
 
 ## Public API

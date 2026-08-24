@@ -23,13 +23,15 @@ on:
       - main
     tags:
       - "*"
+    paths: &paths
+      - "bindings/haskell/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_haskell.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/haskell/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_haskell.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -43,7 +45,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Haskell build tools
         run: |
           sudo apt-get update
@@ -54,18 +56,29 @@ jobs:
         run: |
           export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
           echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          mkdir -p "${HOME}/.cabal"
+          cat > "${HOME}/.cabal/config" <<'EOF'
+          repository hackage-direct
+            url: https://hackage.haskell.org/
+            secure: False
+          active-repositories: hackage-direct
+          EOF
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
           ghcup install ghc 9.4.8 --set
           ghcup install cabal --set
-          cabal update
+          cabal update --ignore-project
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/haskell"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/haskell"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
       - name: Restore haskell cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -89,7 +102,7 @@ jobs:
           echo "running $bin"
           "$bin"
       - name: Save haskell cache
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -100,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Haskell build tools
         run: |
           sudo apt-get update
@@ -111,14 +124,21 @@ jobs:
         run: |
           export PATH="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin:${PATH}"
           echo "${GHCUP_INSTALL_BASE_PREFIX}/.ghcup/bin" >> "${GITHUB_PATH}"
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          mkdir -p "${HOME}/.cabal"
+          cat > "${HOME}/.cabal/config" <<'EOF'
+          repository hackage-direct
+            url: https://hackage.haskell.org/
+            secure: False
+          active-repositories: hackage-direct
+          EOF
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set
-          cabal update
+          cabal update --ignore-project
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Restore haskell cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |

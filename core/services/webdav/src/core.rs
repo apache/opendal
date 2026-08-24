@@ -692,13 +692,12 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
-                    if target_prefixes.contains(&prefix.to_string()) {
-                        if let Some(key) = current_prop_key.take() {
-                            if key == local_name {
-                                user_metadata.insert(key, current_prop_value.clone());
-                                current_prop_value.clear();
-                            }
-                        }
+                    if target_prefixes.contains(&prefix.to_string())
+                        && let Some(key) = current_prop_key.take()
+                        && key == local_name
+                    {
+                        user_metadata.insert(key, current_prop_value.clone());
+                        current_prop_value.clear();
                     }
                 }
             }
@@ -746,15 +745,14 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
                 if name.ends_with(":status") || name == "status" {
                     // Parse status code from "HTTP/1.1 XXX Description"
-                    if let Some(code_str) = status_text.split_whitespace().nth(1) {
-                        if let Ok(code) = code_str.parse::<u16>() {
-                            if !(200..300).contains(&code) {
-                                return Err(Error::new(
-                                    ErrorKind::Unexpected,
-                                    format!("PROPPATCH failed with status: {status_text}"),
-                                ));
-                            }
-                        }
+                    if let Some(code_str) = status_text.split_whitespace().nth(1)
+                        && let Ok(code) = code_str.parse::<u16>()
+                        && !(200..300).contains(&code)
+                    {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            format!("PROPPATCH failed with status: {status_text}"),
+                        ));
                     }
                     in_status = false;
                 }

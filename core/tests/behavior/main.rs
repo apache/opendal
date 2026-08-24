@@ -35,7 +35,7 @@ mod async_write;
 use libtest_mimic::Arguments;
 use libtest_mimic::Trial;
 use logforth::append::Testing;
-use logforth::filter::env_filter::EnvFilterBuilder;
+use logforth::filter::rustlog::RustLogFilterBuilder;
 use logforth::layout::TextLayout;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     // nextest output
     let _ = logforth::starter_log::builder()
         .dispatch(|d| {
-            d.filter(EnvFilterBuilder::from_default_env().build())
+            d.filter(RustLogFilterBuilder::from_default_env().build())
                 .append(Testing::default().with_layout(TextLayout::default()))
         })
         .try_apply();

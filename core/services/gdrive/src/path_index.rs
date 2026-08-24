@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use mea::mutex::Mutex;
+use asyncband::mutex::Mutex;
 
 use super::core::normalize_dir_path;
 use opendal_core::raw::*;
@@ -321,7 +321,7 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
-    use mea::mutex::Mutex;
+    use asyncband::mutex::Mutex;
 
     use super::*;
 

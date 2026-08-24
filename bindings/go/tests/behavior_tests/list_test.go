@@ -71,7 +71,8 @@ func testListDir(assert *require.Assertions, op *opendal.Operator, fixture *fixt
 	parent := fixture.NewDirPath()
 	path, content, size := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	obs, err := op.List(parent)
 	assert.Nil(err)
@@ -104,7 +105,8 @@ func testListRichDir(assert *require.Assertions, op *opendal.Operator, fixture *
 	for range 10 {
 		path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 		expected = append(expected, path)
-		assert.Nil(op.Write(path, content))
+		_, err := op.Write(path, content)
+		assert.Nil(err)
 	}
 
 	obs, err := op.List(parent)
@@ -197,7 +199,8 @@ func testListNestedDir(assert *require.Assertions, op *opendal.Operator, fixture
 
 	assert.Nil(op.CreateDir(parent), "create must succeed")
 	assert.Nil(op.CreateDir(dir), "create must succeed")
-	assert.Nil(op.Write(filePath, []byte("test_list_nested_dir")), "write must succeed")
+	_, err := op.Write(filePath, []byte("test_list_nested_dir"))
+	assert.Nil(err, "write must succeed")
 	assert.Nil(op.CreateDir(dirPath), "create must succeed")
 
 	obs, err := op.List(parent)
@@ -260,7 +263,8 @@ func testListEntryMetadata(assert *require.Assertions, op *opendal.Operator, fix
 	assert.Nil(op.CreateDir(parent))
 
 	filePath, content, size := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
-	assert.Nil(op.Write(filePath, content))
+	_, err := op.Write(filePath, content)
+	assert.Nil(err)
 
 	obs, err := op.List(parent)
 	assert.Nil(err)
@@ -294,7 +298,8 @@ func testListDirWithFilePath(assert *require.Assertions, op *opendal.Operator, f
 	parent := fixture.NewDirPath()
 	path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	obs, err := op.List(strings.TrimSuffix(parent, "/"))
 	assert.Nil(err)
@@ -315,8 +320,10 @@ func testListWithDefaultOptions(assert *require.Assertions, op *opendal.Operator
 
 	assert.Nil(op.CreateDir(parent))
 	assert.Nil(op.CreateDir(subDir))
-	assert.Nil(op.Write(fileInParent, content))
-	assert.Nil(op.Write(fileInSub, content))
+	_, err := op.Write(fileInParent, content)
+	assert.Nil(err)
+	_, err = op.Write(fileInSub, content)
+	assert.Nil(err)
 
 	obs, err := op.List(parent)
 	assert.Nil(err)
@@ -348,9 +355,12 @@ func testListWithRecursive(assert *require.Assertions, op *opendal.Operator, fix
 	assert.Nil(op.CreateDir(parent))
 	assert.Nil(op.CreateDir(subDir))
 	assert.Nil(op.CreateDir(deepDir))
-	assert.Nil(op.Write(fileTop, content))
-	assert.Nil(op.Write(fileMid, content))
-	assert.Nil(op.Write(fileDeep, content))
+	_, err := op.Write(fileTop, content)
+	assert.Nil(err)
+	_, err = op.Write(fileMid, content)
+	assert.Nil(err)
+	_, err = op.Write(fileDeep, content)
+	assert.Nil(err)
 
 	obs, err := op.List(parent, opendal.ListWithRecursive(true))
 	assert.Nil(err)
@@ -374,7 +384,8 @@ func testListWithLimit(assert *require.Assertions, op *opendal.Operator, fixture
 	// Write 5 files.
 	for range 5 {
 		path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
-		assert.Nil(op.Write(path, content))
+		_, err := op.Write(path, content)
+		assert.Nil(err)
 	}
 
 	// List with limit=2; the operation must succeed without error.
@@ -400,7 +411,8 @@ func testListWithStartAfter(assert *require.Assertions, op *opendal.Operator, fi
 	for i := range 5 {
 		name := fmt.Sprintf("%sfile-%02d", parent, i)
 		filePaths = append(filePaths, name)
-		assert.Nil(op.Write(name, []byte("content")))
+		_, err := op.Write(name, []byte("content"))
+		assert.Nil(err)
 	}
 	slices.Sort(filePaths)
 
@@ -426,8 +438,10 @@ func testListWithVersions(assert *require.Assertions, op *opendal.Operator, fixt
 	parent := fixture.NewDirPath()
 	path, _, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	assert.Nil(op.Write(path, []byte("version-1")), "first write must succeed")
-	assert.Nil(op.Write(path, []byte("version-2")), "second write must succeed")
+	_, err := op.Write(path, []byte("version-1"))
+	assert.Nil(err, "first write must succeed")
+	_, err = op.Write(path, []byte("version-2"))
+	assert.Nil(err, "second write must succeed")
 
 	obs, err := op.List(path, opendal.ListWithVersions(true))
 	assert.Nil(err, "list with versions must succeed")
@@ -457,7 +471,8 @@ func testListWithDeleted(assert *require.Assertions, op *opendal.Operator, fixtu
 	parent := fixture.NewDirPath()
 	path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	obs, err := op.List(path, opendal.ListWithDeleted(true))
 	assert.Nil(err, "list with deleted must succeed before deletion")

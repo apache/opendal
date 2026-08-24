@@ -104,7 +104,7 @@ impl Builder for HttpBuilder {
     type Config = HttpConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let endpoint = match &self.config.endpoint {
             Some(v) => v,

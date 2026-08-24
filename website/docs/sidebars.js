@@ -27,7 +27,7 @@ const langGuide = (label, dir, pages, icon) => ({
   type: 'category',
   label,
   // sidebar-lang-<key> drives the brand logo shown before the label (see
-  // custom.css). Defaults to the last path segment of the doc id prefix.
+  // global.css). Defaults to the last path segment of the doc id prefix.
   className: `sidebar-lang sidebar-lang-${icon ?? dir.split('/').pop()}`,
   link: { type: 'doc', id: `${dir}/overview` },
   collapsed: true,

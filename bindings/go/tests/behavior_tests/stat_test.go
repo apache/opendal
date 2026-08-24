@@ -71,7 +71,8 @@ func assertOptionalMetaString(assert *require.Assertions, name string, accessor 
 func testStatFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	meta, err := op.Stat(path)
 	assert.Nil(err)
@@ -113,7 +114,8 @@ func testStatNestedParentDir(assert *require.Assertions, op *opendal.Operator, f
 	parent := fixture.NewDirPath()
 	path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(parent)
 	assert.Nil(err)
@@ -123,7 +125,8 @@ func testStatNestedParentDir(assert *require.Assertions, op *opendal.Operator, f
 func testStatWithSpecialChars(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFileWithPath(uuid.NewString() + " !@#$%^&()_+-=;',.txt")
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err)
@@ -134,7 +137,8 @@ func testStatWithSpecialChars(assert *require.Assertions, op *opendal.Operator, 
 func testStatNotCleanedPath(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(fmt.Sprintf("//%s", path))
 	assert.Nil(err)
@@ -199,10 +203,13 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	}
 
 	before := time.Now().Add(-time.Hour)
+	var err error
 	if len(writeOpts) == 0 {
-		assert.Nil(op.Write(path, content), "write must succeed")
+		_, err = op.Write(path, content)
+		assert.Nil(err, "write must succeed")
 	} else {
-		assert.Nil(op.Write(path, content, writeOpts...), "write with metadata must succeed")
+		_, err = op.Write(path, content, writeOpts...)
+		assert.Nil(err, "write with metadata must succeed")
 	}
 
 	meta, err := op.Stat(path)
@@ -274,7 +281,8 @@ func testStatWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixtu
 	if isCapEnabled(cap.WriteWithContentType, "write_with_content_type") {
 		writeOpts = append(writeOpts, opendal.WriteWithContentType("text/plain"))
 	}
-	assert.Nil(op.Write(path, content, writeOpts...), "write must succeed")
+	_, err := op.Write(path, content, writeOpts...)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err, "stat must succeed")
@@ -300,7 +308,8 @@ func testStatWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, f
 
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err, "stat must succeed")
@@ -326,7 +335,8 @@ func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operato
 
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err, "stat must succeed")
@@ -353,7 +363,8 @@ func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err, "stat must succeed")

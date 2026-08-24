@@ -44,6 +44,9 @@
   margin: var(--odl-space-3) 0 0;
   max-width: 40rem;
 }
+.termItalic {
+  font-style: italic;
+}
 
 /* Buttons --------------------------------------------------------------- */
 .btn {
@@ -80,7 +83,7 @@
   color: var(--odl-action-fg);
 }
 .btnSecondary {
-  background: transparent;
+  background: var(--odl-surface);
   color: var(--odl-fg-strong);
   border-color: var(--odl-border-strong);
 }
@@ -99,7 +102,8 @@
 /* ===== Hero ============================================================== */
 .hero {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  background: var(--odl-bg);
   padding-top: clamp(1.75rem, 1rem + 2.4vw, 3rem);
   padding-bottom: clamp(3rem, 2rem + 5vw, 5.5rem);
 }
@@ -119,9 +123,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: clamp(2rem, 1rem + 4vw, 4.5rem);
-  /* Column widths are locked by minmax(0, fr), so the left column never
-     reflows; center the columns to balance the fixed-height code window. */
-  align-items: center;
+  align-items: start;
 }
 .heroTitle {
   font-size: var(--odl-text-display);
@@ -171,113 +173,8 @@
   font-size: var(--odl-text-xs);
   color: var(--odl-fg-subtle);
 }
-
-/* ===== Code window (shared by Hero & Operator) ========================== */
-.codeWindow {
-  border: 1px solid var(--odl-border);
-  border-radius: var(--odl-radius-lg);
-  background: var(--odl-surface);
-  box-shadow: var(--odl-shadow-lg);
-  overflow: hidden;
-}
-.windowBar {
-  display: flex;
-  align-items: center;
-  gap: var(--odl-space-3);
-  padding: var(--odl-space-3) var(--odl-space-4);
-  border-bottom: 1px solid var(--odl-border);
-  background: var(--odl-surface-2);
-}
-.windowDots {
-  display: flex;
-  gap: 6px;
-}
-.windowDots span {
-  width: 11px;
-  height: 11px;
-  border-radius: var(--odl-radius-pill);
-  background: var(--odl-border-strong);
-}
-.windowTitle {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-xs);
-  color: var(--odl-fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.codeTabs {
-  display: flex;
-  gap: 2px;
-  padding: var(--odl-space-2) var(--odl-space-3) 0;
-  border-bottom: 1px solid var(--odl-border);
-  background: var(--odl-surface-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.codeTabs::-webkit-scrollbar {
-  display: none;
-}
-.codeTab {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: var(--odl-space-2) var(--odl-space-3) var(--odl-space-3);
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-xs);
-  color: var(--odl-fg-subtle);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color var(--odl-dur) var(--odl-ease),
-    border-color var(--odl-dur) var(--odl-ease);
-}
-.codeTab:hover {
-  color: var(--odl-fg);
-}
-.codeTabActive {
-  color: var(--odl-fg-strong);
-  border-bottom-color: var(--odl-accent);
-}
-/* The code area animates its height to fit the active snippet: no dead space
-   for short snippets, and switching language glides between sizes. The left
-   hero column never moves (its width is locked and it is the taller column),
-   so only this window resizes. */
-.codeBodyAnimated {
-  overflow: hidden;
-  background: var(--odl-code-bg);
-  transition: height var(--odl-dur-slow) var(--odl-ease);
-}
-@media (prefers-reduced-motion: reduce) {
-  .codeBodyAnimated {
-    transition: none;
-  }
-}
-
-/* Tighten the embedded Docusaurus CodeBlock to fit the window chrome */
-.codeBody :global(.theme-code-block),
-.codeBody :global(div[class*="codeBlockContainer"]) {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-.codeBody :global(pre) {
-  border: 0 !important;
-  border-radius: 0 !important;
-  margin: 0;
-  background: var(--odl-code-bg) !important;
-  font-size: 0.8125rem;
-  /* Wrap long lines so code windows never scroll horizontally. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.codeBody :global(pre code),
-.codeBody :global(.token-line) {
-  white-space: inherit;
-  overflow-wrap: inherit;
+.heroAside {
+  padding-top: var(--odl-space-5);
 }
 
 /* ===== Used-by wall ===================================================== */
@@ -289,7 +186,7 @@
   grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
   gap: var(--odl-space-3);
 }
-.logoWall > li {
+.logoWallItem {
   display: flex;
 }
 .logoItem {
@@ -330,8 +227,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* "+ add your logo" rendered as the final, dashed tile in the wall. */
-.addLogo {
+.actionLogo {
   flex: 1;
   display: flex;
   align-items: center;
@@ -348,7 +244,7 @@
   transition: color var(--odl-dur) var(--odl-ease),
     border-color var(--odl-dur) var(--odl-ease);
 }
-.addLogo:hover {
+.actionLogo:hover {
   color: var(--odl-accent);
   border-color: var(--odl-accent);
   text-decoration: none;
@@ -370,10 +266,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--odl-space-3);
-  transition: background-color var(--odl-dur) var(--odl-ease);
-}
-.valueCard:hover {
-  background: var(--odl-surface-2);
 }
 .valueIndex {
   font-family: var(--odl-font-mono);
@@ -396,100 +288,6 @@
   margin: 0;
 }
 
-/* ===== Capabilities (explorer) ========================================== */
-.capabilityExplorer {
-  display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
-  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
-  align-items: start;
-}
-.capabilityNav {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--odl-space-2);
-}
-.capabilityItem {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--odl-space-3);
-  padding: var(--odl-space-4);
-  border: 1px solid transparent;
-  border-radius: var(--odl-radius-md);
-  text-decoration: none;
-  transition: background-color var(--odl-dur) var(--odl-ease),
-    border-color var(--odl-dur) var(--odl-ease);
-}
-.capabilityItem:hover {
-  background: var(--odl-surface);
-  text-decoration: none;
-}
-.capabilityItemActive {
-  background: var(--odl-surface);
-  border-color: var(--odl-border);
-  box-shadow: var(--odl-shadow-sm);
-}
-.capabilityText {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.capabilityItemTitle {
-  font-size: var(--odl-text-md);
-  font-weight: 650;
-  letter-spacing: var(--odl-tracking-tight);
-  color: var(--odl-fg-strong);
-}
-.capabilityItemBlurb {
-  font-size: var(--odl-text-sm);
-  line-height: var(--odl-leading-snug);
-  color: var(--odl-fg-muted);
-}
-.capabilityArrow {
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-sm);
-  color: var(--odl-accent);
-  opacity: 0;
-  transition: opacity var(--odl-dur) var(--odl-ease);
-}
-.capabilityItem:hover .capabilityArrow,
-.capabilityItemActive .capabilityArrow {
-  opacity: 1;
-}
-
-/* Sticky code preview that tracks the active capability */
-.capabilityPreview {
-  position: sticky;
-  top: 5rem;
-}
-.capabilityCodeBody {
-  height: 19rem;
-  overflow: auto;
-  background: var(--odl-code-bg);
-}
-/* Fade only the code itself; the panel background stays put, so switching
-   snippets never flashes the window surface behind it. */
-.capabilityCodeFade {
-  animation: odlFade var(--odl-dur) var(--odl-ease);
-}
-@keyframes odlFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .capabilityCodeFade {
-    animation: none;
-  }
-}
-
 /* ===== Services ========================================================= */
 .serviceGroups {
   display: grid;
@@ -509,7 +307,7 @@
   align-items: center;
   gap: var(--odl-space-3);
   font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-xs);
+  font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: var(--odl-tracking-label);
   text-transform: uppercase;
@@ -549,7 +347,7 @@
   color: var(--odl-fg);
   text-decoration: none;
 }
-.serviceChip img {
+.serviceChipIcon {
   width: 15px;
   height: 15px;
   object-fit: contain;
@@ -588,7 +386,7 @@
   background: var(--odl-surface-2);
   text-decoration: none;
 }
-.bindingCard img {
+.bindingIcon {
   width: 30px;
   height: 30px;
   object-fit: contain;
@@ -601,59 +399,6 @@
 }
 .bindingCard:hover .bindingName {
   color: var(--odl-fg);
-}
-
-/* ===== Layers (tile grid left, live code preview right) ================= */
-.layerExplorer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(2rem, 1rem + 3vw, 3.5rem);
-  align-items: start;
-}
-.layerGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1px;
-  background: var(--odl-border);
-  border: 1px solid var(--odl-border);
-  border-radius: var(--odl-radius-lg);
-  overflow: hidden;
-}
-.layerItem {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--odl-space-4);
-  background: var(--odl-surface);
-  text-decoration: none;
-  transition: background-color var(--odl-dur) var(--odl-ease);
-}
-.layerItem:hover {
-  background: var(--odl-surface-2);
-  text-decoration: none;
-}
-.layerItemActive {
-  background: var(--odl-surface-2);
-}
-.layerName {
-  font-family: var(--odl-font-mono);
-  font-size: var(--odl-text-sm);
-  font-weight: 600;
-  color: var(--odl-fg-strong);
-  transition: color var(--odl-dur) var(--odl-ease);
-}
-.layerItemActive .layerName {
-  color: var(--odl-accent);
-}
-.layerDesc {
-  font-size: var(--odl-text-xs);
-  line-height: var(--odl-leading-snug);
-  color: var(--odl-fg-muted);
-}
-.layerCodeBody {
-  height: 13rem;
-  overflow: auto;
-  background: var(--odl-code-bg);
 }
 
 /* ===== Final CTA ======================================================== */
@@ -722,38 +467,56 @@
 
 /* ===== Responsive ======================================================= */
 @media (max-width: 996px) {
-  .heroInner,
-  .capabilityExplorer,
-  .layerExplorer {
+  .heroInner {
     grid-template-columns: 1fr;
-  }
-  .capabilityPreview {
-    display: none;
-  }
-  .capabilityNav {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--odl-space-3);
   }
   .serviceGroups {
     grid-template-columns: repeat(2, 1fr);
   }
   .heroAside {
     order: 2;
+    padding-top: 0;
   }
 }
 
 @media (max-width: 640px) {
+  .heroGrid {
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(100% - 5rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(100% - 5rem),
+      transparent 100%
+    );
+  }
   .valueGrid,
-  .serviceGroups,
-  .capabilityNav {
+  .serviceGroups {
     grid-template-columns: 1fr;
+  }
+  .section {
+    padding-block: 3.25rem;
+  }
+  .sectionHead {
+    margin-bottom: var(--odl-space-5);
   }
   .heroStats {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--odl-space-5) var(--odl-space-4);
   }
   .heroActions .btn {
-    flex: 1 1 auto;
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+  .finalCtaActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .finalCtaActions .btn {
+    width: 100%;
   }
 }

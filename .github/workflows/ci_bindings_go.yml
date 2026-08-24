@@ -23,15 +23,16 @@ on:
       - main
     tags:
       - '*'
-  pull_request:
-    branches:
-      - main
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/c/**"
       - "bindings/go/**"
       - ".github/workflows/ci_bindings_go.yml"
       - ".github/scripts/test_go_binding/matrix.yaml"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -47,7 +48,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version-file: bindings/go/go.mod
@@ -60,7 +61,7 @@ jobs:
   run_examples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version-file: bindings/go/go.mod

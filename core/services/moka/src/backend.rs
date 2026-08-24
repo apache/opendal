@@ -143,7 +143,7 @@ impl Builder for MokaBuilder {
     type Config = MokaConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(
             self.config
@@ -202,7 +202,6 @@ impl MokaBackend {
             delete: true,
             stat: true,
             list: true,
-            shared: false,
             ..Default::default()
         };
 

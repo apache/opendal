@@ -137,7 +137,8 @@ func NewOpenDALReadWriter(op *opendal.Operator) ReadWriter {
 }
 
 func (rw *OpenDALReadWriter) Write(path string, data []byte) error {
-	return rw.Operator.Write(path, data)
+	_, err := rw.Operator.Write(path, data)
+	return err
 }
 
 func (rw *OpenDALReadWriter) Read(path string) ([]byte, error) {

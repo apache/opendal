@@ -25,7 +25,7 @@ use crate::raw::*;
 
 use std::collections::HashMap;
 
-/// Args for `create` operation.
+/// Arguments for `create` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
@@ -38,13 +38,18 @@ impl OpCreateDir {
     }
 }
 
-/// Args for `delete` operation.
+/// Arguments for `delete` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
+    /// The version of the object to delete.
     version: Option<String>,
+
+    /// Whether a `delete` is recursive.
     recursive: bool,
+
+    /// The ETag that the object must match before deletion.
     if_match: Option<String>,
 }
 
@@ -56,7 +61,7 @@ impl OpDelete {
 }
 
 impl OpDelete {
-    /// Change the version of this delete operation.
+    /// Set the version of the object to delete.
     pub fn with_version(mut self, version: &str) -> Self {
         self.version = Some(version.into());
         self
@@ -68,16 +73,15 @@ impl OpDelete {
         self
     }
 
-    /// Set the if_match condition for this delete operation.
+    /// Set the ETag that the object must match before deletion.
     ///
-    /// When set, the delete will only proceed if the existing object's ETag
-    /// matches the given value.
+    /// The operation fails when the existing object's ETag does not match.
     pub fn with_if_match(mut self, if_match: impl Into<String>) -> Self {
         self.if_match = Some(if_match.into());
         self
     }
 
-    /// Get the version of this delete operation.
+    /// Return the version of the object to delete.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
@@ -87,7 +91,7 @@ impl OpDelete {
         self.recursive
     }
 
-    /// Get the if_match condition.
+    /// Return the ETag that the object must match before deletion.
     pub fn if_match(&self) -> Option<&str> {
         self.if_match.as_deref()
     }
@@ -103,7 +107,7 @@ impl From<options::DeleteOptions> for OpDelete {
     }
 }
 
-/// Args for `delete` operation.
+/// Arguments for `delete` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
@@ -116,39 +120,43 @@ impl OpDeleter {
     }
 }
 
-/// Args for `list` operation.
+/// Arguments for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {
-    /// The limit passed to underlying service to specify the max results
-    /// that could return per-request.
+    /// The maximum number of results that the service should return per request.
     ///
-    /// Users could use this to control the memory usage of list operation.
+    /// This can be used to control the memory consumption of a list operation.
     limit: Option<usize>,
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+
+    /// The key after which the service should start listing.
     start_after: Option<String>,
-    /// The recursive is used to control whether the list operation is recursive.
+
+    /// Whether the list operation is recursive.
     ///
-    /// - If `false`, list operation will only list the entries under the given path.
-    /// - If `true`, list operation will list all entries that starts with given path.
+    /// - If `false`, the operation lists only the immediate children of the given
+    ///   path.
+    /// - If `true`, the operation lists all entries whose paths start with the
+    ///   given path.
     ///
-    /// Default to `false`.
+    /// Defaults to `false`.
     recursive: bool,
-    /// The version is used to control whether the object versions should be returned.
+
+    /// Whether to return object versions.
     ///
-    /// - If `false`, list operation will not return with object versions
-    /// - If `true`, list operation will return with object versions if object versioning is supported
-    ///   by the underlying service
+    /// - If `false`, the operation does not return object versions.
+    /// - If `true`, the operation returns object versions when the service
+    ///   supports versioning.
     ///
-    /// Default to `false`
+    /// Defaults to `false`.
     versions: bool,
-    /// The deleted is used to control whether the deleted objects should be returned.
+
+    /// Whether to return deleted objects.
     ///
-    /// - If `false`, list operation will not return with deleted objects
-    /// - If `true`, list operation will return with deleted objects if object versioning is supported
-    ///   by the underlying service
+    /// - If `false`, the operation does not return deleted objects.
+    /// - If `true`, the operation returns deleted objects when the service
+    ///   supports versioning.
     ///
-    /// Default to `false`
+    /// Defaults to `false`.
     deleted: bool,
 }
 
@@ -158,40 +166,42 @@ impl OpList {
         Self::default()
     }
 
-    /// Change the limit of this list operation.
+    /// Set the maximum number of results per request.
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
         self
     }
 
-    /// Get the limit of list operation.
+    /// Return the maximum number of results per request.
     pub fn limit(&self) -> Option<usize> {
         self.limit
     }
 
-    /// Change the start_after of this list operation.
+    /// Set the key after which listing should start.
     pub fn with_start_after(mut self, start_after: &str) -> Self {
         self.start_after = Some(start_after.into());
         self
     }
 
-    /// Get the start_after of list operation.
+    /// Return the key after which listing should start.
     pub fn start_after(&self) -> Option<&str> {
         self.start_after.as_deref()
     }
 
-    /// The recursive is used to control whether the list operation is recursive.
+    /// Set whether the list operation is recursive.
     ///
-    /// - If `false`, list operation will only list the entries under the given path.
-    /// - If `true`, list operation will list all entries that starts with given path.
+    /// - If `false`, the operation lists only the immediate children of the given
+    ///   path.
+    /// - If `true`, the operation lists all entries whose paths start with the
+    ///   given path.
     ///
-    /// Default to `false`.
+    /// Defaults to `false`.
     pub fn with_recursive(mut self, recursive: bool) -> Self {
         self.recursive = recursive;
         self
     }
 
-    /// Get the current recursive.
+    /// Return whether the list operation is recursive.
     pub fn recursive(&self) -> bool {
         self.recursive
     }
@@ -211,24 +221,24 @@ impl OpList {
         0
     }
 
-    /// Change the version of this list operation
+    /// Set whether to return object versions.
     pub fn with_versions(mut self, versions: bool) -> Self {
         self.versions = versions;
         self
     }
 
-    /// Get the version of this list operation
+    /// Return whether the operation includes object versions.
     pub fn versions(&self) -> bool {
         self.versions
     }
 
-    /// Change the deleted of this list operation
+    /// Set whether to return deleted objects.
     pub fn with_deleted(mut self, deleted: bool) -> Self {
         self.deleted = deleted;
         self
     }
 
-    /// Get the deleted of this list operation
+    /// Return whether the operation includes deleted objects.
     pub fn deleted(&self) -> bool {
         self.deleted
     }
@@ -246,7 +256,7 @@ impl From<options::ListOptions> for OpList {
     }
 }
 
-/// Args for `presign` operation.
+/// Arguments for `presign` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone)]
@@ -265,12 +275,12 @@ impl OpPresign {
         }
     }
 
-    /// Get operation from op.
+    /// Return the operation to presign.
     pub fn operation(&self) -> &PresignOperation {
         &self.op
     }
 
-    /// Get expire from op.
+    /// Return the request expiration duration.
     pub fn expire(&self) -> Duration {
         self.expire
     }
@@ -319,7 +329,7 @@ impl From<OpDelete> for PresignOperation {
     }
 }
 
-/// Args for `read` operation.
+/// Arguments for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     if_match: Option<String>,
@@ -401,7 +411,7 @@ impl OpRead {
         self
     }
 
-    /// Get If-Modified-Since from option
+    /// Return the If-Modified-Since condition.
     pub fn if_modified_since(&self) -> Option<Timestamp> {
         self.if_modified_since
     }
@@ -433,12 +443,12 @@ impl OpRead {
     }
 }
 
-/// Args for reader operation.
+/// Arguments for reader operation.
 #[derive(Debug, Clone)]
 pub struct OpReader {
-    /// The concurrent requests that reader can send.
+    /// The number of concurrent requests that reader can send.
     concurrent: usize,
-    /// The chunk size of each request.
+    /// Request chunk size.
     chunk: Option<usize>,
     /// The gap size of each request.
     gap: Option<usize>,
@@ -463,46 +473,49 @@ impl OpReader {
         Self::default()
     }
 
-    /// Set the concurrent of the option
+    /// Set the number of concurrent requests the reader can send.
     pub fn with_concurrent(mut self, concurrent: usize) -> Self {
         self.concurrent = concurrent.max(1);
         self
     }
 
-    /// Get concurrent from option
+    /// Return the number of concurrent requests.
     pub fn concurrent(&self) -> usize {
         self.concurrent
     }
 
-    /// Set the chunk of the option
+    /// Set the request chunk size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
         self.chunk = Some(chunk.max(1));
         self
     }
 
-    /// Get chunk from option
+    /// Return the request chunk size.
     pub fn chunk(&self) -> Option<usize> {
         self.chunk
     }
 
-    /// Set the gap of the option
+    /// Set the gap size.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or
+    /// adjacent ranges are still merged.
     pub fn with_gap(mut self, gap: usize) -> Self {
-        self.gap = Some(gap.max(1));
+        self.gap = Some(gap);
         self
     }
 
-    /// Get gap from option
+    /// Return the gap size.
     pub fn gap(&self) -> Option<usize> {
         self.gap
     }
 
-    /// Set the prefetch of the option
+    /// Set the number of prefetch requests.
     pub fn with_prefetch(mut self, prefetch: usize) -> Self {
         self.prefetch = prefetch;
         self
     }
 
-    /// Get prefetch from option
+    /// Return the number of prefetch requests.
     pub fn prefetch(&self) -> usize {
         self.prefetch
     }
@@ -559,7 +572,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
     }
 }
 
-/// Args for `stat` operation.
+/// Arguments for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
     if_match: Option<String>,
@@ -683,7 +696,7 @@ impl From<options::StatOptions> for OpStat {
     }
 }
 
-/// Args for `write` operation.
+/// Arguments for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     append: bool,
@@ -719,7 +732,7 @@ impl OpWrite {
     ///
     /// # Notes
     ///
-    /// Service could return `Unsupported` if the underlying storage does not support append.
+    /// Service could return `Unsupported` if the storage does not support append.
     pub fn with_append(mut self, append: bool) -> Self {
         self.append = append;
         self
@@ -825,7 +838,7 @@ impl OpWrite {
     }
 }
 
-/// Args for `writer` operation.
+/// Arguments for `writer` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWriter {
     chunk: Option<usize>,
@@ -880,7 +893,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
     }
 }
 
-/// Args for `copy` operation.
+/// Arguments for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {
     if_not_exists: bool,
@@ -936,7 +949,7 @@ impl OpCopy {
     }
 }
 
-/// Args for `copier` operation.
+/// Arguments for `copier` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopier {
     concurrent: usize,
@@ -1001,13 +1014,47 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
     }
 }
 
-/// Args for `rename` operation.
+/// Arguments for `rename` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpRename {}
+pub struct OpRename {
+    /// Whether the rename should fail when the destination already exists.
+    ///
+    /// If `true`, the rename succeeds only when the destination does not exist.
+    /// If `false`, the rename uses OpenDAL's default overwrite behavior.
+    if_not_exists: bool,
+}
 
 impl OpRename {
-    /// Create a new `OpMove`.
+    /// Create a new `OpRename`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set whether the rename should fail when the destination already exists.
+    ///
+    /// If `true`, the rename succeeds only when the destination does not exist.
+    /// If `false`, the rename uses OpenDAL's default overwrite behavior.
+    ///
+    /// ## Service Implementation
+    ///
+    /// Check [`crate::Capability::rename_with_if_not_exists`] before setting this to
+    /// `true`. A service might return `ErrorKind::Unsupported` if it cannot
+    /// enforce the condition.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Return whether the rename should fail when the destination already exists.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
+    }
+}
+
+impl From<options::RenameOptions> for OpRename {
+    fn from(value: options::RenameOptions) -> Self {
+        Self {
+            if_not_exists: value.if_not_exists,
+        }
     }
 }

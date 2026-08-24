@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Immutable index layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::vec::IntoIter;
@@ -27,7 +26,7 @@ use std::vec::IntoIter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an immutable in-memory index for underlying storage services.
+/// `ImmutableIndexLayer` adds an immutable in-memory index to a storage service.
 ///
 /// Especially useful for services without list capability like HTTP.
 ///
@@ -279,7 +278,7 @@ mod tests {
     use futures::TryStreamExt;
     use log::debug;
     use logforth::append::Testing;
-    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::filter::rustlog::RustLogFilterBuilder;
     use logforth::layout::TextLayout;
 
     #[derive(Debug)]
@@ -393,7 +392,7 @@ mod tests {
     fn setup() {
         let _ = logforth::starter_log::builder()
             .dispatch(|d| {
-                d.filter(EnvFilterBuilder::from_default_env().build())
+                d.filter(RustLogFilterBuilder::from_default_env().build())
                     .append(Testing::default().with_layout(TextLayout::default()))
             })
             .try_apply();

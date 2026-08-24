@@ -20,8 +20,8 @@
 import React, { useState } from "react";
 import Link from "@docusaurus/Link";
 import { useBaseUrlUtils } from "@docusaurus/useBaseUrl";
-import CodeBlock from "@theme/CodeBlock";
 import CodeTabs from "./CodeTabs";
+import ExplorerSection from "./ExplorerSection";
 import styles from "./styles.module.css";
 import {
   REPO_URL,
@@ -54,8 +54,10 @@ export function Hero() {
               <span className={styles.heroTitleAccent}>All Storage.</span>
             </h1>
             <p className={styles.heroLede}>
-              One zero-cost Operator for object storage, file systems, databases
-              and more — in the language you already ship.
+              One zero-cost{" "}
+              <span className={styles.termItalic}>operator</span> for object
+              storage, file systems, databases and more — in the language you
+              already ship.
             </p>
             <div className={styles.heroActions}>
               <Link
@@ -106,7 +108,7 @@ export function UsedBy() {
         </div>
         <ul className={styles.logoWall}>
           {usedBy.map((u) => (
-            <li key={u.name}>
+            <li className={styles.logoWallItem} key={u.name}>
               <Link className={styles.logoItem} to={u.href} title={u.name}>
                 <img
                   className={styles.logoMark}
@@ -120,9 +122,9 @@ export function UsedBy() {
               </Link>
             </li>
           ))}
-          <li>
-            <Link className={styles.addLogo} to={USERS_LIST_URL}>
-              + add your logo
+          <li className={styles.logoWallItem}>
+            <Link className={styles.actionLogo} to={USERS_LIST_URL}>
+              + Add your logo
             </Link>
           </li>
         </ul>
@@ -168,62 +170,22 @@ export function Capabilities() {
           <span className="odl-eyebrow">Capabilities</span>
           <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
           <p className={styles.sectionLede}>
-            One Operator is a full toolkit for real-world data — read and write
-            at scale, recover from failures, and work with files — the same way
-            on every backend.
+            One <span className={styles.termItalic}>operator</span> is a full
+            toolkit for real-world data — read and write at scale, recover from
+            failures, and work with files — the same way on every backend.
           </p>
         </div>
-        <div className={styles.capabilityExplorer}>
-          <ul className={styles.capabilityNav}>
-            {capabilityThemes.map((theme) => {
-              const selected = active.title === theme.title;
-              return (
-                <li key={theme.title}>
-                  <Link
-                    className={`${styles.capabilityItem} ${
-                      selected ? styles.capabilityItemActive : ""
-                    }`}
-                    to={theme.doc}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-current={selected ? "true" : undefined}
-                    onMouseEnter={() => setActive(theme)}
-                    onFocus={() => setActive(theme)}
-                  >
-                    <span className={styles.capabilityText}>
-                      <span className={styles.capabilityItemTitle}>
-                        {theme.title}
-                      </span>
-                      <span className={styles.capabilityItemBlurb}>
-                        {theme.blurb}
-                      </span>
-                    </span>
-                    <span className={styles.capabilityArrow} aria-hidden="true">
-                      ↗
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <div className={styles.capabilityPreview}>
-            <div className={styles.codeWindow}>
-              <div className={styles.windowBar}>
-                <div className={styles.windowDots} aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span className={styles.windowTitle}>{active.title}</span>
-              </div>
-              <div className={`${styles.codeBody} ${styles.capabilityCodeBody}`}>
-                <div className={styles.capabilityCodeFade} key={active.title}>
-                  <CodeBlock language="rust">{active.code}</CodeBlock>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExplorerSection
+          id="landing-capability-preview"
+          items={capabilityThemes}
+          activeItem={active}
+          onSelect={setActive}
+          getKey={(theme) => theme.title}
+          getTitle={(theme) => theme.title}
+          getDescription={(theme) => theme.blurb}
+          getDoc={(theme) => theme.doc}
+          getCode={(theme) => theme.code}
+        />
       </div>
     </section>
   );
@@ -240,8 +202,9 @@ export function Services() {
             50+ storage services, one interface.
           </h2>
           <p className={styles.sectionLede}>
-            Enable only the backends your application needs. The Operator
-            contract stays identical across every one.
+            Enable only the backends your application needs. The{" "}
+            <span className={styles.termItalic}>Operator</span> contract stays
+            identical across every one.
           </p>
         </div>
         <div className={`${styles.serviceGroups} ${styles.reveal}`}>
@@ -258,6 +221,7 @@ export function Services() {
                     key={s.name}
                   >
                     <img
+                      className={styles.serviceChipIcon}
                       src={withBaseUrl(s.icon)}
                       alt=""
                       width="15"
@@ -274,7 +238,7 @@ export function Services() {
         <div className={styles.servicesFoot}>
           <Link
             className={`${styles.btn} ${styles.btnSecondary}`}
-            to={DOCS_URL}
+            to="/services/"
           >
             Browse all services <span className={styles.btnArrow}>→</span>
           </Link>
@@ -301,6 +265,7 @@ export function Bindings() {
           {bindings.map((b) => (
             <Link className={styles.bindingCard} to={b.doc} key={b.name}>
               <img
+                className={styles.bindingIcon}
                 src={withBaseUrl(b.icon)}
                 alt=""
                 width="30"
@@ -331,47 +296,18 @@ export function Layers() {
             explicit and the core stays zero-cost.
           </p>
         </div>
-        <div className={styles.layerExplorer}>
-          <div className={styles.layerGrid}>
-            {layers.map((l) => {
-              const selected = active.name === l.name;
-              return (
-                <Link
-                  key={l.name}
-                  className={`${styles.layerItem} ${
-                    selected ? styles.layerItemActive : ""
-                  }`}
-                  to={l.doc}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-current={selected ? "true" : undefined}
-                  onMouseEnter={() => setActive(l)}
-                  onFocus={() => setActive(l)}
-                >
-                  <span className={styles.layerName}>{l.name}</span>
-                  <span className={styles.layerDesc}>{l.desc}</span>
-                </Link>
-              );
-            })}
-          </div>
-          <div className={styles.capabilityPreview}>
-            <div className={styles.codeWindow}>
-              <div className={styles.windowBar}>
-                <div className={styles.windowDots} aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span className={styles.windowTitle}>{active.name}</span>
-              </div>
-              <div className={`${styles.codeBody} ${styles.layerCodeBody}`}>
-                <div className={styles.capabilityCodeFade} key={active.name}>
-                  <CodeBlock language="rust">{active.code}</CodeBlock>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExplorerSection
+          id="landing-layer-preview"
+          items={layers}
+          activeItem={active}
+          onSelect={setActive}
+          getKey={(layer) => layer.name}
+          getTitle={(layer) => layer.name}
+          getDescription={(layer) => layer.desc}
+          getDoc={(layer) => layer.doc}
+          getCode={(layer) => layer.code}
+          variant="tiles"
+        />
       </div>
     </section>
   );

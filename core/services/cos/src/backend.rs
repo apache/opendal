@@ -167,7 +167,7 @@ impl Builder for CosBuilder {
     type Config = CosConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -179,7 +179,7 @@ impl Builder for CosBuilder {
                     .with_context("service", COS_SCHEME),
             ),
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
@@ -192,14 +192,8 @@ impl Builder for CosBuilder {
                 .with_context("service", COS_SCHEME)),
         }?;
 
-        let scheme = match uri.scheme_str() {
-            Some(scheme) => scheme.to_string(),
-            None => "https".to_string(),
-        };
-
-        // If endpoint contains bucket name, we should trim them.
-        let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
-        debug!("backend use endpoint {}", &endpoint);
+        let endpoint = build_endpoint(&uri, &bucket)?;
+        debug!("backend use endpoint {}", endpoint);
 
         let os_env = OsEnv;
         let ctx = Context::new()
@@ -294,7 +288,7 @@ impl Builder for CosBuilder {
                 capability,
                 bucket: bucket.clone(),
                 root,
-                endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
+                endpoint,
                 signer,
             }),
         })
@@ -349,10 +343,10 @@ impl Service for CosBackend {
                     meta = meta.with_user_metadata(user_meta);
                 }
 
-                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)? {
-                    if v != "null" {
-                        meta.set_version(v);
-                    }
+                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
+                    && v != "null"
+                {
+                    meta.set_version(v);
                 }
 
                 Ok(RpStat::new(meta))
@@ -499,5 +493,94 @@ impl Service for CosBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+/// Compose the request endpoint for a bucket, as `scheme://bucket.host[:port]`.
+///
+/// Extracted so it can be unit tested, mirroring `S3Builder::build_endpoint`.
+fn build_endpoint(uri: &Uri, bucket: &str) -> Result<String> {
+    let scheme = uri.scheme_str().unwrap_or("https");
+
+    let host = uri.host().ok_or_else(|| {
+        Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
+            .with_context("service", COS_SCHEME)
+            .with_context("endpoint", uri.to_string())
+    })?;
+
+    // If the endpoint already carries the bucket as its leftmost label, don't add it twice.
+    let host = host.strip_prefix(&format!("{bucket}.")).unwrap_or(host);
+
+    // Keep the port. `Uri::host` omits it, so composing from the host alone silently sent every
+    // request to the scheme default.
+    Ok(match uri.port_u16() {
+        Some(port) => format!("{scheme}://{bucket}.{host}:{port}"),
+        None => format!("{scheme}://{bucket}.{host}"),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn endpoint_of(raw: &str, bucket: &str) -> String {
+        build_endpoint(&raw.parse::<Uri>().unwrap(), bucket).unwrap()
+    }
+
+    #[test]
+    fn build_endpoint_keeps_a_custom_port() {
+        assert_eq!(
+            endpoint_of(
+                "https://cos.internal.example.com:8443",
+                "examplebucket-1250000000"
+            ),
+            "https://examplebucket-1250000000.cos.internal.example.com:8443"
+        );
+    }
+
+    #[test]
+    fn build_endpoint_prefixes_the_bucket() {
+        assert_eq!(
+            endpoint_of(
+                "https://cos.ap-guangzhou.myqcloud.com",
+                "examplebucket-1250000000"
+            ),
+            "https://examplebucket-1250000000.cos.ap-guangzhou.myqcloud.com"
+        );
+    }
+
+    #[test]
+    fn build_endpoint_does_not_repeat_a_bucket_already_in_the_host() {
+        // The previous `replace("//{bucket}.", "//")` could never match, because Uri::host never
+        // contains "//", so this doubled the bucket label.
+        assert_eq!(
+            endpoint_of(
+                "https://examplebucket-1250000000.cos.ap-guangzhou.myqcloud.com",
+                "examplebucket-1250000000"
+            ),
+            "https://examplebucket-1250000000.cos.ap-guangzhou.myqcloud.com"
+        );
+    }
+
+    #[test]
+    fn build_endpoint_defaults_the_scheme_to_https() {
+        // A bare host parses with no scheme; "//host" parses with no host at all, which is why
+        // the missing-host case below is a real input rather than a contrived one.
+        assert_eq!(
+            endpoint_of("cos.ap-guangzhou.myqcloud.com", "b"),
+            "https://b.cos.ap-guangzhou.myqcloud.com"
+        );
+    }
+
+    #[test]
+    fn build_endpoint_reports_a_missing_host_instead_of_panicking() {
+        // Both of these parse to host = None. The previous code called .unwrap() on that.
+        for raw in ["/just/a/path", "//cos.ap-guangzhou.myqcloud.com"] {
+            let uri = raw.parse::<Uri>().unwrap();
+            assert!(
+                build_endpoint(&uri, "b").is_err(),
+                "expected an error for {raw}"
+            );
+        }
     }
 }

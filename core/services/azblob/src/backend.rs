@@ -292,7 +292,7 @@ impl Builder for AzblobBuilder {
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -304,7 +304,7 @@ impl Builder for AzblobBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZBLOB_SCHEME)),
         }?;
-        debug!("backend use container {}", &container);
+        debug!("backend use container {}", container);
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -312,7 +312,7 @@ impl Builder for AzblobBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZBLOB_SCHEME)),
         }?;
-        debug!("backend use endpoint {}", &container);
+        debug!("backend use endpoint {}", container);
 
         let account_name = self
             .config
@@ -407,6 +407,7 @@ impl Builder for AzblobBuilder {
             write_can_multi: true,
             write_with_cache_control: true,
             write_with_content_type: true,
+            write_with_if_match: true,
             write_with_if_not_exists: true,
             write_with_if_none_match: true,
             write_with_user_metadata: true,

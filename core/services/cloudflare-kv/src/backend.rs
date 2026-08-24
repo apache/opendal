@@ -37,6 +37,7 @@ use super::writer::CloudflareWriter;
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
+    pub(super) default_ttl: Option<Duration>,
 }
 
 impl Debug for CloudflareKvBuilder {
@@ -76,7 +77,7 @@ impl CloudflareKvBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.config.default_ttl = Some(ttl);
+        self.default_ttl = Some(ttl);
         self
     }
 
@@ -96,6 +97,14 @@ impl Builder for CloudflareKvBuilder {
     type Config = CloudflareKvConfig;
 
     fn build(self) -> Result<impl Service> {
+        let default_ttl = match self.default_ttl {
+            Some(ttl) => Some(ttl),
+            None => self
+                .config
+                .default_ttl
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
         let api_token = match &self.config.api_token {
             Some(api_token) => format_authorization_by_bearer(api_token)?,
             None => {
@@ -121,13 +130,13 @@ impl Builder for CloudflareKvBuilder {
         };
 
         // Validate default TTL is at least 60 seconds if specified
-        if let Some(ttl) = self.config.default_ttl {
-            if ttl < Duration::from_secs(60) {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "Default TTL must be at least 60 seconds",
-                ));
-            }
+        if let Some(ttl) = default_ttl
+            && ttl < Duration::from_secs(60)
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "Default TTL must be at least 60 seconds",
+            ));
         }
 
         let root = normalize_root(
@@ -143,7 +152,7 @@ impl Builder for CloudflareKvBuilder {
                 api_token,
                 account_id,
                 namespace_id,
-                expiration_ttl: self.config.default_ttl,
+                expiration_ttl: default_ttl,
                 info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, &root, ""),
                 capability: Capability {
                     create_dir: true,
@@ -170,8 +179,6 @@ impl Builder for CloudflareKvBuilder {
 
                     delete: true,
                     delete_max_size: Some(10000),
-
-                    shared: false,
 
                     ..Default::default()
                 },
@@ -265,10 +272,10 @@ impl Service for CloudflareKvBackend {
                         .map_err(new_json_deserialize_error)?;
 
                     // If listing returns results, treat as directory
-                    if let Some(entries) = list_result.result {
-                        if !entries.is_empty() {
-                            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-                        }
+                    if let Some(entries) = list_result.result
+                        && !entries.is_empty()
+                    {
+                        return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
                     }
 
                     // Empty or no results means not found
@@ -314,20 +321,20 @@ impl Service for CloudflareKvBackend {
         };
 
         // Check if_match condition
-        if let Some(if_match) = &args.if_match() {
-            if if_match != &metadata.etag {
-                return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
-            }
+        if let Some(if_match) = &args.if_match()
+            && if_match != &metadata.etag
+        {
+            return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
         }
 
         // Check if_none_match condition
-        if let Some(if_none_match) = &args.if_none_match() {
-            if if_none_match == &metadata.etag {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "etag match when expected none match",
-                ));
-            }
+        if let Some(if_none_match) = &args.if_none_match()
+            && if_none_match == &metadata.etag
+        {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "etag match when expected none match",
+            ));
         }
 
         // Parse since time once for both time-based conditions
@@ -337,23 +344,23 @@ impl Service for CloudflareKvBackend {
             .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
         // Check modified_since condition
-        if let Some(modified_since) = &args.if_modified_since() {
-            if !last_modified.gt(modified_since) {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "not modified since specified time",
-                ));
-            }
+        if let Some(modified_since) = &args.if_modified_since()
+            && !last_modified.gt(modified_since)
+        {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "not modified since specified time",
+            ));
         }
 
         // Check unmodified_since condition
-        if let Some(unmodified_since) = &args.if_unmodified_since() {
-            if !last_modified.le(unmodified_since) {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "modified since specified time",
-                ));
-            }
+        if let Some(unmodified_since) = &args.if_unmodified_since()
+            && !last_modified.le(unmodified_since)
+        {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "modified since specified time",
+            ));
         }
 
         let meta = Metadata::new(if metadata.is_dir {

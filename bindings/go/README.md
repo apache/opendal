@@ -5,7 +5,10 @@
 
 opendal-go is a **Native** Go binding for Apache OpenDAL. It is built on top of `opendal-c` without CGO enabled, using [purego](https://github.com/ebitengine/purego) and libffi.
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL Go binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the Go binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 

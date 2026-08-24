@@ -88,7 +88,7 @@ impl Builder for MiniMokaBuilder {
     type Config = MiniMokaConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let mut builder: mini_moka::sync::CacheBuilder<String, MiniMokaValue, _> =
             mini_moka::sync::Cache::builder();

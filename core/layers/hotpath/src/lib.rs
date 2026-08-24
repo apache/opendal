@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Hotpath layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -49,7 +48,8 @@ const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
-/// Add [hotpath](https://docs.rs/hotpath/) profiling for every operation.
+/// `HotpathLayer` profiles every operation with
+/// [hotpath](https://docs.rs/hotpath/).
 ///
 /// # Notes
 ///

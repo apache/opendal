@@ -138,8 +138,18 @@ impl BytesRange {
     }
 
     /// Convert bytes range into Range header.
+    ///
+    /// Returns an empty string for a range with no valid HTTP representation -- a zero size, or
+    /// an end that overflows -- which [`Display`] reports by failing. `format!` turns a
+    /// `Display` failure into a panic, and this runs while a request is being built.
     pub fn to_header(&self) -> String {
-        format!("bytes={self}")
+        use std::fmt::Write;
+
+        let mut header = String::from("bytes=");
+        if write!(header, "{self}").is_err() {
+            header.clear();
+        }
+        header
     }
 
     /// Convert bytes range into rust range.
@@ -395,6 +405,15 @@ mod tests {
 
         let h = BytesRange::suffix(1024);
         assert_eq!(h.to_string(), "-1024");
+    }
+
+    #[test]
+    fn test_bytes_range_to_header_is_empty_when_unrepresentable() {
+        // `Display` fails for these, and `format!` turns a `Display` failure into a panic --
+        // `to_header` is called while building a request, at more than forty service call sites.
+        assert_eq!(BytesRange::new(0, Some(0)).to_header(), "");
+        assert_eq!(BytesRange::new(5, Some(0)).to_header(), "");
+        assert_eq!(BytesRange::new(u64::MAX, Some(2)).to_header(), "");
     }
 
     #[test]

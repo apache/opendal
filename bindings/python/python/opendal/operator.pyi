@@ -20,9 +20,13 @@ from datetime import datetime
 from os import PathLike
 from typing import Any, final
 
+from typing_extensions import Unpack
+
 from .capability import Capability
+from .config import ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
+from .options import OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
 
@@ -38,8 +42,7 @@ class AsyncOperator:
     Operator
     """
 
-    def __getnewargs_ex__(self, /) -> Any: ...
-    def __new__(cls, /, scheme: str | Scheme, **kwargs) -> AsyncOperator:
+    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> AsyncOperator:
         """
         Create a new `AsyncOperator`.
 
@@ -55,6 +58,7 @@ class AsyncOperator:
         AsyncOperator
             The new async operator.
         """
+    def __reduce__(self, /) -> Any: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
@@ -164,6 +168,74 @@ class AsyncOperator:
         coroutine
             An awaitable that returns True if the path exists, False otherwise.
         """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+        """
+        Create a new `AsyncOperator` from a typed service config.
+
+        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+        ``scheme`` key selects the service, so a static type checker rejects a
+        wrong scheme, a missing required key, an unknown key, and a wrong value
+        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+        are converted to the string form core consumes.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service configuration such as ``opendal.config.S3Config``.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.config import S3Config
+
+        op = opendal.AsyncOperator.from_config(
+            S3Config(scheme="s3", bucket="my-bucket")
+        )
+        ```
+        """
+    @classmethod
+    def from_uri(cls, /, uri: str, **kwargs: str) -> AsyncOperator:
+        """
+        Create a new `AsyncOperator` from a URI string.
+
+        The URI encodes the scheme and configuration in a single string, e.g.
+        ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+        belong to a service enabled in this build. Encode service options as
+        query parameters; use ``urllib.parse.urlencode`` when building the URI
+        dynamically.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service, including any options as query parameters.
+        **kwargs : dict
+            Overrides for URI options. Prefer the URI query string.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
+
+        Examples
+        --------
+        ```python
+        from urllib.parse import urlencode
+        import opendal
+
+        op = opendal.AsyncOperator.from_uri("memory://")
+        query = urlencode({"region": "us-east-1"})
+        op = opendal.AsyncOperator.from_uri(
+            f"s3://bucket/path?{query}"
+        )
+        ```
+        """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
         Add a new layer to the operator.
@@ -213,7 +285,7 @@ class AsyncOperator:
             An awaitable that returns an async iterator over the entries.
         """
     def open(
-        self, /, path: str | PathLike[str], mode: str, **kwargs
+        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
     ) -> collections.abc.Awaitable[AsyncFile]:
         """
         Open an async file-like object for the given path.
@@ -650,8 +722,7 @@ class Operator:
     AsyncOperator
     """
 
-    def __getnewargs_ex__(self, /) -> Any: ...
-    def __new__(cls, /, scheme: str | Scheme, **kwargs) -> Operator:
+    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> Operator:
         """
         Create a new blocking `Operator`.
 
@@ -667,6 +738,7 @@ class Operator:
         Operator
             The new operator.
         """
+    def __reduce__(self, /) -> Any: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
@@ -752,6 +824,72 @@ class Operator:
         bool
             True if the path exists, False otherwise.
         """
+    @classmethod
+    def from_config(cls, /, config: ServiceConfig) -> Operator:
+        """
+        Create a new blocking `Operator` from a typed service config.
+
+        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+        ``scheme`` key selects the service, so a static type checker rejects a
+        wrong scheme, a missing required key, an unknown key, and a wrong value
+        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+        are converted to the string form core consumes.
+
+        Parameters
+        ----------
+        config : ServiceConfig
+            A service configuration such as ``opendal.config.S3Config``.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+
+        Examples
+        --------
+        ```python
+        import opendal
+        from opendal.config import S3Config
+
+        op = opendal.Operator.from_config(
+            S3Config(scheme="s3", bucket="my-bucket")
+        )
+        ```
+        """
+    @classmethod
+    def from_uri(cls, /, uri: str, **kwargs: str) -> Operator:
+        """
+        Create a new blocking `Operator` from a URI string.
+
+        The URI encodes the scheme and configuration in a single string, e.g.
+        ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+        belong to a service enabled in this build. Encode service options as
+        query parameters; use ``urllib.parse.urlencode`` when building the URI
+        dynamically.
+
+        Parameters
+        ----------
+        uri : str
+            The URI of the service, including any options as query parameters.
+        **kwargs : dict
+            Overrides for URI options. Prefer the URI query string.
+
+        Returns
+        -------
+        Operator
+            The new operator.
+
+        Examples
+        --------
+        ```python
+        from urllib.parse import urlencode
+        import opendal
+
+        op = opendal.Operator.from_uri("memory://")
+        query = urlencode({"region": "us-east-1"})
+        op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+        ```
+        """
     def layer(self, /, layer: Layer) -> Operator:
         """
         Add a new layer to this operator.
@@ -800,7 +938,9 @@ class Operator:
         BlockingLister
             An iterator over the entries in the directory.
         """
-    def open(self, /, path: str | PathLike[str], mode: str, **kwargs) -> File:
+    def open(
+        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
+    ) -> File:
         """
         Open a file-like object for the given path.
 

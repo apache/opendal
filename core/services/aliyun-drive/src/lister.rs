@@ -131,10 +131,10 @@ impl oio::PageList for AliyunDriveLister {
 
         for item in result.items {
             let (path, mut md) = if item.path_type == "folder" {
-                let path = format!("{}{}/", &parent.path.trim_start_matches('/'), &item.name);
+                let path = format!("{}{}/", parent.path.trim_start_matches('/'), item.name);
                 (path, Metadata::new(EntryMode::DIR))
             } else {
-                let path = format!("{}{}", &parent.path.trim_start_matches('/'), &item.name);
+                let path = format!("{}{}", parent.path.trim_start_matches('/'), item.name);
                 (path, Metadata::new(EntryMode::FILE))
             };
 

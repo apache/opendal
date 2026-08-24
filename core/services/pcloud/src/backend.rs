@@ -107,10 +107,10 @@ impl Builder for PcloudBuilder {
 
     /// Builds the backend and returns the result of PcloudBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle endpoint.
         if self.config.endpoint.is_empty() {
@@ -119,7 +119,7 @@ impl Builder for PcloudBuilder {
                 .with_context("service", PCLOUD_SCHEME));
         }
 
-        debug!("backend use endpoint {}", &self.config.endpoint);
+        debug!("backend use endpoint {}", self.config.endpoint);
 
         let username = match &self.config.username {
             Some(username) => Ok(username.clone()),

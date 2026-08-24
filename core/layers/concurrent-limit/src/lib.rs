@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Concurrent request limit layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use asyncband::semaphore::OwnedSemaphorePermit;
+use asyncband::semaphore::Semaphore;
 use futures::Stream;
 use futures::StreamExt;
-use mea::semaphore::OwnedSemaphorePermit;
-use mea::semaphore::Semaphore;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -52,21 +51,16 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
     }
 }
 
-/// Add concurrent request limit.
+/// `ConcurrentLimitLayer` controls how many concurrent requests OpenDAL can send
+/// to a storage service.
 ///
-/// # Notes
-///
-/// Users can control how many concurrent connections could be established
-/// between OpenDAL and underlying storage services.
-///
-/// All operators wrapped by this layer will share a common semaphore. This
-/// allows you to reuse the same layer across multiple operators, ensuring
-/// that the total number of concurrent requests across the entire
-/// application does not exceed the limit.
+/// Operators that reuse the same [`ConcurrentLimitLayer`] instance share a
+/// semaphore. This lets an application enforce one total concurrent-request
+/// limit across multiple operators.
 ///
 /// # Examples
 ///
-/// Add a concurrent limit layer to the operator:
+/// The following example adds a concurrent limit layer to an operator:
 ///
 /// ```no_run
 /// # use opendal_core::services;
@@ -138,7 +132,7 @@ impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
     ///
     /// ```
     /// # use std::sync::Arc;
-    /// # use mea::semaphore::Semaphore;
+    /// # use asyncband::semaphore::Semaphore;
     /// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
     /// let semaphore = Arc::new(Semaphore::new(1024));
     /// let _layer = ConcurrentLimitLayer::with_semaphore(semaphore);

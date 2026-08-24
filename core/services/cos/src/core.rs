@@ -410,7 +410,7 @@ impl CosCore {
             url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            url = url.push("marker", next_marker);
+            url = url.push("marker", &percent_encode_path(next_marker));
         }
 
         let req = Request::get(url.finish())
@@ -446,6 +446,16 @@ impl CosCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // COS evaluates x-cos-forbid-overwrite on both InitiateMultipartUpload and
+        // CompleteMultipartUpload, so a multipart if_not_exists write has to carry it
+        // on both requests. Setting it only on the simple PutObject path lets large
+        // uploads silently overwrite an existing object.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/7746
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
         }
 
         // Set user metadata headers.
@@ -504,6 +514,7 @@ impl CosCore {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -514,14 +525,21 @@ impl CosCore {
             percent_encode_path(upload_id)
         );
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
+        // CompleteMultipartUpload is the request that commits the object, so the
+        // if_not_exists guard has to be repeated here alongside InitiateMultipartUpload.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/7742
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
+        }
 
         let req = req
             .extension(Operation::Write)

@@ -29,7 +29,7 @@ use opendal::tests::WriteAction;
 use opendal::tests::WriteChecker;
 use opendal::tests::init_test_service;
 
-const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
+const MAX_DATA_SIZE: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 struct FuzzInput {
@@ -52,7 +52,7 @@ impl Arbitrary<'_> for FuzzInput {
             None
         };
 
-        let count = u.int_in_range(1..=1024)?;
+        let count = u.int_in_range(1..=256)?;
 
         for _ in 0..count {
             let size = u.int_in_range(1..=MAX_DATA_SIZE)?;

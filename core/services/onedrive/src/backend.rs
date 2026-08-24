@@ -24,6 +24,7 @@ use opendal_core::*;
 
 use super::core::OneDriveCore;
 use super::core::parse_error;
+use super::core::parse_error_with_retry;
 use super::deleter::OneDriveDeleter;
 use super::lister::OneDriveLister;
 use super::reader::*;
@@ -31,8 +32,8 @@ use super::writer::OneDriveWriter;
 
 use std::fmt::Debug;
 
+use asyncband::mutex::Mutex;
 use log::debug;
-use mea::mutex::Mutex;
 
 use super::ONEDRIVE_SCHEME;
 use super::config::OnedriveConfig;
@@ -108,10 +109,10 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Deprecated: OneDrive versioning capability is enabled by default.
+    /// Deprecated: OneDrive supports version listing without this option.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+        note = "OneDrive supports version listing without this option."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -133,23 +134,24 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
-            // OneDrive supports the file size up to 250GB
+            // disable because usize is too small on armhf and other arch to represent more than 4GB
+            #[cfg(target_pointer_width = "64")]
             // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
-            // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
-            // file up to this size.
-            // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
+            write_total_max_size: Some(250 * 1024 * 1024 * 1024), // 250GB
             copy: true,
             rename: true,
 
             stat: true,
             stat_with_if_none_match: true,
-            stat_with_version: true,
-
+            // Microsoft Graph doesn't preserve complete metadata for previous
+            // file versions, so OneDrive can't implement stat_with_version.
+            // See https://learn.microsoft.com/en-us/graph/api/driveitem-list-versions?view=graph-rest-1.0#remarks
             delete: true,
             create_dir: true,
 
             list: true,
             list_with_limit: true,
+            list_with_start_after: true,
             list_with_versions: true,
 
             shared: true,
@@ -245,6 +247,7 @@ impl Service for OnedriveBackend {
         let response = self.core.onedrive_create_dir(ctx, path).await?;
         match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
+            StatusCode::BAD_REQUEST => Err(parse_error_with_retry(response)),
             _ => Err(parse_error(response)),
         }
     }
@@ -329,13 +332,7 @@ impl Service for OnedriveBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<OneDriveLister> = {
-            let l = OneDriveLister::new(
-                path.to_string(),
-                self.core.clone(),
-                ctx.clone(),
-                self.core.capability,
-                &args,
-            );
+            let l = OneDriveLister::new(path.to_string(), self.core.clone(), ctx.clone(), &args);
             Ok(oio::PageLister::new(l))
         }?;
 

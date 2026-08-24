@@ -32,9 +32,37 @@ use crate::*;
 /// For more details about the `Operator`, refer to the concepts section in the
 /// crate documentation.
 ///
-/// `Operator` is immutable: methods that change layers, HTTP transport, or
+/// ## Immutability
+///
+/// `Operator` is immutable: methods that change layers, the HTTP transport, or the
 /// executor return a new operator. Existing clones and in-flight operations keep
-/// using the service stack and operation context they already hold.
+/// using the service stack and operation context they already hold. For example,
+/// a lister created before the operator is changed continues to use the previous
+/// configuration.
+///
+/// ### Example
+///
+/// ```
+/// use futures::TryStreamExt;
+/// use opendal_core::services::Memory;
+/// use opendal_core::{OperationContext, Operator, Result};
+///
+/// async fn example() -> Result<()> {
+///     let op = Operator::new(Memory::default())?;
+///     let mut lister = op.lister("/").await?;
+///
+///     // Replacing the context returns a new operator.
+///     let new_op = op.with_context(OperationContext::new());
+///     let _ = new_op.list("/").await?;
+///
+///     // The existing lister still uses the context it captured from `op`.
+///     while let Some(entry) = lister.try_next().await? {
+///         println!("{}", entry.path());
+///     }
+///
+///     Ok(())
+/// }
+/// ```
 ///
 /// Internally, an operator keeps base providers and composed dispatch state:
 ///
@@ -106,7 +134,8 @@ use crate::*;
 ///
 /// ## Operate
 ///
-/// After the operator is built and the layers are added, users can start operating the storage.
+/// After building an operator with the desired configuration and layers, users
+/// can start operating on storage.
 ///
 /// The operator is `Send`, `Sync`, and `Clone`. It holds immutable handles, and
 /// storage operation APIs only take a `&self` reference, making it safe to share
@@ -789,7 +818,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Extra Options
     ///
@@ -830,7 +860,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Streaming Write
     ///
@@ -885,7 +916,8 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// ## Streaming Write
     ///
@@ -1015,7 +1047,8 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// # Examples
     ///
@@ -1069,7 +1102,8 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Visit [`performance::concurrent_write`][crate::docs::performance::concurrent_write] for more details on concurrent writes.
+    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// for more details.
     ///
     /// # Examples
     ///
@@ -1389,24 +1423,111 @@ impl Operator {
     /// # }
     /// ```
     pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
-        let from = normalize_path(from);
+        self.rename_options(from, to, options::RenameOptions::default())
+            .await
+    }
 
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::RenameOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
+    ///
+    /// async fn rename_with_options(op: Operator) -> Result<()> {
+    ///     op.rename_with("path/to/file", "path/to/file2")
+    ///         .if_not_exists(true)
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn rename_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureRename<impl Future<Output = Result<()>>> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (options::RenameOptions::default(), to),
+            Self::rename_inner,
+        )
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::RenameOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::options::RenameOptions;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
+    ///
+    /// async fn rename_with_test(op: Operator) -> Result<()> {
+    ///     let mut opts = RenameOptions::default();
+    ///     opts.if_not_exists = true;
+    ///     op.rename_options("path/to/file", "path/to/file2", opts)
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn rename_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: impl Into<options::RenameOptions>,
+    ) -> Result<()> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+        let opts = opts.into();
+
+        Self::rename_inner(
+            self.context().clone(),
+            self.service().clone(),
+            from,
+            (opts, to),
+        )
+        .await
+    }
+
+    async fn rename_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        from: String,
+        (opts, to): (options::RenameOptions, String),
+    ) -> Result<()> {
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from),
             );
         }
-
-        let to = normalize_path(to);
 
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
         }
@@ -1415,15 +1536,13 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation(Operation::Rename)
-                    .with_context("service", self.info().scheme())
+                    .with_context("service", srv.info().scheme())
                     .with_context("from", from)
                     .with_context("to", to),
             );
         }
 
-        self.srv
-            .rename(&self.ctx, &from, &to, OpRename::new())
-            .await?;
+        srv.rename(&ctx, &from, &to, opts.into()).await?;
 
         Ok(())
     }

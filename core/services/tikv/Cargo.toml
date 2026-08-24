@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL TiKV service implementation"
 name = "opendal-service-tikv"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -31,8 +32,8 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-mea = { workspace = true }
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+asyncband = { workspace = true }
+opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tikv-client = { version = "0.4.0", default-features = false }
 

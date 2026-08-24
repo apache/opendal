@@ -89,7 +89,7 @@ impl Builder for IpfsBuilder {
     type Config = IpfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
@@ -108,7 +108,7 @@ impl Builder for IpfsBuilder {
                 .with_context("service", IPFS_SCHEME)
                 .with_context("root", &root)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let info = ServiceInfo::new(IPFS_SCHEME, &root, "");
         let capability = Capability {
@@ -285,14 +285,22 @@ impl oio::PageList for DirStream {
             .map(|v| v.name.unwrap())
             .collect::<Vec<String>>();
 
-        for mut name in names {
-            let meta = self.core.ipfs_stat(&self.ctx, &name).await?;
+        for name in names {
+            let child = if self.path == "/" {
+                name
+            } else {
+                format!("{}{}", self.path, name)
+            };
 
-            if meta.mode().is_dir() {
-                name += "/";
-            }
+            let meta = self.core.ipfs_stat(&self.ctx, &child).await?;
 
-            ctx.entries.push_back(oio::Entry::new(&name, meta))
+            let child = if meta.mode().is_dir() {
+                format!("{child}/")
+            } else {
+                child
+            };
+
+            ctx.entries.push_back(oio::Entry::new(&child, meta))
         }
 
         ctx.done = true;

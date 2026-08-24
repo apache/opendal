@@ -15,15 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Reqwest based HTTP transport for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
 use std::future;
 use std::mem;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use futures::TryStreamExt;
@@ -34,17 +33,15 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::HttpBody;
 use opendal_core::HttpTransport;
+use opendal_core::HttpTransporter;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
 
-static DEFAULT_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
+static DEFAULT_REQWEST_TRANSPORT: LazyLock<ReqwestTransport> =
+    LazyLock::new(|| ReqwestTransport::new(reqwest::Client::new()));
 
-/// A [`reqwest::Client`] backed HTTP transport.
-///
-/// # Notes
-///
-/// Reqwest must be configured with a TLS feature before sending HTTPS requests.
+/// A HTTP transport with [`reqwest::Client`].
 #[derive(Clone)]
 pub struct ReqwestTransport {
     client: reqwest::Client,
@@ -58,7 +55,7 @@ impl Debug for ReqwestTransport {
 
 impl Default for ReqwestTransport {
     fn default() -> Self {
-        Self::new(DEFAULT_REQWEST_CLIENT.clone())
+        DEFAULT_REQWEST_TRANSPORT.clone()
     }
 }
 
@@ -84,7 +81,7 @@ impl HttpTransport for ReqwestTransport {
 
         let (parts, body) = req.into_parts();
 
-        let url = reqwest::Url::from_str(&uri.to_string()).map_err(|err| {
+        let url = reqwest::Url::parse(&uri.to_string()).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
                 .with_operation("reqwest::fetch")
                 .with_context("url", uri.to_string())
@@ -166,6 +163,23 @@ impl HttpTransport for ReqwestTransport {
     }
 }
 
+/// Install the process-wide default reqwest transport.
+///
+/// The reqwest client is initialized when the transport handles its first
+/// request.
+#[doc(hidden)]
+pub fn install_default() {
+    HttpTransporter::install_default(LazyReqwestTransport);
+}
+
+struct LazyReqwestTransport;
+
+impl HttpTransport for LazyReqwestTransport {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        DEFAULT_REQWEST_TRANSPORT.fetch(req).await
+    }
+}
+
 #[inline]
 fn is_temporary_error(err: &reqwest::Error) -> bool {
     // error sending request
@@ -200,5 +214,29 @@ impl http_body::Body for HttpBufferBody {
 
     fn size_hint(&self) -> http_body::SizeHint {
         http_body::SizeHint::with_exact(self.0.len() as u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_install_default_is_lazy() {
+        install_default();
+    }
+
+    #[cfg(any(feature = "rustls", feature = "native-tls"))]
+    #[test]
+    fn test_default_transport_succeeds() {
+        let transport = ReqwestTransport::default();
+        assert_eq!(format!("{:?}", transport), "ReqwestTransport");
+    }
+
+    #[test]
+    fn test_from_reqwest_client() {
+        let client = reqwest::Client::new();
+        let transport = ReqwestTransport::from(client);
+        assert_eq!(format!("{:?}", transport), "ReqwestTransport");
     }
 }

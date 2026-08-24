@@ -80,7 +80,8 @@ func testPresignWrite(assert *require.Assertions, op *opendal.Operator, fixture 
 func testPresignRead(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignRead(path, time.Hour)
 	assert.Nil(err)
@@ -105,7 +106,8 @@ func testPresignReadWithRange(assert *require.Assertions, op *opendal.Operator, 
 	path := fixture.NewFilePath()
 	content := genFixedBytes(32)
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignRead(path, time.Hour, opendal.ReadWithRange(offset, length))
 	assert.Nil(err)
@@ -125,7 +127,8 @@ func testPresignReadWithRange(assert *require.Assertions, op *opendal.Operator, 
 func testPresignStat(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignStat(path, time.Hour)
 	assert.Nil(err)
@@ -146,7 +149,8 @@ func testPresignStatWithOverrideContentType(assert *require.Assertions, op *open
 	path, content, _ := fixture.NewFile()
 	contentType := "application/octet-stream"
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignStat(path, time.Hour, opendal.StatWithOverrideContentType(contentType))
 	assert.Nil(err)
@@ -161,7 +165,8 @@ func testPresignStatWithOverrideContentType(assert *require.Assertions, op *open
 func testPresignDelete(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content))
+	_, err := op.Write(path, content)
+	assert.Nil(err)
 
 	req, err := op.PresignDelete(path, time.Hour)
 	assert.Nil(err)

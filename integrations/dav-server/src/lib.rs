@@ -24,8 +24,8 @@
 //! use dav_server::davpath::DavPath;
 //! use dav_server::fs::DavFileSystem;
 //! use dav_server_opendalfs::OpendalFs;
-//! use opendal::services::Memory;
-//! use opendal::Operator;
+//! use opendal_core::services::Memory;
+//! use opendal_core::Operator;
 //!
 //! #[tokio::test]
 //! async fn test() -> Result<()> {

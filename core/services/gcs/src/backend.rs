@@ -302,14 +302,14 @@ impl Builder for GcsBuilder {
 
         let mut credential_chain = ProvideCredentialChain::new().push(default_credential.build());
 
-        if !self.config.disable_vm_metadata {
-            if let Some(service_account) = self.config.service_account.as_deref() {
-                credential_chain = credential_chain.push(
-                    VmMetadataCredentialProvider::new()
-                        .with_scope(&scope)
-                        .with_service_account(service_account),
-                );
-            }
+        if !self.config.disable_vm_metadata
+            && let Some(service_account) = self.config.service_account.as_deref()
+        {
+            credential_chain = credential_chain.push(
+                VmMetadataCredentialProvider::new()
+                    .with_scope(&scope)
+                    .with_service_account(service_account),
+            );
         }
 
         if let Some(path) = self.config.credential_path.as_deref() {
@@ -317,10 +317,10 @@ impl Builder for GcsBuilder {
                 credential_chain.push_front(FileCredentialProvider::new(path).with_scope(&scope));
         }
 
-        if let Some(content) = self.config.credential.as_deref() {
-            if let Ok(provider) = StaticCredentialProvider::from_base64(content) {
-                credential_chain = credential_chain.push_front(provider.with_scope(&scope));
-            }
+        if let Some(content) = self.config.credential.as_deref()
+            && let Ok(provider) = StaticCredentialProvider::from_base64(content)
+        {
+            credential_chain = credential_chain.push_front(provider.with_scope(&scope));
         }
 
         if let Some(token) = self.config.token.as_deref() {

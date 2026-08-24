@@ -23,14 +23,15 @@ on:
       - main
     tags:
       - "*"
-  pull_request:
-    branches:
-      - main
-    paths:
+    paths: &paths
       - "bindings/ocaml/**"
       - "core/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -42,7 +43,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
@@ -50,17 +51,21 @@ jobs:
           need-depext: true
           need-pin: true
 
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/ocaml"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/ocaml"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
   test:
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml

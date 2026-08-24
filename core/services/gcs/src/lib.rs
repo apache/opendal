@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Google Cloud Storage service implementation for Apache OpenDAL.
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
 mod backend;
@@ -31,10 +32,15 @@ mod writer;
 pub use backend::GcsBuilder as Gcs;
 pub use config::GcsConfig;
 
-/// Default scheme for gcs service.
+/// URI scheme used for service registration and scheme-driven construction.
 pub const GCS_SCHEME: &str = "gcs";
 
-/// Register this service into the given registry.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 pub fn register_gcs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Gcs>(GCS_SCHEME);
 }

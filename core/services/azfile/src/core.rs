@@ -433,7 +433,7 @@ impl AzfileCore {
             .push("include", "Timestamps,ETag");
 
         if !continuation.is_empty() {
-            url = url.push("marker", continuation);
+            url = url.push("marker", &percent_encode_path(continuation));
         }
 
         if let Some(limit) = limit {

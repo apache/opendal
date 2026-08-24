@@ -5,7 +5,10 @@
 This package provides a native .NET binding for **Apache OpenDAL™**, a data access
 layer that allows you to access various storage services in a unified way.
 
-> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+We release the OpenDAL .NET binding independently of the
+[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
+and compatibility, use the .NET binding version instead of the `opendal` crate
+version.
 
 ## Useful Links
 
@@ -75,3 +78,14 @@ For a complete guide on building, testing, and contributing, see the project's
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
+
+### Third-party software
+
+Compiled distributions include the following Mozilla Public License 2.0
+components. Their source code is available from the linked project pages:
+
+- `colored` 3.1.1 ([source](https://crates.io/crates/colored/3.1.1), [homepage](https://github.com/mackwic/colored)), licensed under MPL-2.0.
+- `option-ext` 0.2.0 ([source](https://crates.io/crates/option-ext/0.2.0), [homepage](https://github.com/soc/option-ext)), licensed under MPL-2.0.
+- `persy` 1.8.1 ([source](https://crates.io/crates/persy/1.8.1), [homepage](https://persy.rs)), licensed under MPL-2.0.
+
+The distribution includes the MPL-2.0 text in `LICENSE-MPL-2.0.txt`.

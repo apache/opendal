@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::mysql::MySqlConnectOptions;
 
 use super::MYSQL_SCHEME;
@@ -222,10 +222,9 @@ impl Service for MysqlBackend {
         if p == build_abs_path(&self.root, "") {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            let bs = self.core.get(&p).await?;
-            match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+            match self.core.get_length(&p).await? {
+                Some(length) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(length as u64),
                 )),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in mysql")),
             }

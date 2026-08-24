@@ -52,5 +52,5 @@ pip install opendal
 3. [Common tasks](./04-tasks.md) — read, write, stream, list, presign, and more.
 4. [Going to production](./05-production.md) — retries, errors, and capability checks.
 
-[`Operator`]: https://opendal.apache.org/docs/python/opendal.html#opendal.Operator
-[`AsyncOperator`]: https://opendal.apache.org/docs/python/opendal.html#opendal.AsyncOperator
+[`Operator`]: https://opendal.apache.org/docs/python/api/operator/#opendal.Operator
+[`AsyncOperator`]: https://opendal.apache.org/docs/python/api/async_operator/#opendal.AsyncOperator

@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL Observability
-//!
-//! This library offers essential components to facilitate the implementation of observability in OpenDAL.
-//!
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
+
 //! # OpenDAL Metrics Reference
 //!
 //! This document describes all metrics exposed by OpenDAL.
@@ -71,9 +72,6 @@
 //! * **Histogram**: Distribution of values with configurable buckets, includes count, sum and quantiles
 //! * **Counter**: Cumulative metric that only increases over time (resets on restart)
 //! * **Gauge**: Point-in-time metric that can increase and decrease
-
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(missing_docs)]
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -441,14 +439,22 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     }
 }
 
-/// The metrics layer for opendal.
+/// `MetricsLayer` reports operation and HTTP metrics to an interceptor.
+///
+/// The layer wraps both the storage service and the HTTP transport in the
+/// operator's [`OperationContext`]. It reports the metric names and labels
+/// documented in the crate-level metrics reference through
+/// [`MetricsIntercept::observe`].
+///
+/// The interceptor must be cheap to clone because each wrapped operation and
+/// HTTP request can retain a clone.
 #[derive(Clone, Debug)]
 pub struct MetricsLayer<I: MetricsIntercept> {
     interceptor: I,
 }
 
 impl<I: MetricsIntercept> MetricsLayer<I> {
-    /// Create a new metrics layer.
+    /// Create a metrics layer that reports values to `interceptor`.
     pub fn new(interceptor: I) -> Self {
         Self { interceptor }
     }

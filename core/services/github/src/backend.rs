@@ -94,10 +94,10 @@ impl Builder for GithubBuilder {
 
     /// Builds the backend and returns the result of GithubBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle owner.
         if self.config.owner.is_empty() {
@@ -106,7 +106,7 @@ impl Builder for GithubBuilder {
                 .with_context("service", GITHUB_SCHEME));
         }
 
-        debug!("backend use owner {}", &self.config.owner);
+        debug!("backend use owner {}", self.config.owner);
 
         // Handle repo.
         if self.config.repo.is_empty() {
@@ -115,7 +115,7 @@ impl Builder for GithubBuilder {
                 .with_context("service", GITHUB_SCHEME));
         }
 
-        debug!("backend use repo {}", &self.config.repo);
+        debug!("backend use repo {}", self.config.repo);
 
         Ok(GithubBackend {
             core: Arc::new(GithubCore {

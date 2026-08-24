@@ -38,10 +38,10 @@ pub struct OnedriveConfig {
     pub client_id: Option<String>,
     /// Microsoft Graph API Application client secret that is in the Azure's app registration portal
     pub client_secret: Option<String>,
-    /// Deprecated: OneDrive versioning capability is enabled by default.
+    /// Deprecated: OneDrive supports version listing without this option.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+        note = "OneDrive supports version listing without this option."
     )]
     pub enable_versioning: bool,
 }
@@ -60,15 +60,15 @@ impl Configurator for OnedriveConfig {
     fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                let normalized = match root.split_once('/') {
-                    Some((_, rest)) if !rest.is_empty() => rest.to_string(),
-                    _ => root.to_string(),
-                };
-                if !normalized.is_empty() {
-                    map.insert("root".to_string(), normalized);
-                }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            let normalized = match root.split_once('/') {
+                Some((_, rest)) if !rest.is_empty() => rest.to_string(),
+                _ => root.to_string(),
+            };
+            if !normalized.is_empty() {
+                map.insert("root".to_string(), normalized);
             }
         }
 

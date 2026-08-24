@@ -18,6 +18,7 @@
  */
 
 using System.Runtime.InteropServices;
+using OpenDAL.Interop.NativeObject;
 using OpenDAL.Interop.Result.Abstractions;
 
 namespace OpenDAL.Interop.Result;
@@ -26,12 +27,12 @@ namespace OpenDAL.Interop.Result;
 /// <summary>
 /// Result wrapper for operations that return a byte buffer payload.
 /// </summary>
-internal struct OpenDALReadResult : INativeValueResult<byte[]>
+internal struct OpenDALReadResult : INativeResult
 {
     /// <summary>
     /// Byte buffer payload on success.
     /// </summary>
-    public ByteBuffer Buffer;
+    public OpenDALReadBuffer Buffer;
 
     /// <summary>
     /// Error details for the operation.
@@ -46,10 +47,5 @@ internal struct OpenDALReadResult : INativeValueResult<byte[]>
     public readonly OpenDALError GetError()
     {
         return Error;
-    }
-
-    public readonly byte[] ToValue()
-    {
-        return Buffer.ToManagedBytes();
     }
 }

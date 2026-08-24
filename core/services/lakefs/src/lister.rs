@@ -64,11 +64,12 @@ impl oio::PageList for LakefsLister {
                 &self.path,
                 self.delimiter,
                 &self.amount,
-                // start after should only be set for the first page.
+                // start_after applies to the first page; later pages resume from the
+                // cursor the previous response returned.
                 if ctx.token.is_empty() {
                     self.after.clone()
                 } else {
-                    None
+                    Some(ctx.token.clone())
                 },
             )
             .await?;
@@ -84,7 +85,9 @@ impl oio::PageList for LakefsLister {
         let decoded_response: LakefsListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
-        ctx.done = true;
+        let pagination = decoded_response.pagination;
+        ctx.done = !pagination.has_more;
+        ctx.token = pagination.next_offset;
 
         for status in decoded_response.results {
             let entry_type = match status.path_type.as_str() {
@@ -99,14 +102,14 @@ impl oio::PageList for LakefsLister {
                 meta.set_last_modified(Timestamp::from_second(status.mtime).unwrap());
             }
 
-            if entry_type == EntryMode::FILE {
-                if let Some(size_bytes) = status.size_bytes {
-                    meta.set_content_length(size_bytes);
-                }
+            if entry_type == EntryMode::FILE
+                && let Some(size_bytes) = status.size_bytes
+            {
+                meta.set_content_length(size_bytes);
             }
 
             let path = if entry_type == EntryMode::DIR {
-                format!("{}/", &status.path)
+                format!("{}/", status.path)
             } else {
                 status.path.clone()
             };

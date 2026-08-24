@@ -30,10 +30,13 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-// Write writes the given bytes to the specified path.
+// Write writes the given bytes to the specified path and returns the metadata
+// of the written object (such as etag, version, or last modified) as reported
+// by the underlying service.
 //
-// Write is a wrapper around the C-binding function `opendal_operator_write`.
-// When options are provided, it uses `opendal_operator_write_with`.
+// Write is a wrapper around the C-binding function
+// `opendal_operator_write_with_metadata`. Which fields of the returned Metadata
+// are populated depends on the service.
 //
 // # Parameters
 //
@@ -43,32 +46,41 @@ import (
 //
 // # Returns
 //
+//   - *Metadata: Metadata of the written object. Which fields are populated
+//     depends on the service.
 //   - error: An error if the write operation fails, or nil if successful.
 //
 // # Example
 //
 //	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//		_, err := op.Write("test", []byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) error {
+func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) (*Metadata, error) {
 	if len(opts) == 0 {
-		return ffiOperatorWrite.symbol(op.ctx)(op.inner, path, data)
+		meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(op.inner, path, data, nil)
+		if err != nil {
+			return nil, err
+		}
+		return newMetadata(op.ctx, meta), nil
 	}
 
 	o := parseWriteOptions(opts...)
 	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	err = ffiOperatorWriteWith.symbol(op.ctx)(op.inner, path, data, cOpts)
+	meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(op.inner, path, data, cOpts)
 	runtime.KeepAlive(keepAlive)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return newMetadata(op.ctx, meta), nil
 }
 
 // WithWriteFn is a functional option for write operations.
@@ -373,7 +385,7 @@ type Writer struct {
 // # Example
 //
 //	func exampleWrite(op *opendal.Operator) {
-//		err = op.Write("test", []byte("Hello opendal go binding!"))
+//		_, err = op.Write("test", []byte("Hello opendal go binding!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -384,58 +396,51 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
 }
 
-// Close finishes the write and releases the resources associated with the Writer.
-// It is important to call Close after writing all the data to ensure that the data is
-// properly flushed and written to the storage. Otherwise, the data may be lost.
-func (w *Writer) Close() error {
+// Close finishes the write and releases the resources associated with the
+// Writer, returning the metadata of the written object (such as etag, version,
+// or last modified) as reported by the underlying service.
+//
+// It is important to call Close after writing all the data to ensure that the
+// data is properly flushed and written to the storage. Otherwise, the data may
+// be lost.
+//
+// Close is a wrapper around the C-binding function
+// `opendal_writer_close_with_metadata`. Which fields of the returned Metadata
+// are populated depends on the service.
+func (w *Writer) Close() (*Metadata, error) {
 	defer ffiWriterFree.symbol(w.ctx)(w.inner)
-	return ffiWriterClose.symbol(w.ctx)(w.inner)
+	meta, err := ffiWriterCloseWithMetadata.symbol(w.ctx)(w.inner)
+	if err != nil {
+		return nil, err
+	}
+	return newMetadata(w.ctx, meta), nil
 }
 
-var _ io.WriteCloser = (*Writer)(nil)
+var _ io.Writer = (*Writer)(nil)
 
-var ffiOperatorWrite = newFFI(ffiOpts{
-	sym:    "opendal_operator_write",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte) error {
-	return func(op *opendalOperator, path string, data []byte) error {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return err
-		}
-		bytes := toOpendalBytes(data)
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&bytes),
-		)
-		return parseError(ctx, e)
-	}
-})
-
-var ffiOperatorWriteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_write_with",
-	rType:  &ffi.TypePointer,
+var ffiOperatorWriteWithMetadata = newFFI(ffiOpts{
+	sym:    "opendal_operator_write_with_metadata",
+	rType:  &typeResultWrite,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) error {
-	return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) error {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
+	return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bytes := toOpendalBytes(data)
-		var e *opendalError
+		var result resultWrite
 		ffiCall(
-			unsafe.Pointer(&e),
+			unsafe.Pointer(&result),
 			unsafe.Pointer(&op),
 			unsafe.Pointer(&bytePath),
 			unsafe.Pointer(&bytes),
 			unsafe.Pointer(&opts),
 		)
-		return parseError(ctx, e)
+		if result.error != nil {
+			return nil, parseError(ctx, result.error)
+		}
+		return result.meta, nil
 	}
 })
 
@@ -658,17 +663,20 @@ var ffiWriterWrite = newFFI(ffiOpts{
 	}
 })
 
-var ffiWriterClose = newFFI(ffiOpts{
-	sym:    "opendal_writer_close",
-	rType:  &ffi.TypePointer,
+var ffiWriterCloseWithMetadata = newFFI(ffiOpts{
+	sym:    "opendal_writer_close_with_metadata",
+	rType:  &typeResultWrite,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter) error {
-	return func(r *opendalWriter) error {
-		var e *opendalError
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter) (*opendalMetadata, error) {
+	return func(r *opendalWriter) (*opendalMetadata, error) {
+		var result resultWrite
 		ffiCall(
-			unsafe.Pointer(&e),
+			unsafe.Pointer(&result),
 			unsafe.Pointer(&r),
 		)
-		return parseError(ctx, e)
+		if result.error != nil {
+			return nil, parseError(ctx, result.error)
+		}
+		return result.meta, nil
 	}
 })

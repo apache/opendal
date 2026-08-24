@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL Monoiofs service implementation"
 name = "opendal-service-monoiofs"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -31,16 +32,16 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+asyncband = { workspace = true }
 bytes = { workspace = true }
 flume = "0.12"
-futures = { workspace = true, features = ["std", "async-await"] }
 monoio = { version = "0.2.4", features = [
   "sync",
   "mkdirat",
   "unlinkat",
   "renameat",
 ] }
-opendal-core = { path = "../../core", version = "0.57.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

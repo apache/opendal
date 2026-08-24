@@ -42,7 +42,7 @@ func main() {
 	defer op.Close() // Always close the operator to release resources.
 
 	// The same verbs work on every service.
-	if err := op.Write("hello.txt", []byte("Hello, World!")); err != nil {
+	if _, err := op.Write("hello.txt", []byte("Hello, World!")); err != nil {
 		log.Fatal(err)
 	}
 

@@ -47,14 +47,14 @@ pub fn require_cstr<'a>(value: *const c_char, field: &str) -> Result<&'a str, Op
     })
 }
 
-pub fn require_operator<'a>(
-    op: *const opendal::Operator,
-) -> Result<&'a opendal::Operator, OpenDALError> {
-    if op.is_null() {
-        return Err(config_invalid_error("operator pointer is null"));
+pub fn require_op_handle<'a>(
+    op_handle: *const crate::operator::OperatorHandle,
+) -> Result<&'a crate::operator::OperatorHandle, OpenDALError> {
+    if op_handle.is_null() {
+        return Err(config_invalid_error("operator handle is null"));
     }
 
-    Ok(unsafe { &*op })
+    Ok(unsafe { &*op_handle })
 }
 
 pub fn require_callback<T>(callback: Option<T>) -> Result<T, OpenDALError> {

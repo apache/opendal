@@ -19,13 +19,13 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
+use asyncband::mutex::Mutex;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use mea::mutex::Mutex;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -132,6 +132,9 @@ impl OneDriveCore {
                         serde_json::from_reader(bytes.reader())
                             .map_err(new_json_deserialize_error)?
                     }
+                    StatusCode::BAD_REQUEST => {
+                        return Err(parse_error_with_retry(response));
+                    }
                     _ => return Err(parse_error(response)),
                 }
             }
@@ -164,24 +167,14 @@ const MONITOR_WAIT_SECOND: u64 = 1;
 // `services-onedrive` uses the file path based API for simplicity.
 // Read more at https://learn.microsoft.com/en-us/graph/onedrive-addressing-driveitems
 impl OneDriveCore {
-    /// Send a stat request about a particular path, including:
-    ///
-    /// - Get stat object only if ETag not matches
-    /// - whether to get the object version
-    ///
-    /// See also [`onedrive_get_stat_plain()`].
+    /// Send a stat request about a particular path.
     pub(crate) async fn onedrive_stat(
         &self,
         ctx: &OperationContext,
         path: &str,
         args: OpStat,
     ) -> Result<Metadata> {
-        let mut url: String = self.onedrive_item_url(path, true);
-        if args.version().is_some() {
-            url += "?$expand=versions(";
-            url += VERSION_SELECT_PARAM;
-            url += ")";
-        }
+        let url: String = self.onedrive_item_url(path, true);
 
         let mut request = Request::get(&url);
         if let Some(etag) = args.if_none_match() {
@@ -213,22 +206,6 @@ impl OneDriveCore {
         let mut meta = Metadata::new(entry_mode)
             .with_etag(decoded_response.e_tag)
             .with_content_length(decoded_response.size.max(0) as u64);
-
-        if let Some(version) = args.version() {
-            for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
-                if item_version.id == version {
-                    meta.set_version(version);
-                    break; // early exit
-                }
-            }
-
-            if meta.version().is_none() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "cannot find this version of the item",
-                ));
-            }
-        }
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
@@ -263,6 +240,9 @@ impl OneDriveCore {
         self.sign(ctx, &mut request).await?;
 
         let response = ctx.http_transport().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -453,11 +433,10 @@ impl OneDriveCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let parent_path = get_parent(path);
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
-            self.onedrive_item_url(parent_path, true),
+            self.onedrive_item_url(path, true),
         );
         let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 
@@ -610,6 +589,7 @@ impl OneDriveCore {
                     )
                 })
                 .map(String::from),
+            StatusCode::BAD_REQUEST => Err(parse_error_with_retry(response)),
             _ => Err(parse_error(response)),
         }
     }
@@ -896,13 +876,7 @@ mod tests {
     async fn list_root_returns_entries() {
         let core = test_core("/");
         let ctx = test_ctx();
-        let lister = OneDriveLister::new(
-            "/".to_string(),
-            core,
-            ctx,
-            Capability::default(),
-            &OpList::default(),
-        );
+        let lister = OneDriveLister::new("/".to_string(), core, ctx, &OpList::default());
         let mut lister = oio::PageLister::new(lister);
 
         let mut entries = Vec::new();
@@ -921,6 +895,7 @@ mod error {
     use http::Response;
     use http::StatusCode;
 
+    use crate::graph_model::GraphErrorResponse;
     use opendal_core::raw::*;
     use opendal_core::*;
 
@@ -961,6 +936,24 @@ mod error {
         }
 
         err
+    }
+
+    /// Parse a consistency-lag error and mark it temporary.
+    ///
+    /// Other errors retain the classification from [`parse_error`].
+    pub(crate) fn parse_error_with_retry(response: Response<Buffer>) -> Error {
+        let retryable = is_consistency_lag_error(&response.body().to_bytes());
+        let err = parse_error(response);
+
+        if retryable { err.set_temporary() } else { err }
+    }
+
+    fn is_consistency_lag_error(body: &[u8]) -> bool {
+        let Ok(response) = serde_json::from_slice::<GraphErrorResponse>(body) else {
+            return false;
+        };
+
+        response.error.code == "invalidRequest"
     }
 }
 

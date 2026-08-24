@@ -61,8 +61,6 @@ pub enum Scheme {
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
-    #[cfg(feature = "services-goosefs")]
-    Goosefs,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -135,7 +133,7 @@ pub enum Scheme {
 impl Scheme {
     #[getter]
     pub fn name(&self) -> String {
-        format!("{:?}", &self)
+        format!("{:?}", self)
     }
 
     #[getter]
@@ -203,8 +201,6 @@ impl_enum_to_str!(
         Gdrive => "gdrive",
         #[cfg(feature = "services-ghac")]
         Ghac => "ghac",
-        #[cfg(feature = "services-goosefs")]
-        Goosefs => "goosefs",
         #[cfg(feature = "services-gridfs")]
         Gridfs => "gridfs",
         #[cfg(feature = "services-hdfs-native")]

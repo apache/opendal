@@ -106,10 +106,10 @@ impl ReadContext {
 
     /// Observe read response and cache metadata if available.
     pub(crate) fn observe_read_response(&self, rp: RpRead) {
-        if let Some(metadata) = rp.into_metadata() {
-            if self.metadata().is_none() {
-                self.set_metadata(metadata);
-            }
+        if let Some(metadata) = rp.into_metadata()
+            && self.metadata().is_none()
+        {
+            self.set_metadata(metadata);
         }
     }
 

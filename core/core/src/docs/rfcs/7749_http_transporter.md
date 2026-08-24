@@ -182,9 +182,12 @@ transport with `HttpTransporter::install_default(...)` or configure an operator
 with `.http_transport(...)`.
 
 `HttpTransporter::install_default` is first-wins, returns no error, and does not
-overwrite an already installed default. Users that need process-wide replacement
-must install before the facade default is installed; otherwise they should use
-operator-level `.http_transport(...)`.
+overwrite an already installed default. The facade installs its default before
+`main` when `auto-register-services` is enabled. Users that need process-wide
+replacement must disable `auto-register-services`, install their transport
+themselves, and call `init_default_registry()` explicitly when URI-based
+construction is needed. Otherwise, they should use operator-level
+`.http_transport(...)`.
 
 The operator-registry-only public entry `init_default_registry()` remains for
 compatibility. It does not install HTTP transport. The facade
@@ -207,8 +210,9 @@ published artifact. Release tooling must publish the transport crate before the
 facade package that depends on it.
 
 The process-wide default transport remains global state. The design keeps it
-minimal and first-wins, but users that need strict control must install their
-default before facade auto-installation or configure transports per operator.
+minimal and first-wins, but users that need strict control must disable facade
+auto-installation and own default initialization or configure transports per
+operator.
 
 # Rationale and alternatives
 

@@ -49,7 +49,7 @@ env:
 
 jobs:
   build:
-    name: stable - ${{ matrix.settings.target }} - node@20
+    name: stable - ${{ matrix.settings.target }} - node@24
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
@@ -104,15 +104,15 @@ jobs:
             features: services-all
             build: pnpm build
     steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8
           run_install: false
       - name: Setup node
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Install
@@ -177,15 +177,15 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8
           run_install: false
       - name: Setup node
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Install dependencies
@@ -204,12 +204,17 @@ jobs:
 
       - name: Update npm
         # Trusted publishing requires npm CLI version 11.5.1 or later.
-        run: npm install -g npm@latest
+        run: npm install -g npm@12
 
-      - name: Add LICENSE & NOTICE
-        # Set working directory to root to copy LICENSE & NOTICE
+      - name: Add license metadata
+        # Set working directory to root to copy repository-level files.
         working-directory: .
-        run: cp LICENSE NOTICE ./bindings/nodejs
+        run: |
+          cp LICENSE NOTICE ./bindings/nodejs
+          for package_dir in ./bindings/nodejs/npm/*; do
+            cp ./bindings/nodejs/README.md "$package_dir/README.md"
+            cp LICENSE NOTICE ./bindings/nodejs/LICENSE-MPL-2.0.txt "$package_dir/"
+          done
 
       - name: Publish Dry Run
         if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))

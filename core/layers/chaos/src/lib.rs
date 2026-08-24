@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Chaos layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -28,14 +27,14 @@ use opendal_core::*;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-/// Inject chaos into underlying services for robustness test.
+/// `ChaosLayer` injects errors into services to test robustness.
 ///
 /// # Chaos
 ///
-/// Chaos tests is a part of stress test. By generating errors at specified
-/// error ratio, we can reproduce underlying services error more reliable.
+/// Chaos testing complements stress testing. A specified error ratio reproduces
+/// service errors consistently.
 ///
-/// Running tests under ChaosLayer will make your application more robust.
+/// Tests that use `ChaosLayer` can expose error-handling weaknesses.
 ///
 /// For example: If we specify an error rate of 0.5, there is a 50% chance
 /// of an EOF error for every read operation.

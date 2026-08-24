@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Fastrace layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::future::Future;
 use std::sync::Arc;
 
@@ -27,9 +26,10 @@ use fastrace::prelude::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add [fastrace](https://docs.rs/fastrace/) for every operation.
+/// `FastraceLayer` traces every operation with
+/// [fastrace](https://docs.rs/fastrace/).
 ///
-/// The layer creates spans for service calls and for deferred operation bodies
+/// It creates spans for service calls and deferred operation bodies
 /// such as readers, writers, listers, deleters, and copiers.
 ///
 /// # Examples

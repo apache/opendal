@@ -144,7 +144,7 @@ impl LakefsCore {
         }
 
         if let Some(after) = after {
-            url.push_str(&format!("&after={after}"));
+            url.push_str(&format!("&after={}", percent_encode_path(&after)));
         }
 
         let mut req = Request::get(&url);

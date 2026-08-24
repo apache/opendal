@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Tail cut layer (that automatically cancels long-tail requests) implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -227,13 +226,12 @@ struct TailCutConfig {
     max_deadline: Duration,
 }
 
-/// Layer that automatically cancels long-tail requests.
+/// `TailCutLayer` monitors request latency and cancels requests that run
+/// significantly slower than the historical baseline (for example, slower than
+/// P95).
 ///
-/// This layer monitors request latency distribution and cancels requests that are
-/// significantly slower than the historical baseline (e.g., slower than P95).
-///
-/// This layer should be created via [`TailCutLayer::builder()`] and can be
-/// cloned to share statistics across multiple operators.
+/// Create this layer with [`TailCutLayer::builder()`]. Clone it to share
+/// statistics across multiple operators.
 ///
 /// # Examples
 ///

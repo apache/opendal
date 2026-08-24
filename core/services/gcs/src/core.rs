@@ -605,7 +605,12 @@ impl GcsCore {
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/{}/{}?uploads",
+            self.endpoint,
+            self.bucket,
+            gcs_percent_encode_path(&p)
+        );
 
         let mut builder = Request::post(&url)
             .header(CONTENT_LENGTH, 0)
@@ -951,6 +956,55 @@ struct GetObjectJsonResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reqsign_core::ProvideCredentialChain;
+    use reqsign_google::RequestSigner;
+    use reqsign_google::TokenCredentialProvider;
+
+    #[tokio::test]
+    async fn test_insert_object_signing_preserves_wire_uri() {
+        let sign_ctx = Context::new();
+        let signer = Signer::new(
+            sign_ctx.clone(),
+            ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
+            RequestSigner::new("storage"),
+        );
+
+        let core = GcsCore {
+            info: ServiceInfo::new("gcs", "/", "test-bucket"),
+            capability: Capability::default(),
+            endpoint: "https://storage.googleapis.com".to_string(),
+            bucket: "test-bucket".to_string(),
+            root: "/".to_string(),
+            signer,
+            sign_ctx,
+            predefined_acl: None,
+            default_storage_class: None,
+            skip_signature: false,
+        };
+        let req = core
+            .gcs_insert_object_request(
+                "nested/object #1.txt",
+                Some(0),
+                &OpWrite::default(),
+                Buffer::new(),
+            )
+            .expect("request must build");
+        let original_uri = req.uri().clone();
+
+        assert!(
+            original_uri
+                .to_string()
+                .contains("nested%2Fobject%20%231.txt")
+        );
+        assert!(!original_uri.to_string().contains("%252F"));
+
+        let signed = core
+            .sign(&OperationContext::default(), req)
+            .await
+            .expect("request must sign");
+
+        assert_eq!(signed.uri(), &original_uri);
+    }
 
     #[test]
     fn test_deserialize_get_object_json_response() {

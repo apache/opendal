@@ -2,7 +2,7 @@ A distributed file system that provides high-throughput access to application da
 
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] create_dir
 - [x] stat
@@ -14,9 +14,13 @@ This service can be used to:
 - [x] rename
 - [ ] ~~presign~~
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Differences with webhdfs
 
-[Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
+The [WebHDFS service](https://docs.rs/opendal-service-webhdfs) uses HDFS's
+RESTful HTTP API.
 
 ## Features
 
@@ -24,13 +28,9 @@ HDFS support needs to enable feature `services-hdfs`.
 
 ## Configuration
 
-- `root`: Set the work dir for backend.
-- `name_node`: Set the name node for backend.
-- `kerberos_ticket_cache_path`: Set the kerberos ticket cache path for backend, this should be gotten by `klist` after `kinit`
-- `user`: Set the user for backend
-- `enable_append`: Deprecated. HDFS append capability is enabled by default and this option is no longer needed.
-
-Refer to [`HdfsBuilder`]'s public API docs for more information.
+Use [`crate::HdfsConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Environment
 

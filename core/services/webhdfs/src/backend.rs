@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
-use mea::once::OnceCell;
 
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;

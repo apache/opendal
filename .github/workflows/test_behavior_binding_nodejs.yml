@@ -37,9 +37,9 @@ jobs:
     runs-on: ${{ inputs.os }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8
           run_install: false
@@ -65,7 +65,7 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -82,7 +82,7 @@ jobs:
           echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8
           run_install: false

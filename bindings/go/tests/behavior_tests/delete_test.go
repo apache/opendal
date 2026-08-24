@@ -49,7 +49,8 @@ func testsDelete(cap *opendal.Capability) []behaviorTest {
 func testDeleteFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	assert.Nil(op.Delete(path))
 
@@ -72,7 +73,8 @@ func testDeleteWithSpecialChars(assert *require.Assertions, op *opendal.Operator
 	path := uuid.NewString() + " !@#$%^&()_+-=;',.txt"
 	path, content, _ := fixture.NewFileWithPath(path)
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	assert.Nil(op.Delete(path))
 
@@ -97,7 +99,8 @@ func testDeleteWithRecursive(assert *require.Assertions, op *opendal.Operator, f
 	var filePaths []string
 	for i := range 3 {
 		path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%sfile-%d.txt", dir, i))
-		assert.Nil(op.Write(path, content), "write must succeed")
+		_, err := op.Write(path, content)
+		assert.Nil(err, "write must succeed")
 		filePaths = append(filePaths, path)
 	}
 
@@ -112,7 +115,8 @@ func testDeleteWithRecursive(assert *require.Assertions, op *opendal.Operator, f
 func testDeleteWithVersion(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
-	assert.Nil(op.Write(path, content), "write must succeed")
+	_, err := op.Write(path, content)
+	assert.Nil(err, "write must succeed")
 
 	meta, err := op.Stat(path)
 	assert.Nil(err)

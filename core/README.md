@@ -20,8 +20,8 @@ Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction
 - **API reference**: [docs.rs/opendal](https://docs.rs/opendal/) (release) | [dev](https://opendal.apache.org/docs/rust/opendal/)
 - **Services & configuration**: [opendal.apache.org/services](https://opendal.apache.org/services)
 - **Concepts**: [opendal.apache.org/docs/concepts](https://opendal.apache.org/docs/concepts)
-- [Upgrade Guide](https://docs.rs/opendal/latest/opendal/docs/upgrade/index.html) | [Release Notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html) | [RFCs](https://docs.rs/opendal/latest/opendal/docs/rfcs/index.html)
-- [Examples](./examples)
+- [Upgrade Guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/upgrade.md) | [Release Notes](https://github.com/apache/opendal/blob/main/CHANGELOG.md) | [RFCs](https://github.com/apache/opendal/tree/main/core/core/src/docs/rfcs)
+- [Examples](https://github.com/apache/opendal/tree/main/core/examples)
 
 ## Installation
 
@@ -83,8 +83,13 @@ timeout, and concurrency limit are built in:
 
 ```rust
 use opendal::layers::RetryLayer;
+use opendal::services::Memory;
+use opendal::{Operator, Result};
 
-let op = op.layer(RetryLayer::new());
+fn build_operator() -> Result<Operator> {
+    let op = Operator::new(Memory::default())?;
+    Ok(op.layer(RetryLayer::new()))
+}
 ```
 
 See [Going to production](https://opendal.apache.org/docs/core/production) and the
@@ -92,12 +97,12 @@ See [Going to production](https://opendal.apache.org/docs/core/production) and t
 
 ## Contributing
 
-Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide for building, testing, and
+Check out the [CONTRIBUTING](https://github.com/apache/opendal/blob/main/CONTRIBUTING.md) guide for building, testing, and
 submitting changes to the core.
 
 ## Used by
 
-Check out the [users](./users.md) list for more details on who is using OpenDAL.
+Check out the [users](https://github.com/apache/opendal/blob/main/core/users.md) list for more details on who is using OpenDAL.
 
 ## Branding
 
@@ -107,6 +112,6 @@ For more details, see the [Apache Product Name Usage Guide](https://www.apache.o
 
 ## License and Trademarks
 
-Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

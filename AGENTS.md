@@ -9,6 +9,30 @@ Guidance for AI coding agents working in this repository.
 - Add tests when they verify real behavior or guard a regression; do not add placeholder tests.
 - Do not change public APIs or behavior tests unless the task explicitly requires it.
 
+## AI-Assisted Contributions
+
+Follow [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
+policy.
+
+- Do not publish an Issue, Pull Request, Discussion, or review comment unless a
+  human has meaningfully reviewed the content and explicitly asked you to submit
+  it.
+- Treat source-code findings as hypotheses until they are reproduced. Reproduce
+  service-specific bugs against the actual service.
+- In a Pull Request, briefly disclose AI's material role and any assumptions or
+  unknowns that affect review. Do not repeat routine validation output.
+
+The human contributor remains responsible for every submitted claim and change.
+
+## Documentation Style
+
+- Prefer active voice. Name the type or component that performs an action, for example, “`RetryLayer` retries failed operations.”
+- Use direct, present-tense sentences.
+- Lead with what a public type or method does, then explain important constraints, defaults, and behavior.
+- Describe API semantics precisely. Verify option types, capability requirements, error behavior, and overwrite or versioning semantics against the implementation.
+- Keep terminology consistent with the codebase, especially `service`, `layer`, `operator`, `storage` and `operation`.
+- Use parallel structure in lists and punctuate complete sentences consistently.
+
 ## Rust Workspace Commands
 
 The Rust workspace for OpenDAL core lives under `core/`. There is no root `Cargo.toml`; run core cargo commands from `core/`.
@@ -124,6 +148,7 @@ When adding or changing a public optional layer:
 
 ## Pull Requests
 
+- Before opening a PR, search for similar open PRs, issues, and in-progress branches that already address the same problem. Prefer contributing to or coordinating with existing work over opening a duplicate.
 - Always use `.github/pull_request_template.md` when creating a PR.
 - Keep PR titles and descriptions factual and concise.
 - Do not add AI-tool branding or co-author trailers.
@@ -131,7 +156,7 @@ When adding or changing a public optional layer:
 
 ## Important Notes
 
-- Minimum Rust version is 1.85, configured in `core/Cargo.toml` and checked by CI.
+- Minimum Rust version is 1.91, configured in `core/Cargo.toml` and checked by CI.
 - Use `opendal_core::raw::Access`, `Layer`, and `LayeredAccess` for internal implementations.
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.

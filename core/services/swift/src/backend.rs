@@ -126,7 +126,7 @@ impl Builder for SwiftBuilder {
 
     /// Build a SwiftBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -146,7 +146,7 @@ impl Builder for SwiftBuilder {
                 ));
             }
         };
-        debug!("backend use endpoint: {}", &endpoint);
+        debug!("backend use endpoint: {}", endpoint);
 
         let container = match self.config.container {
             Some(container) => container,

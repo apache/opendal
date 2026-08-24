@@ -34,8 +34,8 @@ use super::writer::GdriveWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use asyncband::mutex::Mutex;
 use log::debug;
-use mea::mutex::Mutex;
 
 use super::GDRIVE_SCHEME;
 use super::config::GdriveConfig;

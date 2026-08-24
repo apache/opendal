@@ -23,8 +23,6 @@ use std::sync::LazyLock;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use constants::X_AMZ_META_PREFIX;
-use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -141,6 +139,22 @@ impl S3Builder {
     pub fn region(mut self, region: &str) -> Self {
         if !region.is_empty() {
             self.config.region = Some(region.to_string())
+        }
+
+        self
+    }
+
+    /// Set the AWS profile used by the default credential provider chain.
+    ///
+    /// The configured profile takes precedence over the `AWS_PROFILE`
+    /// environment variable and applies to shared AWS config and credentials
+    /// files and SSO.
+    ///
+    /// This setting has no effect when [`Self::disable_config_load`] is set or
+    /// when [`Self::credential_provider_chain`] replaces the default chain.
+    pub fn profile(mut self, profile: &str) -> Self {
+        if !profile.is_empty() {
+            self.config.profile = Some(profile.to_string())
         }
 
         self
@@ -725,7 +739,7 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let S3Builder {
             mut config,
@@ -738,7 +752,7 @@ impl Builder for S3Builder {
         }
 
         let root = normalize_root(&config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle bucket name.
         let bucket = if Self::is_bucket_valid(&config) {
@@ -749,7 +763,7 @@ impl Builder for S3Builder {
                     .with_context("service", S3_SCHEME),
             )
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let default_storage_class = match &config.default_storage_class {
             None => None,
@@ -852,6 +866,12 @@ impl Builder for S3Builder {
 
             if config.disable_config_load {
                 builder = builder.no_env().no_profile();
+            } else if let Some(profile) = config
+                .profile
+                .as_deref()
+                .filter(|profile| !profile.is_empty())
+            {
+                builder = builder.with_profile(profile);
             }
 
             if config.disable_ec2_metadata {
@@ -1007,6 +1027,7 @@ impl Builder for S3Builder {
                     presign_stat: true,
                     presign_read: true,
                     presign_write: true,
+                    presign_delete: true,
 
                     shared: true,
 
@@ -1071,21 +1092,7 @@ impl Service for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
-
-                let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
-                if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
-                }
-
-                if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
-                    meta.set_version(v);
-                }
-
-                Ok(RpStat::new(meta))
-            }
+            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
             _ => Err(parse_error(resp)),
         }
     }
@@ -1210,10 +1217,7 @@ impl Service for S3Backend {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
+            PresignOperation::Delete(v) => self.core.s3_delete_object_request(path, &v),
             _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -1236,6 +1240,12 @@ impl Service for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_profile() {
+        let builder = S3Builder::default().profile("selected");
+        assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1360,6 +1370,61 @@ mod tests {
         assert_eq!(
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_presign_stat_encodes_version_id() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .skip_signature()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpStat::default().with_version("a+b/c=d%25&e");
+        let args = OpPresign::new(op, Duration::from_secs(3600));
+        let ctx = OperationContext::new();
+        let presigned = backend
+            .presign(&ctx, "test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.uri().to_string(),
+            "https://s3.us-east-1.amazonaws.com/test/test.txt?versionId=a%2Bb/c%3Dd%2525%26e"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_encodes_version_id() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .skip_signature()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpRead::default().with_version("a+b/c=d%25&e");
+        let args = OpPresign::new(
+            PresignOperation::Read(BytesRange::default(), op),
+            Duration::from_secs(3600),
+        );
+        let ctx = OperationContext::new();
+        let presigned = backend
+            .presign(&ctx, "test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.uri().to_string(),
+            "https://s3.us-east-1.amazonaws.com/test/test.txt?versionId=a%2Bb/c%3Dd%2525%26e"
         );
     }
 }

@@ -20,10 +20,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
+use pyo3::types::PyType;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -45,8 +45,119 @@ fn build_blocking_operator(
     Ok(op)
 }
 
+fn build_operator_from_uri(uri: &str, map: HashMap<String, String>) -> PyResult<ocore::Operator> {
+    let op = ocore::Operator::from_uri((uri, map)).map_err(format_pyerr)?;
+    Ok(op)
+}
+
+fn build_blocking_operator_from_uri(
+    uri: &str,
+    map: HashMap<String, String>,
+) -> PyResult<ocore::blocking::Operator> {
+    let op = build_operator_from_uri(uri, map)?;
+
+    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let _guard = runtime.enter();
+    let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
+    Ok(op)
+}
+
 fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
+}
+
+/// Convert a config value into the string form core's config deserializer
+/// consumes.
+///
+/// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
+/// `bool`, `int`, `os.PathLike`, and `list`/`tuple` of those (`,`-joined, as
+/// core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
+fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
+    // `str` before the list branch (a `str` is also a sequence); `bool` before
+    // `int` (a Python `bool` also extracts as `int`); `dict` before the list
+    // branch so a map is rejected rather than read as its keys.
+    if let Ok(s) = value.extract::<String>() {
+        Ok(s)
+    } else if let Ok(b) = value.extract::<bool>() {
+        Ok(if b { "true" } else { "false" }.to_string())
+    } else if let Ok(i) = value.extract::<i128>() {
+        Ok(i.to_string())
+    } else if value.cast::<PyDict>().is_ok() {
+        Err(Unsupported::new_err(
+            "a map-valued config field cannot be built via from_config; leave it unset",
+        ))
+    } else if let Ok(items) = value.extract::<Vec<Bound<PyAny>>>() {
+        let parts = items
+            .iter()
+            .map(config_value_to_string)
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(parts.join(","))
+    } else if let Ok(path) = value.extract::<PathBuf>() {
+        Ok(path.to_string_lossy().into_owned())
+    } else {
+        Err(Unsupported::new_err(
+            "unsupported config value type; pass a str, bool, int, os.PathLike, or list of those",
+        ))
+    }
+}
+
+/// Extract `(scheme, config_map)` from a typed service config dict.
+///
+/// A config is a plain `dict` (an `opendal.config.ServiceConfig`, e.g.
+/// `S3Config`) whose `scheme` key selects the service; every other pair becomes
+/// a config option, converted via [`config_value_to_string`].
+fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<String, String>)> {
+    let dict = config.cast::<PyDict>().map_err(|_| {
+        Unsupported::new_err(
+            "from_config expects an opendal.config.ServiceConfig \
+             (a dict with a 'scheme' key, e.g. S3Config(scheme=\"s3\", ...))",
+        )
+    })?;
+
+    let scheme = dict
+        .get_item("scheme")?
+        .ok_or_else(|| Unsupported::new_err("config is missing the required 'scheme' key"))?
+        .extract::<String>()?;
+
+    let mut map = HashMap::with_capacity(dict.len());
+    for (k, v) in dict.iter() {
+        let key = k.extract::<String>()?;
+        if key != "scheme" {
+            let value = config_value_to_string(&v)?;
+            map.insert(key, value);
+        }
+    }
+
+    Ok((scheme, map))
+}
+
+/// Rebuild a blocking [`Operator`] while unpickling.
+///
+/// Routes through `from_uri`, not the scheme-based `__new__`, whose scheme
+/// normalization would corrupt a URI held in `__scheme`. Bare schemes work too:
+/// the core resolves both through the same path.
+#[pyfunction]
+pub fn _reconstruct_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<Operator> {
+    Ok(Operator {
+        core: build_blocking_operator_from_uri(scheme, map.clone())?,
+        __scheme: scheme.to_string(),
+        __map: map,
+    })
+}
+
+/// Rebuild an [`AsyncOperator`] while unpickling.
+///
+/// See [`_reconstruct_operator`] for why a dedicated reconstructor is used.
+#[pyfunction]
+pub fn _reconstruct_async_operator(
+    scheme: &str,
+    map: HashMap<String, String>,
+) -> PyResult<AsyncOperator> {
+    Ok(AsyncOperator {
+        core: build_operator_from_uri(scheme, map.clone())?,
+        __scheme: scheme.to_string(),
+        __map: map,
+    })
 }
 
 /// The blocking equivalent of `AsyncOperator`.
@@ -78,8 +189,8 @@ impl Operator {
     /// Operator
     ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str"))]
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -90,12 +201,92 @@ impl Operator {
             ));
         };
         let scheme = normalize_scheme(&scheme);
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = kwargs.unwrap_or_default();
+
+        Ok(Operator {
+            core: build_blocking_operator(&scheme, map.clone())?,
+            __scheme: scheme,
+            __map: map,
+        })
+    }
+
+    /// Create a new blocking `Operator` from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+    /// belong to a service enabled in this build. Encode service options as
+    /// query parameters; use ``urllib.parse.urlencode`` when building the URI
+    /// dynamically.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service, including any options as query parameters.
+    /// **kwargs : dict
+    ///     Overrides for URI options. Prefer the URI query string.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// from urllib.parse import urlencode
+    /// import opendal
+    ///
+    /// op = opendal.Operator.from_uri("memory://")
+    /// query = urlencode({"region": "us-east-1"})
+    /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
+    pub fn from_uri(
+        _cls: &Bound<PyType>,
+        uri: &str,
+        kwargs: Option<HashMap<String, String>>,
+    ) -> PyResult<Self> {
+        let map = kwargs.unwrap_or_default();
+
+        Ok(Operator {
+            core: build_blocking_operator_from_uri(uri, map.clone())?,
+            __scheme: uri.to_string(),
+            __map: map,
+        })
+    }
+
+    /// Create a new blocking `Operator` from a typed service config.
+    ///
+    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+    /// ``scheme`` key selects the service, so a static type checker rejects a
+    /// wrong scheme, a missing required key, an unknown key, and a wrong value
+    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+    /// are converted to the string form core consumes.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service configuration such as ``opendal.config.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.config import S3Config
+    ///
+    /// op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config: "ServiceConfig"))]
+    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config)?;
+        let scheme = normalize_scheme(&scheme);
 
         Ok(Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
@@ -145,7 +336,7 @@ impl Operator {
     /// -------
     /// File
     ///     A file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs))]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]"))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -696,11 +887,12 @@ impl Operator {
             )
         }
     }
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let args = vec![self.__scheme.clone()];
-        let args = PyTuple::new(py, args)?.into_py_any(py)?;
-        let kwargs = self.__map.clone().into_py_any(py)?;
-        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
+    fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let reconstructor = py
+            .import("opendal._opendal")?
+            .getattr("_reconstruct_operator")?;
+        let args = (self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }
 
@@ -733,8 +925,8 @@ impl AsyncOperator {
     /// AsyncOperator
     ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs: "str"))]
+    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -746,12 +938,92 @@ impl AsyncOperator {
         };
         let scheme = normalize_scheme(&scheme);
 
-        let map = kwargs
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = kwargs.unwrap_or_default();
+
+        Ok(AsyncOperator {
+            core: build_operator(&scheme, map.clone())?,
+            __scheme: scheme,
+            __map: map,
+        })
+    }
+
+    /// Create a new `AsyncOperator` from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
+    /// belong to a service enabled in this build. Encode service options as
+    /// query parameters; use ``urllib.parse.urlencode`` when building the URI
+    /// dynamically.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service, including any options as query parameters.
+    /// **kwargs : dict
+    ///     Overrides for URI options. Prefer the URI query string.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// from urllib.parse import urlencode
+    /// import opendal
+    ///
+    /// op = opendal.AsyncOperator.from_uri("memory://")
+    /// query = urlencode({"region": "us-east-1"})
+    /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
+    pub fn from_uri(
+        _cls: &Bound<PyType>,
+        uri: &str,
+        kwargs: Option<HashMap<String, String>>,
+    ) -> PyResult<Self> {
+        let map = kwargs.unwrap_or_default();
+
+        Ok(AsyncOperator {
+            core: build_operator_from_uri(uri, map.clone())?,
+            __scheme: uri.to_string(),
+            __map: map,
+        })
+    }
+
+    /// Create a new `AsyncOperator` from a typed service config.
+    ///
+    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
+    /// ``scheme`` key selects the service, so a static type checker rejects a
+    /// wrong scheme, a missing required key, an unknown key, and a wrong value
+    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
+    /// are converted to the string form core consumes.
+    ///
+    /// Parameters
+    /// ----------
+    /// config : ServiceConfig
+    ///     A service configuration such as ``opendal.config.S3Config``.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
+    ///
+    /// Examples
+    /// --------
+    /// ```python
+    /// import opendal
+    /// from opendal.config import S3Config
+    ///
+    /// op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
+    /// ```
+    #[classmethod]
+    #[pyo3(signature = (config: "ServiceConfig"))]
+    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config)?;
+        let scheme = normalize_scheme(&scheme);
 
         Ok(AsyncOperator {
             core: build_operator(&scheme, map.clone())?,
@@ -797,7 +1069,7 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs) -> "collections.abc.Awaitable[AsyncFile]")]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]") -> "collections.abc.Awaitable[AsyncFile]")]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
@@ -1724,11 +1996,12 @@ impl AsyncOperator {
             )
         }
     }
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let args = vec![self.__scheme.clone()];
-        let args = PyTuple::new(py, args)?.into_py_any(py)?;
-        let kwargs = self.__map.clone().into_py_any(py)?;
-        PyTuple::new(py, [args, kwargs])?.into_py_any(py)
+    fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let reconstructor = py
+            .import("opendal._opendal")?
+            .getattr("_reconstruct_async_operator")?;
+        let args = (self.__scheme.clone(), self.__map.clone()).into_py_any(py)?;
+        PyTuple::new(py, [reconstructor.into_py_any(py)?, args])?.into_py_any(py)
     }
 }
 

@@ -43,7 +43,7 @@ public sealed class RemoveAllBehaviorTest : BehaviorTestBase
         Op.Write($"{dir}nested/b.txt", RandomBytes(16));
         Op.RemoveAll(dir);
 
-        var entries = Op.List(dir);
+        var entries = Op.List(dir, new Options.ListOptions { Recursive = true });
         Assert.Empty(entries);
     }
 
@@ -61,7 +61,7 @@ public sealed class RemoveAllBehaviorTest : BehaviorTestBase
         await Op.WriteAsync($"{dir}nested/b.txt", RandomBytes(16), CT);
         await Op.RemoveAllAsync(dir, CT);
 
-        var entries = await Op.ListAsync(dir, new OpenDAL.Options.ListOptions(), CT);
+        var entries = await Op.ListAsync(dir, new Options.ListOptions { Recursive = true }, CT);
         Assert.Empty(entries);
     }
 }

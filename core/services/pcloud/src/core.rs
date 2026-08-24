@@ -99,12 +99,11 @@ impl PcloudCore {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
-                if let Some(hosts) = resp.hosts {
-                    if let Some(path) = resp.path {
-                        if !hosts.is_empty() {
-                            return Ok(format!("https://{}{}", hosts[0], path));
-                        }
-                    }
+                if let Some(hosts) = resp.hosts
+                    && let Some(path) = resp.path
+                    && !hosts.is_empty()
+                {
+                    return Ok(format!("https://{}{}", hosts[0], path));
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
@@ -429,6 +428,8 @@ impl PcloudCore {
         let path = normalize_root(&path);
 
         let path = path.trim_end_matches('/');
+
+        let path = if path.is_empty() { "/" } else { path };
 
         let url = format!(
             "{}/listfolder?path={}&username={}&password={}",

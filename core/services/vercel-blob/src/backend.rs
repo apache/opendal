@@ -82,10 +82,10 @@ impl Builder for VercelBlobBuilder {
 
     /// Builds the backend and returns the result of VercelBlobBackend.
     fn build(self) -> Result<impl Service> {
-        debug!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
+        debug!("backend use root {}", root);
 
         // Handle token.
         let Some(token) = self.config.token.clone() else {

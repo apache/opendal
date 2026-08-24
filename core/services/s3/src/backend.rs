@@ -561,64 +561,93 @@ impl S3Builder {
         endpoint
     }
 
-    fn is_aws_endpoint(config: &S3Config, region: &str) -> bool {
-        let Some(endpoint) = &config.endpoint else {
-            return true;
-        };
+    fn invalid_s3_express_config(message: &'static str) -> Error {
+        Error::new(ErrorKind::ConfigInvalid, message)
+            .with_operation("Builder::build")
+            .with_context("service", S3_SCHEME)
+    }
 
-        let endpoint = if endpoint.starts_with("http") {
-            endpoint.to_string()
-        } else {
-            format!("https://{endpoint}")
-        };
-        let Ok(endpoint) = Url::parse(&endpoint) else {
-            return false;
-        };
-        if endpoint.path() != "/"
-            || endpoint.query().is_some()
-            || endpoint.fragment().is_some()
-            || endpoint.port().is_some()
-            || !endpoint.username().is_empty()
-            || endpoint.password().is_some()
-        {
-            return false;
-        }
-
-        let Some(host) = endpoint.host_str() else {
-            return false;
-        };
-        let host = host
-            .strip_prefix(&format!("{}.", config.bucket))
-            .unwrap_or(host);
-        let standard_suffix = format!(".{region}.amazonaws.com");
-        let china_suffix = format!(".{region}.amazonaws.com.cn");
-
+    fn is_aws_host(host: &str) -> bool {
         host == "s3.amazonaws.com"
-            || host == format!("s3.{region}.amazonaws.com")
-            || host == format!("s3.{region}.amazonaws.com.cn")
-            || (host.starts_with("s3express-")
-                && (host.ends_with(&standard_suffix) || host.ends_with(&china_suffix)))
+            || host.ends_with(".amazonaws.com")
+            || host.ends_with(".amazonaws.com.cn")
     }
 
     fn resolve_s3_express_config(
         config: &S3Config,
         region: &str,
     ) -> Result<Option<S3ExpressSessionConfig>> {
-        if !config.bucket.ends_with("--x-s3") || !Self::is_aws_endpoint(config, region) {
+        if !config.bucket.ends_with("--x-s3") {
             return Ok(None);
         }
 
-        S3ExpressSessionConfig::from_bucket(&config.bucket, region)
-            .map(Some)
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "invalid AWS S3 directory bucket configuration",
-                )
-                .with_operation("Builder::build")
-                .with_context("service", S3_SCHEME)
-                .set_source(err)
-            })
+        let endpoint = match &config.endpoint {
+            Some(endpoint) => {
+                let endpoint = if endpoint.starts_with("http") {
+                    endpoint.to_string()
+                } else {
+                    format!("https://{endpoint}")
+                };
+                let endpoint = Url::parse(&endpoint).map_err(|err| {
+                    Self::invalid_s3_express_config("invalid S3 endpoint").set_source(err)
+                })?;
+                let Some(host) = endpoint.host_str() else {
+                    return Ok(None);
+                };
+                let host = host
+                    .strip_prefix(&format!("{}.", config.bucket))
+                    .unwrap_or(host);
+                if !Self::is_aws_host(host) {
+                    return Ok(None);
+                }
+                if endpoint.scheme() != "https"
+                    || endpoint.path() != "/"
+                    || endpoint.query().is_some()
+                    || endpoint.fragment().is_some()
+                    || endpoint.port().is_some_and(|port| port != 443)
+                    || !endpoint.username().is_empty()
+                    || endpoint.password().is_some()
+                {
+                    return Err(Self::invalid_s3_express_config(
+                        "unsupported AWS endpoint for an S3 directory bucket",
+                    ));
+                }
+                Some(host.to_string())
+            }
+            None => None,
+        };
+
+        let express_config =
+            S3ExpressSessionConfig::from_bucket(&config.bucket, region).map_err(|err| {
+                Self::invalid_s3_express_config("invalid AWS S3 directory bucket configuration")
+                    .set_source(err)
+            })?;
+
+        if let Some(endpoint) = endpoint {
+            let canonical =
+                Url::parse(express_config.endpoint()).expect("reqsign endpoint is valid");
+            let canonical = canonical
+                .host_str()
+                .expect("reqsign endpoint has a host")
+                .strip_prefix(&format!("{}.", config.bucket))
+                .expect("reqsign endpoint uses virtual-hosted style");
+            let dns_suffix = canonical
+                .strip_prefix(&format!(
+                    "s3express-{}.{}.",
+                    express_config.zone_id(),
+                    region
+                ))
+                .expect("reqsign endpoint matches its Zone and Region");
+            let regional = format!("s3.{region}.{dns_suffix}");
+            let global = (dns_suffix == "amazonaws.com").then_some("s3.amazonaws.com");
+            if endpoint != regional && Some(endpoint.as_str()) != global && endpoint != canonical {
+                return Err(Self::invalid_s3_express_config(
+                    "AWS endpoint does not match the S3 directory bucket",
+                ));
+            }
+        }
+
+        Ok(Some(express_config))
     }
 
     /// Deprecated: S3 delete batch capability is enabled by default.
@@ -1336,6 +1365,7 @@ mod tests {
     #[derive(Clone, Copy)]
     enum CreateSessionOutcome {
         Success,
+        Body(&'static str),
         Status(StatusCode),
         TemporaryTransportError,
     }
@@ -1405,6 +1435,7 @@ mod tests {
                          </Credentials>\
                          </CreateSessionResult>",
                     )),
+                    CreateSessionOutcome::Body(body) => Ok(Self::response(StatusCode::OK, body)),
                     CreateSessionOutcome::Status(status) => {
                         Ok(Self::response(status, Bytes::new()))
                     }
@@ -1619,6 +1650,29 @@ mod tests {
                 ErrorKind::Unexpected,
                 true,
             ),
+            (
+                CreateSessionOutcome::Body(
+                    "<CreateSessionResult><Credentials>\
+                     <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                     <AccessKeyId>session-access-key</AccessKeyId>\
+                     <Expiration>2099-01-01T00:05:00Z</Expiration>\
+                     </Credentials></CreateSessionResult>",
+                ),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                CreateSessionOutcome::Body(
+                    "<CreateSessionResult><Credentials>\
+                     <SessionToken>session-token</SessionToken>\
+                     <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                     <AccessKeyId>session-access-key</AccessKeyId>\
+                     <Expiration>2020-01-01T00:05:00Z</Expiration>\
+                     </Credentials></CreateSessionResult>",
+                ),
+                ErrorKind::Unexpected,
+                false,
+            ),
         ] {
             let transport = S3ExpressMockTransport::new(outcome);
             let op = s3_express_operator(transport);
@@ -1698,6 +1752,7 @@ mod tests {
             None,
             Some("s3.amazonaws.com"),
             Some("https://s3.us-west-2.amazonaws.com"),
+            Some("https://s3.us-west-2.amazonaws.com:443"),
             Some("https://example--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com"),
         ] {
             let mut builder = S3Builder::default().bucket(directory_bucket);
@@ -1735,6 +1790,25 @@ mod tests {
         let err = S3Builder::resolve_s3_express_config(&builder.config, "us-east-1")
             .expect_err("zone and region mismatch must be rejected");
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn test_unsupported_aws_directory_bucket_endpoints_are_rejected() {
+        for endpoint in [
+            "https://s3.dualstack.us-west-2.amazonaws.com",
+            "https://example--usw2-az1--x-s3.s3express-usw2-az1.dualstack.us-west-2.amazonaws.com",
+            "https://example--usw2-az1--x-s3.s3express-use1-az1.us-west-2.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com/path",
+            "https://s3.us-west-2.amazonaws.com.cn",
+        ] {
+            let builder = S3Builder::default()
+                .bucket("example--usw2-az1--x-s3")
+                .endpoint(endpoint);
+
+            let err = S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect_err("unsupported AWS directory bucket endpoint must be rejected");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "endpoint: {endpoint}");
+        }
     }
 
     #[tokio::test]

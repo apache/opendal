@@ -214,9 +214,8 @@ impl S3Core {
         }
 
         let kind = match err.kind() {
-            ReqsignErrorKind::CredentialInvalid | ReqsignErrorKind::ConfigInvalid => {
-                ErrorKind::ConfigInvalid
-            }
+            ReqsignErrorKind::CredentialInvalid => ErrorKind::Unexpected,
+            ReqsignErrorKind::ConfigInvalid => ErrorKind::ConfigInvalid,
             ReqsignErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
             ReqsignErrorKind::RateLimited => ErrorKind::RateLimited,
             ReqsignErrorKind::RequestInvalid | ReqsignErrorKind::Unexpected => {

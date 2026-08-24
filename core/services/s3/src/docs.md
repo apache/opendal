@@ -45,6 +45,10 @@ fn build_operator() -> Result<Operator> {
 This automatic behavior applies only to AWS endpoints. S3-compatible services
 retain the existing IAM authentication behavior.
 
+An explicit AWS endpoint must match the bucket's derived Zone, Region, and
+partition. OpenDAL rejects unsupported endpoint variants, including dual-stack
+endpoints, with `ConfigInvalid` instead of falling back to general S3 behavior.
+
 OpenDAL uses the source IAM credentials for `CopyObject`, `UploadPartCopy`, and
 presigned requests because these operations do not accept S3 Express session
 credentials.

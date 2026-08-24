@@ -936,6 +936,7 @@ impl Builder for S3Builder {
         }
 
         let s3_express_config = Self::resolve_s3_express_config(&config, &region)?;
+        let is_s3_express = s3_express_config.is_some();
 
         // Building endpoint.
         let endpoint = match &s3_express_config {
@@ -1016,7 +1017,7 @@ impl Builder for S3Builder {
             provider
         };
 
-        let signers = if s3_express_config.is_some() {
+        let signers = if is_s3_express {
             let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
@@ -1050,7 +1051,7 @@ impl Builder for S3Builder {
                     stat_with_override_cache_control: true,
                     stat_with_override_content_disposition: true,
                     stat_with_override_content_type: true,
-                    stat_with_version: true,
+                    stat_with_version: !is_s3_express,
 
                     read: true,
                     read_with_if_match: true,
@@ -1060,7 +1061,7 @@ impl Builder for S3Builder {
                     read_with_override_cache_control: true,
                     read_with_override_content_disposition: true,
                     read_with_override_content_type: true,
-                    read_with_version: true,
+                    read_with_version: !is_s3_express,
                     read_with_suffix: true,
 
                     write: true,
@@ -1071,7 +1072,7 @@ impl Builder for S3Builder {
                     write_with_cache_control: true,
                     write_with_content_type: true,
                     write_with_content_disposition: true,
-                    write_with_content_encoding: true,
+                    write_with_content_encoding: !is_s3_express,
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
@@ -1099,14 +1100,14 @@ impl Builder for S3Builder {
 
                     delete: true,
                     delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
-                    delete_with_version: true,
+                    delete_with_version: !is_s3_express,
                     delete_with_if_match: true,
 
                     copy: true,
                     copy_can_multi: true,
                     copy_with_if_not_exists: true,
                     copy_with_if_match: true,
-                    copy_with_source_version: true,
+                    copy_with_source_version: !is_s3_express,
                     // The min multipart size of S3 is 5 MiB.
                     //
                     // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1122,10 +1123,10 @@ impl Builder for S3Builder {
 
                     list: true,
                     list_with_limit: true,
-                    list_with_start_after: true,
-                    list_with_recursive: true,
-                    list_with_versions: true,
-                    list_with_deleted: true,
+                    list_with_start_after: !is_s3_express,
+                    list_with_recursive: !is_s3_express,
+                    list_with_versions: !is_s3_express,
+                    list_with_deleted: !is_s3_express,
 
                     presign: true,
                     presign_stat: true,
@@ -1842,6 +1843,28 @@ mod tests {
                 .expect("custom endpoint classification must succeed")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn test_s3_express_capabilities() {
+        let backend = S3Builder::default()
+            .bucket("example--usw2-az1--x-s3")
+            .region("us-west-2")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("S3 Express backend must build");
+        let capability = backend.capability();
+
+        assert!(!capability.stat_with_version);
+        assert!(!capability.read_with_version);
+        assert!(!capability.write_with_content_encoding);
+        assert!(!capability.delete_with_version);
+        assert!(!capability.copy_with_source_version);
+        assert!(!capability.list_with_start_after);
+        assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_versions);
+        assert!(!capability.list_with_deleted);
     }
 
     #[test]

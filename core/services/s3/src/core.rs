@@ -2222,6 +2222,7 @@ mod error {
             | "ExceedBucketQPSLimit"
             | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
             "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
+            "PreconditionFailed" => Some((ErrorKind::ConditionNotMatch, false)),
             _ => None,
         }
     }
@@ -2277,6 +2278,14 @@ mod error {
             assert_eq!(
                 parse_s3_error_code("InvalidRange"),
                 Some((ErrorKind::RangeNotSatisfied, false))
+            );
+        }
+
+        #[test]
+        fn test_parse_s3_error_code_precondition_failed() {
+            assert_eq!(
+                parse_s3_error_code("PreconditionFailed"),
+                Some((ErrorKind::ConditionNotMatch, false))
             );
         }
     }

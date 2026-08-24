@@ -22,6 +22,7 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -211,6 +212,17 @@ impl XetTokenScope {
         match self {
             Self::Read => "read",
             Self::Write => "write",
+        }
+    }
+
+    /// The `Operation` a fetch for this scope's token should be tagged
+    /// with, so a token-less writer hits `request()`'s local
+    /// `PermissionDenied` fast-path instead of an unauthenticated network
+    /// call.
+    fn operation(self) -> Operation {
+        match self {
+            Self::Read => Operation::Read,
+            Self::Write => Operation::Write,
         }
     }
 }
@@ -413,24 +425,27 @@ impl HfCore {
     /// [`Self::xet_upload_commit`] and [`Self::xet_download_group`], which
     /// otherwise differ only in which builder they seed with it. Uses the
     /// canonical repo id so the refresh URL doesn't depend on redirect
-    /// behavior (see [`Self::canonical_repo`]).
+    /// behavior (see [`Self::canonical_repo`]). Resolves the repo once and
+    /// hands it to [`Self::cached_xet_token`] so the token lookup doesn't
+    /// resolve it again.
     async fn xet_auth(
         &self,
         ctx: &OperationContext,
         scope: XetTokenScope,
     ) -> Result<(XetToken, String, http::HeaderMap)> {
-        let token = self.cached_xet_token(ctx, scope).await?;
-        let refresh_url = self
-            .canonical_repo(ctx)
-            .await?
-            .xet_token_url(&self.endpoint, scope);
+        let repo = self.canonical_repo(ctx).await?;
+        let token = self.cached_xet_token(ctx, &repo, scope).await?;
+        let refresh_url = repo.xet_token_url(&self.endpoint, scope);
         let refresh_headers = self.xet_token_refresh_headers();
         Ok((token, refresh_url, refresh_headers))
     }
 
-    /// Get a still-valid cached token for `scope`, fetching and caching a
-    /// fresh one if missing or close to expiry. The lock is held across the
-    /// refresh request so concurrent callers single-flight onto one fetch.
+    /// Get a still-valid cached token for `scope` against the already
+    /// resolved `repo`, fetching and caching a fresh one if missing or
+    /// close to expiry. The lock is held across the refresh request so
+    /// concurrent callers single-flight onto one fetch; `repo` is resolved
+    /// by the caller beforehand so that lookup doesn't extend this
+    /// critical section.
     ///
     /// On a clock failure, `now` falls back to `u64::MAX` so the token is
     /// treated as stale (extra `/api` traffic) rather than `0`, which would
@@ -438,6 +453,7 @@ impl HfCore {
     async fn cached_xet_token(
         &self,
         ctx: &OperationContext,
+        repo: &HfRepo,
         scope: XetTokenScope,
     ) -> Result<XetToken> {
         let cache = match scope {
@@ -456,10 +472,9 @@ impl HfCore {
             return Ok(token.clone());
         }
 
-        let repo = self.canonical_repo(ctx).await?;
         let url = repo.xet_token_url(&self.endpoint, scope);
         let req = self
-            .request(http::Method::GET, &url, Operation::Read, "XetToken")?
+            .request(http::Method::GET, &url, scope.operation(), "XetToken")?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let (_, info): (_, XetTokenResponse) = self.send_parse(ctx, req).await?;
@@ -519,6 +534,12 @@ impl HfCore {
         op: Operation,
         service_operation: &'static str,
     ) -> Result<http::request::Builder> {
+        // Every outbound HF/CAS request is built here, so this is the one
+        // place that can show what's actually being queried -- enable with
+        // `RUST_LOG=opendal_service_hf::core=debug`.
+        debug!(
+            "hf request: service_operation={service_operation} operation={op} method={method} url={url}"
+        );
         let mut req = Request::builder()
             .method(method)
             .uri(url)
@@ -788,6 +809,11 @@ pub(crate) mod test_utils {
         /// mocked [`XetFileResponse`] body instead of plain bytes, so tests
         /// can exercise the XET classification path without real network.
         xet_file: Arc<Mutex<Option<XetFileResponse>>>,
+        /// `Range` header of the most recent XET-classifying `/resolve/`
+        /// request (one that hit the `xet_file` branch above), so tests can
+        /// tell which racing caller's range a single-flighted classification
+        /// actually sent.
+        classify_range_header: Arc<Mutex<Option<String>>>,
     }
 
     impl MockHttpTransport {
@@ -799,6 +825,7 @@ pub(crate) mod test_utils {
                 xet_token_expires_at: Arc::new(Mutex::new(u64::MAX)),
                 fail_next: Arc::new(Mutex::new(0)),
                 xet_file: Arc::new(Mutex::new(None)),
+                classify_range_header: Arc::new(Mutex::new(None)),
             }
         }
 
@@ -834,6 +861,13 @@ pub(crate) mod test_utils {
 
         pub(crate) fn request_count(&self) -> usize {
             *self.request_count.lock().unwrap()
+        }
+
+        /// `Range` header of the most recent XET-classifying `/resolve/`
+        /// request, or `None` if that range was full (no `Range` header) or
+        /// no such request has happened yet.
+        pub(crate) fn get_captured_classify_range_header(&self) -> Option<String> {
+            self.classify_range_header.lock().unwrap().clone()
         }
     }
 
@@ -871,6 +905,11 @@ pub(crate) mod test_utils {
             if url.contains("/resolve/")
                 && let Some(info) = self.xet_file.lock().unwrap().clone()
             {
+                *self.classify_range_header.lock().unwrap() = req
+                    .headers()
+                    .get(header::RANGE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string);
                 let data = Bytes::from(format!(
                     r#"{{"hash":"{}","size":{}}}"#,
                     info.hash, info.size
@@ -1182,14 +1221,19 @@ mod tests {
 
         // 2 requests: one to resolve the canonical repo id, one for the
         // token itself.
-        let first = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let repo = core.canonical_repo(&ctx).await?;
+        let first = core
+            .cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 2);
         assert_eq!(first.access_token, "mock-token");
         assert_eq!(first.cas_url, "https://cas.example.com");
 
         // A second call with the cached token nowhere near expiry must not
         // hit the network again -- the canonical repo id is cached too.
-        let second = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let second = core
+            .cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 2);
         assert_eq!(second.access_token, first.access_token);
 
@@ -1209,11 +1253,14 @@ mod tests {
 
         // 2 requests: one to resolve the canonical repo id, one for the
         // token itself.
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let repo = core.canonical_repo(&ctx).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 2);
 
         // The canonical repo id is cached, so only the token is re-fetched.
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(
             mock_client.request_count(),
             3,
@@ -1238,15 +1285,18 @@ mod tests {
         mock_client.fail_next_requests(1);
 
         // The injected failure hits the canonical repo id lookup, the first
-        // request `cached_xet_token` makes.
-        match core.cached_xet_token(&ctx, XetTokenScope::Read).await {
+        // request resolving it makes.
+        match core.canonical_repo(&ctx).await {
             Err(err) => assert!(err.to_string().contains("mock injected failure")),
-            Ok(_) => panic!("a failed token fetch must surface as an error"),
+            Ok(_) => panic!("a failed canonical repo lookup must surface as an error"),
         }
         assert_eq!(mock_client.request_count(), 1);
 
         // Retry: canonical repo id lookup succeeds, then the token itself.
-        let token = core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let repo = core.canonical_repo(&ctx).await?;
+        let token = core
+            .cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(token.access_token, "mock-token");
         assert_eq!(mock_client.request_count(), 3);
 
@@ -1255,29 +1305,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_xet_read_and_write_tokens_are_cached_independently() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        // A write-scope token fetch now goes through `request()` tagged as
+        // `Operation::Write`, which requires a token to be configured.
+        core.token = Some("hf_dummy".to_string());
         mock_client.set_xet_token_expires_at(u64::MAX);
 
         // 2 requests: one to resolve the canonical repo id, one for the
         // read token itself.
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let repo = core.canonical_repo(&ctx).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 2);
 
         // A write token request must not be satisfied by the read token's
         // cache slot -- read and write are distinct HF API scopes. The
         // canonical repo id is already cached, so only the token is fetched.
-        core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Write)
+            .await?;
         assert_eq!(mock_client.request_count(), 3);
         assert!(mock_client.get_captured_url().contains("write"));
 
         // Both are now warm; neither call should hit the network again.
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
-        core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Write)
+            .await?;
         assert_eq!(mock_client.request_count(), 3);
 
         Ok(())
@@ -1312,12 +1370,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_xet_upload_commit_reuses_cached_write_token() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.token = Some("hf_dummy".to_string());
         mock_client.set_xet_token_expires_at(u64::MAX);
 
         // 2 requests: one to resolve the canonical repo id, one for the
@@ -1330,6 +1389,31 @@ mod tests {
         // canonical repo id) rather than fetching its own.
         core.xet_upload_commit(&ctx).await?;
         assert_eq!(mock_client.request_count(), 2);
+
+        Ok(())
+    }
+
+    /// A write-token fetch must be tagged `Operation::Write`, not `Read`, so
+    /// a token-less writer hits `request()`'s local `PermissionDenied`
+    /// fast-path instead of firing a real unauthenticated network call.
+    #[tokio::test]
+    async fn test_xet_upload_commit_without_token_fails_locally() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_token_expires_at(u64::MAX);
+
+        match core.xet_upload_commit(&ctx).await {
+            Err(err) => assert_eq!(err.kind(), ErrorKind::PermissionDenied),
+            Ok(_) => panic!("an upload commit without a token must fail locally"),
+        }
+        // The canonical repo id lookup doesn't require a token, but the
+        // write-token fetch itself must be rejected before it reaches the
+        // network.
+        assert_eq!(mock_client.request_count(), 1);
 
         Ok(())
     }
@@ -1355,9 +1439,12 @@ mod tests {
         // false, so this must be treated as stale. The first call also pays
         // for the one-time canonical repo id lookup.
         mock_client.set_xet_token_expires_at(now + XET_TOKEN_REFRESH_BUFFER_SECS);
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        let repo = core.canonical_repo(&ctx).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 2);
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(
             mock_client.request_count(),
             3,
@@ -1366,9 +1453,11 @@ mod tests {
 
         // One second past the boundary: now fresh, so cached and reused.
         mock_client.set_xet_token_expires_at(now + XET_TOKEN_REFRESH_BUFFER_SECS + 1);
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(mock_client.request_count(), 4);
-        core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+        core.cached_xet_token(&ctx, &repo, XetTokenScope::Read)
+            .await?;
         assert_eq!(
             mock_client.request_count(),
             4,
@@ -1391,10 +1480,11 @@ mod tests {
         );
         mock_client.set_xet_token_expires_at(u64::MAX);
 
+        let repo = core.canonical_repo(&ctx).await?;
         let (r1, r2, r3) = futures::join!(
-            core.cached_xet_token(&ctx, XetTokenScope::Read),
-            core.cached_xet_token(&ctx, XetTokenScope::Read),
-            core.cached_xet_token(&ctx, XetTokenScope::Read),
+            core.cached_xet_token(&ctx, &repo, XetTokenScope::Read),
+            core.cached_xet_token(&ctx, &repo, XetTokenScope::Read),
+            core.cached_xet_token(&ctx, &repo, XetTokenScope::Read),
         );
         r1?;
         r2?;

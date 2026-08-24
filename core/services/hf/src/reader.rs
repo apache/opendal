@@ -160,6 +160,26 @@ impl HfReader {
             .await?;
         HfReadStream::new_xet(group, hash, size, range).await
     }
+
+    /// Classify an already-fetched resolve response and dispatch to the
+    /// matching stream. Used by [`Self::open`]'s Http-mode branch, which
+    /// classifies the same response it fetches bytes from. The Xet-mode
+    /// fallback (re-resolving in `HfDownloadMode::Http` after classification
+    /// came back non-XET) does not call this -- it never re-checks for
+    /// XET metadata on that second resolve, so it goes straight to
+    /// `new_http` instead.
+    async fn dispatch(
+        &self,
+        core: &HfCore,
+        path: &str,
+        range: BytesRange,
+        resp: Response<HttpBody>,
+    ) -> Result<(RpRead, HfReadStream)> {
+        match HfReadStream::maybe_xet(resp).await? {
+            Ok(info) => self.xet_stream(core, &info.hash, info.size, range).await,
+            Err(resp) => HfReadStream::new_http(path, resp),
+        }
+    }
 }
 
 impl oio::StreamRead for HfReader {
@@ -173,10 +193,7 @@ impl oio::StreamRead for HfReader {
             let resp = core
                 .resolve(&self.ctx, path, range, core.download_mode)
                 .await?;
-            let (rp, stream) = match HfReadStream::maybe_xet(resp).await? {
-                Ok(info) => self.xet_stream(core, &info.hash, info.size, range).await?,
-                Err(resp) => HfReadStream::new_http(path, resp)?,
-            };
+            let (rp, stream) = self.dispatch(core, path, range, resp).await?;
             return Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>));
         }
 
@@ -377,6 +394,58 @@ mod tests {
         // actual bytes from the group would need a real CAS server, so this
         // test only covers open().
         assert_eq!(mock_client.request_count(), 3);
+
+        Ok(())
+    }
+
+    /// Documents a known sharp edge in the single-flighted classification:
+    /// the `Range` header on the one shared classifying resolve comes from
+    /// whichever concurrent `open()` call happens to win `get_or_try_init`'s
+    /// race, not from the caller that ends up consuming the result. All
+    /// racing callers get that winner's classification regardless of their
+    /// own requested range. See `resolved`'s field doc and the review notes
+    /// on this PR -- not yet confirmed against the real HF service, so no
+    /// fix has been applied; this test only pins today's behavior so a
+    /// future change here is deliberate.
+    #[tokio::test]
+    async fn test_concurrent_cold_opens_classify_with_one_racing_callers_range() -> Result<()> {
+        let (core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        mock_client.set_xet_backed(&"00".repeat(32), 4);
+        mock_client.set_xet_token_expires_at(u64::MAX);
+        let reader = hf_reader(core, ctx, "xet-file.bin");
+
+        let ranges = [
+            BytesRange::new(0, Some(1)),
+            BytesRange::new(10, Some(1)),
+            BytesRange::new(20, Some(1)),
+        ];
+        let (r1, r2, r3) = futures::join!(
+            reader.open(ranges[0]),
+            reader.open(ranges[1]),
+            reader.open(ranges[2]),
+        );
+        r1?;
+        r2?;
+        r3?;
+
+        // Exactly one classifying resolve fires (see
+        // `test_concurrent_cold_opens_on_xet_file_share_one_group`), and its
+        // `Range` header must be exactly one of the three racing callers'
+        // own ranges -- not absent, and not some range not asked for by any
+        // of them.
+        let captured = mock_client
+            .get_captured_classify_range_header()
+            .expect("the shared classifying resolve must carry a Range header");
+        assert!(
+            ranges.iter().any(|r| r.to_header() == captured),
+            "the shared classifying resolve's Range header ({captured:?}) must match \
+             one of the racing callers' own ranges"
+        );
 
         Ok(())
     }

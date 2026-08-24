@@ -10,11 +10,14 @@ writer. The source path is resolved by the same `Operator` that created the
 writer. Calls to `write` and `copy_from` may be interleaved in any order, and
 their call order defines the destination byte stream.
 
-The portable meaning of `copy_from` is range read followed by streaming write.
-OpenDAL may replace that data path with `UploadPartCopy`, `PutBlockFromURL`, or
-another native operation when it preserves the same semantics. Users describe
-the destination content without selecting a copy policy or depending on a
-backend protocol.
+For every input sequence, the result matches reading each source through the
+same `Operator` with its supplied `ReadOptions` and writing those bytes in call
+order. OpenDAL may use `UploadPartCopy`, `PutBlockFromURL`, or another native
+operation when it preserves source conditions, destination options, ordering,
+and writer completion semantics. Capable services keep unchanged bytes inside
+the storage service; other services stream bounded buffers through the client.
+Applications can assemble large objects without staging their complete content
+in memory or on a local filesystem and without depending on a backend protocol.
 
 # Motivation
 
@@ -53,8 +56,8 @@ round trips on a capable backend and retains correct read-to-write behavior on
 every other backend.
 
 OpenDAL also becomes the single place that handles multipart minimum sizes,
-range splitting, source conditions, concurrent part ordering, retry, and
-abort. File formats and databases do not need to reimplement those protocol
+physical range splitting, source conditions, concurrent part ordering, retry,
+and abort. File formats and databases do not need to reimplement those protocol
 details.
 
 # Guide-level explanation
@@ -101,6 +104,14 @@ writer. An empty source range is a no-op.
 Successful return means that the source range has been accepted in sequence by
 the writer. It does not mean that the destination has been committed. As with
 `write`, `close` performs the final commit and reports any deferred failure.
+
+`copy_from` does not expose progress within one call. Applications split a
+large logical range into multiple bounded, ordered calls. Each successful
+return marks logical acceptance of that subrange and provides a checkpoint for
+recording progress, aborting the writer, or attributing an error to the next
+subrange. OpenDAL may still split a subrange into physical requests to satisfy
+service limits; those internal part boundaries do not become public progress
+events.
 
 # Reference-level explanation
 
@@ -154,6 +165,16 @@ Copying from the destination path is allowed only when `version` or `if_match`
 fixes the source object. Otherwise, `copy_from_options` returns an input error
 before accepting the range.
 
+## Lifecycle and observability
+
+The `Writer` owns the complete destination transaction across every `write` and
+`copy_from` call. `close` commits that transaction, and `abort` cancels it.
+`copy_from` does not create an independently closable or abortable copy handle.
+
+Tracing and metrics report logical, native, boundary-materialized, and streamed
+bytes so operators can distinguish accepted input from its physical transfer
+path.
+
 ## Online assembly
 
 The write generator accepts an ordered sequence of buffers and bounded source
@@ -192,10 +213,12 @@ service provides a semantically equivalent specialized path.
 
 ## Layer contract
 
-The native operation passes through the complete writer wrapper stack.
-Tracing, metrics, retry, and completion wrappers may forward it while
-preserving their existing behavior. Retry repeats the same immutable range and
-part number, and completion accounting includes the accepted range length.
+The optional native operation belongs to `oio::Write`, so it passes through the
+complete writer wrapper stack. Each layer writer forwards it, handles it, or
+returns the no-mutation unsupported result. Tracing, metrics, retry, and
+completion wrappers may forward it while preserving their existing behavior.
+Retry repeats the same immutable range and part number, and completion
+accounting includes the accepted range length.
 
 A layer that changes paths, routing, or byte content must handle the operation
 explicitly or report the no-mutation unsupported result. `RouteLayer`, for

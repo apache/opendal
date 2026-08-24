@@ -77,7 +77,7 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
         // Covers the whole path end to end at a size worth measuring. The chunk
         // walking itself is pinned by the unit tests in src/buffer.rs, which build
         // multi-part buffers a backend may or may not produce.
-        const int size = 2 * 1024 * 1024;
+        const int size = 8 * 1024 * 1024;
         var path = NewPath("read-large");
         var content = RandomBytes(size);
 
@@ -97,7 +97,7 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
         }
 
         var path = NewPath("read-large-async");
-        var content = RandomBytes(2 * 1024 * 1024);
+        var content = RandomBytes(8 * 1024 * 1024);
 
         await Op.WriteAsync(path, content, CT);
         var actual = await Op.ReadAsync(path, CT);

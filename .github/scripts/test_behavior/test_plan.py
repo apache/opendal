@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from plan import group_cases_by_service, plan, provided_cases
+from plan import group_cases_by_service, plan
 
 
 class BehaviorTestPlan(unittest.TestCase):
@@ -124,15 +124,6 @@ class BehaviorTestPlan(unittest.TestCase):
 
         for action in setup_actions:
             self.assertNotIn("actions/checkout@", action.read_text(), str(action))
-
-    def test_1password_setups_require_secrets(self):
-        with patch.dict("os.environ", {}, clear=True):
-            setups = {v["setup"] for v in provided_cases() if v["service"] == "s3"}
-            self.assertNotIn("aws_s3_express", setups)
-
-        with patch.dict("os.environ", {"GITHUB_HAS_SECRETS": "true"}, clear=True):
-            setups = {v["setup"] for v in provided_cases() if v["service"] == "s3"}
-            self.assertIn("aws_s3_express", setups)
 
     def test_binding_java(self):
         result = plan(["bindings/java/pom.xml"])

@@ -55,9 +55,9 @@ def provided_cases() -> list[dict[str, str]]:
 
     # Check if this workflow needs to read secrets.
     #
-    # Setups that reference 1Password require repository secrets.
+    # We will check if pattern `op://services` exist in content.
     if not os.getenv("GITHUB_HAS_SECRETS") == "true":
-        cases[:] = [v for v in cases if "op://" not in v["content"]]
+        cases[:] = [v for v in cases if "op://services" not in v["content"]]
 
     # Remove content from cases.
     cases = [

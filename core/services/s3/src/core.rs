@@ -40,7 +40,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_aws_v4::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -109,22 +109,46 @@ pub struct S3Core {
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
-fn uses_s3_express_session(operation: Option<&ServiceOperation>) -> bool {
-    matches!(
-        operation.map(|operation| operation.0),
-        Some(
-            "HeadObject"
-                | "GetObject"
-                | "PutObject"
-                | "DeleteObject"
-                | "DeleteObjects"
-                | "ListObjectsV2"
-                | "CreateMultipartUpload"
-                | "UploadPart"
-                | "CompleteMultipartUpload"
-                | "AbortMultipartUpload"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum S3ExpressAuthMode {
+    Iam,
+    Session,
+}
+
+fn s3_express_auth_mode(operation: Option<&ServiceOperation>) -> Result<S3ExpressAuthMode> {
+    let operation = operation.ok_or_else(|| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "S3 Express request is missing its service operation",
         )
-    )
+        .with_operation("S3Core::sign")
+    })?;
+
+    match operation.0 {
+        "HeadObject"
+        | "GetObject"
+        | "PutObject"
+        | "DeleteObject"
+        | "DeleteObjects"
+        | "ListObjectsV2"
+        | "CreateMultipartUpload"
+        | "UploadPart"
+        | "CompleteMultipartUpload"
+        | "AbortMultipartUpload" => Ok(S3ExpressAuthMode::Session),
+        "CopyObject" | "UploadPartCopy" | "HeadBucket" | "CreateSession" => {
+            Ok(S3ExpressAuthMode::Iam)
+        }
+        "ListObjects" | "ListObjectVersions" => Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported for S3 Express directory buckets",
+        )
+        .with_operation(operation.0)),
+        _ => Err(Error::new(
+            ErrorKind::Unexpected,
+            "S3 Express authentication is not defined for this service operation",
+        )
+        .with_operation(operation.0)),
+    }
 }
 
 pub(crate) struct S3UploadPartCopyRequest<'a> {
@@ -159,17 +183,20 @@ impl S3Core {
         &self,
         ctx: &OperationContext,
         operation: Option<&ServiceOperation>,
-    ) -> Signer<Credential> {
-        let signer = match (&self.session_signer, uses_s3_express_session(operation)) {
-            (Some(signer), true) => signer,
-            _ => &self.signer,
+    ) -> Result<Signer<Credential>> {
+        let signer = match &self.session_signer {
+            Some(session_signer) => match s3_express_auth_mode(operation)? {
+                S3ExpressAuthMode::Iam => &self.signer,
+                S3ExpressAuthMode::Session => session_signer,
+            },
+            None => &self.signer,
         };
-        signer.clone().with_context(
+        Ok(signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
                 .with_http_send(ctx.http_transport().clone())
                 .with_env(reqsign_core::OsEnv),
-        )
+        ))
     }
 
     fn iam_signer(&self, ctx: &OperationContext) -> Signer<Credential> {
@@ -179,6 +206,31 @@ impl S3Core {
                 .with_http_send(ctx.http_transport().clone())
                 .with_env(reqsign_core::OsEnv),
         )
+    }
+
+    fn sign_error(&self, err: reqsign_core::Error) -> Error {
+        if self.session_signer.is_none() {
+            return new_request_sign_error(err.into());
+        }
+
+        let kind = match err.kind() {
+            ReqsignErrorKind::CredentialInvalid | ReqsignErrorKind::ConfigInvalid => {
+                ErrorKind::ConfigInvalid
+            }
+            ReqsignErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
+            ReqsignErrorKind::RateLimited => ErrorKind::RateLimited,
+            ReqsignErrorKind::RequestInvalid | ReqsignErrorKind::Unexpected => {
+                ErrorKind::Unexpected
+            }
+        };
+        let retryable = err.is_retryable();
+        let mut result = Error::new(kind, "failed to sign S3 Express request")
+            .with_operation("S3Core::sign")
+            .set_source(err);
+        if retryable {
+            result = result.set_temporary();
+        }
+        result
     }
 
     pub async fn sign_query<T>(
@@ -197,7 +249,7 @@ impl S3Core {
         self.iam_signer(ctx)
             .sign(&mut parts, Some(duration))
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -221,10 +273,10 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx, parts.extensions.get::<ServiceOperation>())
+        self.signer(ctx, parts.extensions.get::<ServiceOperation>())?
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -250,10 +302,10 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx, parts.extensions.get::<ServiceOperation>())
+        self.signer(ctx, parts.extensions.get::<ServiceOperation>())?
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -1646,9 +1698,11 @@ mod tests {
             "CompleteMultipartUpload",
             "AbortMultipartUpload",
         ] {
-            assert!(
-                uses_s3_express_session(Some(&ServiceOperation(operation))),
-                "{operation} must use S3 Express session credentials"
+            assert_eq!(
+                s3_express_auth_mode(Some(&ServiceOperation(operation)))
+                    .expect("operation must have a defined authentication mode"),
+                S3ExpressAuthMode::Session,
+                "{operation} must use S3 Express session credentials",
             );
         }
 
@@ -1657,14 +1711,27 @@ mod tests {
             "UploadPartCopy",
             "HeadBucket",
             "CreateSession",
-            "ListObjects",
         ] {
-            assert!(
-                !uses_s3_express_session(Some(&ServiceOperation(operation))),
-                "{operation} must use IAM credentials"
+            assert_eq!(
+                s3_express_auth_mode(Some(&ServiceOperation(operation)))
+                    .expect("operation must have a defined authentication mode"),
+                S3ExpressAuthMode::Iam,
+                "{operation} must use IAM credentials",
             );
         }
-        assert!(!uses_s3_express_session(None));
+
+        for operation in ["ListObjects", "ListObjectVersions"] {
+            let err = s3_express_auth_mode(Some(&ServiceOperation(operation)))
+                .expect_err("unsupported directory bucket operation must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+        }
+
+        let err = s3_express_auth_mode(Some(&ServiceOperation("UnknownOperation")))
+            .expect_err("unknown operation must fail closed");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let err = s3_express_auth_mode(None).expect_err("missing operation must fail closed");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples

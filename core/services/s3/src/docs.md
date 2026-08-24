@@ -36,7 +36,7 @@ use opendal_service_s3::S3;
 fn build_operator() -> Result<Operator> {
     Operator::new(
         S3::default()
-            .bucket("amzn-s3-demo-bucket--usw2-az1--x-s3")
+            .bucket("example--usw2-az1--x-s3")
             .region("us-west-2"),
     )
 }
@@ -44,6 +44,10 @@ fn build_operator() -> Result<Operator> {
 
 This automatic behavior applies only to AWS endpoints. S3-compatible services
 retain the existing IAM authentication behavior.
+
+OpenDAL uses the source IAM credentials for `CopyObject`, `UploadPartCopy`, and
+presigned requests because these operations do not accept S3 Express session
+credentials.
 
 ## Temporary security credentials
 

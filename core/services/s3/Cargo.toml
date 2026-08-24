@@ -49,6 +49,7 @@ serde = { workspace = true, features = ["derive"] }
 url = { workspace = true }
 
 [dev-dependencies]
+futures = { workspace = true }
 pretty_assertions = "1"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

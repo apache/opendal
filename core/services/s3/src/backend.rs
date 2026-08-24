@@ -1322,7 +1322,308 @@ impl Service for S3Backend {
 }
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use http::HeaderMap;
+    use http::Method;
+    use http::Request;
+    use http::Response;
+
     use super::*;
+
+    #[derive(Clone, Copy)]
+    enum CreateSessionOutcome {
+        Success,
+        Status(StatusCode),
+        TemporaryTransportError,
+    }
+
+    #[derive(Clone)]
+    struct CapturedRequest {
+        method: Method,
+        uri: http::Uri,
+        headers: HeaderMap,
+    }
+
+    #[derive(Clone)]
+    struct S3ExpressMockTransport {
+        outcome: CreateSessionOutcome,
+        requests: Arc<Mutex<Vec<CapturedRequest>>>,
+    }
+
+    impl S3ExpressMockTransport {
+        fn new(outcome: CreateSessionOutcome) -> Self {
+            Self {
+                outcome,
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn requests(&self) -> Vec<CapturedRequest> {
+            self.requests.lock().expect("lock poisoned").clone()
+        }
+
+        fn response(status: StatusCode, body: impl Into<Bytes>) -> Response<HttpBody> {
+            let body = Buffer::from(body.into());
+            let size = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(body)]),
+                    Some(size),
+                ))
+                .expect("mock response must build")
+        }
+    }
+
+    impl HttpTransport for S3ExpressMockTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let is_create_session = req.uri().query() == Some("session");
+            self.requests
+                .lock()
+                .expect("lock poisoned")
+                .push(CapturedRequest {
+                    method: req.method().clone(),
+                    uri: req.uri().clone(),
+                    headers: req.headers().clone(),
+                });
+
+            if is_create_session {
+                return match self.outcome {
+                    CreateSessionOutcome::Success => Ok(Self::response(
+                        StatusCode::OK,
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                         <CreateSessionResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\
+                         <Credentials>\
+                         <SessionToken>session-token</SessionToken>\
+                         <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                         <AccessKeyId>session-access-key</AccessKeyId>\
+                         <Expiration>2099-01-01T00:05:00Z</Expiration>\
+                         </Credentials>\
+                         </CreateSessionResult>",
+                    )),
+                    CreateSessionOutcome::Status(status) => {
+                        Ok(Self::response(status, Bytes::new()))
+                    }
+                    CreateSessionOutcome::TemporaryTransportError => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "temporary mock transport failure",
+                    )
+                    .set_temporary()),
+                };
+            }
+
+            let query = req.uri().query().unwrap_or_default();
+            if req.headers().contains_key(constants::X_AMZ_COPY_SOURCE) {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<CopyObjectResult><ETag>\"etag\"</ETag>\
+                     <LastModified>2026-08-24T00:00:00Z</LastModified></CopyObjectResult>",
+                ));
+            }
+            if query == "uploads" {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<InitiateMultipartUploadResult><UploadId>upload-id</UploadId>\
+                     </InitiateMultipartUploadResult>",
+                ));
+            }
+            if req.method() == Method::POST && query.contains("uploadId=") {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<CompleteMultipartUploadResult><Bucket>example</Bucket><Key>target</Key>\
+                     <Location>https://example.invalid/target</Location><ETag>\"etag\"</ETag>\
+                     </CompleteMultipartUploadResult>",
+                ));
+            }
+
+            Ok(Self::response(StatusCode::OK, Bytes::new()))
+        }
+    }
+
+    fn s3_express_operator(transport: S3ExpressMockTransport) -> Operator {
+        Operator::new(
+            S3Builder::default()
+                .bucket("example--usw2-az1--x-s3")
+                .region("us-west-2")
+                .access_key_id("source-access-key")
+                .secret_access_key("source-secret-key")
+                .session_token("source-session-token")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 Express operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    fn header<'a>(request: &'a CapturedRequest, name: &str) -> &'a str {
+        request
+            .headers
+            .get(name)
+            .unwrap_or_else(|| panic!("missing {name} header"))
+            .to_str()
+            .expect("header must be text")
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_signing_chain_and_session_reuse() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let (first, second) = tokio::join!(
+            op.write("first", "first-body"),
+            op.write("second", "second-body")
+        );
+        first.expect("first write must succeed");
+        second.expect("second write must succeed");
+
+        let requests = transport.requests();
+        let create_sessions = requests
+            .iter()
+            .filter(|request| request.uri.query() == Some("session"))
+            .collect::<Vec<_>>();
+        assert_eq!(create_sessions.len(), 1, "session must be reused");
+
+        let create_session = create_sessions[0];
+        assert_eq!(create_session.method, Method::GET);
+        assert_eq!(
+            header(create_session, "x-amz-create-session-mode"),
+            "ReadWrite"
+        );
+        assert_eq!(
+            header(create_session, "x-amz-security-token"),
+            "source-session-token"
+        );
+        assert!(!create_session.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(create_session, "authorization").contains("source-access-key/"));
+
+        let puts = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect::<Vec<_>>();
+        assert_eq!(puts.len(), 2);
+        for request in puts {
+            assert_eq!(header(request, "x-amz-s3session-token"), "session-token");
+            assert!(!request.headers.contains_key("x-amz-security-token"));
+            assert!(header(request, "authorization").contains("session-access-key/"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_copy_and_presign_use_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .source_content_length_hint(1)
+            .await
+            .expect("copy must succeed");
+        let requests = transport.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            0,
+            "CopyObject must not create an S3 Express session"
+        );
+        let copy = requests
+            .iter()
+            .find(|request| request.headers.contains_key(constants::X_AMZ_COPY_SOURCE))
+            .expect("CopyObject request must be captured");
+        assert_eq!(header(copy, "x-amz-security-token"), "source-session-token");
+        assert!(!copy.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(copy, "authorization").contains("source-access-key/"));
+
+        let presigned = op
+            .presign_read("source", Duration::from_secs(60))
+            .await
+            .expect("presign must succeed");
+        let query = presigned.uri().query().expect("presign query must exist");
+        assert!(query.contains("X-Amz-Credential=source-access-key%2F"));
+        assert!(query.contains("X-Amz-Security-Token=source-session-token"));
+        assert!(!query.contains("session-access-key"));
+        assert!(!query.contains("x-amz-s3session-token"));
+        assert_eq!(transport.requests().len(), requests.len());
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .chunk(5 * 1024 * 1024)
+            .source_content_length_hint(5 * 1024 * 1024 + 1)
+            .await
+            .expect("multipart copy must succeed");
+
+        let requests = transport.requests();
+        let part_copies = requests
+            .iter()
+            .filter(|request| {
+                request.headers.contains_key(constants::X_AMZ_COPY_SOURCE)
+                    && request
+                        .uri
+                        .query()
+                        .is_some_and(|query| query.contains("partNumber="))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(part_copies.len(), 2);
+        for request in part_copies {
+            assert_eq!(
+                header(request, "x-amz-security-token"),
+                "source-session-token"
+            );
+            assert!(!request.headers.contains_key("x-amz-s3session-token"));
+            assert!(header(request, "authorization").contains("source-access-key/"));
+        }
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            1,
+            "session operations in multipart copy must share one session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_create_session_error_mapping() {
+        for (outcome, kind, temporary) in [
+            (
+                CreateSessionOutcome::Status(StatusCode::FORBIDDEN),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                CreateSessionOutcome::Status(StatusCode::TOO_MANY_REQUESTS),
+                ErrorKind::RateLimited,
+                true,
+            ),
+            (
+                CreateSessionOutcome::Status(StatusCode::INTERNAL_SERVER_ERROR),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                CreateSessionOutcome::TemporaryTransportError,
+                ErrorKind::Unexpected,
+                true,
+            ),
+        ] {
+            let transport = S3ExpressMockTransport::new(outcome);
+            let op = s3_express_operator(transport);
+            let err = op
+                .write("test", "body")
+                .await
+                .expect_err("CreateSession failure must reach the caller");
+            assert_eq!(err.kind(), kind);
+            assert_eq!(err.is_temporary(), temporary);
+        }
+    }
 
     #[test]
     fn test_profile() {

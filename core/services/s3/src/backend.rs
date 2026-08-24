@@ -1391,6 +1391,7 @@ mod tests {
                 });
 
             if is_create_session {
+                tokio::task::yield_now().await;
                 return match self.outcome {
                     CreateSessionOutcome::Success => Ok(Self::response(
                         StatusCode::OK,
@@ -1480,6 +1481,11 @@ mod tests {
         second.expect("second write must succeed");
 
         let requests = transport.requests();
+        assert_eq!(
+            requests[0].uri.query(),
+            Some("session"),
+            "CreateSession must complete before object requests are signed"
+        );
         let create_sessions = requests
             .iter()
             .filter(|request| request.uri.query() == Some("session"))

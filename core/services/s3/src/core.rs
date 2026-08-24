@@ -104,9 +104,16 @@ pub struct S3Core {
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
 
-    pub signer: Signer<Credential>,
-    pub session_signer: Option<Signer<Credential>>,
+    pub(crate) signers: S3Signers,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+pub(crate) enum S3Signers {
+    General(Signer<Credential>),
+    Express {
+        iam: Signer<Credential>,
+        session: Signer<Credential>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,6 +158,28 @@ fn s3_express_auth_mode(operation: Option<&ServiceOperation>) -> Result<S3Expres
     }
 }
 
+impl S3Signers {
+    fn select(&self, operation: Option<&ServiceOperation>) -> Result<&Signer<Credential>> {
+        match self {
+            Self::General(signer) => Ok(signer),
+            Self::Express { iam, session } => match s3_express_auth_mode(operation)? {
+                S3ExpressAuthMode::Iam => Ok(iam),
+                S3ExpressAuthMode::Session => Ok(session),
+            },
+        }
+    }
+
+    fn iam(&self) -> &Signer<Credential> {
+        match self {
+            Self::General(signer) | Self::Express { iam: signer, .. } => signer,
+        }
+    }
+
+    fn is_express(&self) -> bool {
+        matches!(self, Self::Express { .. })
+    }
+}
+
 pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) from: &'a str,
     pub(crate) to: &'a str,
@@ -179,28 +208,11 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    fn signer(
-        &self,
+    fn with_signer_context(
+        signer: &Signer<Credential>,
         ctx: &OperationContext,
-        operation: Option<&ServiceOperation>,
-    ) -> Result<Signer<Credential>> {
-        let signer = match &self.session_signer {
-            Some(session_signer) => match s3_express_auth_mode(operation)? {
-                S3ExpressAuthMode::Iam => &self.signer,
-                S3ExpressAuthMode::Session => session_signer,
-            },
-            None => &self.signer,
-        };
-        Ok(signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        ))
-    }
-
-    fn iam_signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
+    ) -> Signer<Credential> {
+        signer.clone().with_context(
             Context::new()
                 .with_file_read(reqsign_file_read_tokio::TokioFileRead)
                 .with_http_send(ctx.http_transport().clone())
@@ -208,8 +220,23 @@ impl S3Core {
         )
     }
 
+    fn signer(
+        &self,
+        ctx: &OperationContext,
+        operation: Option<&ServiceOperation>,
+    ) -> Result<Signer<Credential>> {
+        Ok(Self::with_signer_context(
+            self.signers.select(operation)?,
+            ctx,
+        ))
+    }
+
+    fn iam_signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        Self::with_signer_context(self.signers.iam(), ctx)
+    }
+
     fn sign_error(&self, err: reqsign_core::Error) -> Error {
-        if self.session_signer.is_none() {
+        if !self.signers.is_express() {
             return new_request_sign_error(err.into());
         }
 
@@ -223,13 +250,10 @@ impl S3Core {
             }
         };
         let retryable = err.is_retryable();
-        let mut result = Error::new(kind, "failed to sign S3 Express request")
+        Error::new(kind, "failed to sign S3 Express request")
             .with_operation("S3Core::sign")
-            .set_source(err);
-        if retryable {
-            result = result.set_temporary();
-        }
-        result
+            .set_source(err)
+            .with_temporary(retryable)
     }
 
     pub async fn sign_query<T>(

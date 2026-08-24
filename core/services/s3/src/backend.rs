@@ -624,23 +624,15 @@ impl S3Builder {
             })?;
 
         if let Some(endpoint) = endpoint {
-            let canonical =
-                Url::parse(express_config.endpoint()).expect("reqsign endpoint is valid");
-            let canonical = canonical
-                .host_str()
-                .expect("reqsign endpoint has a host")
-                .strip_prefix(&format!("{}.", config.bucket))
-                .expect("reqsign endpoint uses virtual-hosted style");
-            let dns_suffix = canonical
-                .strip_prefix(&format!(
-                    "s3express-{}.{}.",
-                    express_config.zone_id(),
-                    region
-                ))
-                .expect("reqsign endpoint matches its Zone and Region");
+            let dns_suffix = express_config.partition().dns_suffix();
+            let region = express_config.region();
             let regional = format!("s3.{region}.{dns_suffix}");
+            let zonal = format!(
+                "s3express-{}.{region}.{dns_suffix}",
+                express_config.zone_id()
+            );
             let global = (dns_suffix == "amazonaws.com").then_some("s3.amazonaws.com");
-            if endpoint != regional && Some(endpoint.as_str()) != global && endpoint != canonical {
+            if endpoint != regional && Some(endpoint.as_str()) != global && endpoint != zonal {
                 return Err(Self::invalid_s3_express_config(
                     "AWS endpoint does not match the S3 directory bucket",
                 ));
@@ -1024,7 +1016,7 @@ impl Builder for S3Builder {
             provider
         };
 
-        let (signer, session_signer) = if s3_express_config.is_some() {
+        let signers = if s3_express_config.is_some() {
             let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
@@ -1038,12 +1030,12 @@ impl Builder for S3Builder {
                 session_provider,
                 AwsV4Signer::new("s3express", &region),
             );
-            (iam_signer, Some(session_signer))
+            S3Signers::Express {
+                iam: iam_signer,
+                session: session_signer,
+            }
         } else {
-            (
-                Signer::new(ctx, provider, AwsV4Signer::new("s3", &region)),
-                None,
-            )
+            S3Signers::General(Signer::new(ctx, provider, AwsV4Signer::new("s3", &region)))
         };
 
         Ok(S3Backend {
@@ -1156,8 +1148,7 @@ impl Builder for S3Builder {
                 skip_signature: config.skip_signature,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
-                signer,
-                session_signer,
+                signers,
                 checksum_algorithm,
                 default_acl: config.default_acl,
             }),

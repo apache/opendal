@@ -45,6 +45,7 @@ use super::core::*;
 use super::deleter::GcsDeleter;
 use super::lister::GcsLister;
 use super::reader::*;
+use super::writer::GcsResumableWriter;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
@@ -357,9 +358,6 @@ impl Builder for GcsBuilder {
             write_with_content_type: true,
             write_with_content_encoding: true,
             write_with_user_metadata: true,
-            // Honored on single-shot writes (JSON upload + ifGenerationMatch=0).
-            // Multipart XML uploads cannot enforce preconditions and return
-            // Unsupported when if_not_exists is set — see GcsWriter::initiate_part.
             write_with_if_not_exists: true,
 
             // The min multipart size of Gcs is 5 MiB.
@@ -481,13 +479,24 @@ impl Service for GcsBackend {
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let output: GcsWriters = {
-            let concurrent = args.concurrent();
-            let w = GcsWriter::new(self.core.clone(), ctx.clone(), path, args);
-            // Multipart uploads schedule work through the operation executor
-            // supplied by the caller.
-            let w = oio::MultipartWriter::new(ctx.executor().clone(), w, concurrent);
-
-            Ok(w)
+            if args.if_not_exists() {
+                Ok(TwoWays::Two(GcsResumableWriter::new(
+                    self.core.clone(),
+                    ctx.clone(),
+                    path,
+                    args,
+                )))
+            } else {
+                let concurrent = args.concurrent();
+                let w = GcsWriter::new(self.core.clone(), ctx.clone(), path, args);
+                // Multipart uploads schedule work through the operation executor
+                // supplied by the caller.
+                Ok(TwoWays::One(oio::MultipartWriter::new(
+                    ctx.executor().clone(),
+                    w,
+                    concurrent,
+                )))
+            }
         }?;
 
         Ok(output)

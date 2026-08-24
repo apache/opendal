@@ -838,18 +838,6 @@ pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
         Ok(())
     }
     .await;
-
-    // GCS XML multipart uploads cannot enforce if_not_exists, so the writer fails
-    // closed with Unsupported instead of ConditionNotMatch / silent overwrite.
-    // Single-shot write_with_if_not_exists still works via the JSON API.
-    //
-    // ref: https://github.com/apache/opendal/issues/8040
-    #[cfg(feature = "services-gcs")]
-    if op.info().scheme() == services::GCS_SCHEME {
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-        return Ok(());
-    }
-
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())

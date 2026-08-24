@@ -28,6 +28,7 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
@@ -54,6 +55,12 @@ pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+    pub const X_UPLOAD_CONTENT_TYPE: &str = "x-upload-content-type";
+
+    /// Intermediate resumable upload chunks must be multiples of 256 KiB.
+    ///
+    /// ref: <https://cloud.google.com/storage/docs/performing-resumable-uploads>
+    pub const GCS_RESUMABLE_CHUNK_SIZE: usize = 256 * 1024;
 }
 
 pub struct GcsCore {
@@ -327,6 +334,108 @@ impl GcsCore {
 
             Ok(req)
         }
+    }
+
+    pub async fn gcs_initiate_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        op: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let request_metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            content_encoding: op.content_encoding(),
+            metadata: op.user_metadata(),
+        };
+
+        let mut url = format!(
+            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
+            self.endpoint,
+            self.bucket,
+            gcs_percent_encode_path(&p)
+        );
+
+        if let Some(acl) = &self.predefined_acl {
+            write!(&mut url, "&predefinedAcl={acl}").unwrap();
+        }
+        if op.if_not_exists() {
+            write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        }
+
+        let content_type = op.content_type().unwrap_or("application/octet-stream");
+        let mut req = Request::post(&url)
+            .header(X_UPLOAD_CONTENT_TYPE, content_type)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateResumableUpload"));
+
+        let req = if request_metadata.is_empty() {
+            req.header(CONTENT_LENGTH, 0)
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?
+        } else {
+            let body = Buffer::from(
+                serde_json::to_vec(&request_metadata)
+                    .expect("metadata serialization should succeed"),
+            );
+            req.header(CONTENT_TYPE, "application/json; charset=UTF-8")
+                .header(CONTENT_LENGTH, body.len())
+                .body(body)
+                .map_err(new_request_build_error)?
+        };
+
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn gcs_upload_resumable_chunk(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        start: u64,
+        total: Option<u64>,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let size = body.len() as u64;
+        let content_range = match (size, total) {
+            (0, Some(total)) => format!("bytes */{total}"),
+            (0, None) => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "empty resumable chunk requires a known total size",
+                ));
+            }
+            (_, Some(total)) => format!("bytes {start}-{}/{total}", start + size - 1),
+            (_, None) => format!("bytes {start}-{}/*", start + size - 1),
+        };
+
+        let req = Request::put(session_uri)
+            .header(CONTENT_LENGTH, size)
+            .header(CONTENT_RANGE, content_range)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadResumableChunk"))
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn gcs_abort_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+    ) -> Result<Response<Buffer>> {
+        let req = Request::delete(session_uri)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("AbortResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     // It's for presign operation. Gcs only supports query sign over XML API.

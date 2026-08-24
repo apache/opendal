@@ -535,6 +535,7 @@ fn delete_options(opts: ffi::FfiDeleteOptions) -> od::options::DeleteOptions {
     od::options::DeleteOptions {
         version: optional_string(opts.version),
         recursive: opts.recursive,
+        if_match: None,
     }
 }
 

@@ -217,5 +217,6 @@ pub fn parse_delete_options(
     Ok(opendal::options::DeleteOptions {
         version: parse_string(values, "version"),
         recursive: parse_bool(values, "recursive")?.unwrap_or(false),
+        if_match: None,
     })
 }

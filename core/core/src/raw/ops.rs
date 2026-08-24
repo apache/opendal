@@ -48,6 +48,9 @@ pub struct OpDelete {
 
     /// Whether a `delete` is recursive.
     recursive: bool,
+
+    /// The ETag that the object must match before deletion.
+    if_match: Option<String>,
 }
 
 impl OpDelete {
@@ -70,6 +73,14 @@ impl OpDelete {
         self
     }
 
+    /// Set the ETag that the object must match before deletion.
+    ///
+    /// The operation fails when the existing object's ETag does not match.
+    pub fn with_if_match(mut self, if_match: impl Into<String>) -> Self {
+        self.if_match = Some(if_match.into());
+        self
+    }
+
     /// Return the version of the object to delete.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
@@ -79,6 +90,11 @@ impl OpDelete {
     pub fn recursive(&self) -> bool {
         self.recursive
     }
+
+    /// Return the ETag that the object must match before deletion.
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
 }
 
 impl From<options::DeleteOptions> for OpDelete {
@@ -86,6 +102,7 @@ impl From<options::DeleteOptions> for OpDelete {
         Self {
             version: value.version,
             recursive: value.recursive,
+            if_match: value.if_match,
         }
     }
 }

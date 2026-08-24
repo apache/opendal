@@ -116,60 +116,17 @@ pub(crate) enum S3Signers {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum S3ExpressAuthMode {
-    Iam,
-    Session,
-}
-
-fn s3_express_auth_mode(operation: Option<&ServiceOperation>) -> Result<S3ExpressAuthMode> {
-    let operation = operation.ok_or_else(|| {
-        Error::new(
-            ErrorKind::Unexpected,
-            "S3 Express request is missing its service operation",
-        )
-        .with_operation("S3Core::sign")
-    })?;
-
-    match operation.0 {
-        "HeadObject"
-        | "GetObject"
-        | "PutObject"
-        | "DeleteObject"
-        | "DeleteObjects"
-        | "ListObjectsV2"
-        | "CreateMultipartUpload"
-        | "UploadPart"
-        | "CompleteMultipartUpload"
-        | "AbortMultipartUpload" => Ok(S3ExpressAuthMode::Session),
-        "CopyObject" | "UploadPartCopy" | "HeadBucket" | "CreateSession" => {
-            Ok(S3ExpressAuthMode::Iam)
-        }
-        "ListObjects" | "ListObjectVersions" => Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported for S3 Express directory buckets",
-        )
-        .with_operation(operation.0)),
-        _ => Err(Error::new(
-            ErrorKind::Unexpected,
-            "S3 Express authentication is not defined for this service operation",
-        )
-        .with_operation(operation.0)),
-    }
-}
-
 impl S3Signers {
-    fn select(&self, operation: Option<&ServiceOperation>) -> Result<&Signer<Credential>> {
+    pub(crate) fn default(&self) -> &Signer<Credential> {
         match self {
-            Self::General(signer) => Ok(signer),
-            Self::Express { iam, session } => match s3_express_auth_mode(operation)? {
-                S3ExpressAuthMode::Iam => Ok(iam),
-                S3ExpressAuthMode::Session => Ok(session),
-            },
+            Self::General(signer)
+            | Self::Express {
+                session: signer, ..
+            } => signer,
         }
     }
 
-    fn iam(&self) -> &Signer<Credential> {
+    pub(crate) fn iam(&self) -> &Signer<Credential> {
         match self {
             Self::General(signer) | Self::Express { iam: signer, .. } => signer,
         }
@@ -208,33 +165,6 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    fn with_signer_context(
-        signer: &Signer<Credential>,
-        ctx: &OperationContext,
-    ) -> Signer<Credential> {
-        signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
-    }
-
-    fn signer(
-        &self,
-        ctx: &OperationContext,
-        operation: Option<&ServiceOperation>,
-    ) -> Result<Signer<Credential>> {
-        Ok(Self::with_signer_context(
-            self.signers.select(operation)?,
-            ctx,
-        ))
-    }
-
-    fn iam_signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        Self::with_signer_context(self.signers.iam(), ctx)
-    }
-
     fn sign_error(&self, err: reqsign_core::Error) -> Error {
         if !self.signers.is_express() {
             return new_request_sign_error(err.into());
@@ -269,7 +199,15 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.iam_signer(ctx)
+        self.signers
+            .iam()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -289,6 +227,7 @@ impl S3Core {
         &self,
         ctx: &OperationContext,
         req: Request<Buffer>,
+        signer: &Signer<Credential>,
     ) -> Result<Response<Buffer>> {
         if self.skip_signature {
             return ctx.http_transport().send(req).await;
@@ -296,7 +235,14 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx, parts.extensions.get::<ServiceOperation>())?
+        signer
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -325,7 +271,15 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx, parts.extensions.get::<ServiceOperation>())?
+        self.signers
+            .default()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -754,7 +708,7 @@ impl S3Core {
         args: OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_head_object_request(path, args)?;
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
@@ -803,7 +757,7 @@ impl S3Core {
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_delete_object_request(path, args)?;
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_copy_object(
@@ -892,7 +846,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.iam()).await
     }
 
     pub async fn s3_list_objects_v1(
@@ -932,7 +886,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_objects_v2(
@@ -984,7 +938,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_initiate_multipart_upload(
@@ -1057,7 +1011,7 @@ impl S3Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_initiate_multipart_copy(
@@ -1093,7 +1047,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub(crate) fn s3_upload_part_copy_request(
@@ -1272,7 +1226,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_complete_multipart_copy(
@@ -1320,7 +1274,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart upload.
@@ -1351,7 +1305,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart copy.
@@ -1381,7 +1335,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_delete_objects(
@@ -1425,7 +1379,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_object_versions(
@@ -1476,7 +1430,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 }
 
@@ -1714,56 +1668,6 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-
-    #[test]
-    fn test_s3_express_session_operation_routing() {
-        for operation in [
-            "HeadObject",
-            "GetObject",
-            "PutObject",
-            "DeleteObject",
-            "DeleteObjects",
-            "ListObjectsV2",
-            "CreateMultipartUpload",
-            "UploadPart",
-            "CompleteMultipartUpload",
-            "AbortMultipartUpload",
-        ] {
-            assert_eq!(
-                s3_express_auth_mode(Some(&ServiceOperation(operation)))
-                    .expect("operation must have a defined authentication mode"),
-                S3ExpressAuthMode::Session,
-                "{operation} must use S3 Express session credentials",
-            );
-        }
-
-        for operation in [
-            "CopyObject",
-            "UploadPartCopy",
-            "HeadBucket",
-            "CreateSession",
-        ] {
-            assert_eq!(
-                s3_express_auth_mode(Some(&ServiceOperation(operation)))
-                    .expect("operation must have a defined authentication mode"),
-                S3ExpressAuthMode::Iam,
-                "{operation} must use IAM credentials",
-            );
-        }
-
-        for operation in ["ListObjects", "ListObjectVersions"] {
-            let err = s3_express_auth_mode(Some(&ServiceOperation(operation)))
-                .expect_err("unsupported directory bucket operation must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unsupported);
-        }
-
-        let err = s3_express_auth_mode(Some(&ServiceOperation("UnknownOperation")))
-            .expect_err("unknown operation must fail closed");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-
-        let err = s3_express_auth_mode(None).expect_err("missing operation must fail closed");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

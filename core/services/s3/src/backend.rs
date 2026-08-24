@@ -1454,6 +1454,12 @@ mod tests {
                      </InitiateMultipartUploadResult>",
                 ));
             }
+            if query.contains("list-type=2") {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>",
+                ));
+            }
             if req.method() == Method::POST && query.contains("uploadId=") {
                 return Ok(Self::response(
                     StatusCode::OK,
@@ -1479,6 +1485,21 @@ mod tests {
                 .disable_ec2_metadata(),
         )
         .expect("S3 Express operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    fn s3_general_operator(transport: S3ExpressMockTransport) -> Operator {
+        Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("source-access-key")
+                .secret_access_key("source-secret-key")
+                .session_token("source-session-token")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 operator must build")
         .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
     }
 
@@ -1537,6 +1558,54 @@ mod tests {
             assert_eq!(header(request, "x-amz-s3session-token"), "session-token");
             assert!(!request.headers.contains_key("x-amz-security-token"));
             assert!(header(request, "authorization").contains("session-access-key/"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_list_uses_session_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let entries = op.list("").await.expect("list must succeed");
+        assert!(entries.is_empty());
+
+        let requests = transport.requests();
+        let list = requests
+            .iter()
+            .find(|request| {
+                request
+                    .uri
+                    .query()
+                    .is_some_and(|query| query.contains("list-type=2"))
+            })
+            .expect("ListObjectsV2 request must be captured");
+        assert_eq!(header(list, "x-amz-s3session-token"), "session-token");
+        assert!(!list.headers.contains_key("x-amz-security-token"));
+        assert!(header(list, "authorization").contains("session-access-key/"));
+    }
+
+    #[tokio::test]
+    async fn test_s3_general_bucket_always_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.write("source", "body")
+            .await
+            .expect("write must succeed");
+        op.copy_with("source", "target")
+            .source_content_length_hint(1)
+            .await
+            .expect("copy must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        for request in requests {
+            assert_eq!(
+                header(&request, "x-amz-security-token"),
+                "source-session-token"
+            );
+            assert!(!request.headers.contains_key("x-amz-s3session-token"));
+            assert!(header(&request, "authorization").contains("source-access-key/"));
         }
     }
 

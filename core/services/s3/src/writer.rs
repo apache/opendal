@@ -152,6 +152,68 @@ impl oio::MultipartWrite for S3Writer {
         }
     }
 
+    fn supports_copy_from(&self) -> bool {
+        self.core.checksum_algorithm.is_none()
+    }
+
+    async fn copy_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<oio::MultipartPart> {
+        let size = range
+            .size()
+            .expect("multipart writer copy range must be bounded");
+        let part_number = part_number + 1;
+        let req = self
+            .core
+            .s3_upload_part_copy_request(S3UploadPartCopyRequest {
+                from: path,
+                to: &self.path,
+                source_version: args.version(),
+                if_match: args.if_match(),
+                if_none_match: args.if_none_match(),
+                if_modified_since: args.if_modified_since(),
+                if_unmodified_since: args.if_unmodified_since(),
+                upload_id,
+                part_number,
+                range,
+                operation: Operation::Write,
+            })?;
+
+        let resp = self.core.send(&self.ctx, req).await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let (parts, body) = resp.into_parts();
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+
+                if result.etag.is_empty() {
+                    return Err(from_s3_error(
+                        S3Error {
+                            code: result.code,
+                            message: result.message,
+                            resource: String::new(),
+                            request_id: result.request_id,
+                        },
+                        parts,
+                    ));
+                }
+
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag: result.etag,
+                    checksum: None,
+                    size: Some(size),
+                })
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     async fn complete_part(
         &self,
         upload_id: &str,

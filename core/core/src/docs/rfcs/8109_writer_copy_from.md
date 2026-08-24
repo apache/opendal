@@ -1,7 +1,7 @@
 - Proposal Name: `writer_copy_from`
 - Start Date: 2026-08-19
 - RFC PR: [apache/opendal#8109](https://github.com/apache/opendal/pull/8109)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#8134](https://github.com/apache/opendal/issues/8134)
 
 # Summary
 

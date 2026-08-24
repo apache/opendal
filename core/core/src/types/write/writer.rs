@@ -99,7 +99,7 @@ use crate::*;
 ///   creating writer with `append` enabled.
 pub struct Writer {
     /// Keep a reference to write context in writer.
-    _ctx: Arc<WriteContext>,
+    ctx: Arc<WriteContext>,
     inner: WriteGenerator<oio::Writer>,
 }
 
@@ -109,7 +109,7 @@ impl Writer {
         let ctx = Arc::new(ctx);
         let inner = std::future::ready(WriteGenerator::create(ctx.clone())).await?;
 
-        Ok(Self { _ctx: ctx, inner })
+        Ok(Self { ctx, inner })
     }
 
     /// Write [`Buffer`] into writer.
@@ -180,6 +180,56 @@ impl Writer {
             chunks.push(bs.copy_to_bytes(chunk_len));
         }
         self.write(Buffer::from(chunks)).await
+    }
+
+    /// Copy a range of an existing object into this writer.
+    ///
+    /// The source path is resolved by the same [`Operator`] that created this
+    /// writer. Calls to `write` and `copy_from` may be interleaved, and their
+    /// call order defines the destination bytes. OpenDAL uses a native
+    /// writer-side copy when the composed service supports it and otherwise
+    /// streams the range through the client.
+    ///
+    /// Each call accepts at most 5 GiB. Applications must split larger source
+    /// ranges into multiple ordered calls.
+    pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
+        self.copy_from_options(
+            path,
+            options::ReadOptions {
+                range: range.into(),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    /// Copy an existing object range with read conditions and execution options.
+    pub async fn copy_from_options(
+        &mut self,
+        path: &str,
+        options: options::ReadOptions,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "copy source path is a directory")
+                    .with_operation("Writer::copy_from")
+                    .with_context("service", self.ctx.service().info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+        if path == self.ctx.path() {
+            return Err(Error::new(
+                ErrorKind::IsSameFile,
+                "copy source and destination are the same",
+            )
+            .with_operation("Writer::copy_from")
+            .with_context("service", self.ctx.service().info().scheme())
+            .with_context("path", &path));
+        }
+
+        let (range, args, options) = options.into();
+        self.inner.copy_from(&path, args, options, range).await
     }
 
     /// Abort the writer and clean up all written data.

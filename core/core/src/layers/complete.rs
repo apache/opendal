@@ -381,6 +381,33 @@ where
         Ok(())
     }
 
+    async fn copy_from(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<oio::CopyFromOutcome> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        let size = range.size().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires a bounded range",
+            )
+        })?;
+
+        let outcome = w
+            .copy_from(path, args, range)
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        if outcome == oio::CopyFromOutcome::Accepted {
+            self.size += size;
+            self.state.transition(CompleteState::Written);
+        }
+        Ok(outcome)
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
             debug_assert_ne!(

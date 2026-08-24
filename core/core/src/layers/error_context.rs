@@ -292,6 +292,36 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
             })
     }
 
+    async fn copy_from(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<oio::CopyFromOutcome> {
+        let size = range.size().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires a bounded range",
+            )
+        })?;
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|outcome| {
+                if *outcome == oio::CopyFromOutcome::Accepted {
+                    self.processed += size;
+                }
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Write)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+                    .with_context("source", path)
+                    .with_context("range", range.to_string())
+                    .with_context("written", self.processed.to_string())
+            })
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await.map_err(|err| {
             err.with_operation(Operation::Write)

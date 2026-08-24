@@ -185,9 +185,14 @@ impl oio::MultipartCopy for S3Copier {
                 from: &self.from,
                 to: &self.to,
                 source_version: self.args.source_version(),
+                if_match: None,
+                if_none_match: None,
+                if_modified_since: None,
+                if_unmodified_since: None,
                 upload_id,
                 part_number,
                 range,
+                operation: Operation::Copy,
             })?;
 
         let resp = self.core.send(&self.ctx, req).await?;

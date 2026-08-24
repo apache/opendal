@@ -120,6 +120,10 @@ impl Reader {
         Reader { ctx: Arc::new(ctx) }
     }
 
+    pub(crate) async fn parse_into_range(&self, range: BytesRange) -> Result<Range<u64>> {
+        self.ctx.parse_into_range(range).await
+    }
+
     /// Get complete object metadata observed by this reader.
     ///
     /// This method doesn't perform I/O. It returns `None` if no read has

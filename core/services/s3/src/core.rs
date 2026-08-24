@@ -50,6 +50,10 @@ use opendal_core::*;
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
     pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
+    pub const X_AMZ_COPY_SOURCE_IF_MATCH: &str = "x-amz-copy-source-if-match";
+    pub const X_AMZ_COPY_SOURCE_IF_NONE_MATCH: &str = "x-amz-copy-source-if-none-match";
+    pub const X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE: &str = "x-amz-copy-source-if-modified-since";
+    pub const X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE: &str = "x-amz-copy-source-if-unmodified-since";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -112,9 +116,14 @@ pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) from: &'a str,
     pub(crate) to: &'a str,
     pub(crate) source_version: Option<&'a str>,
+    pub(crate) if_match: Option<&'a str>,
+    pub(crate) if_none_match: Option<&'a str>,
+    pub(crate) if_modified_since: Option<Timestamp>,
+    pub(crate) if_unmodified_since: Option<Timestamp>,
     pub(crate) upload_id: &'a str,
     pub(crate) part_number: usize,
     pub(crate) range: BytesRange,
+    pub(crate) operation: Operation,
 }
 
 fn format_crc32c_iter(body: Buffer) -> String {
@@ -1009,6 +1018,25 @@ impl S3Core {
 
         let mut req = Request::put(&url);
 
+        if let Some(v) = input.if_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, v);
+        }
+        if let Some(v) = input.if_none_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_NONE_MATCH, v);
+        }
+        if let Some(v) = input.if_modified_since {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
+        if let Some(v) = input.if_unmodified_since {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -1052,7 +1080,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         let req = req
-            .extension(Operation::Copy)
+            .extension(input.operation)
             .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_AMZ_COPY_SOURCE, source)
             .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())

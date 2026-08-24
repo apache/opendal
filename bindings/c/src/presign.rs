@@ -241,6 +241,7 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with(
         core::options::DeleteOptions {
             version,
             recursive: opts.recursive,
+            if_match: None,
         }
     };
 

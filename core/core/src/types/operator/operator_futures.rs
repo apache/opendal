@@ -1284,6 +1284,12 @@ impl<F: Future<Output = Result<()>>> FutureDelete<F> {
         self.args.recursive = recursive;
         self
     }
+
+    /// Set `if_match` for this delete operation.
+    pub fn if_match(mut self, etag: &str) -> Self {
+        self.args.if_match = Some(etag.to_string());
+        self
+    }
 }
 
 /// This future creates a [`Deleter`].

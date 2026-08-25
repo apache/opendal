@@ -73,6 +73,7 @@ public struct Capability
         Delete = native.delete != 0;
         DeleteWithVersion = native.deleteWithVersion != 0;
         DeleteWithRecursive = native.deleteWithRecursive != 0;
+        DeleteWithIfMatch = native.deleteWithIfMatch != 0;
         DeleteMaxSize = native.deleteMaxSize == nuint.MaxValue ? null : native.deleteMaxSize;
 
         Copy = native.copy != 0;
@@ -275,6 +276,11 @@ public struct Capability
     /// If operator supports delete with version.
     /// </summary>
     public bool DeleteWithVersion { get; private set; }
+
+    /// <summary>
+    /// If operator supports delete with if match.
+    /// </summary>
+    public bool DeleteWithIfMatch { get; private set; }
 
     /// <summary>
     /// If operator supports delete with recursive.

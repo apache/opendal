@@ -21,6 +21,38 @@ Use [`crate::S3Config`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## S3 Express One Zone
+
+OpenDAL recognizes valid AWS directory bucket names on AWS endpoints and uses
+the bucket's zonal endpoint automatically. It creates and refreshes `ReadWrite`
+S3 Express sessions through the configured AWS credential provider. No extra
+configuration is required:
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
+
+fn build_operator() -> Result<Operator> {
+    Operator::new(
+        S3::default()
+            .bucket("example--usw2-az1--x-s3")
+            .region("us-west-2"),
+    )
+}
+```
+
+This automatic behavior applies only to AWS endpoints. S3-compatible services
+retain the existing IAM authentication behavior.
+
+An explicit AWS endpoint must match the bucket's derived Zone, Region, and
+partition. OpenDAL rejects unsupported endpoint variants, including dual-stack
+endpoints, with `ConfigInvalid` instead of falling back to general S3 behavior.
+
+OpenDAL uses the source IAM credentials for `CopyObject`, `UploadPartCopy`, and
+presigned requests because these operations do not accept S3 Express session
+credentials.
+
 ## Temporary security credentials
 
 OpenDAL now provides support for S3 temporary security credentials in IAM.

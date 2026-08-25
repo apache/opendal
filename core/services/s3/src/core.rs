@@ -40,7 +40,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use reqsign_aws_v4::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -108,8 +108,37 @@ pub struct S3Core {
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
 
-    pub signer: Signer<Credential>,
+    pub(crate) signers: S3Signers,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+pub(crate) enum S3Signers {
+    General(Signer<Credential>),
+    Express {
+        iam: Signer<Credential>,
+        session: Signer<Credential>,
+    },
+}
+
+impl S3Signers {
+    pub(crate) fn default(&self) -> &Signer<Credential> {
+        match self {
+            Self::General(signer)
+            | Self::Express {
+                session: signer, ..
+            } => signer,
+        }
+    }
+
+    pub(crate) fn iam(&self) -> &Signer<Credential> {
+        match self {
+            Self::General(signer) | Self::Express { iam: signer, .. } => signer,
+        }
+    }
+
+    fn is_express(&self) -> bool {
+        matches!(self, Self::Express { .. })
+    }
 }
 
 pub(crate) struct S3UploadPartCopyRequest<'a> {
@@ -145,13 +174,25 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
+    fn sign_error(&self, err: reqsign_core::Error) -> Error {
+        if !self.signers.is_express() {
+            return new_request_sign_error(err.into());
+        }
+
+        let kind = match err.kind() {
+            ReqsignErrorKind::CredentialInvalid => ErrorKind::Unexpected,
+            ReqsignErrorKind::ConfigInvalid => ErrorKind::ConfigInvalid,
+            ReqsignErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
+            ReqsignErrorKind::RateLimited => ErrorKind::RateLimited,
+            ReqsignErrorKind::RequestInvalid | ReqsignErrorKind::Unexpected => {
+                ErrorKind::Unexpected
+            }
+        };
+        let retryable = err.is_retryable();
+        Error::new(kind, "failed to sign S3 Express request")
+            .with_operation("S3Core::sign")
+            .set_source(err)
+            .with_temporary(retryable)
     }
 
     pub async fn sign_query<T>(
@@ -167,10 +208,18 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        self.signers
+            .iam()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, Some(duration))
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -187,6 +236,7 @@ impl S3Core {
         &self,
         ctx: &OperationContext,
         req: Request<Buffer>,
+        signer: &Signer<Credential>,
     ) -> Result<Response<Buffer>> {
         if self.skip_signature {
             return ctx.http_transport().send(req).await;
@@ -194,10 +244,17 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        signer
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -223,10 +280,18 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer(ctx)
+        self.signers
+            .default()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -652,7 +717,7 @@ impl S3Core {
         args: OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_head_object_request(path, args)?;
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
@@ -701,7 +766,7 @@ impl S3Core {
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_delete_object_request(path, args)?;
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_copy_object(
@@ -790,7 +855,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.iam()).await
     }
 
     pub async fn s3_list_objects_v1(
@@ -830,7 +895,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_objects_v2(
@@ -882,7 +947,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_initiate_multipart_upload(
@@ -955,7 +1020,7 @@ impl S3Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_initiate_multipart_copy(
@@ -991,7 +1056,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub(crate) fn s3_upload_part_copy_request(
@@ -1189,7 +1254,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_complete_multipart_copy(
@@ -1237,7 +1302,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart upload.
@@ -1268,7 +1333,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart copy.
@@ -1298,7 +1363,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_delete_objects(
@@ -1342,7 +1407,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_object_versions(
@@ -1393,7 +1458,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 }
 
@@ -2185,6 +2250,7 @@ mod error {
             | "ExceedBucketQPSLimit"
             | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
             "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
+            "PreconditionFailed" => Some((ErrorKind::ConditionNotMatch, false)),
             _ => None,
         }
     }
@@ -2240,6 +2306,14 @@ mod error {
             assert_eq!(
                 parse_s3_error_code("InvalidRange"),
                 Some((ErrorKind::RangeNotSatisfied, false))
+            );
+        }
+
+        #[test]
+        fn test_parse_s3_error_code_precondition_failed() {
+            assert_eq!(
+                parse_s3_error_code("PreconditionFailed"),
+                Some((ErrorKind::ConditionNotMatch, false))
             );
         }
     }

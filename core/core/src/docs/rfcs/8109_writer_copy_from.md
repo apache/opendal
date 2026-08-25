@@ -220,17 +220,11 @@ the normal reader and writer paths.
 Extend `oio::Write` with an optional internal operation that accepts a source
 path, `OpRead`, and exactly one bounded physical `BytesRange`. Following
 RFC-7660, `OpRead` contains the source conditions but not the range. The raw
-operation rejects ranges that are not absolute and bounded. Its result
-distinguishes:
-
-- `Accepted`;
-- `Unsupported` with no writer mutation;
-- an execution error.
-
-Only the no-mutation result permits streaming fallback. An execution failure
-must not trigger fallback because the native operation may already have
-accepted a part. The writer enters its normal error state and remains
-abortable.
+operation rejects ranges that are not absolute and bounded. `Ok(())` means the
+writer accepted the range. `ErrorKind::Unsupported` means the call did not
+mutate the writer and permits streaming fallback. Every execution failure uses
+a different error kind because the native operation may already have accepted
+a part. The writer enters its normal error state and remains abortable.
 
 Multipart and block helpers schedule local uploads and remote copies in one
 ordered part queue under the same upload ID, part or block numbers, completion,
@@ -260,11 +254,11 @@ This proposal adds methods to the asynchronous `Writer` and an optional raw
 writer method. It does not change the blocking API, `write`,
 `write_from(Buf)`, `Operator::copy`, or `Copier`.
 
-The raw method defaults to the no-mutation unsupported result, so existing
-services remain correct through read-to-write fallback. Layers that affect
-paths, routing, or bytes must intercept or reject the native operation before
-any service enables its fast path. Services can then add native support
-incrementally.
+The raw method defaults to an `ErrorKind::Unsupported` error without mutation,
+so existing services remain correct through read-to-write fallback. Layers
+that affect paths, routing, or bytes must intercept or reject the native
+operation before any service enables its fast path. Services can then add
+native support incrementally.
 
 Append writers accept `copy_from`. A service writer without a native append
 transaction returns `Unsupported` without mutation, and the public writer uses

@@ -68,12 +68,7 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWays<ONE, TWO> {
         }
     }
 
-    async fn copy_from(
-        &mut self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<oio::CopyFromOutcome> {
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         match self {
             Self::One(v) => v.copy_from(path, args, range).await,
             Self::Two(v) => v.copy_from(path, args, range).await,

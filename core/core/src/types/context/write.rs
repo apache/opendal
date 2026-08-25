@@ -312,12 +312,13 @@ impl WriteGenerator<oio::Writer> {
                 remaining
             };
             let part_range = BytesRange::new(offset, Some(part_size));
-            match self.w.copy_from(path, args.clone(), part_range).await? {
-                oio::CopyFromOutcome::Accepted => {}
-                oio::CopyFromOutcome::Unsupported => {
+            match self.w.copy_from(path, args.clone(), part_range).await {
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::Unsupported => {
                     self.stream_range(path, args.clone(), options.clone(), part_range)
                         .await?;
                 }
+                Err(err) => return Err(err),
             }
             offset += part_size;
             remaining -= part_size;

@@ -292,12 +292,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
             })
     }
 
-    async fn copy_from(
-        &mut self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<oio::CopyFromOutcome> {
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         let size = range.size().ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
@@ -307,10 +302,8 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         self.inner
             .copy_from(path, args, range)
             .await
-            .inspect(|outcome| {
-                if *outcome == oio::CopyFromOutcome::Accepted {
-                    self.processed += size;
-                }
+            .inspect(|_| {
+                self.processed += size;
             })
             .map_err(|err| {
                 err.with_operation(Operation::Write)

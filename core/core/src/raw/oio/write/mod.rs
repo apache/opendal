@@ -16,7 +16,6 @@
 // under the License.
 
 mod api;
-pub use api::CopyFromOutcome;
 pub use api::Write;
 pub use api::WriteDyn;
 pub use api::Writer;

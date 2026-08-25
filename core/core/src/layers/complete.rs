@@ -381,12 +381,7 @@ where
         Ok(())
     }
 
-    async fn copy_from(
-        &mut self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<oio::CopyFromOutcome> {
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -397,15 +392,18 @@ where
             )
         })?;
 
-        let outcome = w
-            .copy_from(path, args, range)
-            .await
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        if outcome == oio::CopyFromOutcome::Accepted {
-            self.size += size;
-            self.state.transition(CompleteState::Written);
+        match w.copy_from(path, args, range).await {
+            Ok(()) => {
+                self.size += size;
+                self.state.transition(CompleteState::Written);
+                Ok(())
+            }
+            Err(err) if err.kind() == ErrorKind::Unsupported => Err(err),
+            Err(err) => {
+                self.state.transition(CompleteState::Error);
+                Err(err)
+            }
         }
-        Ok(outcome)
     }
 
     async fn close(&mut self) -> Result<Metadata> {
@@ -453,6 +451,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::oio::Write as _;
+
+    #[derive(Default)]
+    struct MockWriteWriter {
+        size: u64,
+    }
+
+    impl oio::Write for MockWriteWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            self.size += bs.len() as u64;
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::new(EntryMode::FILE).with_content_length(self.size))
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
 
     struct MockReadReader {
         buffer: Buffer,
@@ -499,5 +518,23 @@ mod tests {
             .expect_err("read should reject extra buffer");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_unsupported_keeps_writer_usable() {
+        let mut writer = CompleteWriter::new(MockWriteWriter::default(), false);
+
+        let err = writer
+            .copy_from("source", OpRead::new(), BytesRange::new(0, Some(8)))
+            .await
+            .expect_err("default copy_from should be unsupported");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(writer.state, CompleteState::Open);
+        assert_eq!(writer.size, 0);
+
+        writer.write(Buffer::from("fallback")).await.unwrap();
+        let metadata = writer.close().await.unwrap();
+        assert_eq!(metadata.content_length(), 8);
+        assert_eq!(writer.state, CompleteState::Closed);
     }
 }

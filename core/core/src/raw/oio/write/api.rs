@@ -24,15 +24,6 @@ use crate::*;
 /// Writer is a type-erased [`Write`].
 pub type Writer = Box<dyn WriteDyn>;
 
-/// The result of attempting a native writer-side copy.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum CopyFromOutcome {
-    /// The source range has been accepted by the destination writer.
-    Accepted,
-    /// Native copy is unavailable and the writer has not been mutated.
-    Unsupported,
-}
-
 /// Write is the async sink used by services and layers.
 pub trait Write: Unpin + Send + Sync {
     /// Write the entire buffer into the writer.
@@ -43,16 +34,21 @@ pub trait Write: Unpin + Send + Sync {
 
     /// Copy one absolute bounded source range into this writer.
     ///
-    /// Implementations must return [`CopyFromOutcome::Unsupported`] before
-    /// mutating the writer when native copy is unavailable. Any execution
-    /// failure after accepting the operation must be returned as an error.
+    /// [`ErrorKind::Unsupported`] means native copy is unavailable and this
+    /// call has not mutated the writer. Any error after mutation must use a
+    /// different error kind so the caller will not start a streaming fallback.
     fn copy_from(
         &mut self,
         _path: &str,
         _args: OpRead,
         _range: BytesRange,
-    ) -> impl Future<Output = Result<CopyFromOutcome>> + MaybeSend {
-        async { Ok(CopyFromOutcome::Unsupported) }
+    ) -> impl Future<Output = Result<()>> + MaybeSend {
+        async {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "writer doesn't support native copy",
+            ))
+        }
     }
 
     /// Close the writer and make sure all data has been flushed.
@@ -93,7 +89,7 @@ pub trait WriteDyn: Unpin + Send + Sync {
         path: &'a str,
         args: OpRead,
         range: BytesRange,
-    ) -> BoxedFuture<'a, Result<CopyFromOutcome>>;
+    ) -> BoxedFuture<'a, Result<()>>;
 
     /// The dyn version of [`Write::close`].
     fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>>;
@@ -112,7 +108,7 @@ impl<T: Write + ?Sized> WriteDyn for T {
         path: &'a str,
         args: OpRead,
         range: BytesRange,
-    ) -> BoxedFuture<'a, Result<CopyFromOutcome>> {
+    ) -> BoxedFuture<'a, Result<()>> {
         Box::pin(self.copy_from(path, args, range))
     }
 
@@ -130,12 +126,7 @@ impl<T: WriteDyn + ?Sized> Write for Box<T> {
         self.deref_mut().write_dyn(bs).await
     }
 
-    async fn copy_from(
-        &mut self,
-        path: &str,
-        args: OpRead,
-        range: BytesRange,
-    ) -> Result<CopyFromOutcome> {
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         self.deref_mut().copy_from_dyn(path, args, range).await
     }
 

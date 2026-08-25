@@ -7,14 +7,15 @@
 
 Add `limit` to `Operator::read_with` and `ReadOptions`.
 
-`range` continues to request an exact bounded range. `limit` caps the bytes
-returned from the selected range and accepts EOF before the cap when the range
-has a satisfiable starting position. A non-empty forward range that starts at or
-beyond EOF remains `RangeNotSatisfied`.
+`range` selects the bytes to read. `limit` returns at most the first `limit`
+selected bytes and accepts EOF after a valid starting byte. Bounded ranges
+without `limit` remain exact, and a forward selection with a non-zero limit that
+starts at or beyond EOF remains `RangeNotSatisfied`.
 
-Core lowers the cap into the service range when possible and carries a private
-`exact` boolean while collecting the stream. The design adds no raw operation or
-service-facing completion mode.
+For an absolute start, Core lowers the cap into the existing service
+`BytesRange`. For a suffix, Core preserves the suffix request and stops
+collecting at the cap. A private `exact` boolean controls completion validation;
+the raw read API and service request types remain unchanged.
 
 # Motivation
 
@@ -38,8 +39,9 @@ let header = op
 ```
 
 If the object contains at least 16 KiB, this returns 16 KiB. If its non-empty
-content is shorter, this returns the whole object. OpenDAL does not perform a
-`stat` before reading.
+content is shorter, this returns the whole object. For this forward read, a
+non-zero limit on an empty object returns `RangeNotSatisfied`. OpenDAL does not
+perform a `stat` before reading.
 
 `limit` can start at an offset:
 
@@ -64,19 +66,12 @@ let data = op
     .await?;
 ```
 
-This returns up to the first 512 bytes from the selected suffix.
+This selects the last 1024 bytes, or the whole object when it is shorter, then
+returns up to the first 512 selected bytes.
 
-`range` without `limit` keeps its current behavior:
-
-```rust
-let data = op
-    .read_with("path/to/file")
-    .range(0..16 * 1024)
-    .await?;
-```
-
-This still requires the complete 16 KiB range. Missing objects, failed
-conditions, permission failures, and transport errors also remain errors.
+`range` without `limit` still requires the complete bounded range. Missing
+objects, failed conditions, permission failures, and transport errors also
+remain errors.
 
 # Reference-level explanation
 
@@ -101,21 +96,18 @@ pub fn limit(mut self, limit: u64) -> Self {
 }
 ```
 
-`limit` applies after `range`. Core pushes the cap into the service range when
-the range has an absolute start:
+The order is fixed: `range` selects bytes, then `limit` caps the prefix returned
+from that selection. `limit` does not move the selection's starting position.
+Core pushes the cap into the service range when the selection has an absolute
+start:
 
 | Options | Service range | Completion |
 | --- | --- | --- |
 | no `range`, `limit(n)` | offset 0, size `n` | at most `n` |
 | `range(offset..)`, `limit(n)` | offset `offset`, size `n` | at most `n` |
 | `range(start..end)`, `limit(n)` | offset `start`, size `min(end - start, n)` | at most that size |
-| `suffix(s)`, `limit(n)` | suffix `s` | first `n` bytes of the selected suffix |
+| `suffix(s)`, `limit(n)` | suffix `s` | at most the first `n` selected bytes |
 | bounded `range` without `limit` | unchanged | exact |
-
-A suffix range has no absolute start until the service knows the object length.
-Core therefore opens the original suffix and caps the returned stream without a
-`stat`. This preserves the public limit, but a service may transfer more than
-the limit when its protocol cannot express a suffix with a relative end.
 
 `limit(0)` returns an empty buffer without checking the object, consistent with
 an empty range. A non-zero forward limit on an empty object is
@@ -124,7 +116,7 @@ an empty range. A non-zero forward limit on an empty object is
 Combining `limit` with an explicit `chunk` size or a `concurrent` value greater
 than one returns `ErrorKind::ConfigInvalid` before storage I/O.
 
-## Exact completion
+## Request and completion ownership
 
 Core carries a private boolean named `exact`: it is `true` for a regular bounded
 non-suffix range and `false` for a limited, open-ended, or suffix range. The
@@ -132,10 +124,16 @@ buffer stream tracks emitted bytes, slices the final buffer at the limit, and
 stops at the cap. At EOF, it checks the bounded range size only when `exact` is
 `true`.
 
-Services receive the lowered `BytesRange` and the existing operation choice:
-`open` for a stream or `read` for exact bounded materialization. The `exact`
-flag stays in core because it changes completion acceptance, not the storage
-request.
+Services receive the existing operation choice and `BytesRange`: `open` for a
+stream or `read` for exact bounded materialization. For an absolute start, that
+range already contains the limit, so the service has all information needed to
+bound its I/O. The `exact` flag stays in Core because it changes only whether
+Core accepts clean EOF before the requested size.
+
+A suffix has no absolute start before the object length is known. `BytesRange`
+cannot express both the suffix and a cap on its prefix, so Core sends the suffix
+and caps the collected stream without `stat`. A service may transfer more than
+the limit; exact suffix-limit pushdown would require service-facing state.
 
 ## Raw read contract
 
@@ -186,10 +184,10 @@ completion check to a response executed by the caller.
 Existing reads omit `limit` and retain their behavior. Callers that construct
 `ReadOptions` without `..Default::default()` must initialize the new field.
 
-Tests must cover forward and suffix ranges around the limit and EOF, including
-`RangeNotSatisfied` at or beyond EOF, unchanged exact-range and non-EOF errors,
-invalid chunked or concurrent combinations, and truncated HTTP bodies. Both
-stream-based and positioned-read services need coverage.
+Tests must cover empty objects and forward and suffix ranges around the limit
+and EOF, including `RangeNotSatisfied` at or beyond EOF, unchanged exact-range
+and non-EOF errors, invalid chunked or concurrent combinations, and truncated
+HTTP bodies. Both stream-based and positioned-read services need coverage.
 
 # Drawbacks
 
@@ -199,38 +197,14 @@ implementation does not support parallel chunk planning.
 
 # Rationale and alternatives
 
-## Add a separate operation
-
-Rejected. `read_up_to` would duplicate the existing read options and builder
-surface; `limit` composes with them directly.
-
-## Change bounded ranges to accept EOF
-
-Rejected. Exact bounded ranges validate file structure and support safe
-concurrent chunk planning.
-
-## Call `stat` before a range read
-
-Rejected. It adds latency and cannot make the read atomic with its metadata.
-
-## Add a raw method or planning type
-
-Rejected. `open`, `read`, and the lowered range already express the storage
-request. A local `exact` boolean expresses the remaining core decision.
-
-# Prior art
-
-Rust I/O adapters commonly cap bytes while treating EOF before the cap as
-normal. RFC-0090 addressed over-reading, and RFC-7660 separated range streams
-from exact bounded raw reads; this proposal adds the public at-most completion
-semantics.
-
-# Unresolved questions
-
-None.
-
-# Future possibilities
-
-OpenDAL can add parallel planning for limited reads or service-specific
-suffix-limit pushdown when those implementations preserve the public completion
-and range-satisfaction contracts.
+- A separate `read_up_to` operation would duplicate the read options and builder
+  surface; `limit` composes with them.
+- Making every bounded range accept EOF would weaken file validation and safe
+  concurrent chunk planning.
+- Calling `stat` first adds latency and cannot make the read atomic with its
+  metadata.
+- A new raw method or planning type is unnecessary for absolute ranges because
+  `open`, `read`, and the lowered `BytesRange` express the storage request. A
+  private `exact` boolean expresses the remaining Core decision. Service-facing
+  state solely for suffix-limit pushdown would expand every service's contract
+  for an optional optimization.

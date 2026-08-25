@@ -109,6 +109,9 @@ pub struct Capability {
     pub write_can_empty: bool,
     /// Indicates if append operations are supported.
     pub write_can_append: bool,
+    /// Indicates if a non-append writer can natively copy source ranges into an in-progress write.
+    /// `Writer::copy_from` remains available through streaming fallback when false or when appending.
+    pub write_can_copy_from: bool,
     /// Indicates if Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
     /// Indicates if Content-Disposition can be specified during write operations.

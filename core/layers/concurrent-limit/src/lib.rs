@@ -438,6 +438,11 @@ where
         self.inner.write(bs).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.acquire().await;
+        self.inner.copy_from(path, args, range).await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         self.acquire().await;
         self.inner.close().await

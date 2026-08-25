@@ -152,10 +152,6 @@ impl oio::MultipartWrite for S3Writer {
         }
     }
 
-    fn supports_copy_part(&self) -> bool {
-        self.core.checksum_algorithm.is_none()
-    }
-
     async fn copy_part(
         &self,
         upload_id: &str,

@@ -34,9 +34,9 @@ pub trait Write: Unpin + Send + Sync {
 
     /// Copy one absolute bounded source range into this writer.
     ///
-    /// [`ErrorKind::Unsupported`] means native copy is unavailable and this
-    /// call has not mutated the writer. Any error after mutation must use a
-    /// different error kind so the caller will not start a streaming fallback.
+    /// Callers invoke this operation only when the composed service declares
+    /// [`Capability::write_can_copy_from`]. Every error is an execution failure
+    /// and must not trigger streaming fallback.
     fn copy_from(
         &mut self,
         _path: &str,

@@ -149,8 +149,9 @@ constructed operators address compatible storage.
 
 The public operation requires the existing read and write capabilities. An
 unbounded range also requires OpenDAL to discover its length before writer
-mutation. Native range copy is an optional optimization, not a new public
-capability.
+mutation. `Capability::write_can_copy_from` reports whether the composed
+service can execute eligible ranges natively. The public operation remains
+available through streaming fallback when this capability is false.
 
 Version 1 limits each `copy_from` call to 5 GiB. A bounded or suffix range whose
 declared length exceeds that limit returns an input error before writer
@@ -221,10 +222,16 @@ Extend `oio::Write` with an optional internal operation that accepts a source
 path, `OpRead`, and exactly one bounded physical `BytesRange`. Following
 RFC-7660, `OpRead` contains the source conditions but not the range. The raw
 operation rejects ranges that are not absolute and bounded. `Ok(())` means the
-writer accepted the range. `ErrorKind::Unsupported` means the call did not
-mutate the writer and permits streaming fallback. Every execution failure uses
-a different error kind because the native operation may already have accepted
-a part. The writer enters its normal error state and remains abortable.
+writer accepted the range. Every error is an execution failure because the
+native operation may already have accepted a part. The writer enters its
+normal error state and remains abortable. Execution errors never trigger
+streaming fallback.
+
+`WriteGenerator` reads `Capability::write_can_copy_from` when it creates the
+writer. When the capability is false or the writer appends, it uses streaming
+for the complete public call. Otherwise, it uses native execution for every
+eligible physical range. A service sets the capability only when every
+supported `OpRead` argument can be represented by its native operation.
 
 Multipart and block helpers schedule local uploads and remote copies in one
 ordered part queue under the same upload ID, part or block numbers, completion,
@@ -238,9 +245,9 @@ service provides a semantically equivalent specialized path.
 The native operation passes through the complete `oio::Write` wrapper stack. A
 writer wrapper may forward it only when the layer is an identity transform for
 the source path and byte content and does not change the selected route target.
-Every other wrapper returns `Unsupported` without mutation. The public
-`Writer` then opens the source through the complete composed reader stack and
-uses streaming fallback, preserving the layer's read-to-write behavior.
+Every other layer clears `Capability::write_can_copy_from`. The public `Writer`
+then opens the source through the complete composed reader stack and uses
+streaming fallback, preserving the layer's read-to-write behavior.
 
 Assembly and fallback belong to the public `Writer` and `WriteGenerator`.
 Service writers only execute bounded native ranges inside their existing upload
@@ -250,19 +257,18 @@ boundary-materialized, and streamed bytes.
 
 # Compatibility and migration
 
-This proposal adds methods to the asynchronous `Writer` and an optional raw
-writer method. It does not change the blocking API, `write`,
-`write_from(Buf)`, `Operator::copy`, or `Copier`.
+This proposal adds methods to the asynchronous `Writer`, an optional raw
+writer method, and `Capability::write_can_copy_from`. It does not change the
+blocking API, `write`, `write_from(Buf)`, `Operator::copy`, or `Copier`.
 
-The raw method defaults to an `ErrorKind::Unsupported` error without mutation,
-so existing services remain correct through read-to-write fallback. Layers
-that affect paths, routing, or bytes must intercept or reject the native
-operation before any service enables its fast path. Services can then add
-native support incrementally.
+The capability defaults to false, so existing services remain correct through
+read-to-write fallback. Layers that affect paths, routing, or bytes clear the
+capability. Services can then add native support incrementally. The raw method
+defaults to a terminal `ErrorKind::Unsupported` error so a false capability
+claim fails visibly instead of changing execution paths.
 
 Append writers accept `copy_from`. A service writer without a native append
-transaction returns `Unsupported` without mutation, and the public writer uses
-streaming fallback.
+transaction uses streaming fallback for the complete public call.
 
 # Drawbacks
 

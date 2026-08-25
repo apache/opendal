@@ -91,11 +91,6 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
         body: Buffer,
     ) -> impl Future<Output = Result<MultipartPart>> + MaybeSend;
 
-    /// Return whether this multipart upload can accept native source ranges.
-    fn supports_copy_part(&self) -> bool {
-        false
-    }
-
     /// Copy one absolute bounded source range into a multipart part.
     fn copy_part(
         &self,
@@ -279,18 +274,6 @@ impl<W: MultipartWrite> MultipartWriter<W> {
         self.next_part_number += 1;
         Ok(())
     }
-
-    fn copy_execution_error(err: Error) -> Error {
-        if err.kind() != ErrorKind::Unsupported {
-            return err;
-        }
-
-        Error::new(
-            ErrorKind::Unexpected,
-            "native copy failed after the writer selected it for execution",
-        )
-        .set_source(err)
-    }
 }
 
 impl<W> oio::Write for MultipartWriter<W>
@@ -313,12 +296,6 @@ where
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        if !self.w.supports_copy_part() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "multipart writer doesn't support native copy",
-            ));
-        }
         if range.is_suffix() || range.size().is_none() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -326,11 +303,10 @@ where
             ));
         }
 
-        let upload_id = self.upload_id().await.map_err(Self::copy_execution_error)?;
+        let upload_id = self.upload_id().await?;
         if let Some(bytes) = self.cache.clone() {
             self.schedule(upload_id.clone(), MultipartInput::Write(bytes))
-                .await
-                .map_err(Self::copy_execution_error)?;
+                .await?;
             self.cache = None;
         }
         self.schedule(
@@ -341,8 +317,7 @@ where
                 range,
             },
         )
-        .await
-        .map_err(Self::copy_execution_error)?;
+        .await?;
         Ok(())
     }
 
@@ -496,10 +471,6 @@ mod tests {
                 checksum: None,
                 size: None,
             })
-        }
-
-        fn supports_copy_part(&self) -> bool {
-            true
         }
 
         async fn copy_part(
@@ -666,15 +637,5 @@ mod tests {
         assert_eq!(metadata.content_length(), 7 + 11 + 7 + 13);
         assert_eq!(inner.lock().await.part_numbers, vec![0, 1, 2, 3]);
         Ok(())
-    }
-
-    #[test]
-    fn test_copy_execution_error_does_not_return_unsupported() {
-        let err = MultipartWriter::<Arc<Mutex<TestWrite>>>::copy_execution_error(Error::new(
-            ErrorKind::Unsupported,
-            "copy part is unsupported",
-        ));
-
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 }

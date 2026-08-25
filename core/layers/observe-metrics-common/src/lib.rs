@@ -1217,6 +1217,20 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             .inspect_err(|err| self.record_error(err))
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|_| {
+                self.size += size;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let result = self
             .inner

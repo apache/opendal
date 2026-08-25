@@ -123,6 +123,8 @@ pub struct WriteGenerator<W> {
     /// If `exact` is true, the size of the data written to the underlying storage is
     /// exactly `chunk_size` bytes.
     exact: bool,
+    /// Whether the composed writer supports native source range copy.
+    native_copy: bool,
     buffer: oio::QueueBuf,
 }
 
@@ -130,6 +132,7 @@ impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
     pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
+        let native_copy = ctx.service().capability().write_can_copy_from && !ctx.args().append();
         let w = ctx.srv.write(&ctx.ctx, ctx.path(), ctx.args().clone())?;
 
         Ok(Self {
@@ -137,6 +140,7 @@ impl WriteGenerator<oio::Writer> {
             ctx: Some(ctx),
             chunk_size,
             exact,
+            native_copy,
             buffer: oio::QueueBuf::new(),
         })
     }
@@ -149,6 +153,7 @@ impl WriteGenerator<oio::Writer> {
             ctx: None,
             chunk_size,
             exact,
+            native_copy: false,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -273,7 +278,7 @@ impl WriteGenerator<oio::Writer> {
             return Ok(());
         }
 
-        let Some(chunk_size) = self.chunk_size else {
+        let Some(chunk_size) = self.chunk_size.filter(|_| self.native_copy) else {
             return self
                 .stream_range(
                     path,
@@ -312,14 +317,7 @@ impl WriteGenerator<oio::Writer> {
                 remaining
             };
             let part_range = BytesRange::new(offset, Some(part_size));
-            match self.w.copy_from(path, args.clone(), part_range).await {
-                Ok(()) => {}
-                Err(err) if err.kind() == ErrorKind::Unsupported => {
-                    self.stream_range(path, args.clone(), options.clone(), part_range)
-                        .await?;
-                }
-                Err(err) => return Err(err),
-            }
+            self.w.copy_from(path, args.clone(), part_range).await?;
             offset += part_size;
             remaining -= part_size;
         }

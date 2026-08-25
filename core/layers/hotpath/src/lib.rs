@@ -223,6 +223,10 @@ impl<R: oio::Write> oio::Write for HotpathWrapper<R> {
         hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.write(bs)).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.copy_from(path, args, range)).await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         hotpath::measure_async(LABEL_WRITER_CLOSE, self.inner.close()).await
     }

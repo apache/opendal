@@ -188,7 +188,9 @@ impl Writer {
     /// writer. Calls to `write` and `copy_from` may be interleaved, and their
     /// call order defines the destination bytes. OpenDAL uses a native
     /// writer-side copy when the composed service supports it and otherwise
-    /// streams the range through the client.
+    /// streams the range through the client. Check
+    /// [`Capability::write_can_copy_from`] to determine whether eligible
+    /// non-append writes use the native path.
     ///
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.

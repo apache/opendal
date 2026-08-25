@@ -392,18 +392,12 @@ where
             )
         })?;
 
-        match w.copy_from(path, args, range).await {
-            Ok(()) => {
-                self.size += size;
-                self.state.transition(CompleteState::Written);
-                Ok(())
-            }
-            Err(err) if err.kind() == ErrorKind::Unsupported => Err(err),
-            Err(err) => {
-                self.state.transition(CompleteState::Error);
-                Err(err)
-            }
-        }
+        w.copy_from(path, args, range)
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        self.size += size;
+        self.state.transition(CompleteState::Written);
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
@@ -453,19 +447,19 @@ mod tests {
     use super::*;
     use crate::raw::oio::Write as _;
 
-    #[derive(Default)]
-    struct MockWriteWriter {
-        size: u64,
-    }
+    struct UnsupportedCopyWriter;
 
-    impl oio::Write for MockWriteWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<()> {
-            self.size += bs.len() as u64;
+    impl oio::Write for UnsupportedCopyWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
             Ok(())
         }
 
+        async fn copy_from(&mut self, _: &str, _: OpRead, _: BytesRange) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "copy is unsupported"))
+        }
+
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::new(EntryMode::FILE).with_content_length(self.size))
+            Ok(Metadata::default())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -521,20 +515,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_writer_copy_from_unsupported_keeps_writer_usable() {
-        let mut writer = CompleteWriter::new(MockWriteWriter::default(), false);
+    async fn test_writer_copy_from_error_is_terminal() {
+        let mut writer = CompleteWriter::new(UnsupportedCopyWriter, false);
 
         let err = writer
             .copy_from("source", OpRead::new(), BytesRange::new(0, Some(8)))
             .await
-            .expect_err("default copy_from should be unsupported");
+            .expect_err("copy_from should fail");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(writer.state, CompleteState::Open);
-        assert_eq!(writer.size, 0);
+        assert_eq!(writer.state, CompleteState::Error);
 
-        writer.write(Buffer::from("fallback")).await.unwrap();
-        let metadata = writer.close().await.unwrap();
-        assert_eq!(metadata.content_length(), 8);
-        assert_eq!(writer.state, CompleteState::Closed);
+        writer.abort().await.unwrap();
+        assert!(writer.inner.is_none());
     }
 }

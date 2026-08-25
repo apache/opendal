@@ -214,6 +214,13 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
             .await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner
             .abort()

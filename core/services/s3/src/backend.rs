@@ -963,6 +963,7 @@ impl Builder for S3Builder {
                     write_can_empty: true,
                     write_can_multi: true,
                     write_can_append: true,
+                    write_can_copy_from: checksum_algorithm.is_none(),
 
                     write_with_cache_control: true,
                     write_with_content_type: true,
@@ -1245,6 +1246,26 @@ mod tests {
     fn test_profile() {
         let builder = S3Builder::default().profile("selected");
         assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
+
+    #[test]
+    fn test_write_can_copy_from_capability() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .endpoint("http://127.0.0.1:9000")
+            .build()
+            .unwrap();
+        assert!(backend.capability().write_can_copy_from);
+
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .endpoint("http://127.0.0.1:9000")
+            .checksum_algorithm("crc32c")
+            .build()
+            .unwrap();
+        assert!(!backend.capability().write_can_copy_from);
     }
 
     #[test]

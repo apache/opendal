@@ -279,7 +279,9 @@ impl Service for FoyerService {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

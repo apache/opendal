@@ -201,6 +201,11 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     }
 
     #[async_backtrace::framed]
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner.copy_from(path, args, range).await
+    }
+
+    #[async_backtrace::framed]
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
     }

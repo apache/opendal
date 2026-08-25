@@ -118,7 +118,9 @@ impl Service for ChaosService {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability
     }
 
     async fn create_dir(

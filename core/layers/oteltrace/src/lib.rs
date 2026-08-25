@@ -265,6 +265,13 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
         self.inner.write(bs).with_context(self.cx.clone()).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .with_context(self.cx.clone())
+            .await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().with_context(self.cx.clone()).await
     }

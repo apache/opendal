@@ -186,7 +186,10 @@ impl oio::MultipartWrite for S3Writer {
                 operation: Operation::Write,
             })?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.iam())
+            .await?;
         match resp.status() {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();

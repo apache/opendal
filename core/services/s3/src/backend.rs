@@ -1691,6 +1691,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_s3_express_writer_copy_from_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op.writer("target").await.expect("writer must open");
+        writer
+            .copy_from("source", 0..5 * 1024 * 1024_u64)
+            .await
+            .expect("writer copy must succeed");
+        writer.close().await.expect("writer must close");
+
+        let requests = transport.requests();
+        let part_copy = requests
+            .iter()
+            .find(|request| {
+                request.headers.contains_key(constants::X_AMZ_COPY_SOURCE)
+                    && request
+                        .uri
+                        .query()
+                        .is_some_and(|query| query.contains("partNumber="))
+            })
+            .expect("UploadPartCopy request must be captured");
+        assert_eq!(
+            header(part_copy, "x-amz-security-token"),
+            "source-session-token"
+        );
+        assert!(!part_copy.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(part_copy, "authorization").contains("source-access-key/"));
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            1,
+            "writer multipart operations must share one session"
+        );
+    }
+
+    #[tokio::test]
     async fn test_s3_express_create_session_error_mapping() {
         for (outcome, kind, temporary) in [
             (

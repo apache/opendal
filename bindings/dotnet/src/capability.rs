@@ -66,6 +66,7 @@ pub struct Capability {
     pub delete: bool,
     pub delete_with_version: bool,
     pub delete_with_recursive: bool,
+    pub delete_with_if_match: bool,
     pub delete_max_size: usize,
 
     pub copy: bool,
@@ -130,6 +131,7 @@ impl Capability {
             delete: cap.delete,
             delete_with_version: cap.delete_with_version,
             delete_with_recursive: cap.delete_with_recursive,
+            delete_with_if_match: cap.delete_with_if_match,
             delete_max_size: cap.delete_max_size.unwrap_or(usize::MIN),
             copy: cap.copy,
             copy_with_if_not_exists: cap.copy_with_if_not_exists,

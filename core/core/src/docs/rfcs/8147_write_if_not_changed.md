@@ -7,14 +7,14 @@
 
 Add version match and non-match preconditions to OpenDAL's target-object
 operations, and add `if_not_changed(&Metadata)` as the portable
-optimistic-concurrency API. A service evaluates every advertised mutation
-precondition atomically with the operation that changes the target and returns
-`ErrorKind::ConditionNotMatch` when the condition fails.
+optimistic-concurrency API. Before service dispatch, OpenDAL lowers
+`if_not_changed` to one supported primitive condition. A service evaluates that
+primitive atomically with the operation that changes the target.
 
-ETags and versions remain separate identity axes. S3 and Azure implement
-`if_not_changed` with an ETag, while GCS uses the object generation exposed as
-`Metadata::version()`. The metadata represents caller-provided expected state
-and may come from OpenDAL or another source.
+ETags and versions remain separate identity axes implemented by services. S3
+and Azure lower to ETag match, while GCS lowers to version match using the
+object generation exposed as `Metadata::version()`. The metadata represents
+caller-provided expected state and may come from OpenDAL or another source.
 
 # Problem
 
@@ -67,8 +67,7 @@ let expected = Metadata::default()
 ```
 
 Preserving both fields keeps externally stored metadata portable across
-services. Metadata containing only one field is service-aware and returns
-`ConfigInvalid` when the service selects the other identity.
+services. Both fields must describe the same observed object state.
 
 The new conditions are not supported by presign operations. Supplying them to
 a presign options API returns `Unsupported` before service dispatch.
@@ -86,14 +85,28 @@ historical version.
 | `if_version_match(v)` | The current version equals `v`. |
 | `if_version_not_match(v)` | A live target exists and its current version differs from `v`. |
 | `if_not_exists` | No live target exists. |
-| `if_not_changed(meta)` | The service-native identity in `meta` still matches the target. |
+| `if_not_changed(meta)` | One supported identity in `meta` still matches the target. |
 
-For `if_not_changed`, each service selects one identity it can enforce
-atomically. S3 and Azure consume `Metadata::etag()`; GCS consumes
-`Metadata::version()`. Other metadata fields do not participate. OpenDAL does
-not validate provenance, path, or storage namespace, so the caller must
-associate externally constructed metadata with the correct target. Missing the
-selected identity returns `ConfigInvalid`.
+`if_not_changed` is a derived condition. At the shared write, delete, or copy
+entry point, OpenDAL uses the effective capabilities after all layers and
+lowers it before raw service dispatch:
+
+1. If the operation supports `if_version_match` and `meta.version()` exists,
+   use `if_version_match(version)`.
+2. Otherwise, if the operation supports `if_match` and `meta.etag()` exists,
+   use `if_match(etag)`.
+3. If neither primitive is supported, return `Unsupported`.
+4. If a primitive is supported but metadata contains no usable identity for
+   any supported primitive, return `ConfigInvalid`.
+
+Raw operations and services never receive `if_not_changed`; they only receive
+the selected primitive. Version match takes precedence because a version is
+intended to identify an object revision and avoids ETag ABA where the service
+can enforce it. Adding version-match support may therefore make a call carrying
+both fields stricter, but never weaker. Other metadata fields do not
+participate. OpenDAL does not validate provenance, path, or storage namespace,
+so the caller must associate externally constructed metadata with the correct
+target.
 
 `if_not_changed` is exclusive with every other target condition and, on
 delete, with the target `version` selector. Version match and non-match are
@@ -111,7 +124,7 @@ Missing-target results are part of the portable contract:
 | `if_none_match` | `NotFound` | The condition succeeds. Delete is an idempotent no-op. |
 | `if_version_match` or `if_version_not_match` | `ConditionNotMatch` | `ConditionNotMatch` |
 | `if_not_exists` | N/A | The condition succeeds. |
-| `if_not_changed` | N/A | `ConditionNotMatch` |
+| `if_not_changed` | N/A | `ConditionNotMatch`, inherited from the selected primitive. |
 
 OpenDAL normalizes native condition failures, including HTTP 304 and 412, to
 `ConditionNotMatch`. A successful condition only proves equality under the
@@ -137,15 +150,17 @@ Capabilities follow the existing per-operation naming scheme:
 
 - `{stat,read,write,delete,copy}_with_if_version_{match,not_match}`.
 - `{delete,copy}_with_if_none_match`.
-- `{write,delete,copy}_with_if_not_changed`.
 
-All new capabilities default to `false`. A service advertises
-`*_with_if_not_changed` only when stat and read return metadata containing its
-selected identity and every reachable mutation path preserves the condition.
-Other metadata-producing paths preserve the identity whenever the native
-response provides it. After an effective public capability check succeeds,
-the operation must not later degrade to an unconditional request or return
-`Unsupported` because of its execution path.
+All new capabilities default to `false`. There is no independently advertised
+`if_not_changed` capability; support is derived from the applicable version and
+ETag match capabilities plus the supplied metadata.
+
+A service advertising a version-match primitive must populate
+`Metadata::version()` on stat, read, write, copy, and list whenever the native
+response provides it. The same rule applies to `Metadata::etag()` for an
+advertised ETag-match primitive. Every execution path reachable by a primitive
+capability must preserve its condition and must not degrade to an unconditional
+request.
 
 ## GCS mapping
 
@@ -156,7 +171,7 @@ GCS maps version conditions to JSON API generation parameters:
 | `if_version_match(v)` | `ifGenerationMatch=v` |
 | `if_version_not_match(v)` | `ifGenerationNotMatch=v` |
 | `if_not_exists` | `ifGenerationMatch=0` |
-| `if_not_changed(meta)` | `ifGenerationMatch=meta.version()` |
+| `if_not_changed(meta)` | Lower to `if_version_match(meta.version())`. |
 
 GCS generation `0` is reserved for the absence condition and is never an
 object generation. GCS rejects `if_version_match("0")` and expected metadata
@@ -167,7 +182,9 @@ exists.
 GCS applies these parameters to JSON API get, insert, delete, and destination
 rewrite requests. `ifGenerationNotMatch` fails when no live object exists, and
 OpenDAL maps that failure to `ConditionNotMatch`. Multi-request rewrite keeps
-the destination condition across requests.
+the destination condition across requests. Because GCS advertises version
+match rather than ETag match for mutations, the shared lowering rule selects
+the object generation for `if_not_changed`.
 
 GCS must use a write path that can preserve generation conditions, such as
 JSON resumable upload, before advertising a conditional write capability. It
@@ -177,9 +194,11 @@ through `if_not_changed`.
 
 # Compatibility and migration
 
-The new options and capabilities are additive and default to disabled. Existing
-version selectors, ETag conditions, and `if_not_exists` retain their behavior
-except for conditional delete when its required live target is absent.
+The new options and primitive capabilities are additive and default to
+disabled. Existing version selectors, ETag conditions, and `if_not_exists`
+retain their behavior except for conditional delete when its required live
+target is absent. Lowering `if_not_changed` in core produces the same native
+conditions and errors as choosing the identity separately in each service.
 
 Conditional delete currently inherits unconditional delete's idempotent 404
 handling on some services. After this RFC, a delete guarded by `if_match`, a
@@ -199,8 +218,10 @@ provide. Keeping the axes explicit preserves their native meaning.
 
 Applications could choose `if_match` or `if_version_match` after inspecting
 capabilities, but that would expose service differences at every call site.
-`if_not_changed` centralizes the choice and reuses `Metadata`, which is already
-returned by object operations and can be constructed by callers. Carrying the
-metadata costs more option space than carrying one token, but avoids another
-public identity type and keeps the explicit conditions available when callers
-need a specific axis.
+`if_not_changed` centralizes the choice as Operator-level policy and reuses
+`Metadata`, which is already returned by object operations and can be
+constructed by callers. Lowering it before raw dispatch keeps service contracts
+orthogonal and gives custom services the API automatically when they implement
+a primitive. Carrying the metadata costs more option space than carrying one
+token, but avoids another public identity type and keeps the explicit
+conditions available when callers need a specific axis.

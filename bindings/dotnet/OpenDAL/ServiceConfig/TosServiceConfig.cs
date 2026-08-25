@@ -24,37 +24,48 @@ using OpenDAL.ServiceConfig.Abstractions;
 namespace OpenDAL.ServiceConfig
 {
     /// <summary>
-    /// Configuration for service obs.
+    /// Configuration for service tos.
     /// </summary>
-    public sealed class ObsServiceConfig : IServiceConfig
+    public sealed class TosServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// Access key id for obs.
+        /// access_key_id of this backend. - If access_key_id is set, we will take user's input first. - If not, we will try to load it from environment.
         /// </summary>
         public string? AccessKeyId { get; init; }
         /// <summary>
-        /// Bucket for obs.
+        /// bucket name of this backend. required.
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
-        /// Deprecated: OBS versioning capability is not controlled by service config.
+        /// Disable config load so that opendal will not load config from environment. For examples: - envs like `TOS_ACCESS_KEY_ID`
         /// </summary>
-        [System.Obsolete("OBS versioning capability is not controlled by this option and this option is no longer needed.")]
-        public bool? EnableVersioning { get; init; }
+        public bool? DisableConfigLoad { get; init; }
         /// <summary>
-        /// Endpoint for obs.
+        /// endpoint of this backend. Endpoint must be full uri, e.g. - TOS: `https://tos-cn-beijing.volces.com` - TOS with region: `https://tos-{region}.volces.com` If user inputs endpoint without scheme like "tos-cn-beijing.volces.com", we will prepend "https://" before it.
         /// </summary>
         public string? Endpoint { get; init; }
         /// <summary>
-        /// Root for obs.
+        /// Region represent the signing region of this endpoint. Required if endpoint is not provided. - If region is set, we will take user's input first. - If not, we will try to load it from environment. - If still not set, default to `cn-beijing`.
+        /// </summary>
+        public string? Region { get; init; }
+        /// <summary>
+        /// root of this backend. All operations will happen under this root. default to `/` if not set.
         /// </summary>
         public string? Root { get; init; }
         /// <summary>
-        /// Secret access key for obs.
+        /// secret_access_key of this backend. - If secret_access_key is set, we will take user's input first. - If not, we will try to load it from environment.
         /// </summary>
         public string? SecretAccessKey { get; init; }
+        /// <summary>
+        /// security_token of this backend. This token will expire after sometime, it's recommended to set security_token by hand.
+        /// </summary>
+        public string? SecurityToken { get; init; }
+        /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
 
-        public string Scheme => "obs";
+        public string Scheme => "tos";
 
         public IReadOnlyDictionary<string, string> ToOptions()
         {
@@ -67,15 +78,17 @@ namespace OpenDAL.ServiceConfig
             {
                 map["bucket"] = Utilities.ToOptionString(Bucket);
             }
-#pragma warning disable CS0618
-            if (EnableVersioning is not null)
+            if (DisableConfigLoad is not null)
             {
-                map["enable_versioning"] = Utilities.ToOptionString(EnableVersioning);
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
             }
-#pragma warning restore CS0618
             if (Endpoint is not null)
             {
                 map["endpoint"] = Utilities.ToOptionString(Endpoint);
+            }
+            if (Region is not null)
+            {
+                map["region"] = Utilities.ToOptionString(Region);
             }
             if (Root is not null)
             {
@@ -84,6 +97,14 @@ namespace OpenDAL.ServiceConfig
             if (SecretAccessKey is not null)
             {
                 map["secret_access_key"] = Utilities.ToOptionString(SecretAccessKey);
+            }
+            if (SecurityToken is not null)
+            {
+                map["security_token"] = Utilities.ToOptionString(SecurityToken);
+            }
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
             }
             return map;
         }

@@ -45,8 +45,7 @@ pub fn run(language: &str) -> Result<()> {
     match language {
         "java" => java::generate(workspace_dir, services),
         "python" | "py" => python::generate(workspace_dir, services),
-        // Generates from core's capability.rs, so the parsed services are not needed.
-        "dotnet" | "cs" => dotnet::generate(workspace_dir),
+        "dotnet" | "cs" => dotnet::generate(workspace_dir, services),
         "docs" => docs::generate(workspace_dir, services),
         _ => anyhow::bail!("unsupported language: {}", language),
     }

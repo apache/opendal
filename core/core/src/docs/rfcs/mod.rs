@@ -22,8 +22,8 @@
 pub mod rfc_0000_example {}
 
 /// Write if not changed
-#[doc = include_str!("0000_write_if_not_changed.md")]
-pub mod rfc_0000_write_if_not_changed {}
+#[doc = include_str!("8147_write_if_not_changed.md")]
+pub mod rfc_8147_write_if_not_changed {}
 
 /// Object native API
 #[doc = include_str!("0041_object_native_api.md")]

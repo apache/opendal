@@ -1,7 +1,7 @@
 - Proposal Name: `write_if_not_changed`
 - Start Date: 2026-08-25
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#8147](https://github.com/apache/opendal/pull/8147)
+- Tracking Issue: [apache/opendal#7889](https://github.com/apache/opendal/issues/7889)
 
 # Summary
 

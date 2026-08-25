@@ -150,4 +150,46 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
 
         Op.Delete(target, new DeleteOptions { Version = foreignVersion });
     }
+
+    [Fact]
+    public async Task DeleteBehavior_WithIfMatch_RemovesObjectIfMatchedAsync()
+    {
+        if (!Supports(c => c.DeleteWithIfMatch && c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-if-match");
+        await Op.WriteAsync(path, RandomBytes(16), CT);
+
+        var etag = (await Op.StatAsync(path, CT)).ETag;
+        Assert.NotNull(etag);
+
+        await Op.DeleteAsync(path, new DeleteOptions { IfMatch = etag }, CT);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.StatAsync(path, CT));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_WithIfMatch_DoesNotRemoveObjectIfNotMatchedAsync()
+    {
+        if (!Supports(c => c.DeleteWithIfMatch && c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-if-match-not-matched");
+        await Op.WriteAsync(path, RandomBytes(16), CT);
+
+        var etag = (await Op.StatAsync(path, CT)).ETag;
+        Assert.NotNull(etag);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(
+            () => Op.DeleteAsync(path, new DeleteOptions { IfMatch = "\"this-etag-does-not-match\"" }, CT));
+        Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+
+        var stat = await Op.StatAsync(path, CT);
+        Assert.Equal(etag, stat.ETag);
+    }
 }

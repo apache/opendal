@@ -28,6 +28,7 @@ mod async_list;
 mod async_presign;
 mod async_read;
 mod async_rename;
+mod async_restore;
 mod async_stat;
 mod async_write;
 
@@ -61,6 +62,7 @@ fn main() -> anyhow::Result<()> {
     async_presign::tests(&op, &mut tests);
     async_read::tests(&op, &mut tests);
     async_rename::tests(&op, &mut tests);
+    async_restore::tests(&op, &mut tests);
     async_stat::tests(&op, &mut tests);
     async_write::tests(&op, &mut tests);
 

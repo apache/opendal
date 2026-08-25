@@ -183,6 +183,17 @@ impl RpRename {
     }
 }
 
+/// Reply for `restore` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpRestore {}
+
+impl RpRestore {
+    /// Create a new reply for `restore`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;

@@ -123,8 +123,8 @@ pub struct WriteGenerator<W> {
     /// If `exact` is true, the size of the data written to the underlying storage is
     /// exactly `chunk_size` bytes.
     exact: bool,
-    /// Whether the composed writer supports native source range copy.
-    native_copy: bool,
+    /// Whether the composed writer can copy source ranges directly.
+    can_copy_from: bool,
     buffer: oio::QueueBuf,
 }
 
@@ -132,7 +132,7 @@ impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
     pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
-        let native_copy = ctx.service().capability().write_can_copy_from && !ctx.args().append();
+        let can_copy_from = ctx.service().capability().write_can_copy_from && !ctx.args().append();
         let w = ctx.srv.write(&ctx.ctx, ctx.path(), ctx.args().clone())?;
 
         Ok(Self {
@@ -140,7 +140,7 @@ impl WriteGenerator<oio::Writer> {
             ctx: Some(ctx),
             chunk_size,
             exact,
-            native_copy,
+            can_copy_from,
             buffer: oio::QueueBuf::new(),
         })
     }
@@ -153,7 +153,7 @@ impl WriteGenerator<oio::Writer> {
             ctx: None,
             chunk_size,
             exact,
-            native_copy: false,
+            can_copy_from: false,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -278,7 +278,7 @@ impl WriteGenerator<oio::Writer> {
             return Ok(());
         }
 
-        let Some(chunk_size) = self.chunk_size.filter(|_| self.native_copy) else {
+        let Some(chunk_size) = self.chunk_size.filter(|_| self.can_copy_from) else {
             return self
                 .stream_range(
                     path,

@@ -199,7 +199,9 @@ jobs:
         id: login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
-          user: Apache.OpenDAL
+          # The nuget.org account that created the trusted publishing policy,
+          # not the package owner (Apache.OpenDAL organization).
+          user: Fatorin
 
       - name: Publish package
         run: dotnet nuget push bindings/dotnet/artifacts/package/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json

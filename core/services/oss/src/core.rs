@@ -657,32 +657,35 @@ impl OssCore {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn oss_initiate_upload(
         &self,
         ctx: &OperationContext,
         path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-        content_encoding: Option<&str>,
+        args: &OpWrite,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
         let mut req = Request::post(&url);
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
         }
-        if let Some(disposition) = content_disposition {
+        if let Some(disposition) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, disposition);
         }
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control);
         }
-        if let Some(encoding) = content_encoding {
+        if let Some(encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, encoding);
+        }
+        // OSS evaluates x-oss-forbid-overwrite on both InitiateMultipartUpload and
+        // CompleteMultipartUpload. Setting it only on one of them is not enough.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/initiatemultipartupload
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
         }
         req = self.insert_sse_headers(req);
 
@@ -737,6 +740,7 @@ impl OssCore {
         upload_id: &str,
         is_presign: bool,
         parts: Vec<MultipartUploadPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -747,16 +751,23 @@ impl OssCore {
             percent_encode_path(upload_id)
         );
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
         .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
+        // CompleteMultipartUpload is the request that commits the object, so
+        // if_not_exists must also be enforced here.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/completemultipartupload
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
+        }
 
         let req = req
             .extension(Operation::Write)
@@ -1166,6 +1177,7 @@ mod error {
             StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
                 (ErrorKind::ConditionNotMatch, false)
             }
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

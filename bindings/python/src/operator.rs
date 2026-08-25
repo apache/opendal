@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
@@ -190,7 +189,7 @@ impl Operator {
     /// Operator
     ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs))]
+    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str"))]
     pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
@@ -242,7 +241,7 @@ impl Operator {
     /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     /// ```
     #[classmethod]
-    #[pyo3(signature = (uri, **kwargs))]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
@@ -337,7 +336,7 @@ impl Operator {
     /// -------
     /// File
     ///     A file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs))]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]"))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -710,18 +709,22 @@ impl Operator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None))]
     pub fn delete(
         &self,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        if version.is_some() || recursive.is_some() {
+        if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
                 version,
                 recursive: recursive.unwrap_or(false),
+                if_match,
             };
             self.core.delete_options(&path, opts).map_err(format_pyerr)
         } else {
@@ -922,7 +925,7 @@ impl AsyncOperator {
     /// AsyncOperator
     ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs))]
+    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs: "str"))]
     pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
@@ -975,7 +978,7 @@ impl AsyncOperator {
     /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     /// ```
     #[classmethod]
-    #[pyo3(signature = (uri, **kwargs))]
+    #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
         _cls: &Bound<PyType>,
         uri: &str,
@@ -1066,7 +1069,7 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a file-like object.
-    #[pyo3(signature = (path, mode, *, **kwargs) -> "collections.abc.Awaitable[AsyncFile]")]
+    #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]") -> "collections.abc.Awaitable[AsyncFile]")]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
@@ -1531,21 +1534,25 @@ impl AsyncOperator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None) -> "collections.abc.Awaitable[None]")]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None) -> "collections.abc.Awaitable[None]")]
     pub fn delete<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            if version.is_some() || recursive.is_some() {
+            if version.is_some() || recursive.is_some() || if_match.is_some() {
                 let opts = ocore::options::DeleteOptions {
                     version,
                     recursive: recursive.unwrap_or(false),
+                    if_match,
                 };
                 this.delete_options(&path, opts).await.map_err(format_pyerr)
             } else {

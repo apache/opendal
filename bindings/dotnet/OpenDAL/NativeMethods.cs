@@ -19,6 +19,7 @@
 
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using OpenDAL.Interop.Buffers;
 using OpenDAL.Interop.Result;
 
 namespace OpenDAL;
@@ -33,7 +34,8 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_construct(
         string scheme,
-        IntPtr options
+        IntPtr options,
+        IntPtr executor
     );
 
     [LibraryImport(__DllName, EntryPoint = "constructor_option_build", StringMarshalling = StringMarshalling.Utf8)]
@@ -55,10 +57,6 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_info_get")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorInfoResult operator_info_get(Operator op);
-
-    [LibraryImport(__DllName, EntryPoint = "operator_info_free")]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial void operator_info_free(IntPtr info);
 
     [LibraryImport(__DllName, EntryPoint = "operator_duplicate")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
@@ -132,6 +130,22 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region DeleteOption
+
+    [LibraryImport(__DllName, EntryPoint = "delete_option_build", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOptionsResult delete_option_build(
+        [In] string[] keys,
+        [In] string[] values,
+        nuint len
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "delete_option_free")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void delete_option_free(IntPtr options);
+
+    #endregion
+
     #endregion
 
     #region Layer
@@ -151,7 +165,9 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_layer_concurrent_limit(
         Operator op,
-        nuint permits
+        nuint permits,
+        nuint httpPermits,
+        [MarshalAs(UnmanagedType.I1)] bool hasHttpPermits
     );
 
     [LibraryImport(__DllName, EntryPoint = "operator_layer_capability_override", StringMarshalling = StringMarshalling.Utf8)]
@@ -169,20 +185,92 @@ internal partial class NativeMethods
         ulong ioTimeoutNanos
     );
 
+    [LibraryImport(__DllName, EntryPoint = "operator_layer_throttle")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOperatorResult operator_layer_throttle(
+        Operator op,
+        uint bandwidth,
+        uint burst
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_layer_mime_guess")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOperatorResult operator_layer_mime_guess(
+        Operator op
+    );
+
+    #endregion
+
+    #region Buffer
+
+    [LibraryImport(__DllName, EntryPoint = "read_buffer_copy_to")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial nuint read_buffer_copy_to(
+        IntPtr handle,
+        nuint sourceOffset,
+        byte* destination,
+        nuint destinationLen
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "read_buffer_chunks")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial nuint read_buffer_chunks(
+        IntPtr handle,
+        OpenDALChunk* chunks,
+        nuint cap
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "write_buffer_create")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALWriteBufferResult write_buffer_create(nuint capacity);
+
+    [LibraryImport(__DllName, EntryPoint = "write_buffer_add_segment")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALWriteBufferResult write_buffer_add_segment(
+        IntPtr handle,
+        nuint committedInCurrent,
+        nuint minCapacity
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "write_buffer_free")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void write_buffer_free(IntPtr handle);
+
     #endregion
 
     #region IO Operations
 
     #region Write
 
+    [LibraryImport(__DllName, EntryPoint = "operator_write_bytes_with_options", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALResult operator_write_bytes_with_options(
+        Operator op,
+        string path,
+        [In] byte[] data,
+        nuint len,
+        IntPtr options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_write_bytes_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_write_bytes_with_options_async(
+        Operator op,
+        string path,
+        [In] byte[] data,
+        nuint len,
+        IntPtr options,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
     [LibraryImport(__DllName, EntryPoint = "operator_write_with_options", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_write_with_options(
         Operator op,
-        IntPtr executor,
         string path,
-        [In] byte[] data,
-        nuint len,
+        IntPtr buffer,
+        nuint committedInCurrent,
         IntPtr options
     );
 
@@ -190,9 +278,9 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_write_with_options_async(
         Operator op,
-        IntPtr executor,
         string path,
-        ByteBuffer data,
+        IntPtr buffer,
+        nuint committedInCurrent,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
@@ -206,7 +294,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALReadResult operator_read_with_options(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options
     );
@@ -215,7 +302,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_read_with_options_async(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALReadResult, void> callback,
@@ -230,7 +316,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALMetadataResult operator_stat_with_options(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options
     );
@@ -239,7 +324,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_stat_with_options_async(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
@@ -254,7 +338,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALEntryListResult operator_list_with_options(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options
     );
@@ -263,7 +346,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_list_with_options_async(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALEntryListResult, void> callback,
@@ -274,20 +356,20 @@ internal partial class NativeMethods
 
     #region Delete
 
-    [LibraryImport(__DllName, EntryPoint = "operator_delete", StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_with_options", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_delete(
+    internal static partial OpenDALResult operator_delete_with_options(
         Operator op,
-        IntPtr executor,
-        string path
+        string path,
+        IntPtr options
     );
 
-    [LibraryImport(__DllName, EntryPoint = "operator_delete_async", StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static unsafe partial OpenDALResult operator_delete_async(
+    internal static unsafe partial OpenDALResult operator_delete_with_options_async(
         Operator op,
-        IntPtr executor,
         string path,
+        IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
     );
@@ -300,7 +382,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_create_dir(
         Operator op,
-        IntPtr executor,
         string path
     );
 
@@ -308,7 +389,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_create_dir_async(
         Operator op,
-        IntPtr executor,
         string path,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
@@ -322,7 +402,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_copy(
         Operator op,
-        IntPtr executor,
         string sourcePath,
         string targetPath
     );
@@ -331,7 +410,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_copy_async(
         Operator op,
-        IntPtr executor,
         string sourcePath,
         string targetPath,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
@@ -346,7 +424,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_rename(
         Operator op,
-        IntPtr executor,
         string sourcePath,
         string targetPath
     );
@@ -355,31 +432,8 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_rename_async(
         Operator op,
-        IntPtr executor,
         string sourcePath,
         string targetPath,
-        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
-        long context
-    );
-
-    #endregion
-
-    #region RemoveAll
-
-    [LibraryImport(__DllName, EntryPoint = "operator_remove_all", StringMarshalling = StringMarshalling.Utf8)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_remove_all(
-        Operator op,
-        IntPtr executor,
-        string path
-    );
-
-    [LibraryImport(__DllName, EntryPoint = "operator_remove_all_async", StringMarshalling = StringMarshalling.Utf8)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static unsafe partial OpenDALResult operator_remove_all_async(
-        Operator op,
-        IntPtr executor,
-        string path,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
     );
@@ -392,7 +446,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_presign_read_async(
         Operator op,
-        IntPtr executor,
         string path,
         ulong expireNanos,
         delegate* unmanaged[Cdecl]<long, OpenDALPresignedRequestResult, void> callback,
@@ -403,7 +456,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_presign_write_async(
         Operator op,
-        IntPtr executor,
         string path,
         ulong expireNanos,
         delegate* unmanaged[Cdecl]<long, OpenDALPresignedRequestResult, void> callback,
@@ -414,7 +466,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_presign_stat_async(
         Operator op,
-        IntPtr executor,
         string path,
         ulong expireNanos,
         delegate* unmanaged[Cdecl]<long, OpenDALPresignedRequestResult, void> callback,
@@ -425,7 +476,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_presign_delete_async(
         Operator op,
-        IntPtr executor,
         string path,
         ulong expireNanos,
         delegate* unmanaged[Cdecl]<long, OpenDALPresignedRequestResult, void> callback,
@@ -440,7 +490,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_input_stream_create(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options
     );
@@ -448,6 +497,14 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_input_stream_read_next")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALReadResult operator_input_stream_read_next(IntPtr stream);
+
+    [LibraryImport(__DllName, EntryPoint = "operator_input_stream_read_next_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_input_stream_read_next_async(
+        IntPtr stream,
+        delegate* unmanaged[Cdecl]<long, OpenDALReadResult, void> callback,
+        long context
+    );
 
     [LibraryImport(__DllName, EntryPoint = "operator_input_stream_free")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
@@ -457,7 +514,6 @@ internal partial class NativeMethods
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_output_stream_create(
         Operator op,
-        IntPtr executor,
         string path,
         IntPtr options
     );
@@ -470,6 +526,16 @@ internal partial class NativeMethods
         nuint len
     );
 
+    [LibraryImport(__DllName, EntryPoint = "operator_output_stream_write_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_output_stream_write_async(
+        IntPtr stream,
+        [In] byte[] data,
+        nuint len,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_flush")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_output_stream_flush(IntPtr stream);
@@ -477,6 +543,14 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_close")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_output_stream_close(IntPtr stream);
+
+    [LibraryImport(__DllName, EntryPoint = "operator_output_stream_close_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_output_stream_close_async(
+        IntPtr stream,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
 
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_free")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

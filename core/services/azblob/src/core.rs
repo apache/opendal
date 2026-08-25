@@ -306,6 +306,10 @@ impl AzblobCore {
             req = req.header(IF_NONE_MATCH, v);
         }
 
+        if let Some(v) = args.if_match() {
+            req = req.header(IF_MATCH, v);
+        }
+
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
@@ -586,6 +590,20 @@ impl AzblobCore {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
+        // Put Block List is the request that actually commits a blocked write, so the
+        // write's preconditions have to be evaluated here rather than on Put Block.
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v);
+        }
+
+        if let Some(v) = args.if_match() {
+            req = req.header(IF_MATCH, v);
+        }
+
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             latest: block_ids
                 .into_iter()
@@ -783,7 +801,7 @@ impl AzblobCore {
             url = url.push("delimiter", delimiter);
         }
         if !next_marker.is_empty() {
-            url = url.push("marker", next_marker);
+            url = url.push("marker", &percent_encode_path(next_marker));
         }
 
         let req = Request::get(url.finish())
@@ -1155,6 +1173,7 @@ mod error {
             StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
                 (ErrorKind::ConditionNotMatch, false)
             }
+            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE

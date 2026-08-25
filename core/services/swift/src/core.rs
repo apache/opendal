@@ -214,7 +214,7 @@ impl SwiftCore {
             url = url.push("limit", &limit.to_string());
         }
         if !marker.is_empty() {
-            url = url.push("marker", marker);
+            url = url.push("marker", &percent_encode_path(marker));
         }
 
         let mut req = Request::get(url.finish());

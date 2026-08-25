@@ -96,7 +96,7 @@ impl VercelBlobCore {
         let p = build_abs_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), None).await?;
 
         // Use the mtach url to download the file
         let url = resolve_blob(resp.blobs, p);
@@ -161,7 +161,7 @@ impl VercelBlobCore {
     pub async fn head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), None).await?;
 
         let url = resolve_blob(resp.blobs, p);
 
@@ -194,7 +194,7 @@ impl VercelBlobCore {
     ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let resp = self.list(ctx, &from, Some(1)).await?;
+        let resp = self.list(ctx, &from, Some(1), None).await?;
 
         let from_url = resolve_blob(resp.blobs, from);
 
@@ -229,6 +229,7 @@ impl VercelBlobCore {
         ctx: &OperationContext,
         prefix: &str,
         limit: Option<usize>,
+        cursor: Option<&str>,
     ) -> Result<ListResponse> {
         let prefix = if prefix == "/" { "" } else { prefix };
 
@@ -239,6 +240,10 @@ impl VercelBlobCore {
 
         if let Some(limit) = limit {
             url.push_str(&format!("&limit={limit}"))
+        }
+
+        if let Some(cursor) = cursor {
+            url.push_str(&format!("&cursor={}", percent_encode_path(cursor)));
         }
 
         let req = Request::get(&url);
@@ -271,7 +276,7 @@ impl VercelBlobCore {
     pub async fn vercel_delete_blob(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
-        let resp = self.list(ctx, &p, Some(1)).await?;
+        let resp = self.list(ctx, &p, Some(1), None).await?;
 
         let url = resolve_blob(resp.blobs, p);
 

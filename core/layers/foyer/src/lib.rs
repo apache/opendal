@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
 mod deleter;
 mod error;
 mod full;
@@ -45,7 +49,9 @@ pub use writer::Writer;
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
+    /// Object path used as the cache key.
     pub path: String,
+    /// Object version, when the read targets a specific version.
     pub version: Option<String>,
 }
 
@@ -101,9 +107,12 @@ fn read_string(reader: &mut impl std::io::Read) -> FoyerResult<String> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
 }
 
-/// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
+/// [`FoyerValue`] stores buffered object data in Foyer.
 #[derive(Debug)]
-pub struct FoyerValue(pub Buffer);
+pub struct FoyerValue(
+    /// Buffered object data.
+    pub Buffer,
+);
 
 impl Deref for FoyerValue {
     type Target = Buffer;
@@ -192,9 +201,11 @@ impl FoyerLayer {
         }
     }
 
-    /// Sets the size limit for caching.
+    /// Set the object-size range eligible for caching.
     ///
-    /// It is recommended to set a size limit to avoid caching large files that may not be suitable for caching.
+    /// The layer reads through or writes through objects outside this range
+    /// without retaining them in Foyer. The default range accepts every
+    /// representable object size below `usize::MAX`.
     pub fn with_size_limit<R: RangeBounds<usize>>(mut self, size_limit: R) -> Self {
         let start = match size_limit.start_bound() {
             Bound::Included(v) => *v,
@@ -237,6 +248,7 @@ pub(crate) struct Inner {
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct FoyerService {
     inner: Servicer,
     cache: HybridCache<FoyerKey, FoyerValue>,
@@ -349,7 +361,6 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::raw::Layer as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};

@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::rwlock::RwLock;
 use http::Request;
 use http::StatusCode;
 use log::debug;
-use mea::rwlock::RwLock;
 
 use super::B2_SCHEME;
 use super::config::B2Config;
@@ -374,7 +374,10 @@ impl Service for B2Backend {
 
                 let url = format!(
                     "{}/file/{}/{}?Authorization={}",
-                    auth_info.download_url, self.core.bucket, path, resp.authorization_token
+                    auth_info.download_url,
+                    self.core.bucket,
+                    percent_encode_path(&path),
+                    resp.authorization_token
                 );
 
                 let req = Request::get(url);
@@ -401,7 +404,10 @@ impl Service for B2Backend {
 
                 let url = format!(
                     "{}/file/{}/{}?Authorization={}",
-                    auth_info.download_url, self.core.bucket, path, resp.authorization_token
+                    auth_info.download_url,
+                    self.core.bucket,
+                    percent_encode_path(&path),
+                    resp.authorization_token
                 );
 
                 let req = Request::get(url);
@@ -423,7 +429,10 @@ impl Service for B2Backend {
                 let mut req = Request::post(&resp.upload_url);
 
                 req = req.header(http::header::AUTHORIZATION, resp.authorization_token);
-                req = req.header("X-Bz-File-Name", build_abs_path(&self.core.root, path));
+                req = req.header(
+                    "X-Bz-File-Name",
+                    percent_encode_path(&build_abs_path(&self.core.root, path)),
+                );
                 req = req.header(http::header::CONTENT_TYPE, "b2/x-auto");
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 

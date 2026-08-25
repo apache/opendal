@@ -17,6 +17,8 @@
  * under the License.
  */
 
+using OpenDAL.Options;
+
 namespace OpenDAL.Tests;
 
 [Collection("BehaviorOperator")]
@@ -57,7 +59,7 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
         var path = NewPath("delete-async");
 
         await Op.WriteAsync(path, RandomBytes(12), CT);
-        await Op.DeleteAsync(path, CT);
+        await Op.DeleteAsync(path, cancellationToken: CT);
 
         var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.ReadAsync(path, CT));
         Assert.True(IsMissingError(ex));
@@ -82,6 +84,112 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
             return;
         }
 
-        await Op.DeleteAsync(NewPath("delete-missing-async"), CT);
+        await Op.DeleteAsync(NewPath("delete-missing-async"), cancellationToken: CT);
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_WithVersion_RemovesVersionPermanentlyAsync()
+    {
+        if (!Supports(c => c.DeleteWithVersion && c.StatWithVersion && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-version");
+        await Op.WriteAsync(path, RandomBytes(16), CT);
+
+        var version = (await Op.StatAsync(path, CT)).Version;
+        Assert.NotNull(version);
+
+        await Op.DeleteAsync(path, cancellationToken: CT);
+        var missing = await Assert.ThrowsAsync<OpenDALException>(() => Op.StatAsync(path, CT));
+        Assert.True(IsMissingError(missing));
+
+        var archived = await Op.StatAsync(path, new StatOptions { Version = version }, CT);
+        Assert.Equal(version, archived.Version);
+
+        await Op.DeleteAsync(path, new DeleteOptions { Version = version }, CT);
+
+        var gone = await Assert.ThrowsAsync<OpenDALException>(
+            () => Op.StatAsync(path, new StatOptions { Version = version }, CT));
+        Assert.Equal(ErrorCode.NotFound, gone.Code);
+    }
+
+    [Fact]
+    public void DeleteBehavior_WithRecursive_RemovesTree()
+    {
+        if (!Supports(c => c.DeleteWithRecursive && c.Write && c.List))
+        {
+            return;
+        }
+
+        var dir = NewPath("delete-recursive") + "/";
+        Op.Write($"{dir}a.txt", RandomBytes(16));
+        Op.Write($"{dir}nested/b.txt", RandomBytes(16));
+
+        Op.Delete(dir, new DeleteOptions { Recursive = true });
+
+        Assert.Empty(Op.List(dir, new ListOptions { Recursive = true }));
+    }
+
+    [Fact]
+    public void DeleteBehavior_WithVersionFromAnotherObject_IsAllowed()
+    {
+        if (!Supports(c => c.DeleteWithVersion && c.StatWithVersion && c.Write))
+        {
+            return;
+        }
+
+        var donor = NewPath("delete-version-donor");
+        Op.Write(donor, RandomBytes(8));
+        var foreignVersion = Op.Stat(donor).Version;
+        Assert.NotNull(foreignVersion);
+
+        var target = NewPath("delete-version-target");
+        Op.Write(target, RandomBytes(8));
+
+        Op.Delete(target, new DeleteOptions { Version = foreignVersion });
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_WithIfMatch_RemovesObjectIfMatchedAsync()
+    {
+        if (!Supports(c => c.DeleteWithIfMatch && c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-if-match");
+        await Op.WriteAsync(path, RandomBytes(16), CT);
+
+        var etag = (await Op.StatAsync(path, CT)).ETag;
+        Assert.NotNull(etag);
+
+        await Op.DeleteAsync(path, new DeleteOptions { IfMatch = etag }, CT);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.StatAsync(path, CT));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_WithIfMatch_DoesNotRemoveObjectIfNotMatchedAsync()
+    {
+        if (!Supports(c => c.DeleteWithIfMatch && c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-if-match-not-matched");
+        await Op.WriteAsync(path, RandomBytes(16), CT);
+
+        var etag = (await Op.StatAsync(path, CT)).ETag;
+        Assert.NotNull(etag);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(
+            () => Op.DeleteAsync(path, new DeleteOptions { IfMatch = "\"this-etag-does-not-match\"" }, CT));
+        Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+
+        var stat = await Op.StatAsync(path, CT);
+        Assert.Equal(etag, stat.ETag);
     }
 }

@@ -209,6 +209,7 @@ impl WriteGenerator<oio::Writer> {
 
 #[cfg(test)]
 mod tests {
+    use asyncband::mutex::Mutex;
     use bytes::Buf;
     use bytes::BufMut;
     use bytes::Bytes;
@@ -216,7 +217,6 @@ mod tests {
     use logforth::append::Testing;
     use logforth::filter::rustlog::RustLogFilterBuilder;
     use logforth::layout::TextLayout;
-    use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::{Rng, RngExt, rng};
     use sha2::Digest;

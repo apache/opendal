@@ -17,34 +17,37 @@
 
 use std::ffi::{c_char, c_void};
 
-use crate::metadata::{OpendalMetadata, metadata_free};
+use crate::metadata::{OpendalMetadata, metadata_release_fields};
 use crate::utils::into_string_ptr;
 
 #[repr(C)]
 /// FFI representation of an OpenDAL entry.
 ///
-/// String and metadata fields are heap-allocated and owned by Rust until
-/// released via `entry_list_free`.
+/// The path string and metadata string fields are heap-allocated and owned by
+/// Rust until released via `entry_list_free`. Metadata is stored inline so a
+/// list is one contiguous array instead of a pointer per entry.
 pub struct OpendalEntry {
     pub path: *mut c_char,
-    pub metadata: *mut OpendalMetadata,
+    pub metadata: OpendalMetadata,
 }
 
 #[repr(C)]
 /// FFI representation of a list of entries.
+///
+/// `entries` points at a contiguous array of `len` entries stored by value.
 pub struct OpendalEntryList {
-    pub entries: *mut *mut OpendalEntry,
+    pub entries: *mut OpendalEntry,
     pub len: usize,
 }
 
 impl OpendalEntry {
     pub fn from_entry(entry: opendal::Entry) -> Self {
-        let path = into_string_ptr(entry.path().to_string());
-        let metadata = Box::into_raw(Box::new(OpendalMetadata::from_metadata(
-            entry.metadata().clone(),
-        )));
+        let (path, metadata) = entry.into_parts();
 
-        Self { path, metadata }
+        Self {
+            path: into_string_ptr(path),
+            metadata: OpendalMetadata::from_metadata(metadata),
+        }
     }
 }
 
@@ -52,14 +55,12 @@ impl OpendalEntry {
 ///
 /// The returned pointer must be released by `entry_list_free`.
 pub fn into_entry_list_ptr(entries: Vec<opendal::Entry>) -> *mut c_void {
-    let mut entry_ptrs: Vec<*mut OpendalEntry> = entries
-        .into_iter()
-        .map(|entry| Box::into_raw(Box::new(OpendalEntry::from_entry(entry))))
-        .collect();
+    // A boxed slice always allocates exactly `len` elements, so
+    // `entry_list_free` can rebuild it from the raw parts alone.
+    let entries: Box<[OpendalEntry]> = entries.into_iter().map(OpendalEntry::from_entry).collect();
 
-    let len = entry_ptrs.len();
-    let entries_ptr = entry_ptrs.as_mut_ptr();
-    std::mem::forget(entry_ptrs);
+    let len = entries.len();
+    let entries_ptr = Box::into_raw(entries) as *mut OpendalEntry;
 
     Box::into_raw(Box::new(OpendalEntryList {
         entries: entries_ptr,
@@ -67,45 +68,27 @@ pub fn into_entry_list_ptr(entries: Vec<opendal::Entry>) -> *mut c_void {
     })) as *mut c_void
 }
 
-/// Release one FFI entry payload.
-///
-/// # Safety
-///
-/// - `entry` must be null or a pointer previously produced by this crate.
-/// - This function must be called at most once per non-null pointer.
-unsafe fn free_entry(entry: *mut OpendalEntry) {
-    if entry.is_null() {
-        return;
-    }
-
-    unsafe {
-        let entry = Box::from_raw(entry);
-        if !entry.path.is_null() {
-            drop(std::ffi::CString::from_raw(entry.path));
-        }
-        if !entry.metadata.is_null() {
-            metadata_free(entry.metadata);
-        }
-    }
-}
-
 /// # Safety
 ///
 /// - `list` must be null or a pointer returned by Rust as `OpendalEntryList`.
 /// - Must be called at most once for the same pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn entry_list_free(list: *mut OpendalEntryList) {
+pub(crate) unsafe fn entry_list_free(list: *mut OpendalEntryList) {
     if list.is_null() {
         return;
     }
 
     unsafe {
         let list = Box::from_raw(list);
-        if !list.entries.is_null() {
-            let entries = Vec::from_raw_parts(list.entries, list.len, list.len);
-            for entry in entries {
-                free_entry(entry);
+        if list.entries.is_null() {
+            return;
+        }
+
+        let mut entries = Box::from_raw(std::ptr::slice_from_raw_parts_mut(list.entries, list.len));
+        for entry in entries.iter_mut() {
+            if !entry.path.is_null() {
+                drop(std::ffi::CString::from_raw(entry.path));
             }
+            metadata_release_fields(&mut entry.metadata);
         }
     }
 }

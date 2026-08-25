@@ -83,15 +83,7 @@ impl oio::MultipartWrite for OssWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .oss_initiate_upload(
-                &self.ctx,
-                &self.path,
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-                self.op.content_encoding(),
-                false,
-            )
+            .oss_initiate_upload(&self.ctx, &self.path, &self.op, false)
             .await?;
 
         let status = resp.status();
@@ -172,7 +164,9 @@ impl oio::MultipartWrite for OssWriter {
 
         let resp = self
             .core
-            .oss_complete_multipart_upload_request(&self.ctx, &self.path, upload_id, false, parts)
+            .oss_complete_multipart_upload_request(
+                &self.ctx, &self.path, upload_id, false, parts, &self.op,
+            )
             .await?;
 
         let meta = Self::parse_metadata(resp.headers())?;

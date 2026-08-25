@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Concurrent request limit layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use asyncband::semaphore::OwnedSemaphorePermit;
+use asyncband::semaphore::Semaphore;
 use futures::Stream;
 use futures::StreamExt;
-use mea::semaphore::OwnedSemaphorePermit;
-use mea::semaphore::Semaphore;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -133,7 +132,7 @@ impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
     ///
     /// ```
     /// # use std::sync::Arc;
-    /// # use mea::semaphore::Semaphore;
+    /// # use asyncband::semaphore::Semaphore;
     /// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
     /// let semaphore = Arc::new(Semaphore::new(1024));
     /// let _layer = ConcurrentLimitLayer::with_semaphore(semaphore);

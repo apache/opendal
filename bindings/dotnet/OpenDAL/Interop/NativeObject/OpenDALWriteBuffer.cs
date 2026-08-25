@@ -19,42 +19,32 @@
 
 using System.Runtime.InteropServices;
 
-namespace OpenDAL;
+namespace OpenDAL.Interop.NativeObject;
 
 [StructLayout(LayoutKind.Sequential)]
 /// <summary>
-/// FFI representation of a Rust byte buffer.
+/// Writable native segment returned by <c>write_buffer_create</c> or
+/// <c>write_buffer_add_segment</c>.
 /// </summary>
-public struct ByteBuffer
+/// <remarks>
+/// <see cref="Data"/> points at <see cref="Capacity"/> writable bytes owned by
+/// <see cref="Handle"/>. The handle must be released exactly once through
+/// <c>write_buffer_free</c>.
+/// </remarks>
+internal struct OpenDALWriteBuffer
 {
     /// <summary>
-    /// Pointer to the first byte in unmanaged memory.
+    /// Opaque handle owning every segment of the buffer.
+    /// </summary>
+    public IntPtr Handle;
+
+    /// <summary>
+    /// Raw pointer to the newest segment, valid until the handle is freed.
     /// </summary>
     public IntPtr Data;
 
     /// <summary>
-    /// Number of valid bytes in <see cref="Data"/>.
-    /// </summary>
-    public nuint Len;
-
-    /// <summary>
-    /// Total allocated capacity in bytes.
+    /// Writable bytes behind <see cref="Data"/>.
     /// </summary>
     public nuint Capacity;
-
-    /// <summary>
-    /// Copies the unmanaged bytes into a managed array.
-    /// </summary>
-    public readonly unsafe byte[] ToManagedBytes()
-    {
-        if (Data == IntPtr.Zero || Len == 0)
-        {
-            return Array.Empty<byte>();
-        }
-
-        var size = checked((int)Len);
-        var managed = GC.AllocateUninitializedArray<byte>(size);
-        new ReadOnlySpan<byte>((void*)Data, size).CopyTo(managed);
-        return managed;
-    }
 }

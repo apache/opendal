@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -10,19 +10,16 @@ This service can be used to:
 - [x] list
 - [x] copy
 - [ ] rename
-- [ ] presign
+- [x] presign
+
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
 ## Configuration
 
-- `root`: Set the work directory for backend.
-- `bucket`: Set the bucket name for backend.
-- `endpoint`: Set the endpoint for backend.
-- `region`: Set the region for backend.
-- `access_key_id`: Set the access_key_id for backend.
-- `secret_access_key`: Set the secret_access_key for backend.
-- `security_token`: Set the security token for backend.
-
-Refer to [`TosBuilder`]'s public API docs for more information.
+Use [`crate::TosConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

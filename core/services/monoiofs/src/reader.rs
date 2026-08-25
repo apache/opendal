@@ -17,9 +17,8 @@
 
 use super::core::MonoiofsCore;
 use super::writer::MonoiofsWriter;
-use futures::StreamExt;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
+use asyncband::mpsc;
+use asyncband::oneshot;
 use monoio::fs::OpenOptions;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -76,7 +75,7 @@ impl MonoiofsReader {
         };
         // wait for read request and send back result to main thread
         loop {
-            let Some(req) = rx.next().await else {
+            let Ok(req) = rx.recv().await else {
                 // MonoiofsReader is dropped, exit worker task
                 break;
             };
@@ -104,12 +103,11 @@ impl MonoiofsReader {
 
         // send read request to worker thread and wait for result
         let (tx, rx) = oneshot::channel();
-        self.core
-            .unwrap(self.tx.unbounded_send(ReaderRequest::Read {
-                offset,
-                buf: vec![0; size].into_boxed_slice(),
-                tx,
-            }));
+        self.core.unwrap(self.tx.send(ReaderRequest::Read {
+            offset,
+            buf: vec![0; size].into_boxed_slice(),
+            tx,
+        }));
         let (n, buf) = self.core.unwrap(rx.await)?;
 
         let mut buf = Vec::from(buf);

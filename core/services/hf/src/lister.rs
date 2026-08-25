@@ -84,7 +84,7 @@ impl HfLister {
         recursive: bool,
         cursor: Option<&str>,
     ) -> Result<FileTree> {
-        let uri = self.core.uri(path);
+        let uri = self.core.canonical_uri(&self.ctx, path).await?;
         let url = uri.file_tree_url(&self.core.endpoint, recursive, cursor);
 
         let req = self

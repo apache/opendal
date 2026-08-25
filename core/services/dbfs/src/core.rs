@@ -62,7 +62,7 @@ impl DbfsCore {
             .to_string();
 
         let req_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
         });
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
@@ -91,7 +91,7 @@ impl DbfsCore {
             .to_string();
 
         let request_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
             // TODO: support recursive toggle, should we add a new field in OpDelete?
             "recursive": true,
         });
@@ -123,8 +123,8 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "source_path": percent_encode_path(&source),
-            "destination_path": percent_encode_path(&target),
+            "source_path": source,
+            "destination_path": target,
         });
 
         let body = Buffer::from(Bytes::from(req_body.to_string()));
@@ -172,7 +172,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "path": path,
+            "path": build_rooted_abs_path(&self.root, path),
             "contents": contents,
             "overwrite": true,
         });

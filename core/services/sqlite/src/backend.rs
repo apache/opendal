@@ -18,7 +18,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use sqlx::sqlite::SqliteConnectOptions;
 
 use super::SQLITE_SCHEME;

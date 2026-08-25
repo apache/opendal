@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-description = "parquet Integration for Apache OpenDAL"
+description = "Apache Parquet Integration for Apache OpenDAL"
 name = "parquet_opendal"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
@@ -25,13 +25,13 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.91"
-version = "0.9.0"
+version = "0.9.1"
 
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
-opendal = { version = "0.58.0", path = "../../core" }
+opendal = { version = "0.58.2", path = "../../core" }
 parquet = { version = "59.0", default-features = false, features = [
   "async",
   "arrow",
@@ -39,7 +39,7 @@ parquet = { version = "59.0", default-features = false, features = [
 
 [dev-dependencies]
 arrow = { version = "59.0" }
-opendal = { version = "0.58.0", path = "../../core", features = [
+opendal = { version = "0.58.2", path = "../../core", features = [
   "services-memory",
   "services-s3",
 ] }

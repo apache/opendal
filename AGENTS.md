@@ -9,6 +9,21 @@ Guidance for AI coding agents working in this repository.
 - Add tests when they verify real behavior or guard a regression; do not add placeholder tests.
 - Do not change public APIs or behavior tests unless the task explicitly requires it.
 
+## AI-Assisted Contributions
+
+Follow [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
+policy.
+
+- Do not publish an Issue, Pull Request, Discussion, or review comment unless a
+  human has meaningfully reviewed the content and explicitly asked you to submit
+  it.
+- Treat source-code findings as hypotheses until they are reproduced. Reproduce
+  service-specific bugs against the actual service.
+- In a Pull Request, briefly disclose AI's material role and any assumptions or
+  unknowns that affect review. Do not repeat routine validation output.
+
+The human contributor remains responsible for every submitted claim and change.
+
 ## Documentation Style
 
 - Prefer active voice. Name the type or component that performs an action, for example, “`RetryLayer` retries failed operations.”
@@ -133,6 +148,7 @@ When adding or changing a public optional layer:
 
 ## Pull Requests
 
+- Before opening a PR, search for similar open PRs, issues, and in-progress branches that already address the same problem. Prefer contributing to or coordinating with existing work over opening a duplicate.
 - Always use `.github/pull_request_template.md` when creating a PR.
 - Keep PR titles and descriptions factual and concise.
 - Do not add AI-tool branding or co-author trailers.

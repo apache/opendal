@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use mea::once::OnceCell;
+use asyncband::once::OnceCell;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -93,7 +93,7 @@ impl GridfsBuilder {
         self
     }
 
-    /// Set the chunk size of the MongoDB GridFs service used to break the user file into chunks.
+    /// Set the chunk size in bytes for MongoDB GridFs service. We break the user file into chunks by size.
     ///
     /// Default to `255 KiB` if not specified.
     pub fn chunk_size(mut self, chunk_size: u32) -> Self {
@@ -103,6 +103,9 @@ impl GridfsBuilder {
         self
     }
 }
+
+/// Default GridFS chunk size in bytes.
+const DEFAULT_CHUNK_SIZE_BYTES: u32 = 255 * 1024; // 255 KiB
 
 impl Builder for GridfsBuilder {
     type Config = GridfsConfig;
@@ -128,7 +131,7 @@ impl Builder for GridfsBuilder {
             Some(v) => v.clone(),
             None => "fs".to_string(),
         };
-        let chunk_size = self.config.chunk_size.unwrap_or(255);
+        let chunk_size = self.config.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE_BYTES);
 
         let root = normalize_root(
             self.config

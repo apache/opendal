@@ -42,7 +42,8 @@ impl HfReadStream {
                 serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
             let metadata = Metadata::new(EntryMode::FILE).with_content_length(info.size);
             let reader =
-                Self::try_new_xet(core, &XetFileInfo::new(info.hash, info.size), range).await?;
+                Self::try_new_xet(core, ctx, &XetFileInfo::new(info.hash, info.size), range)
+                    .await?;
             Ok((RpRead::new(metadata), reader))
         } else {
             let metadata = parse_into_metadata(path, resp.headers())?;
@@ -52,10 +53,11 @@ impl HfReadStream {
 
     async fn try_new_xet(
         core: &HfCore,
+        ctx: &OperationContext,
         file_info: &XetFileInfo,
         range: BytesRange,
     ) -> Result<Self> {
-        let group = core.xet_download_group().await?;
+        let group = core.xet_download_group(ctx).await?;
 
         let xet_range = if range.is_full() {
             None

@@ -68,6 +68,16 @@ pub struct UpyunCore {
     pub signer: UpyunSigner,
 }
 
+/// Build the folder key for a directory path, without its trailing slash.
+///
+/// `build_abs_path` returns an empty string for the root of a service whose root is `/`, so
+/// slicing off the last byte underflows there. `Operator::create_dir` only checks that the path
+/// ends with `/`, and `/` does, so the root reaches this code and a library call panics instead of
+/// returning an error. `trim_end_matches` is what the sibling services use and is total.
+fn folder_path(root: &str, path: &str) -> String {
+    build_abs_path(root, path).trim_end_matches('/').to_string()
+}
+
 impl Debug for UpyunCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UpyunCore")
@@ -292,8 +302,7 @@ impl UpyunCore {
     }
 
     pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
-        let path = path[..path.len() - 1].to_string();
+        let path = folder_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -654,3 +663,20 @@ mod error {
 }
 
 pub(super) use error::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_path_handles_the_service_root() {
+        // build_abs_path yields "" here; the previous `path[..path.len() - 1]` underflowed.
+        assert_eq!(folder_path("/", "/"), "");
+    }
+
+    #[test]
+    fn folder_path_drops_the_trailing_slash() {
+        assert_eq!(folder_path("/", "a/b/"), "a/b");
+        assert_eq!(folder_path("/prefix/", "a/"), "prefix/a");
+    }
+}

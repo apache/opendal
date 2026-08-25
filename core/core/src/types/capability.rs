@@ -144,6 +144,8 @@ pub struct Capability {
     pub delete_with_version: bool,
     /// Indicates if recursive delete operations are supported.
     pub delete_with_recursive: bool,
+    /// Indicates if conditional delete operations using If-Match are supported.
+    pub delete_with_if_match: bool,
     /// Maximum size supported for single delete operations.
     pub delete_max_size: Option<usize>,
 

@@ -8,7 +8,7 @@ when the cache is full.
 
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] stat
 - [x] read
@@ -17,7 +17,14 @@ This service can be used to:
 - [ ] list (not supported)
 - [ ] blocking (not supported)
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
+
+Use [`crate::FoyerConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 Foyer service can be configured in two ways:
 
@@ -101,9 +108,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust,no_run
 use opendal::Operator;
+use opendal::OperatorRegistry;
+use opendal_service_foyer::register_foyer_service;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    register_foyer_service(OperatorRegistry::get());
+
     // Memory-only cache via URI
     let op = Operator::from_uri("foyer:///?memory=67108864")?;
 

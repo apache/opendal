@@ -20,8 +20,8 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
 use http::StatusCode;
-use mea::mutex::Mutex;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
@@ -774,7 +774,7 @@ impl oio::List for GdriveFlatLister {
 mod tests {
     use std::sync::Arc;
 
-    use mea::mutex::Mutex;
+    use asyncband::mutex::Mutex;
 
     use super::*;
     use crate::core::GdrivePathQuery;

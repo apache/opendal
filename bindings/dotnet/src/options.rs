@@ -210,3 +210,13 @@ pub fn parse_list_options(
 
     Ok(options)
 }
+
+pub fn parse_delete_options(
+    values: &HashMap<String, String>,
+) -> Result<opendal::options::DeleteOptions, OpenDALError> {
+    Ok(opendal::options::DeleteOptions {
+        version: parse_string(values, "version"),
+        recursive: parse_bool(values, "recursive")?.unwrap_or(false),
+        if_match: parse_string(values, "if_match"),
+    })
+}

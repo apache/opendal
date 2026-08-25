@@ -309,7 +309,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use mea::mutex::Mutex;
+    use asyncband::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::{Rng, RngExt, rng};
     use tokio::time::sleep;

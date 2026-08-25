@@ -28,6 +28,8 @@ on:
       - main
     paths:
       - ".github/workflows/release_java.yml"
+      - "bindings/java/pom.xml"
+      - "bindings/java/src/main/resources/META-INF/**"
       - "bindings/java/tools/build.py"
   workflow_dispatch:
 

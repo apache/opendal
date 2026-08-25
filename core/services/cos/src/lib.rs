@@ -15,7 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for cos service.
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
+
+/// URI scheme used for service registration and scheme-driven construction.
 pub const COS_SCHEME: &str = "cos";
 
 /// Alternative scheme for cos service.
@@ -26,7 +31,12 @@ pub const COS_SCHEME: &str = "cos";
 /// workloads can switch to OpenDAL without changing their URIs.
 pub const COSN_SCHEME: &str = "cosn";
 
-/// Register this service into the given registry.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 ///
 /// Both the canonical `cos` scheme and the Hadoop-compatible `cosn`
 /// alias are registered so that URIs like `cos://bucket/key` and

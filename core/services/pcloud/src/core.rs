@@ -429,6 +429,8 @@ impl PcloudCore {
 
         let path = path.trim_end_matches('/');
 
+        let path = if path.is_empty() { "/" } else { path };
+
         let url = format!(
             "{}/listfolder?path={}&username={}&password={}",
             self.endpoint,

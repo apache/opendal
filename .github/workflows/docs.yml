@@ -23,16 +23,18 @@ on:
       - main
     tags:
       - "v*"
-  pull_request:
-    branches:
-      - main
-    paths:
+    paths: &paths
       - "core/**"
       - "bindings/**"
       - "integrations/**"
       - "website/**"
+      - ".github/actions/setup/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/docs.yml"
+  pull_request:
+    branches:
+      - main
+    paths: *paths
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -44,7 +46,11 @@ env:
   # Check this page for updating: https://docs.rs/crate/opendal/latest/builds
   RUST_DOC_TOOLCHAIN: nightly-2026-04-30
   # Enable cfg docsrs to make sure docs are built.
-  RUSTDOCFLAGS: "--cfg docsrs"
+  RUSTDOCFLAGS: >-
+    --cfg docsrs
+    -D rustdoc::broken_intra_doc_links
+    -D rustdoc::invalid_rust_codeblocks
+    -D rustdoc::bare_urls
 
 jobs:
   build-rust-doc:
@@ -63,6 +69,7 @@ jobs:
       - name: Setup Rust Nightly
         run: |
           rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
+          rustup target add wasm32-unknown-unknown --toolchain ${{ env.RUST_DOC_TOOLCHAIN }}
 
       - uses: actions/setup-java@v5
         with:
@@ -71,7 +78,12 @@ jobs:
 
       - name: Build OpenDAL doc
         working-directory: core
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
+        run: |
+          cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc \
+            --workspace --lib --no-deps --all-features
+          cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc \
+            --package opendal-service-opfs --lib --no-deps --all-features \
+            --target wasm32-unknown-unknown
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
@@ -108,7 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 8
           run_install: false
@@ -159,9 +171,13 @@ jobs:
         run: |
           uv sync --group docs
 
+      - name: Convert example notebooks to Markdown
+        working-directory: bindings/python
+        run: uv run jupyter nbconvert --to markdown docs/examples/*.ipynb
+
       - name: Build Docs
         working-directory: bindings/python
-        run: uv run mkdocs build
+        run: uv run zensical build
 
       - name: Upload docs
         uses: actions/upload-artifact@v7
@@ -491,7 +507,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           # Follow website/package.json packageManager field
           version: 11.8.0

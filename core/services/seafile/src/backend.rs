@@ -18,8 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::rwlock::RwLock;
 use log::debug;
-use mea::rwlock::RwLock;
 
 use super::SEAFILE_SCHEME;
 use super::config::SeafileConfig;

@@ -17,13 +17,13 @@
 
 use std::fmt::Debug;
 
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use mea::once::OnceCell;
 use serde::Deserialize;
 
 use opendal_core::raw::*;
@@ -314,7 +314,7 @@ impl WebhdfsCore {
             percent_encode_path(&p),
         );
         if !start_after.is_empty() {
-            url += format!("&startAfter={start_after}").as_str();
+            url += format!("&startAfter={}", percent_encode_path(start_after)).as_str();
         }
         if let Some(user) = &self.user_name {
             url += format!("&user.name={user}").as_str();

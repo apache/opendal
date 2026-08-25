@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Metrics layer (using the [fastmetrics](https://docs.rs/fastmetrics/) crate) implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;
 use fastmetrics::metrics::counter::Counter;

@@ -32,6 +32,18 @@ pub struct DeleteOptions {
     /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
     ///   will be removed.
     pub recursive: bool,
+    /// Sets the condition that delete will succeed only if the existing
+    /// object has the given ETag.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`crate::Capability::delete_with_if_match`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the delete will only succeed when the existing object's
+    ///   ETag matches the given value.
+    pub if_match: Option<String>,
 }
 
 /// Options for list operations.
@@ -74,21 +86,21 @@ pub struct ReadOptions {
     ///
     /// This option can be used to retrieve the data of a specified version of the given path.
     ///
-    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    /// If the version doesn't exist, an error with kind [`crate::ErrorKind::NotFound`] will be returned.
     pub version: Option<String>,
 
     /// Set `if_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` matches the given `ETag`.
     ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag doesn't match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_match: Option<String>,
     /// Set `if_none_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` doesn't match the given `ETag`.
     ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Set `if_modified_since` for this operation.
@@ -96,14 +108,14 @@ pub struct ReadOptions {
     /// This option can be used to check if the file has been modified since the given timestamp.
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
 
     /// Known content length of the object.
@@ -122,26 +134,32 @@ pub struct ReadOptions {
     /// By setting `concurrent`, opendal will fetch chunks concurrently with
     /// the give chunk size.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub concurrent: usize,
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub chunk: Option<usize>,
-    /// Controls the optimization strategy for range reads in [`Reader::fetch`].
+    /// Controls the optimization strategy for range reads in [`crate::Reader::fetch`].
     ///
-    /// When performing range reads, if the gap between two requested ranges is smaller than
-    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// When performing range reads, if the gap between two requested ranges is less than or
+    /// equal to the configured `gap` size, OpenDAL will merge these ranges into a single read request
     /// and discard the unrequested data in between. This helps reduce the number of API calls
     /// to remote storage services.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or adjacent ranges
+    /// are still merged.
     ///
     /// This optimization is particularly useful when performing multiple small range reads
     /// that are close to each other, as it reduces the overhead of multiple network requests
     /// at the cost of transferring some additional data.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub gap: Option<usize>,
 
     /// Specify the content-type header that should be sent back by the operation.
@@ -165,21 +183,21 @@ pub struct ReaderOptions {
     ///
     /// This option can be used to retrieve the data of a specified version of the given path.
     ///
-    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    /// If the version doesn't exist, an error with kind [`crate::ErrorKind::NotFound`] will be returned.
     pub version: Option<String>,
 
     /// Set `if_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` matches the given `ETag`.
     ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag doesn't match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_match: Option<String>,
     /// Set `if_none_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` doesn't match the given `ETag`.
     ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Set `if_modified_since` for this operation.
@@ -187,14 +205,14 @@ pub struct ReaderOptions {
     /// This option can be used to check if the file has been modified since the given timestamp.
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
 
     /// Known content length of the object.
@@ -213,26 +231,32 @@ pub struct ReaderOptions {
     /// By setting `concurrent`, opendal will fetch chunks concurrently with
     /// the give chunk size.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub concurrent: usize,
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub chunk: Option<usize>,
-    /// Controls the optimization strategy for range reads in [`Reader::fetch`].
+    /// Controls the optimization strategy for range reads in [`crate::Reader::fetch`].
     ///
-    /// When performing range reads, if the gap between two requested ranges is smaller than
-    /// the configured `gap` size, OpenDAL will merge these ranges into a single read request
+    /// When performing range reads, if the gap between two requested ranges is less than or
+    /// equal to the configured `gap` size, OpenDAL will merge these ranges into a single read request
     /// and discard the unrequested data in between. This helps reduce the number of API calls
     /// to remote storage services.
+    ///
+    /// Set to `0` to disable merging ranges separated by a gap. Overlapping or adjacent ranges
+    /// are still merged.
     ///
     /// This optimization is particularly useful when performing multiple small range reads
     /// that are close to each other, as it reduces the overhead of multiple network requests
     /// at the cost of transferring some additional data.
     ///
-    /// Refer to [`crate::docs::performance`] for more details.
+    /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
+    /// for more details.
     pub gap: Option<usize>,
     /// Controls the number of prefetched bytes ranges that can be buffered in memory
     /// during concurrent reading.
@@ -257,21 +281,21 @@ pub struct StatOptions {
     ///
     /// This options can be used to retrieve the data of a specified version of the given path.
     ///
-    /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
+    /// If the version doesn't exist, an error with kind [`crate::ErrorKind::NotFound`] will be returned.
     pub version: Option<String>,
 
     /// Set `if_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` matches the given `ETag`.
     ///
-    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag doesn't match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_match: Option<String>,
     /// Set `if_none_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` doesn't match the given `ETag`.
     ///
-    /// If file exists and it's etag match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Set `if_modified_since` for this operation.
@@ -279,14 +303,14 @@ pub struct StatOptions {
     /// This option can be used to check if the file has been modified since the given timestamp.
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
-    /// [`ErrorKind::ConditionNotMatch`] will be returned.
+    /// [`crate::ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
 
     /// Specify the content-type header that should be sent back by the operation.
@@ -310,7 +334,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_can_append`] before using this option.
+    /// Check [`crate::Capability::write_can_append`] before using this option.
     ///
     /// ### Behavior
     ///
@@ -327,7 +351,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_cache_control`] before using this feature.
+    /// Check [`crate::Capability::write_with_cache_control`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -353,7 +377,7 @@ pub struct WriteOptions {
     ///
     /// ## Capability
     ///
-    /// Check [`Capability::write_with_content_type`] before using this feature.
+    /// Check [`crate::Capability::write_with_content_type`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -367,7 +391,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_content_disposition`] before using this feature.
+    /// Check [`crate::Capability::write_with_content_disposition`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -385,7 +409,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_content_encoding`] before using this feature.
+    /// Check [`crate::Capability::write_with_content_encoding`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -404,7 +428,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_user_metadata`] before using this feature.
+    /// Check [`crate::Capability::write_with_user_metadata`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -426,7 +450,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_if_match`] before using this feature.
+    /// Check [`crate::Capability::write_with_if_match`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -447,7 +471,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_if_none_match`] before using this feature.
+    /// Check [`crate::Capability::write_with_if_none_match`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -465,7 +489,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_with_if_not_exists`] before using this feature.
+    /// Check [`crate::Capability::write_with_if_not_exists`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -506,7 +530,7 @@ pub struct WriteOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::write_multi_min_size`] and [`Capability::write_multi_max_size`] for size limits.
+    /// Check [`crate::Capability::write_multi_min_size`] and [`crate::Capability::write_multi_max_size`] for size limits.
     ///
     /// ### Behavior
     ///
@@ -537,7 +561,7 @@ pub struct CopyOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::copy_with_if_not_exists`] before using this feature.
+    /// Check [`crate::Capability::copy_with_if_not_exists`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -554,7 +578,7 @@ pub struct CopyOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::copy_with_if_match`] before using this feature.
+    /// Check [`crate::Capability::copy_with_if_match`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -566,7 +590,7 @@ pub struct CopyOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::copy_with_source_version`] before using this feature.
+    /// Check [`crate::Capability::copy_with_source_version`] before using this feature.
     ///
     /// ### Behavior
     ///
@@ -592,9 +616,9 @@ pub struct CopyOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::copy_can_multi`],
-    /// [`Capability::copy_multi_min_size`] and
-    /// [`Capability::copy_multi_max_size`] before using this feature.
+    /// Check [`crate::Capability::copy_can_multi`],
+    /// [`crate::Capability::copy_multi_min_size`] and
+    /// [`crate::Capability::copy_multi_max_size`] before using this feature.
     ///
     /// This is a best-effort execution option. Services that support
     /// server-side segmented copy can use it as the target size for each copy
@@ -609,13 +633,13 @@ pub struct RenameOptions {
     ///
     /// ### Capability
     ///
-    /// Check [`Capability::rename_with_if_not_exists`] before using this feature.
+    /// Check [`crate::Capability::rename_with_if_not_exists`] before using this feature.
     ///
     /// ### Behavior
     ///
     /// - If the target does not exist, the rename operation succeeds.
-    /// - If the target exists, the operation returns [`ErrorKind::ConditionNotMatch`].
+    /// - If the target exists, the operation returns [`crate::ErrorKind::ConditionNotMatch`].
     /// - If the service does not support this condition, the operation returns
-    ///   [`ErrorKind::Unsupported`].
+    ///   [`crate::ErrorKind::Unsupported`].
     pub if_not_exists: bool,
 }

@@ -18,6 +18,7 @@
 [package]
 description = "Apache OpenDAL throttle layer"
 name = "opendal-layer-throttle"
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -32,7 +33,7 @@ all-features = true
 
 [dependencies]
 governor = "0.10.4"
-opendal-core = { path = "../../core", version = "0.58.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.58.0" }
+opendal-core = { path = "../../core", version = "0.58.2" }

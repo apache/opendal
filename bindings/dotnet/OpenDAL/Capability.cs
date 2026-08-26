@@ -38,6 +38,8 @@ public struct Capability
         Stat = native.stat != 0;
         StatWithIfMatch = native.statWithIfMatch != 0;
         StatWithIfNoneMatch = native.statWithIfNoneMatch != 0;
+        StatWithIfVersionMatch = native.statWithIfVersionMatch != 0;
+        StatWithIfVersionNotMatch = native.statWithIfVersionNotMatch != 0;
         StatWithIfModifiedSince = native.statWithIfModifiedSince != 0;
         StatWithIfUnmodifiedSince = native.statWithIfUnmodifiedSince != 0;
         StatWithOverrideCacheControl = native.statWithOverrideCacheControl != 0;
@@ -47,6 +49,8 @@ public struct Capability
         Read = native.read != 0;
         ReadWithIfMatch = native.readWithIfMatch != 0;
         ReadWithIfNoneMatch = native.readWithIfNoneMatch != 0;
+        ReadWithIfVersionMatch = native.readWithIfVersionMatch != 0;
+        ReadWithIfVersionNotMatch = native.readWithIfVersionNotMatch != 0;
         ReadWithIfModifiedSince = native.readWithIfModifiedSince != 0;
         ReadWithIfUnmodifiedSince = native.readWithIfUnmodifiedSince != 0;
         ReadWithOverrideCacheControl = native.readWithOverrideCacheControl != 0;
@@ -64,6 +68,8 @@ public struct Capability
         WriteWithCacheControl = native.writeWithCacheControl != 0;
         WriteWithIfMatch = native.writeWithIfMatch != 0;
         WriteWithIfNoneMatch = native.writeWithIfNoneMatch != 0;
+        WriteWithIfVersionMatch = native.writeWithIfVersionMatch != 0;
+        WriteWithIfVersionNotMatch = native.writeWithIfVersionNotMatch != 0;
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
@@ -74,14 +80,23 @@ public struct Capability
         DeleteWithVersion = native.deleteWithVersion != 0;
         DeleteWithRecursive = native.deleteWithRecursive != 0;
         DeleteWithIfMatch = native.deleteWithIfMatch != 0;
+        DeleteWithIfNoneMatch = native.deleteWithIfNoneMatch != 0;
+        DeleteWithIfVersionMatch = native.deleteWithIfVersionMatch != 0;
+        DeleteWithIfVersionNotMatch = native.deleteWithIfVersionNotMatch != 0;
         DeleteMaxSize = native.deleteMaxSize == nuint.MaxValue ? null : native.deleteMaxSize;
         Copy = native.copy != 0;
         CopyWithIfNotExists = native.copyWithIfNotExists != 0;
         CopyWithIfMatch = native.copyWithIfMatch != 0;
+        CopyWithIfNoneMatch = native.copyWithIfNoneMatch != 0;
+        CopyWithIfVersionMatch = native.copyWithIfVersionMatch != 0;
+        CopyWithIfVersionNotMatch = native.copyWithIfVersionNotMatch != 0;
         CopyWithSourceVersion = native.copyWithSourceVersion != 0;
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
+        Restore = native.restore != 0;
+        RestoreWithVersion = native.restoreWithVersion != 0;
+        RestoreWithIfNotExists = native.restoreWithIfNotExists != 0;
         Rename = native.rename != 0;
         RenameWithIfNotExists = native.renameWithIfNotExists != 0;
         List = native.list != 0;
@@ -112,6 +127,16 @@ public struct Capability
     /// Indicates if conditional stat operations using If-None-Match are supported.
     /// </summary>
     public bool StatWithIfNoneMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional stat operations using version match are supported.
+    /// </summary>
+    public bool StatWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional stat operations using version non-match are supported.
+    /// </summary>
+    public bool StatWithIfVersionNotMatch { get; private set; }
 
     /// <summary>
     /// Indicates if conditional stat operations using If-Modified-Since are supported.
@@ -157,6 +182,16 @@ public struct Capability
     /// Indicates if conditional read operations using If-None-Match are supported.
     /// </summary>
     public bool ReadWithIfNoneMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional read operations using version match are supported.
+    /// </summary>
+    public bool ReadWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional read operations using version non-match are supported.
+    /// </summary>
+    public bool ReadWithIfVersionNotMatch { get; private set; }
 
     /// <summary>
     /// Indicates if conditional read operations using If-Modified-Since are supported.
@@ -244,6 +279,16 @@ public struct Capability
     public bool WriteWithIfNoneMatch { get; private set; }
 
     /// <summary>
+    /// Indicates if conditional write operations using version match are supported.
+    /// </summary>
+    public bool WriteWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional write operations using version non-match are supported.
+    /// </summary>
+    public bool WriteWithIfVersionNotMatch { get; private set; }
+
+    /// <summary>
     /// Indicates if write operations can be conditional on object non-existence.
     /// </summary>
     public bool WriteWithIfNotExists { get; private set; }
@@ -294,6 +339,21 @@ public struct Capability
     public bool DeleteWithIfMatch { get; private set; }
 
     /// <summary>
+    /// Indicates if conditional delete operations using If-None-Match are supported.
+    /// </summary>
+    public bool DeleteWithIfNoneMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional delete operations using version match are supported.
+    /// </summary>
+    public bool DeleteWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional delete operations using version non-match are supported.
+    /// </summary>
+    public bool DeleteWithIfVersionNotMatch { get; private set; }
+
+    /// <summary>
     /// Maximum size supported for single delete operations.
     /// </summary>
     public ulong? DeleteMaxSize { get; private set; }
@@ -314,6 +374,21 @@ public struct Capability
     public bool CopyWithIfMatch { get; private set; }
 
     /// <summary>
+    /// Indicates if conditional copy operations with if-none-match are supported.
+    /// </summary>
+    public bool CopyWithIfNoneMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional copy operations using version match are supported.
+    /// </summary>
+    public bool CopyWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional copy operations using version non-match are supported.
+    /// </summary>
+    public bool CopyWithIfVersionNotMatch { get; private set; }
+
+    /// <summary>
     /// Indicates if copy operations from a specific source version are supported.
     /// </summary>
     public bool CopyWithSourceVersion { get; private set; }
@@ -332,6 +407,21 @@ public struct Capability
     /// Minimum size required for segmented copy tasks.
     /// </summary>
     public ulong? CopyMultiMinSize { get; private set; }
+
+    /// <summary>
+    /// Indicates if restore operations are supported.
+    /// </summary>
+    public bool Restore { get; private set; }
+
+    /// <summary>
+    /// Indicates if restoring a specific version is supported.
+    /// </summary>
+    public bool RestoreWithVersion { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional restore operations using if-not-exists are supported.
+    /// </summary>
+    public bool RestoreWithIfNotExists { get; private set; }
 
     /// <summary>
     /// Indicates if rename operations are supported.

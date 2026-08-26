@@ -236,13 +236,12 @@ impl GcsGrpcWriter {
                 .expect("pending upload must exist")
                 .in_flight = true;
 
-            let first_message = write_object_request::FirstMessage::UploadId(upload_id);
+            let first_message = write_object_request::FirstMessage::UploadId(upload_id.clone());
             let requests =
                 write_object_requests(body.clone(), write_offset, finish_write, first_message)?;
-            let bucket = self.core.bucket_resource();
             let request = self
                 .core
-                .request(&self.ctx, requests, &[("bucket", &bucket)])
+                .request(&self.ctx, requests, &[("upload_id", &upload_id)])
                 .await?;
             let response = self
                 .core

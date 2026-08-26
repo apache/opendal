@@ -340,3 +340,7 @@ pub mod rfc_7948_s3_provider_presets {}
 /// Writer Copy From
 #[doc = include_str!("8109_writer_copy_from.md")]
 pub mod rfc_8109_writer_copy_from {}
+
+/// Conflict Error Kind
+#[doc = include_str!("8145_conflict_error_kind.md")]
+pub mod rfc_8145_conflict_error_kind {}

@@ -337,6 +337,7 @@ impl Builder for AzdlsBuilder {
             create_dir: true,
 
             delete: true,
+            delete_with_if_match: true,
             delete_with_recursive: true,
 
             rename: true,

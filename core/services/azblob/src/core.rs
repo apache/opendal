@@ -737,9 +737,14 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
-    fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
-        Request::delete(self.build_path_url(path))
-            .header(CONTENT_LENGTH, 0)
+    fn azblob_delete_blob_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
+        let mut req = Request::delete(self.build_path_url(path));
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        req.header(CONTENT_LENGTH, 0)
             .extension(Operation::Delete)
             .extension(ServiceOperation("DeleteBlob"))
             .body(Buffer::new())
@@ -750,8 +755,9 @@ impl AzblobCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_delete_blob_request(path)?;
+        let req = self.azblob_delete_blob_request(path, args)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -829,7 +835,7 @@ impl AzblobCore {
     pub async fn azblob_batch_delete(
         &self,
         ctx: &OperationContext,
-        paths: &[String],
+        batch: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
@@ -838,8 +844,8 @@ impl AzblobCore {
 
         let mut multipart = Multipart::new();
 
-        for (idx, path) in paths.iter().enumerate() {
-            let req = self.azblob_delete_blob_request(path)?;
+        for (idx, (path, args)) in batch.iter().enumerate() {
+            let req = self.azblob_delete_blob_request(path, args)?;
             let req = self.batch_sign(ctx, req).await?;
 
             multipart = multipart.part(

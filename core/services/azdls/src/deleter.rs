@@ -38,9 +38,11 @@ impl AzdlsDeleter {
 impl oio::OneShotDelete for AzdlsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let resp = if args.recursive() {
-            self.core.azdls_recursive_delete(&self.ctx, &path).await?
+            self.core
+                .azdls_recursive_delete(&self.ctx, &path, &args)
+                .await?
         } else {
-            self.core.azdls_delete(&self.ctx, &path).await?
+            self.core.azdls_delete(&self.ctx, &path, &args).await?
         };
 
         let status = resp.status();

@@ -190,7 +190,10 @@ impl oio::MultipartCopy for S3Copier {
                 range,
             })?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.iam())
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {

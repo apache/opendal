@@ -65,6 +65,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte delete;
     [MarshalAs(UnmanagedType.U1)] internal byte deleteWithVersion;
     [MarshalAs(UnmanagedType.U1)] internal byte deleteWithRecursive;
+    [MarshalAs(UnmanagedType.U1)] internal byte deleteWithIfMatch;
     internal nuint deleteMaxSize;
 
     [MarshalAs(UnmanagedType.U1)] internal byte copy;

@@ -31,6 +31,25 @@ policy.
 
 The human contributor remains responsible for every submitted claim and change.
 
+## Helper Functions
+
+- Extract a helper only when it owns a stable, cohesive responsibility, such as
+  a non-trivial invariant or algorithm, shared protocol encoding with identical
+  semantics, a state-machine transition, or a trait or interface boundary.
+- Do not introduce an intermediate type or helper merely to deduplicate a short
+  condition, merge, forwarding step, request parameter, or error mapping.
+  Prefer a few duplicated lines when they keep each operation easier to read
+  and maintain in isolation.
+- Keep operation-specific validation, lowering, request construction, and
+  response handling at the dispatch, request-builder, or response-processing
+  boundary that owns the behavior. A reader should be able to see how one
+  operation maps its options without following a chain of generic helpers.
+- Before sharing code, verify that the call sites have the same contract,
+  inputs, failure semantics, and reasons to change. Similar syntax alone does
+  not justify an abstraction.
+- Reuse an existing helper only when it already expresses the same contract. Do
+  not broaden it with operation-specific branches merely to obtain reuse.
+
 ## Documentation Style
 
 - Prefer active voice. Name the type or component that performs an action, for example, “`RetryLayer` retries failed operations.”
@@ -167,7 +186,6 @@ When adding or changing a public optional layer:
 - Use `opendal_core::raw::Access`, `Layer`, and `LayeredAccess` for internal implementations.
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.
-- Prefer existing helpers in `opendal-core` before adding service-local utilities.
 
 ## Security
 

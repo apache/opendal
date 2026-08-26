@@ -1199,13 +1199,18 @@ impl Service for S3Backend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("HeadObject"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_modified_since(args.if_modified_since().is_some())
+            .with_if_unmodified_since(args.if_unmodified_since().is_some());
         let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -1354,7 +1359,10 @@ impl Service for S3Backend {
             .s3_list_object_versions(ctx, path, "", Some(1), "", "")
             .await?;
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
         }
 
         let output: ListObjectVersionsOutput =
@@ -1386,7 +1394,10 @@ impl Service for S3Backend {
         let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
         match resp.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpRestore::new()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 

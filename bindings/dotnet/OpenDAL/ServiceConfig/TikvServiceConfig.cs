@@ -24,55 +24,55 @@ using OpenDAL.ServiceConfig.Abstractions;
 namespace OpenDAL.ServiceConfig
 {
     /// <summary>
-    /// Configuration for service http.
+    /// Configuration for service tikv.
     /// </summary>
-    public sealed class HttpServiceConfig : IServiceConfig
+    public sealed class TikvServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// endpoint of this backend
+        /// certificate authority file path
         /// </summary>
-        public string? Endpoint { get; init; }
+        public string? CaPath { get; init; }
         /// <summary>
-        /// password of this backend
+        /// cert path
         /// </summary>
-        public string? Password { get; init; }
+        public string? CertPath { get; init; }
         /// <summary>
-        /// root of this backend
+        /// network address of the TiKV service.
         /// </summary>
-        public string? Root { get; init; }
+        public IReadOnlyList<string>? Endpoints { get; init; }
         /// <summary>
-        /// token of this backend
+        /// whether using insecure connection to TiKV
         /// </summary>
-        public string? Token { get; init; }
+        public bool? Insecure { get; init; }
         /// <summary>
-        /// username of this backend
+        /// key path
         /// </summary>
-        public string? Username { get; init; }
+        public string? KeyPath { get; init; }
 
-        public string Scheme => "http";
+        public string Scheme => "tikv";
 
         public IReadOnlyDictionary<string, string> ToOptions()
         {
             var map = new Dictionary<string, string>();
-            if (Endpoint is not null)
+            if (CaPath is not null)
             {
-                map["endpoint"] = Utilities.ToOptionString(Endpoint);
+                map["ca_path"] = Utilities.ToOptionString(CaPath);
             }
-            if (Password is not null)
+            if (CertPath is not null)
             {
-                map["password"] = Utilities.ToOptionString(Password);
+                map["cert_path"] = Utilities.ToOptionString(CertPath);
             }
-            if (Root is not null)
+            if (Endpoints is not null)
             {
-                map["root"] = Utilities.ToOptionString(Root);
+                map["endpoints"] = string.Join(",", Endpoints);
             }
-            if (Token is not null)
+            if (Insecure is not null)
             {
-                map["token"] = Utilities.ToOptionString(Token);
+                map["insecure"] = Utilities.ToOptionString(Insecure);
             }
-            if (Username is not null)
+            if (KeyPath is not null)
             {
-                map["username"] = Utilities.ToOptionString(Username);
+                map["key_path"] = Utilities.ToOptionString(KeyPath);
             }
             return map;
         }

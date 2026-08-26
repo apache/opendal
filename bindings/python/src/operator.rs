@@ -725,6 +725,7 @@ impl Operator {
                 version,
                 recursive: recursive.unwrap_or(false),
                 if_match,
+                ..Default::default()
             };
             self.core.delete_options(&path, opts).map_err(format_pyerr)
         } else {
@@ -1553,6 +1554,7 @@ impl AsyncOperator {
                     version,
                     recursive: recursive.unwrap_or(false),
                     if_match,
+                    ..Default::default()
                 };
                 this.delete_options(&path, opts).await.map_err(format_pyerr)
             } else {

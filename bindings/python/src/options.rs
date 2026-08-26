@@ -187,6 +187,7 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+            ..Default::default()
         }
     }
 }
@@ -204,6 +205,7 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             chunk: opts.chunk,
             gap: opts.gap,
             prefetch: opts.prefetch.unwrap_or_default(),
+            ..Default::default()
         }
     }
 }
@@ -222,6 +224,7 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),
+            ..Default::default()
         }
     }
 }
@@ -322,6 +325,7 @@ impl From<StatOptions> for ocore::options::StatOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+            ..Default::default()
         }
     }
 }
@@ -360,6 +364,7 @@ impl From<DeleteOptions> for ocore::options::DeleteOptions {
             version: opts.version,
             recursive: opts.recursive.unwrap_or(false),
             if_match: opts.if_match,
+            ..Default::default()
         }
     }
 }

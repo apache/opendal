@@ -242,6 +242,7 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with(
             version,
             recursive: opts.recursive,
             if_match: None,
+            ..Default::default()
         }
     };
 

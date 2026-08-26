@@ -18,13 +18,26 @@
 use std::os::raw::c_int;
 
 use bytes::Buf;
+use bytes::Bytes;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyOverflowError;
 use pyo3::ffi;
 use pyo3::prelude::*;
+use pyo3::pybacked::PyBackedBytes;
+use pyo3::types::PyAny;
 use pyo3::types::PyBytes;
 
 use crate::ocore;
+
+/// Keep immutable Python bytes alive inside an OpenDAL buffer without copying.
+pub fn py_bytes_like_into_buffer(value: &Bound<PyAny>) -> PyResult<ocore::Buffer> {
+    if let Ok(value) = value.cast::<PyBytes>() {
+        let owner = PyBackedBytes::from(value.clone());
+        return Ok(Bytes::from_owner(owner).into());
+    }
+
+    value.extract::<Vec<u8>>().map(Into::into)
+}
 
 /// Copy an OpenDAL buffer directly into a new Python `bytes` object.
 pub fn buffer_into_py_bytes<'py>(
@@ -74,6 +87,28 @@ mod tests {
             let result = buffer_into_py_bytes(py, ocore::Buffer::new()).unwrap();
             assert!(result.as_bytes().is_empty());
         });
+    }
+
+    #[test]
+    fn test_py_bytes_like_into_buffer() {
+        Python::initialize();
+        let (buffer, source_ptr) = Python::attach(|py| {
+            let value = PyBytes::new(py, b"hello, world");
+            let source_ptr = value.as_bytes().as_ptr();
+            let buffer = py_bytes_like_into_buffer(value.as_any()).unwrap();
+            (buffer, source_ptr)
+        });
+
+        assert_eq!(buffer.current().as_ptr(), source_ptr);
+        assert_eq!(buffer.to_vec(), b"hello, world");
+
+        let buffer = Python::attach(|py| {
+            let value = pyo3::types::PyByteArray::new(py, b"mutable");
+            let buffer = py_bytes_like_into_buffer(value.as_any()).unwrap();
+            value.set_item(0, b'M').unwrap();
+            buffer
+        });
+        assert_eq!(buffer.to_vec(), b"mutable");
     }
 }
 

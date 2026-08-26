@@ -45,6 +45,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_if_none_match,
             test_write_with_if_not_exists,
             test_write_with_if_match,
+            test_write_with_version_conditions,
+            test_write_if_not_changed,
             test_write_with_user_metadata,
             test_write_returns_metadata,
             test_writer_write,
@@ -60,7 +62,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_write_non_contiguous_data,
             test_writer_write_with_if_not_exists,
             test_writer_write_with_if_none_match,
-            test_writer_write_with_if_match
+            test_writer_write_with_if_match,
+            test_writer_write_with_version_conditions
         ))
     }
 
@@ -813,19 +816,124 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Version preconditions should compare against the current live object version.
+pub async fn test_write_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_version_match || !cap.write_with_if_version_not_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (initial, _) = gen_bytes(cap);
+    let (replacement, _) = gen_bytes(cap);
+    assert_ne!(initial, replacement);
+
+    op.write(&path, initial).await?;
+    let first_version = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    op.write_with(&path, replacement.clone())
+        .if_version_match(&first_version)
+        .await?;
+
+    let current_version = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    let err = op
+        .write_with(&path, replacement.clone())
+        .if_version_match(&first_version)
+        .await
+        .expect_err("stale version match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let err = op
+        .write_with(&path, replacement.clone())
+        .if_version_not_match(&current_version)
+        .await
+        .expect_err("equal version non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    op.write_with(&path, replacement)
+        .if_version_not_match(&first_version)
+        .await?;
+
+    let missing = TEST_FIXTURE.new_file_path();
+    for result in [
+        op.write_with(&missing, Vec::<u8>::new())
+            .if_version_match(&current_version)
+            .await,
+        op.write_with(&missing, Vec::<u8>::new())
+            .if_version_not_match(&current_version)
+            .await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing target must fail").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+    }
+
+    Ok(())
+}
+
+/// `if_not_changed` should accept the observed state once and reject it after replacement.
+pub async fn test_write_if_not_changed(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_version_match && !cap.write_with_if_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (initial, _) = gen_bytes(cap);
+    let (replacement, _) = gen_bytes(cap);
+    assert_ne!(initial, replacement);
+
+    op.write(&path, initial).await?;
+    let expected = op.stat(&path).await?;
+
+    let mut conflicting = options::WriteOptions {
+        if_not_changed: Some(expected.clone()),
+        ..Default::default()
+    };
+    let mut matching = conflicting.clone();
+    if cap.write_with_if_version_match {
+        let version = expected.version().expect("version must exist");
+        conflicting.if_version_match = Some(format!("different-{version}"));
+        matching.if_version_match = Some(version.to_string());
+    } else {
+        let etag = expected.etag().expect("etag must exist");
+        conflicting.if_match = Some(format!("different-{etag}"));
+        matching.if_match = Some(etag.to_string());
+    }
+
+    let err = op
+        .write_options(&path, replacement.clone(), conflicting)
+        .await
+        .expect_err("conflicting explicit condition must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.write_options(&path, replacement.clone(), matching)
+        .await?;
+    let err = op
+        .write_with(&path, replacement)
+        .if_not_changed(&expected)
+        .await
+        .expect_err("stale metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
 /// Write an existing file through a chunked writer with if_not_exists should get a
 /// ConditionNotMatch error.
 pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
     let cap = op.info().capability();
     if !cap.write_with_if_not_exists || !cap.write_can_multi {
-        return Ok(());
-    }
-
-    // GCS XML API multipart uploads do not support preconditions, so the multipart
-    // writer path cannot honor if_not_exists. Tracked in
-    // https://github.com/apache/opendal/issues/8040
-    #[cfg(feature = "services-gcs")]
-    if op.info().scheme() == services::GCS_SCHEME {
         return Ok(());
     }
 
@@ -925,6 +1033,50 @@ pub async fn test_writer_write_with_if_match(op: Operator) -> Result<()> {
     }
     .await;
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Chunked writers should preserve version preconditions through final commit.
+pub async fn test_writer_write_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_can_multi
+        || !cap.write_with_if_version_match
+        || !cap.write_with_if_version_not_match
+    {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let body = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+    op.write(&path, body.clone()).await?;
+    let expected = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let mut writer = op.writer_with(&path).if_version_match(&expected).await?;
+    writer.write(body.clone()).await?;
+    writer.write(body.clone()).await?;
+    writer.close().await?;
+
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    let result: opendal::Result<()> = async {
+        let mut writer = op.writer_with(&path).if_version_not_match(&current).await?;
+        writer.write(body.clone()).await?;
+        writer.write(body).await?;
+        writer.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
 }

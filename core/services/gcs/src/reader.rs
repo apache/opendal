@@ -16,6 +16,7 @@
 // under the License.
 
 use super::backend::*;
+use super::core::constants::X_GOOG_GENERATION;
 use super::core::parse_error;
 use http::Response;
 use http::StatusCode;
@@ -61,13 +62,24 @@ impl oio::StreamRead for GcsReader {
         let status = resp.status();
 
         let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let mut metadata = parse_into_metadata(path, resp.headers())?;
+                if let Some(generation) = parse_header_to_str(resp.headers(), X_GOOG_GENERATION)? {
+                    metadata.set_version(generation);
+                }
+                (RpRead::new(metadata), resp.into_body())
+            }
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
+                if part.status == StatusCode::NOT_FOUND
+                    && (args.if_version_match().is_some() || args.if_version_not_match().is_some())
+                {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "version precondition requires a live target",
+                    ));
+                }
                 return Err(parse_error(Response::from_parts(part, buf)));
             }
         };

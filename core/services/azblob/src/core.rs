@@ -301,7 +301,6 @@ impl AzblobCore {
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
-
         if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
@@ -651,6 +650,12 @@ impl AzblobCore {
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             latest: block_ids
@@ -725,9 +730,16 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
-    fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<Buffer>> {
-        Request::delete(self.build_path_url(path))
-            .header(CONTENT_LENGTH, 0)
+    fn azblob_delete_blob_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
+        let mut req = Request::delete(self.build_path_url(path));
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        req.header(CONTENT_LENGTH, 0)
             .extension(Operation::Delete)
             .extension(ServiceOperation("DeleteBlob"))
             .body(Buffer::new())
@@ -738,8 +750,9 @@ impl AzblobCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_delete_blob_request(path)?;
+        let req = self.azblob_delete_blob_request(path, args)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -766,6 +779,12 @@ impl AzblobCore {
         // Add if_not_exists condition using If-None-Match header
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -817,7 +836,7 @@ impl AzblobCore {
     pub async fn azblob_batch_delete(
         &self,
         ctx: &OperationContext,
-        paths: &[String],
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!(
             "{}/{}?restype=container&comp=batch",
@@ -826,8 +845,8 @@ impl AzblobCore {
 
         let mut multipart = Multipart::new();
 
-        for (idx, path) in paths.iter().enumerate() {
-            let req = self.azblob_delete_blob_request(path)?;
+        for (idx, (path, args)) in paths.iter().enumerate() {
+            let req = self.azblob_delete_blob_request(path, args)?;
             let req = self.batch_sign(ctx, req).await?;
 
             multipart = multipart.part(

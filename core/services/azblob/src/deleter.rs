@@ -37,20 +37,28 @@ impl AzblobDeleter {
 }
 
 impl oio::BatchDelete for AzblobDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.azblob_delete_blob(&self.ctx, &path).await?;
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        let resp = self
+            .core
+            .azblob_delete_blob(&self.ctx, &path, &args)
+            .await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::ACCEPTED => Ok(()),
+            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            )),
+            StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(resp)),
         }
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
         // TODO: Add remove version support.
-        let paths = batch.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+        let paths = batch;
 
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&self.ctx, &paths).await?;
@@ -86,15 +94,23 @@ impl oio::BatchDelete for AzblobDeleter {
 
         for (i, part) in parts.into_iter().enumerate() {
             let resp = part.into_response();
-            let path = paths[i].clone();
+            let (path, op) = paths[i].clone();
 
-            // deleting not existing objects is ok
-            if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
-                batched_result.succeeded.push((path, OpDelete::default()));
+            if resp.status() == StatusCode::NOT_FOUND && op.if_match().is_some() {
+                batched_result.failed.push((
+                    path,
+                    op,
+                    Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "delete precondition requires a live target",
+                    ),
+                ));
+            } else if resp.status() == StatusCode::ACCEPTED
+                || resp.status() == StatusCode::NOT_FOUND
+            {
+                batched_result.succeeded.push((path, op));
             } else {
-                batched_result
-                    .failed
-                    .push((path, OpDelete::default(), parse_error(resp)));
+                batched_result.failed.push((path, op, parse_error(resp)));
             }
         }
 

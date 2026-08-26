@@ -51,6 +51,15 @@ pub struct OpDelete {
 
     /// The ETag that the object must match before deletion.
     if_match: Option<String>,
+
+    /// The ETag that the object must not match before deletion.
+    if_none_match: Option<String>,
+
+    /// The version that the current object must match before deletion.
+    if_version_match: Option<String>,
+
+    /// The version that the current object must not match before deletion.
+    if_version_not_match: Option<String>,
 }
 
 impl OpDelete {
@@ -81,6 +90,24 @@ impl OpDelete {
         self
     }
 
+    /// Set the ETag that the object must not match before deletion.
+    pub fn with_if_none_match(mut self, if_none_match: impl Into<String>) -> Self {
+        self.if_none_match = Some(if_none_match.into());
+        self
+    }
+
+    /// Set the version that the current object must match before deletion.
+    pub fn with_if_version_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_match = Some(version.into());
+        self
+    }
+
+    /// Set the version that the current object must not match before deletion.
+    pub fn with_if_version_not_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_not_match = Some(version.into());
+        self
+    }
+
     /// Return the version of the object to delete.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
@@ -95,6 +122,21 @@ impl OpDelete {
     pub fn if_match(&self) -> Option<&str> {
         self.if_match.as_deref()
     }
+
+    /// Return the ETag that the object must not match before deletion.
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
+
+    /// Return the version that the current object must match before deletion.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Return the version that the current object must not match before deletion.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
+    }
 }
 
 impl From<options::DeleteOptions> for OpDelete {
@@ -103,6 +145,9 @@ impl From<options::DeleteOptions> for OpDelete {
             version: value.version,
             recursive: value.recursive,
             if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_version_match: value.if_version_match,
+            if_version_not_match: value.if_version_not_match,
         }
     }
 }
@@ -334,6 +379,8 @@ impl From<OpDelete> for PresignOperation {
 pub struct OpRead {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_version_match: Option<String>,
+    if_version_not_match: Option<String>,
     if_modified_since: Option<Timestamp>,
     if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
@@ -403,6 +450,28 @@ impl OpRead {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the version that the current object must match.
+    pub fn with_if_version_match(mut self, version: &str) -> Self {
+        self.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Set the version that the current object must not match.
+    pub fn with_if_version_not_match(mut self, version: &str) -> Self {
+        self.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
     }
 
     /// Set the If-Modified-Since of the option
@@ -528,6 +597,8 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
             OpRead {
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
+                if_version_match: value.if_version_match,
+                if_version_not_match: value.if_version_not_match,
                 if_modified_since: value.if_modified_since,
                 if_unmodified_since: value.if_unmodified_since,
                 override_content_type: value.override_content_type,
@@ -553,6 +624,8 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
             OpRead {
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
+                if_version_match: value.if_version_match,
+                if_version_not_match: value.if_version_not_match,
                 if_modified_since: value.if_modified_since,
                 if_unmodified_since: value.if_unmodified_since,
                 override_content_type: None,
@@ -577,6 +650,8 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_version_match: Option<String>,
+    if_version_not_match: Option<String>,
     if_modified_since: Option<Timestamp>,
     if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
@@ -611,6 +686,28 @@ impl OpStat {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the version that the current object must match.
+    pub fn with_if_version_match(mut self, version: &str) -> Self {
+        self.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Set the version that the current object must not match.
+    pub fn with_if_version_not_match(mut self, version: &str) -> Self {
+        self.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
     }
 
     /// Set the If-Modified-Since of the option
@@ -686,6 +783,8 @@ impl From<options::StatOptions> for OpStat {
         Self {
             if_match: value.if_match,
             if_none_match: value.if_none_match,
+            if_version_match: value.if_version_match,
+            if_version_not_match: value.if_version_not_match,
             if_modified_since: value.if_modified_since,
             if_unmodified_since: value.if_unmodified_since,
             override_content_type: value.override_content_type,
@@ -707,6 +806,8 @@ pub struct OpWrite {
     cache_control: Option<String>,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    if_version_match: Option<String>,
+    if_version_not_match: Option<String>,
     if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
 }
@@ -815,6 +916,28 @@ impl OpWrite {
         self.if_none_match.as_deref()
     }
 
+    /// Set the version that the current object must match.
+    pub fn with_if_version_match(mut self, version: &str) -> Self {
+        self.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Set the version that the current object must not match.
+    pub fn with_if_version_not_match(mut self, version: &str) -> Self {
+        self.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Get the version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
+    }
+
     /// Set the If-Not-Exist of the option
     pub fn with_if_not_exists(mut self, b: bool) -> Self {
         self.if_not_exists = b;
@@ -885,6 +1008,8 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 cache_control: value.cache_control,
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,
+                if_version_match: value.if_version_match,
+                if_version_not_match: value.if_version_not_match,
                 if_not_exists: value.if_not_exists,
                 user_metadata: value.user_metadata,
             },
@@ -898,6 +1023,9 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 pub struct OpCopy {
     if_not_exists: bool,
     if_match: Option<String>,
+    if_none_match: Option<String>,
+    if_version_match: Option<String>,
+    if_version_not_match: Option<String>,
     source_version: Option<String>,
 }
 
@@ -933,6 +1061,39 @@ impl OpCopy {
     /// Get if_match condition.
     pub fn if_match(&self) -> Option<&str> {
         self.if_match.as_deref()
+    }
+
+    /// Set the destination ETag non-match condition.
+    pub fn with_if_none_match(mut self, if_none_match: impl Into<String>) -> Self {
+        self.if_none_match = Some(if_none_match.into());
+        self
+    }
+
+    /// Get the destination ETag non-match condition.
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
+
+    /// Set the current destination version match condition.
+    pub fn with_if_version_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_match = Some(version.into());
+        self
+    }
+
+    /// Get the current destination version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Set the current destination version non-match condition.
+    pub fn with_if_version_not_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_not_match = Some(version.into());
+        self
+    }
+
+    /// Get the current destination version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
     }
 
     /// Set source version for the operation.
@@ -1003,6 +1164,9 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
             OpCopy {
                 if_not_exists: value.if_not_exists,
                 if_match: value.if_match,
+                if_none_match: value.if_none_match,
+                if_version_match: value.if_version_match,
+                if_version_not_match: value.if_version_not_match,
                 source_version: value.source_version,
             },
             OpCopier {

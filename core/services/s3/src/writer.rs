@@ -83,7 +83,17 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(resp);
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -204,7 +214,7 @@ impl oio::MultipartWrite for S3Writer {
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
                 if !ret.code.is_empty() {
-                    return Err(from_s3_error(
+                    let err = from_s3_error(
                         S3Error {
                             code: ret.code,
                             message: ret.message,
@@ -212,13 +222,31 @@ impl oio::MultipartWrite for S3Writer {
                             request_id: ret.request_id,
                         },
                         parts,
-                    ));
+                    );
+                    return if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "write precondition requires a live target",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
                 meta.set_etag(&ret.etag);
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(resp);
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 

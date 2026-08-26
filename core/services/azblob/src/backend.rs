@@ -413,10 +413,14 @@ impl Builder for AzblobBuilder {
             write_with_user_metadata: true,
 
             delete: true,
+            delete_with_if_match: true,
+            delete_with_if_none_match: true,
             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
             copy: true,
             copy_with_if_not_exists: true,
+            copy_with_if_match: true,
+            copy_with_if_none_match: true,
             copy_can_multi: true,
             copy_multi_min_size: Some(AZBLOB_COPY_MIN_BLOCK_SIZE),
             copy_multi_max_size: Some(AZBLOB_COPY_MAX_BLOCK_SIZE),
@@ -612,9 +616,9 @@ impl Service for AzblobBackend {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
-            PresignOperation::Write(_) => {
+            PresignOperation::Write(v) => {
                 self.core
-                    .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())
+                    .azblob_put_blob_request(path, None, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
                 ErrorKind::Unsupported,

@@ -69,9 +69,6 @@ let expected = Metadata::default()
 Preserving both fields keeps externally stored metadata portable across
 services. Both fields must describe the same observed object state.
 
-The new conditions are not supported by presign operations. Supplying them to
-a presign options API returns `Unsupported` before service dispatch.
-
 ## Condition semantics
 
 All token values are opaque. A `version` option selects a historical object;
@@ -108,13 +105,13 @@ participate. OpenDAL does not validate provenance, path, or storage namespace,
 so the caller must associate externally constructed metadata with the correct
 target.
 
-`if_not_changed` is exclusive with every other target condition and, on
-delete, with the target `version` selector. Version match and non-match are
-mutually exclusive and cannot be combined with another target condition or a
-target version selector. Copy's `source_version` selects a different object
-and may be combined with destination conditions. Append writes cannot use
-version conditions or `if_not_changed` because append has no portable final
-replacement commit point. Invalid combinations return `ConfigInvalid`.
+OpenDAL preserves explicit target conditions and version selectors while
+lowering `if_not_changed`. If the selected primitive match field already
+contains the same opaque token, OpenDAL deduplicates it. If that field contains
+a different token, OpenDAL returns `ConditionNotMatch` because both equality
+conditions cannot hold. OpenDAL forwards every other representable combination
+unchanged. After OpenDAL validates each condition's capability, the service
+decides whether it accepts the combination and reports any invalid combination.
 
 Missing-target results are part of the portable contract:
 
@@ -155,6 +152,9 @@ All new capabilities default to `false`. There is no independently advertised
 `if_not_changed` capability; support is derived from the applicable version and
 ETag match capabilities plus the supplied metadata.
 
+Capabilities describe support for individual conditions. They do not guarantee
+that a service accepts any particular combination of conditions or selectors.
+
 A service advertising a version-match primitive must populate
 `Metadata::version()` on stat, read, write, copy, and list whenever the native
 response provides it. The same rule applies to `Metadata::etag()` for an
@@ -172,12 +172,6 @@ GCS maps version conditions to JSON API generation parameters:
 | `if_version_not_match(v)` | `ifGenerationNotMatch=v` |
 | `if_not_exists` | `ifGenerationMatch=0` |
 | `if_not_changed(meta)` | Lower to `if_version_match(meta.version())`. |
-
-GCS generation `0` is reserved for the absence condition and is never an
-object generation. GCS rejects `if_version_match("0")` and expected metadata
-whose selected version is `"0"` with `ConfigInvalid`.
-`if_version_not_match("0")` remains valid and succeeds only when a live object
-exists.
 
 GCS applies these parameters to JSON API get, insert, delete, and destination
 rewrite requests. `ifGenerationNotMatch` fails when no live object exists, and

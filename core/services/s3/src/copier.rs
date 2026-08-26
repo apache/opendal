@@ -125,7 +125,7 @@ impl oio::MultipartCopy for S3Copier {
 
                 // S3 may return 200 OK with an <Error> body for CopyObject.
                 if result.etag.is_empty() {
-                    return Err(from_s3_error(
+                    let err = from_s3_error(
                         S3Error {
                             code: result.code,
                             message: result.message,
@@ -133,7 +133,15 @@ impl oio::MultipartCopy for S3Copier {
                             request_id: result.request_id,
                         },
                         parts,
-                    ));
+                    );
+                    return if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "copy precondition requires a live destination",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
 
                 let mut meta = Metadata::new(EntryMode::from_path(&self.to));
@@ -147,7 +155,17 @@ impl oio::MultipartCopy for S3Copier {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(resp);
+                if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "copy precondition requires a live destination",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -257,7 +275,7 @@ impl oio::MultipartCopy for S3Copier {
                     quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
                 // S3 may return 200 OK with an <Error> body for CompleteMultipartUpload.
                 if ret.etag.is_empty() {
-                    return Err(from_s3_error(
+                    let err = from_s3_error(
                         S3Error {
                             code: ret.code,
                             message: ret.message,
@@ -265,7 +283,15 @@ impl oio::MultipartCopy for S3Copier {
                             request_id: ret.request_id,
                         },
                         parts,
-                    ));
+                    );
+                    return if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "copy precondition requires a live destination",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
 
                 let mut meta = Metadata::new(EntryMode::from_path(&self.to));
@@ -276,7 +302,17 @@ impl oio::MultipartCopy for S3Copier {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(resp);
+                if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "copy precondition requires a live destination",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 

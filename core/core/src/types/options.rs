@@ -17,6 +17,7 @@
 
 //! Options module provides options definitions for operations.
 
+use crate::Metadata;
 use crate::raw::Timestamp;
 use crate::types::BytesRange;
 use std::collections::HashMap;
@@ -44,6 +45,23 @@ pub struct DeleteOptions {
     /// - If supported, the delete will only succeed when the existing object's
     ///   ETag matches the given value.
     pub if_match: Option<String>,
+    /// Delete only when the current object's ETag does not match this value.
+    ///
+    /// Check [`crate::Capability::delete_with_if_none_match`] before using this feature.
+    pub if_none_match: Option<String>,
+    /// Delete only when the current object's version matches this value.
+    ///
+    /// Check [`crate::Capability::delete_with_if_version_match`] before using this feature.
+    pub if_version_match: Option<String>,
+    /// Delete only when the current object's version does not match this value.
+    ///
+    /// Check [`crate::Capability::delete_with_if_version_not_match`] before using this feature.
+    pub if_version_not_match: Option<String>,
+    /// Delete only when the object still matches the supplied metadata.
+    ///
+    /// OpenDAL prefers `version` when the service supports version preconditions and
+    /// otherwise uses `ETag`.
+    pub if_not_changed: Option<Metadata>,
 }
 
 /// Options for list operations.
@@ -103,6 +121,10 @@ pub struct ReadOptions {
     /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
+    /// Read only when the current object's version matches this value.
+    pub if_version_match: Option<String>,
+    /// Read only when the current object's version does not match this value.
+    pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
     /// This option can be used to check if the file has been modified since the given timestamp.
@@ -200,6 +222,10 @@ pub struct ReaderOptions {
     /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
+    /// Read only when the current object's version matches this value.
+    pub if_version_match: Option<String>,
+    /// Read only when the current object's version does not match this value.
+    pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
     /// This option can be used to check if the file has been modified since the given timestamp.
@@ -298,6 +324,10 @@ pub struct StatOptions {
     /// If file exists and it's etag match, an error with kind [`crate::ErrorKind::ConditionNotMatch`]
     /// will be returned.
     pub if_none_match: Option<String>,
+    /// Stat only when the current object's version matches this value.
+    pub if_version_match: Option<String>,
+    /// Stat only when the current object's version does not match this value.
+    pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
     /// This option can be used to check if the file has been modified since the given timestamp.
@@ -485,6 +515,14 @@ pub struct WriteOptions {
     /// This operation provides conditional write functionality based on ETag non-matching,
     /// useful for preventing overwriting existing resources or ensuring unique writes.
     pub if_none_match: Option<String>,
+    /// Write only when the current object's version matches this value.
+    ///
+    /// Check [`crate::Capability::write_with_if_version_match`] before using this feature.
+    pub if_version_match: Option<String>,
+    /// Write only when the current object's version does not match this value.
+    ///
+    /// Check [`crate::Capability::write_with_if_version_not_match`] before using this feature.
+    pub if_version_not_match: Option<String>,
     /// Sets the condition that write operation will succeed only if target does not exist.
     ///
     /// ### Capability
@@ -500,6 +538,11 @@ pub struct WriteOptions {
     /// This operation provides a way to ensure write operations only create new resources
     /// without overwriting existing ones, useful for implementing "create if not exists" logic.
     pub if_not_exists: bool,
+    /// Write only when the object still matches the supplied metadata.
+    ///
+    /// OpenDAL prefers `version` when the service supports version preconditions and
+    /// otherwise uses `ETag`.
+    pub if_not_changed: Option<Metadata>,
 
     /// Sets concurrent write operations for this writer.
     ///
@@ -585,6 +628,23 @@ pub struct CopyOptions {
     /// - If supported, the copy operation will only succeed when the existing
     ///   destination object's ETag matches the given value.
     pub if_match: Option<String>,
+    /// Copy only when the destination ETag does not match this value.
+    ///
+    /// Check [`crate::Capability::copy_with_if_none_match`] before using this feature.
+    pub if_none_match: Option<String>,
+    /// Copy only when the current destination version matches this value.
+    ///
+    /// Check [`crate::Capability::copy_with_if_version_match`] before using this feature.
+    pub if_version_match: Option<String>,
+    /// Copy only when the current destination version does not match this value.
+    ///
+    /// Check [`crate::Capability::copy_with_if_version_not_match`] before using this feature.
+    pub if_version_not_match: Option<String>,
+    /// Copy only when the destination still matches the supplied metadata.
+    ///
+    /// OpenDAL prefers `version` when the service supports version preconditions and
+    /// otherwise uses `ETag`.
+    pub if_not_changed: Option<Metadata>,
 
     /// Copy from a specific source object version.
     ///

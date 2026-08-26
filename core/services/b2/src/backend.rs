@@ -457,3 +457,105 @@ impl Service for B2Backend {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+
+    use super::*;
+
+    /// Answers the two calls a `stat` makes: the account authorization, then the
+    /// prefix listing. The listing body is supplied by the test.
+    #[derive(Clone)]
+    struct B2MockTransport {
+        list_body: &'static str,
+        listed_uris: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl B2MockTransport {
+        fn new(list_body: &'static str) -> Self {
+            Self {
+                list_body,
+                listed_uris: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn response(body: impl Into<Bytes>) -> Response<HttpBody> {
+            let body = Buffer::from(body.into());
+            let size = body.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(body)]),
+                    Some(size),
+                ))
+                .expect("mock response must build")
+        }
+    }
+
+    impl HttpTransport for B2MockTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let uri = req.uri().to_string();
+            if uri.contains("b2_authorize_account") {
+                return Ok(Self::response(
+                    r#"{"authorizationToken":"token","apiUrl":"https://api.example.com","downloadUrl":"https://download.example.com"}"#,
+                ));
+            }
+            self.listed_uris.lock().expect("lock poisoned").push(uri);
+            Ok(Self::response(self.list_body))
+        }
+    }
+
+    fn b2_operator(transport: B2MockTransport) -> Operator {
+        Operator::new(
+            B2Builder::default()
+                .application_key_id("key-id")
+                .application_key("key")
+                .bucket("bucket")
+                .bucket_id("bucket-id"),
+        )
+        .expect("b2 operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    /// `b2_list_file_names` filters by prefix, so a listing for "abc" also carries
+    /// "abcd". Resolving a stat to whatever came back first answers for the wrong
+    /// object; the name has to match exactly.
+    #[tokio::test]
+    async fn test_stat_does_not_resolve_a_prefix_match() {
+        let transport = B2MockTransport::new(
+            r#"{"files":[{"fileName":"abcd","contentLength":4,"contentType":"text/plain"}],"nextFileName":null}"#,
+        );
+        let op = b2_operator(transport.clone());
+
+        let err = op
+            .stat("abc")
+            .await
+            .expect_err("abcd must not answer for abc");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        // the request really did go out as a prefix listing for "abc"
+        let uris = transport.listed_uris.lock().expect("lock poisoned").clone();
+        assert_eq!(uris.len(), 1, "expected one listing, got {uris:?}");
+        assert!(uris[0].contains("prefix=abc"), "unexpected uri {}", uris[0]);
+    }
+
+    /// The exact name still resolves, and it is picked out of a listing that also
+    /// carries longer names sharing the prefix.
+    #[tokio::test]
+    async fn test_stat_resolves_the_exact_name() {
+        let transport = B2MockTransport::new(
+            r#"{"files":[{"fileName":"abc","contentLength":3,"contentType":"text/plain"},{"fileName":"abcd","contentLength":4,"contentType":"text/plain"}],"nextFileName":null}"#,
+        );
+        let op = b2_operator(transport);
+
+        let meta = op.stat("abc").await.expect("abc must resolve");
+        assert_eq!(meta.content_length(), 3);
+    }
+}

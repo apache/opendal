@@ -503,6 +503,24 @@ impl B2Core {
                 if resp.files.is_empty() {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
+
+                // b2_list_file_names filters by prefix, so a lookup for "abc" also
+                // returns "abcd". Take the entry only when the name matches exactly.
+                //
+                // Names come back in alphabetical order and an exact name sorts before
+                // every longer name sharing it, so the match is always the first entry
+                // and is never left on a page this call did not fetch.
+                //
+                // A directory lookup passes a delimiter and lists what is under the
+                // prefix rather than the prefix itself, so it keeps the first entry.
+                if delimiter.is_none() {
+                    let abs_path = build_abs_path(&self.root, path);
+                    return match resp.files.iter().position(|f| f.file_name == abs_path) {
+                        Some(idx) => Ok(resp.files.swap_remove(idx)),
+                        None => Err(Error::new(ErrorKind::NotFound, "no such file or directory")),
+                    };
+                }
+
                 Ok(resp.files.swap_remove(0))
             }
             _ => Err(parse_error(resp)),

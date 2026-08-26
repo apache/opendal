@@ -44,7 +44,7 @@ prost = { version = "0.14.3", default-features = false }
 prost-types = { version = "0.14.3", default-features = false }
 reqsign-core = { version = "3.2.0", default-features = false }
 reqsign-file-read-tokio = { version = "3.0.0", default-features = false }
-reqsign-google = { version = "=3.0.4", default-features = false }
+reqsign-google = { version = "3.0.3", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tonic = { version = "0.14.5", default-features = false, features = [
   "channel",

@@ -1217,6 +1217,101 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service gcs-grpc.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class GcsGrpc implements ServiceConfig {
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Base64-encoded service account credential.</p>
+         */
+        public final String credential;
+        /**
+         * <p>Path to a service account credential file.</p>
+         */
+        public final String credentialPath;
+        /**
+         * <p>Disable environment and well-known credential loading.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
+         * <p>Disable the GCE metadata credential provider.</p>
+         */
+        public final Boolean disableVmMetadata;
+        /**
+         * <p>gRPC endpoint.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root path for all operations.</p>
+         */
+        public final String root;
+        /**
+         * <p>OAuth 2.0 scope.</p>
+         */
+        public final String scope;
+        /**
+         * <p>Service account used by the GCE metadata server.</p>
+         */
+        public final String serviceAccount;
+        /**
+         * <p>Send requests without authentication.</p>
+         */
+        public final Boolean skipSignature;
+        /**
+         * <p>OAuth 2.0 access token.</p>
+         */
+        public final String token;
+
+        @Override
+        public String scheme() {
+            return "gcs-grpc";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            map.put("bucket", bucket);
+            if (credential != null) {
+                map.put("credential", credential);
+            }
+            if (credentialPath != null) {
+                map.put("credential_path", credentialPath);
+            }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
+            if (disableVmMetadata != null) {
+                map.put("disable_vm_metadata", String.valueOf(disableVmMetadata));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (scope != null) {
+                map.put("scope", scope);
+            }
+            if (serviceAccount != null) {
+                map.put("service_account", serviceAccount);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (token != null) {
+                map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service gdrive.
      */
     @Builder

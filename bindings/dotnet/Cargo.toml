@@ -91,6 +91,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-redis",
   # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
   # "services-rocksdb",
+  "services-sftp",
   "services-sled",
   "services-tikv",
   "services-vercel-artifacts",
@@ -114,7 +115,6 @@ tokio = { version = "1.49.0", features = ["full"] }
 features = [
   # Depend on unix-only dependency stacks in current implementations.
   "services-monoiofs",
-  "services-sftp",
 ]
 path = "../../core"
 

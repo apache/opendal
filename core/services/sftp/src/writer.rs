@@ -15,45 +15,93 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::pin::Pin;
-
 use bytes::Buf;
-use openssh_sftp_client::file::File;
-use openssh_sftp_client::file::TokioCompatFile;
-use tokio::io::AsyncWriteExt;
 
+use super::core::PIPELINE_DEPTH;
+use super::core::SftpSessionRef;
+use super::core::close_handle_detached;
+use super::core::parse_sftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Writes a remote file by streaming `Buffer`s into an open SFTP handle.
+///
+/// Writes are split into packets no larger than the size the server advertises
+/// and several packets are kept in flight, so throughput does not collapse to
+/// one round trip per packet.
 pub struct SftpWriter {
-    /// TODO: maybe we can use `File` directly?
-    file: Pin<Box<TokioCompatFile>>,
+    /// Keeps the session alive while the remote handle is open.
+    conn: SftpSessionRef,
+    handle: String,
+    offset: u64,
+    closed: bool,
+}
+
+impl Drop for SftpWriter {
+    fn drop(&mut self) {
+        if self.closed {
+            return;
+        }
+
+        // An aborted write never calls `close`, so release the handle here.
+        close_handle_detached(self.conn.session.clone(), std::mem::take(&mut self.handle));
+    }
 }
 
 impl SftpWriter {
-    pub fn new(file: File) -> Self {
+    pub fn new(conn: SftpSessionRef, handle: String, offset: u64) -> Self {
         SftpWriter {
-            file: Box::pin(TokioCompatFile::new(file)),
+            conn,
+            handle,
+            offset,
+            closed: false,
         }
     }
 }
 
 impl oio::Write for SftpWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let chunk = self.conn.write_len as usize;
+        let mut inflight = Vec::with_capacity(PIPELINE_DEPTH);
+
         while bs.has_remaining() {
-            let n = self
-                .file
-                .write(bs.chunk())
+            let piece = bs.chunk();
+            let take = piece.len().min(chunk);
+            let data = piece[..take].to_vec();
+            bs.advance(take);
+
+            let offset = self.offset;
+            self.offset += take as u64;
+
+            let session = self.conn.session.clone();
+            let handle = self.handle.clone();
+            inflight.push(async move { session.write(handle, offset, data).await });
+
+            if inflight.len() >= PIPELINE_DEPTH {
+                futures::future::try_join_all(std::mem::take(&mut inflight))
+                    .await
+                    .map_err(parse_sftp_error)?;
+            }
+        }
+
+        if !inflight.is_empty() {
+            futures::future::try_join_all(inflight)
                 .await
-                .map_err(new_std_io_error)?;
-            bs.advance(n);
+                .map_err(parse_sftp_error)?;
         }
 
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.file.shutdown().await.map_err(new_std_io_error)?;
+        if !self.closed {
+            self.conn
+                .session
+                .close(self.handle.as_str())
+                .await
+                .map_err(parse_sftp_error)?;
+            self.closed = true;
+        }
 
         Ok(Metadata::default())
     }

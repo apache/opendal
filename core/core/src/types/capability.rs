@@ -164,6 +164,13 @@ pub struct Capability {
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: Option<usize>,
 
+    /// Indicates if restore operations are supported.
+    pub restore: bool,
+    /// Indicates if restoring a specific version is supported.
+    pub restore_with_version: bool,
+    /// Indicates if conditional restore operations using if-not-exists are supported.
+    pub restore_with_if_not_exists: bool,
+
     /// Indicates if rename operations are supported.
     pub rename: bool,
     /// Indicates if conditional rename operations with if-not-exists are supported.

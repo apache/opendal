@@ -154,6 +154,19 @@ impl Service for ErrorContextService {
         })
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await.map_err(|err| {
+            err.with_operation(Operation::Restore)
+                .with_context("service", self.info().scheme())
+                .with_context("path", path)
+        })
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(ctx, path, args).await.map_err(|err| {
             err.with_operation(Operation::Stat)

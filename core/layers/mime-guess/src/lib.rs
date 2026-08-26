@@ -176,6 +176,15 @@ impl Service for MimeGuessAccessor {
         self.0.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.0.restore(ctx, path, args).await
+    }
+
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.0.delete(ctx)
     }

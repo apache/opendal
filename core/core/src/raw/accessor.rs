@@ -230,6 +230,27 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         args: OpRename,
     ) -> impl Future<Output = Result<RpRename>> + MaybeSend;
 
+    /// Invoke the `restore` operation on the specified path.
+    ///
+    /// Requires [`Capability::restore`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized file path.
+    /// - Without a version, restore reverses the latest recoverable deletion state.
+    /// - With a version, restore promotes that historical version to the current version.
+    fn restore(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpRestore,
+    ) -> impl Future<Output = Result<RpRestore>> + MaybeSend {
+        std::future::ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
+    }
+
     /// Invoke the `presign` operation on the specified path.
     ///
     /// Requires [`Capability::presign`] and the matching presign operation
@@ -311,6 +332,14 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         to: &'a str,
         args: OpRename,
     ) -> BoxedFuture<'a, Result<RpRename>>;
+
+    /// Dyn version of [`Service::restore`].
+    fn restore_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRestore,
+    ) -> BoxedFuture<'a, Result<RpRestore>>;
 
     /// Dyn version of [`Service::presign`].
     fn presign_dyn<'a>(
@@ -403,6 +432,15 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         Box::pin(self.rename(ctx, from, to, args))
     }
 
+    fn restore_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRestore,
+    ) -> BoxedFuture<'a, Result<RpRestore>> {
+        Box::pin(self.restore(ctx, path, args))
+    }
+
     fn presign_dyn<'a>(
         &'a self,
         ctx: &'a OperationContext,
@@ -477,6 +515,15 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         args: OpRename,
     ) -> Result<RpRename> {
         self.as_ref().rename_dyn(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.as_ref().restore_dyn(ctx, path, args).await
     }
 
     async fn presign(

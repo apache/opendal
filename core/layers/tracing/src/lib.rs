@@ -287,6 +287,16 @@ impl Service for TracingService {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let span = span!(Level::DEBUG, "restore", path, ?args);
+        self.inner.restore(ctx, path, args).instrument(span).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let span = span!(Level::DEBUG, "stat", path, ?args);
         self.inner.stat(ctx, path, args).instrument(span).await

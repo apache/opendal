@@ -1058,3 +1058,48 @@ impl From<options::RenameOptions> for OpRename {
         }
     }
 }
+
+/// Arguments for `restore` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpRestore {
+    version: Option<String>,
+    if_not_exists: bool,
+}
+
+impl OpRestore {
+    /// Create a new `OpRestore`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the version to restore.
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Return the version to restore.
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+
+    /// Set whether the restore should fail if the path currently exists.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Return whether the restore should fail if the path currently exists.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
+    }
+}
+
+impl From<options::RestoreOptions> for OpRestore {
+    fn from(value: options::RestoreOptions) -> Self {
+        Self {
+            version: value.version,
+            if_not_exists: value.if_not_exists,
+        }
+    }
+}

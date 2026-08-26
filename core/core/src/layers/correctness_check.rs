@@ -261,6 +261,38 @@ impl Service for CorrectnessService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
+        if !capability.restore {
+            return Err(new_unsupported_error(scheme, Operation::Restore, ""));
+        }
+        if args.version().is_some() && !capability.restore_with_version {
+            return Err(new_unsupported_error(scheme, Operation::Restore, "version"));
+        }
+        if args.if_not_exists() && !capability.restore_with_if_not_exists {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Restore,
+                "if_not_exists",
+            ));
+        }
+        if args.if_not_exists() && args.version().is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            )
+            .with_operation(Operation::Restore));
+        }
+
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,

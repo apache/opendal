@@ -270,10 +270,9 @@ impl oio::Write for GhacWriterV2 {
 
     async fn close(&mut self) -> Result<Metadata> {
         self.writer.close().await?;
-        let _ = self
-            .core
+        self.core
             .ghac_finalize_upload(&self.ctx, &self.path, &self.url, self.size)
-            .await;
+            .await?;
         Ok(Metadata::default().with_content_length(self.size))
     }
 

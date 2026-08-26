@@ -2123,18 +2123,18 @@ mod error {
     }
 
     #[derive(Clone, Copy, Debug)]
-    pub(crate) struct ErrorContext {
+    pub struct ErrorContext {
         service_operation: ServiceOperation,
     }
 
     impl ErrorContext {
-        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        pub const fn new(service_operation: ServiceOperation) -> Self {
             Self { service_operation }
         }
     }
 
     /// Parse error response into Error.
-    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
@@ -2179,7 +2179,7 @@ mod error {
 
     /// Returns the `Error kind` of this code and whether the error is retryable.
     /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
-    pub(crate) fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, bool)> {
+    pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, bool)> {
         match code {
             // > The specified bucket does not exist.
             //

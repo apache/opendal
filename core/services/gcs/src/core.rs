@@ -1209,12 +1209,12 @@ mod error {
     use opendal_core::*;
 
     #[derive(Clone, Copy, Debug)]
-    pub(crate) struct ErrorContext {
+    pub struct ErrorContext {
         service_operation: ServiceOperation,
     }
 
     impl ErrorContext {
-        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        pub const fn new(service_operation: ServiceOperation) -> Self {
             Self { service_operation }
         }
     }
@@ -1244,7 +1244,7 @@ mod error {
     }
 
     /// Parse error response into Error.
-    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 

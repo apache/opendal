@@ -1227,14 +1227,14 @@ mod error {
     }
 
     #[derive(Clone, Copy, Debug)]
-    pub(crate) struct ErrorContext {
+    pub struct ErrorContext {
         service_operation: ServiceOperation,
         if_not_exists: bool,
         is_append_blob_initialization: bool,
     }
 
     impl ErrorContext {
-        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        pub const fn new(service_operation: ServiceOperation) -> Self {
             Self {
                 service_operation,
                 if_not_exists: false,
@@ -1242,12 +1242,12 @@ mod error {
             }
         }
 
-        pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
             self.if_not_exists = if_not_exists;
             self
         }
 
-        pub(crate) const fn with_append_blob_initialization(
+        pub const fn with_append_blob_initialization(
             mut self,
             is_append_blob_initialization: bool,
         ) -> Self {
@@ -1257,7 +1257,7 @@ mod error {
     }
 
     /// Parse error response into Error.
-    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 

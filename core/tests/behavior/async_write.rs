@@ -59,6 +59,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_futures_copy,
             test_writer_futures_copy_with_concurrent,
             test_writer_return_metadata,
+            test_writer_copy_from_interleaved,
             test_writer_write_non_contiguous_data,
             test_writer_write_with_if_not_exists,
             test_writer_write_with_if_none_match,
@@ -352,6 +353,59 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
         "read content b"
     );
 
+    Ok(())
+}
+
+/// Assemble a destination from local bytes and source ranges in call order.
+pub async fn test_writer_copy_from_interleaved(op: Operator) -> Result<()> {
+    if !op.info().capability().write_can_multi {
+        return Ok(());
+    }
+
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let source = gen_fixed_bytes(18 * 1024 * 1024);
+    op.write(&source_path, source.clone()).await?;
+    let source_meta = op.stat(&source_path).await?;
+    let source_if_match =
+        if op.info().capability().read_with_if_match && op.info().capability().stat_with_if_match {
+            source_meta.etag().map(str::to_string)
+        } else {
+            None
+        };
+
+    let mut writer = op.writer(&target_path).await?;
+    writer.write("header").await?;
+    writer.copy_from(&source_path, 1024_u64..2048).await?;
+    writer
+        .copy_from_options(
+            &source_path,
+            options::ReadOptions {
+                range: (2048_u64..14 * 1024 * 1024).into(),
+                if_match: source_if_match.clone(),
+                ..Default::default()
+            },
+        )
+        .await?;
+    writer.write("footer").await?;
+    writer
+        .copy_from_options(
+            &source_path,
+            options::ReadOptions {
+                range: (15 * 1024 * 1024_u64..).into(),
+                if_match: source_if_match,
+                ..Default::default()
+            },
+        )
+        .await?;
+    writer.close().await?;
+
+    let mut expected = Vec::new();
+    expected.extend_from_slice(b"header");
+    expected.extend_from_slice(&source[1024..14 * 1024 * 1024]);
+    expected.extend_from_slice(b"footer");
+    expected.extend_from_slice(&source[15 * 1024 * 1024..]);
+    assert_eq!(op.read(&target_path).await?.to_bytes(), expected);
     Ok(())
 }
 

@@ -53,6 +53,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeCanMulti;
     [MarshalAs(UnmanagedType.U1)] internal byte writeCanEmpty;
     [MarshalAs(UnmanagedType.U1)] internal byte writeCanAppend;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeCanCopyFrom;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentType;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentDisposition;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentEncoding;

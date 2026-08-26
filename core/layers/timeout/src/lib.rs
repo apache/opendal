@@ -384,6 +384,11 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
         Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let fut = self.inner.copy_from(path, args, range);
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
         Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await

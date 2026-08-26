@@ -280,6 +280,7 @@ impl Service for FoyerService {
 
     fn capability(&self) -> Capability {
         let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
         capability.restore = false;
         capability.restore_with_version = false;
         capability.restore_with_if_not_exists = false;

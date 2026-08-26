@@ -317,6 +317,18 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
         self.inner.write(bs)
     }
 
+    fn copy_from(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
+        let path = path.to_string();
+        async move { self.inner.copy_from(&path, args, range).await }
+    }
+
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
         let _guard = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());

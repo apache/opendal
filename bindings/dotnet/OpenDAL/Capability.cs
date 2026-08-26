@@ -62,6 +62,7 @@ public struct Capability
         WriteCanMulti = native.writeCanMulti != 0;
         WriteCanEmpty = native.writeCanEmpty != 0;
         WriteCanAppend = native.writeCanAppend != 0;
+        WriteCanCopyFrom = native.writeCanCopyFrom != 0;
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
@@ -247,6 +248,11 @@ public struct Capability
     /// Indicates if append operations are supported.
     /// </summary>
     public bool WriteCanAppend { get; private set; }
+
+    /// <summary>
+    /// Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+    /// </summary>
+    public bool WriteCanCopyFrom { get; private set; }
 
     /// <summary>
     /// Indicates if Content-Type can be specified during write operations.

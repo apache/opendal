@@ -624,6 +624,19 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
         .await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Write);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Write,
+            self.inner.copy_from(path, args, range),
+        )
+        .await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let deadline = self.calculate_deadline(Operation::Write);
         Self::with_io_deadline(

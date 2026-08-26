@@ -421,6 +421,20 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             })
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .map(|_| {
+                probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                probe_lazy!(opendal, writer_write_error, c_path.as_ptr());
+            })
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let c_path = CString::new(self.path.clone()).unwrap();
         probe_lazy!(opendal, writer_poll_abort_start, c_path.as_ptr());

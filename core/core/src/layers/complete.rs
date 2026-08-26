@@ -390,6 +390,25 @@ where
         Ok(())
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        let size = range.size().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires a bounded range",
+            )
+        })?;
+
+        w.copy_from(path, args, range)
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        self.size += size;
+        self.state.transition(CompleteState::Written);
+        Ok(())
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
             debug_assert_ne!(
@@ -435,6 +454,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::oio::Write as _;
+
+    struct UnsupportedCopyWriter;
+
+    impl oio::Write for UnsupportedCopyWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn copy_from(&mut self, _: &str, _: OpRead, _: BytesRange) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "copy is unsupported"))
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::default())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
 
     struct MockReadReader {
         buffer: Buffer,
@@ -481,5 +521,20 @@ mod tests {
             .expect_err("read should reject extra buffer");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_error_is_terminal() {
+        let mut writer = CompleteWriter::new(UnsupportedCopyWriter, false);
+
+        let err = writer
+            .copy_from("source", OpRead::new(), BytesRange::new(0, Some(8)))
+            .await
+            .expect_err("copy_from should fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(writer.state, CompleteState::Error);
+
+        writer.abort().await.unwrap();
+        assert!(writer.inner.is_none());
     }
 }

@@ -364,6 +364,13 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         self.inner.write(bs).instrument(self.span.clone()).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .instrument(self.span.clone())
+            .await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().instrument(self.span.clone()).await
     }

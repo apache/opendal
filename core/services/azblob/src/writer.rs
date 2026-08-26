@@ -21,10 +21,9 @@ use http::StatusCode;
 use uuid::Uuid;
 
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::X_MS_VERSION_ID;
 use super::core::parse_error;
-use super::core::parse_error_with_if_not_exists;
-use super::core::parse_state_transition_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -105,12 +104,19 @@ impl oio::AppendWrite for AzblobWriter {
                         // do nothing
                     }
                     _ => {
-                        return Err(parse_state_transition_error(resp));
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("PutBlob"))
+                                .with_append_blob_initialization(true),
+                            resp,
+                        ));
                     }
                 }
                 Ok(0)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                resp,
+            )),
         }
     }
 
@@ -124,7 +130,10 @@ impl oio::AppendWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AppendBlock")),
+                resp,
+            )),
         }
     }
 }
@@ -145,9 +154,10 @@ impl oio::BlockWrite for AzblobWriter {
         }
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error_with_if_not_exists(
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
-                self.op.if_not_exists(),
             )),
         }
     }
@@ -161,7 +171,10 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlock")),
+                resp,
+            )),
         }
     }
 
@@ -175,9 +188,10 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error_with_if_not_exists(
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlockList"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
-                self.op.if_not_exists(),
             )),
         }
     }

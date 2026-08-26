@@ -37,6 +37,7 @@ use super::config::AzblobConfig;
 use super::copier::AzblobCopiers;
 use super::copier::new_azblob_copier;
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_META_PREFIX;
@@ -507,7 +508,10 @@ impl Service for AzblobBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

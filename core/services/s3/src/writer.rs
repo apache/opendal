@@ -20,12 +20,10 @@ use std::sync::Arc;
 use bytes::Buf;
 use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
+use http::Response;
 use http::StatusCode;
 
-use crate::core::S3Error;
-use crate::core::from_s3_error;
 use crate::core::parse_error;
-use crate::core::parse_put_object_error;
 use crate::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -84,7 +82,10 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_put_object_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                resp,
+            )),
         }
     }
 
@@ -105,7 +106,10 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -155,7 +159,10 @@ impl oio::MultipartWrite for S3Writer {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -201,25 +208,24 @@ impl oio::MultipartWrite for S3Writer {
                 // still check if there is any error because S3 might return error for status code 200
                 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Example_4
                 let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes();
 
                 let ret: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
                 if !ret.code.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: ret.code,
-                            message: ret.message,
-                            resource: "".to_string(),
-                            request_id: ret.request_id,
-                        },
-                        parts,
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                        Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
                 meta.set_etag(&ret.etag);
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -231,7 +237,10 @@ impl oio::MultipartWrite for S3Writer {
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }
@@ -248,7 +257,10 @@ impl oio::AppendWrite for S3Writer {
         match status {
             StatusCode::OK => Ok(parse_content_length(resp.headers())?.unwrap_or_default()),
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
@@ -268,7 +280,10 @@ impl oio::AppendWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                resp,
+            )),
         }
     }
 }

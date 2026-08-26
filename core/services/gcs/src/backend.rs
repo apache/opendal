@@ -455,7 +455,10 @@ impl Service for GcsBackend {
         let resp = self.core.gcs_get_object_metadata(ctx, path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetObject")),
+                resp,
+            ));
         }
 
         let slc = resp.into_body();

@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::backend::*;
+use crate::core::ErrorContext;
 use crate::core::constants::X_AMZ_META_PREFIX;
 use crate::core::constants::X_AMZ_VERSION_ID;
 use crate::core::parse_error;
@@ -65,7 +66,10 @@ impl oio::StreamRead for S3Reader {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetObject")),
+                    Response::from_parts(part, buf),
+                ));
             }
         };
 

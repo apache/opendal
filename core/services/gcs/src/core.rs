@@ -1208,6 +1208,17 @@ mod error {
     use opendal_core::raw::*;
     use opendal_core::*;
 
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct ErrorContext {
+        service_operation: ServiceOperation,
+    }
+
+    impl ErrorContext {
+        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+            Self { service_operation }
+        }
+    }
+
     #[derive(Default, Debug, Deserialize)]
     #[serde(default, rename_all = "camelCase")]
     struct GcsErrorResponse {
@@ -1233,7 +1244,7 @@ mod error {
     }
 
     /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
@@ -1274,7 +1285,8 @@ mod error {
             None => String::from_utf8_lossy(&bs).into_owned(),
         };
 
-        let mut err = Error::new(kind, message);
+        let mut err =
+            Error::new(kind, message).with_context("service_operation", ctx.service_operation.0);
 
         err = with_error_response_context(err, parts);
 
@@ -1335,27 +1347,30 @@ mod error {
 
         #[test]
         fn test_parse_condition_not_met() {
-            let err = parse_error(error_response(
-                StatusCode::PRECONDITION_FAILED,
-                "conditionNotMet",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject")),
+                error_response(StatusCode::PRECONDITION_FAILED, "conditionNotMet"),
+            );
             assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_conflict() {
-            let err = parse_error(error_response(StatusCode::CONFLICT, "conflict"));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject")),
+                error_response(StatusCode::CONFLICT, "conflict"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_unrelated_precondition_failure() {
-            let err = parse_error(error_response(
-                StatusCode::PRECONDITION_FAILED,
-                "orgPolicyConstraintFailed",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject")),
+                error_response(StatusCode::PRECONDITION_FAILED, "orgPolicyConstraintFailed"),
+            );
             assert_eq!(err.kind(), ErrorKind::Unexpected);
             assert!(err.is_permanent());
         }

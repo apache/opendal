@@ -1198,7 +1198,10 @@ impl Service for S3Backend {
 
         match status {
             StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

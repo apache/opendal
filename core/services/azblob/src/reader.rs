@@ -16,6 +16,7 @@
 // under the License.
 
 use super::backend::*;
+use super::core::ErrorContext;
 use super::core::parse_error;
 use http::Response;
 use http::StatusCode;
@@ -65,7 +66,10 @@ impl oio::StreamRead for AzblobReader {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetBlob")),
+                    Response::from_parts(part, buf),
+                ));
             }
         };
 

@@ -1188,6 +1188,7 @@ mod error {
     use bytes::Buf;
     use http::Response;
     use http::StatusCode;
+    use opendal_core::raw::ServiceOperation;
     use opendal_core::*;
     use opendal_service_azure_common::with_azure_error_response_context;
     use quick_xml::de;
@@ -1225,37 +1226,38 @@ mod error {
         }
     }
 
-    #[derive(Clone, Copy)]
-    enum ErrorContext {
-        Default,
-        IfNotExists,
-        StateTransition,
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct ErrorContext {
+        service_operation: ServiceOperation,
+        if_not_exists: bool,
+        is_append_blob_initialization: bool,
+    }
+
+    impl ErrorContext {
+        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+            Self {
+                service_operation,
+                if_not_exists: false,
+                is_append_blob_initialization: false,
+            }
+        }
+
+        pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+            self.if_not_exists = if_not_exists;
+            self
+        }
+
+        pub(crate) const fn with_append_blob_initialization(
+            mut self,
+            is_append_blob_initialization: bool,
+        ) -> Self {
+            self.is_append_blob_initialization = is_append_blob_initialization;
+            self
+        }
     }
 
     /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        parse_error_inner(resp, ErrorContext::Default)
-    }
-
-    /// Parse an error response for an operation with `if_not_exists` semantics.
-    pub(crate) fn parse_error_with_if_not_exists(
-        resp: Response<Buffer>,
-        if_not_exists: bool,
-    ) -> Error {
-        let context = if if_not_exists {
-            ErrorContext::IfNotExists
-        } else {
-            ErrorContext::Default
-        };
-        parse_error_inner(resp, context)
-    }
-
-    /// Parse an error response produced while transitioning internal resource state.
-    pub(crate) fn parse_state_transition_error(resp: Response<Buffer>) -> Error {
-        parse_error_inner(resp, ErrorContext::StateTransition)
-    }
-
-    fn parse_error_inner(resp: Response<Buffer>, context: ErrorContext) -> Error {
+    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
@@ -1287,7 +1289,7 @@ mod error {
             && !azblob_error.code.is_empty()
         {
             if let Some(classification) =
-                parse_azblob_error_code(&azblob_error.code, parts.status, context)
+                parse_azblob_error_code(&azblob_error.code, parts.status, ctx)
             {
                 (kind, retryable) = classification;
             } else if matches!(
@@ -1302,7 +1304,8 @@ mod error {
             .map(|err| format!("{err:?}"))
             .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
 
-        let mut err = Error::new(kind, &message);
+        let mut err =
+            Error::new(kind, &message).with_context("service_operation", ctx.service_operation.0);
 
         err = with_azure_error_response_context(err, parts);
 
@@ -1319,17 +1322,19 @@ mod error {
     fn parse_azblob_error_code(
         code: &str,
         status: StatusCode,
-        context: ErrorContext,
+        ctx: ErrorContext,
     ) -> Option<(ErrorKind, bool)> {
         match code {
             "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet" => {
                 Some((ErrorKind::ConditionNotMatch, false))
             }
             "BlobAlreadyExists" | "ContainerAlreadyExists" | "ResourceAlreadyExists" => {
-                let kind = match context {
-                    ErrorContext::IfNotExists => ErrorKind::ConditionNotMatch,
-                    ErrorContext::Default => ErrorKind::AlreadyExists,
-                    ErrorContext::StateTransition => ErrorKind::Conflict,
+                let kind = if ctx.if_not_exists {
+                    ErrorKind::ConditionNotMatch
+                } else if ctx.is_append_blob_initialization {
+                    ErrorKind::Conflict
+                } else {
+                    ErrorKind::AlreadyExists
                 };
                 Some((kind, false))
             }
@@ -1462,62 +1467,72 @@ mod error {
 
         #[test]
         fn test_parse_condition_not_met() {
-            let err = parse_error(error_response(
-                StatusCode::PRECONDITION_FAILED,
-                "ConditionNotMet",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")),
+                error_response(StatusCode::PRECONDITION_FAILED, "ConditionNotMet"),
+            );
             assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_state_conflict() {
-            let err = parse_error(error_response(StatusCode::CONFLICT, "PendingCopyOperation"));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("CopyBlob")),
+                error_response(StatusCode::CONFLICT, "PendingCopyOperation"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_snapshot_operation_rate_exceeded() {
-            let err = parse_error(error_response(
-                StatusCode::CONFLICT,
-                "SnapshotOperationRateExceeded",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("GetBlob")),
+                error_response(StatusCode::CONFLICT, "SnapshotOperationRateExceeded"),
+            );
             assert_eq!(err.kind(), ErrorKind::RateLimited);
             assert!(err.is_temporary());
         }
 
         #[test]
         fn test_parse_already_exists_by_operation_context() {
-            let err = parse_error(error_response(StatusCode::CONFLICT, "BlobAlreadyExists"));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")),
+                error_response(StatusCode::CONFLICT, "BlobAlreadyExists"),
+            );
             assert_eq!(err.kind(), ErrorKind::AlreadyExists);
 
-            let err = parse_error_with_if_not_exists(
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")).with_if_not_exists(true),
                 error_response(StatusCode::CONFLICT, "BlobAlreadyExists"),
-                true,
             );
             assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
-            let err = parse_state_transition_error(error_response(
-                StatusCode::CONFLICT,
-                "BlobAlreadyExists",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob"))
+                    .with_append_blob_initialization(true),
+                error_response(StatusCode::CONFLICT, "BlobAlreadyExists"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
         }
 
         #[test]
         fn test_parse_unknown_conflict_as_unexpected() {
-            let err = parse_error(error_response(StatusCode::CONFLICT, "UnknownConflict"));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")),
+                error_response(StatusCode::CONFLICT, "UnknownConflict"),
+            );
             assert_eq!(err.kind(), ErrorKind::Unexpected);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_unknown_precondition_as_unexpected() {
-            let err = parse_error(error_response(
-                StatusCode::PRECONDITION_FAILED,
-                "UnknownPrecondition",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")),
+                error_response(StatusCode::PRECONDITION_FAILED, "UnknownPrecondition"),
+            );
             assert_eq!(err.kind(), ErrorKind::Unexpected);
             assert!(err.is_permanent());
         }

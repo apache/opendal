@@ -44,7 +44,10 @@ impl oio::BatchDelete for AzblobDeleter {
 
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteBlob")),
+                resp,
+            )),
         }
     }
 
@@ -57,7 +60,10 @@ impl oio::BatchDelete for AzblobDeleter {
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BatchDeleteBlobs")),
+                resp,
+            ));
         }
 
         // get boundary from response header
@@ -92,9 +98,14 @@ impl oio::BatchDelete for AzblobDeleter {
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
                 batched_result.succeeded.push((path, OpDelete::default()));
             } else {
-                batched_result
-                    .failed
-                    .push((path, OpDelete::default(), parse_error(resp)));
+                batched_result.failed.push((
+                    path,
+                    OpDelete::default(),
+                    parse_error(
+                        ErrorContext::new(ServiceOperation("BatchDeleteBlobs")),
+                        resp,
+                    ),
+                ));
             }
         }
 

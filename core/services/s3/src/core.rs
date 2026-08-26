@@ -2106,7 +2106,6 @@ mod tests {
 mod error {
     use bytes::Buf;
     use http::Response;
-    use http::response::Parts;
     use quick_xml::de;
     use serde::Deserialize;
 
@@ -2123,20 +2122,19 @@ mod error {
         pub request_id: String,
     }
 
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct ErrorContext {
+        service_operation: ServiceOperation,
+    }
+
+    impl ErrorContext {
+        pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+            Self { service_operation }
+        }
+    }
+
     /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        parse_error_inner(resp, false)
-    }
-
-    /// Parse a PutObject error response into Error.
-    pub(crate) fn parse_put_object_error(resp: Response<Buffer>) -> Error {
-        parse_error_inner(resp, true)
-    }
-
-    fn parse_error_inner(
-        resp: Response<Buffer>,
-        retry_conditional_request_conflict: bool,
-    ) -> Error {
+    pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
@@ -2160,33 +2158,15 @@ mod error {
         if let Some(s3_err) = s3_err
             && !s3_err.code.is_empty()
         {
-            if let Some(classification) = parse_s3_error_code(s3_err.code.as_str()) {
+            if let Some(classification) = parse_s3_error_code(ctx, s3_err.code.as_str()) {
                 (kind, retryable) = classification;
             } else if matches!(parts.status.as_u16(), 409 | 412) {
                 (kind, retryable) = (ErrorKind::Unexpected, false);
             }
-
-            if s3_err.code == "ConditionalRequestConflict" && retry_conditional_request_conflict {
-                retryable = true;
-            }
         }
 
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    /// Util function to build [`Error`] from a [`S3Error`] object.
-    pub(crate) fn from_s3_error(s3_error: S3Error, parts: Parts) -> Error {
-        let (kind, retryable) =
-            parse_s3_error_code(s3_error.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-        let mut err = Error::new(kind, format!("{s3_error:?}"));
+        let mut err =
+            Error::new(kind, message).with_context("service_operation", ctx.service_operation.0);
 
         err = with_error_response_context(err, parts);
 
@@ -2199,7 +2179,7 @@ mod error {
 
     /// Returns the `Error kind` of this code and whether the error is retryable.
     /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
-    pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+    pub(crate) fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, bool)> {
         match code {
             // > The specified bucket does not exist.
             //
@@ -2241,7 +2221,10 @@ mod error {
             | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
             "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
             "PreconditionFailed" => Some((ErrorKind::ConditionNotMatch, false)),
-            "ConditionalRequestConflict" => Some((ErrorKind::Conflict, false)),
+            "ConditionalRequestConflict" => Some((
+                ErrorKind::Conflict,
+                ctx.service_operation == ServiceOperation("PutObject"),
+            )),
             _ => None,
         }
     }
@@ -2295,7 +2278,10 @@ mod error {
         #[test]
         fn test_parse_s3_error_code_invalid_range() {
             assert_eq!(
-                parse_s3_error_code("InvalidRange"),
+                parse_s3_error_code(
+                    ErrorContext::new(ServiceOperation("GetObject")),
+                    "InvalidRange"
+                ),
                 Some((ErrorKind::RangeNotSatisfied, false))
             );
         }
@@ -2303,7 +2289,10 @@ mod error {
         #[test]
         fn test_parse_s3_error_code_precondition_failed() {
             assert_eq!(
-                parse_s3_error_code("PreconditionFailed"),
+                parse_s3_error_code(
+                    ErrorContext::new(ServiceOperation("PutObject")),
+                    "PreconditionFailed"
+                ),
                 Some((ErrorKind::ConditionNotMatch, false))
             );
         }
@@ -2319,31 +2308,26 @@ mod error {
 
         #[test]
         fn test_parse_conditional_request_conflict_by_operation() {
-            let err = parse_error(error_response(
-                http::StatusCode::CONFLICT,
-                "ConditionalRequestConflict",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                error_response(http::StatusCode::CONFLICT, "ConditionalRequestConflict"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
             assert!(err.is_permanent());
 
-            let err = parse_put_object_error(error_response(
-                http::StatusCode::CONFLICT,
-                "ConditionalRequestConflict",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                error_response(http::StatusCode::CONFLICT, "ConditionalRequestConflict"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
             assert!(err.is_temporary());
         }
 
         #[test]
         fn test_complete_multipart_conflict_requires_new_upload() {
-            let parts = Response::new(()).into_parts().0;
-            let err = from_s3_error(
-                S3Error {
-                    code: "ConditionalRequestConflict".to_string(),
-                    message: "test".to_string(),
-                    ..Default::default()
-                },
-                parts,
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                error_response(http::StatusCode::OK, "ConditionalRequestConflict"),
             );
 
             assert_eq!(err.kind(), ErrorKind::Conflict);
@@ -2352,30 +2336,30 @@ mod error {
 
         #[test]
         fn test_parse_operation_aborted_as_conflict() {
-            let err = parse_error(error_response(
-                http::StatusCode::CONFLICT,
-                "OperationAborted",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                error_response(http::StatusCode::CONFLICT, "OperationAborted"),
+            );
             assert_eq!(err.kind(), ErrorKind::Conflict);
             assert!(err.is_temporary());
         }
 
         #[test]
         fn test_parse_unknown_conflict_as_unexpected() {
-            let err = parse_error(error_response(
-                http::StatusCode::CONFLICT,
-                "UnknownConflict",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                error_response(http::StatusCode::CONFLICT, "UnknownConflict"),
+            );
             assert_eq!(err.kind(), ErrorKind::Unexpected);
             assert!(err.is_permanent());
         }
 
         #[test]
         fn test_parse_unknown_precondition_as_unexpected() {
-            let err = parse_error(error_response(
-                http::StatusCode::PRECONDITION_FAILED,
-                "UnknownPrecondition",
-            ));
+            let err = parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                error_response(http::StatusCode::PRECONDITION_FAILED, "UnknownPrecondition"),
+            );
             assert_eq!(err.kind(), ErrorKind::Unexpected);
             assert!(err.is_permanent());
         }

@@ -181,20 +181,22 @@ impl Service for DbfsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+                // The response headers describe the get-status API response, not the
+                // file, so the metadata is built from the decoded body alone.
+                let mut meta = if decoded_response.is_dir {
+                    Metadata::new(EntryMode::DIR)
+                } else {
+                    let mut m = Metadata::new(EntryMode::FILE);
+                    m.set_content_length(decoded_response.file_size as u64);
+                    m
+                };
                 meta.set_last_modified(Timestamp::from_millisecond(
                     decoded_response.modification_time,
                 )?);
-                match decoded_response.is_dir {
-                    true => meta.set_mode(EntryMode::DIR),
-                    false => {
-                        meta.set_mode(EntryMode::FILE);
-                        meta.set_content_length(decoded_response.file_size as u64)
-                    }
-                };
                 Ok(RpStat::new(meta))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {

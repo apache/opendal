@@ -2125,16 +2125,25 @@ mod error {
 
     /// Parse error response into Error.
     pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        parse_error_inner(resp, false)
+    }
+
+    /// Parse a PutObject error response into Error.
+    pub(crate) fn parse_put_object_error(resp: Response<Buffer>) -> Error {
+        parse_error_inner(resp, true)
+    }
+
+    fn parse_error_inner(
+        resp: Response<Buffer>,
+        retry_conditional_request_conflict: bool,
+    ) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
         let (mut kind, mut retryable) = match parts.status.as_u16() {
             403 => (ErrorKind::PermissionDenied, false),
             404 => (ErrorKind::NotFound, false),
-            304 | 412 => (ErrorKind::ConditionNotMatch, false),
-            // 409 Conflict can be returned e.g. when PutObject with conditions.
-            // In this case the AWS docs say to retry.
-            409 => (ErrorKind::ConditionNotMatch, true),
+            304 => (ErrorKind::ConditionNotMatch, false),
             // Service like R2 could return 499 error with a message like:
             // Client Disconnect, we should retry it.
             499 => (ErrorKind::Unexpected, true),
@@ -2148,9 +2157,18 @@ mod error {
             .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
             .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-        if let Some(s3_err) = s3_err {
-            (kind, retryable) =
-                parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));
+        if let Some(s3_err) = s3_err
+            && !s3_err.code.is_empty()
+        {
+            if let Some(classification) = parse_s3_error_code(s3_err.code.as_str()) {
+                (kind, retryable) = classification;
+            } else if matches!(parts.status.as_u16(), 409 | 412) {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+
+            if s3_err.code == "ConditionalRequestConflict" && retry_conditional_request_conflict {
+                retryable = true;
+            }
         }
 
         let mut err = Error::new(kind, message);
@@ -2197,7 +2215,7 @@ mod error {
             "InternalError" => Some((ErrorKind::Unexpected, true)),
             // > A conflicting conditional operation is currently in progress
             // > against this resource. Try again.
-            "OperationAborted" => Some((ErrorKind::Unexpected, true)),
+            "OperationAborted" => Some((ErrorKind::Conflict, true)),
             // > Please reduce your request rate.
             //
             // It's Ok to retry since later on the request rate may get reduced.
@@ -2223,6 +2241,7 @@ mod error {
             | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
             "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
             "PreconditionFailed" => Some((ErrorKind::ConditionNotMatch, false)),
+            "ConditionalRequestConflict" => Some((ErrorKind::Conflict, false)),
             _ => None,
         }
     }
@@ -2287,6 +2306,78 @@ mod error {
                 parse_s3_error_code("PreconditionFailed"),
                 Some((ErrorKind::ConditionNotMatch, false))
             );
+        }
+
+        fn error_response(status: http::StatusCode, code: &str) -> Response<Buffer> {
+            Response::builder()
+                .status(status)
+                .body(Buffer::from(bytes::Bytes::from(format!(
+                    "<Error><Code>{code}</Code><Message>test</Message></Error>"
+                ))))
+                .expect("response must build")
+        }
+
+        #[test]
+        fn test_parse_conditional_request_conflict_by_operation() {
+            let err = parse_error(error_response(
+                http::StatusCode::CONFLICT,
+                "ConditionalRequestConflict",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_permanent());
+
+            let err = parse_put_object_error(error_response(
+                http::StatusCode::CONFLICT,
+                "ConditionalRequestConflict",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_temporary());
+        }
+
+        #[test]
+        fn test_complete_multipart_conflict_requires_new_upload() {
+            let parts = Response::new(()).into_parts().0;
+            let err = from_s3_error(
+                S3Error {
+                    code: "ConditionalRequestConflict".to_string(),
+                    message: "test".to_string(),
+                    ..Default::default()
+                },
+                parts,
+            );
+
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_operation_aborted_as_conflict() {
+            let err = parse_error(error_response(
+                http::StatusCode::CONFLICT,
+                "OperationAborted",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_temporary());
+        }
+
+        #[test]
+        fn test_parse_unknown_conflict_as_unexpected() {
+            let err = parse_error(error_response(
+                http::StatusCode::CONFLICT,
+                "UnknownConflict",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_unknown_precondition_as_unexpected() {
+            let err = parse_error(error_response(
+                http::StatusCode::PRECONDITION_FAILED,
+                "UnknownPrecondition",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
         }
     }
 }

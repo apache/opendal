@@ -1237,12 +1237,12 @@ mod error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
-        let (kind, retryable) = match parts.status {
+        let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
+
+        let (mut kind, mut retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
             StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
+            StatusCode::NOT_MODIFIED => (ErrorKind::ConditionNotMatch, false),
             StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
@@ -1251,9 +1251,27 @@ mod error {
             _ => (ErrorKind::Unexpected, false),
         };
 
-        let message = match de::from_slice::<GcsErrorResponse>(&bs) {
-            Ok(gcs_err) => format!("{gcs_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        if let Some(gcs_error) = &gcs_error {
+            if gcs_error
+                .error
+                .errors
+                .iter()
+                .any(|detail| detail.reason == "conditionNotMet")
+            {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            } else if gcs_error
+                .error
+                .errors
+                .iter()
+                .any(|detail| detail.reason == "conflict")
+            {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+        }
+
+        let message = match gcs_error {
+            Some(gcs_err) => format!("{gcs_err:?}"),
+            None => String::from_utf8_lossy(&bs).into_owned(),
         };
 
         let mut err = Error::new(kind, message);
@@ -1303,6 +1321,43 @@ mod error {
             assert_eq!(out.error.errors[0].message, "Login Required");
             assert_eq!(out.error.errors[0].location_type, "header");
             assert_eq!(out.error.errors[0].location, "Authorization");
+        }
+
+        fn error_response(status: StatusCode, reason: &str) -> Response<Buffer> {
+            Response::builder()
+                .status(status)
+                .body(Buffer::from(bytes::Bytes::from(format!(
+                    r#"{{"error":{{"errors":[{{"reason":"{reason}"}}],"code":{},"message":"test"}}}}"#,
+                    status.as_u16()
+                ))))
+                .expect("response must build")
+        }
+
+        #[test]
+        fn test_parse_condition_not_met() {
+            let err = parse_error(error_response(
+                StatusCode::PRECONDITION_FAILED,
+                "conditionNotMet",
+            ));
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_conflict() {
+            let err = parse_error(error_response(StatusCode::CONFLICT, "conflict"));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_unrelated_precondition_failure() {
+            let err = parse_error(error_response(
+                StatusCode::PRECONDITION_FAILED,
+                "orgPolicyConstraintFailed",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
         }
     }
 }

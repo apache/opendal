@@ -1225,17 +1225,56 @@ mod error {
         }
     }
 
+    #[derive(Clone, Copy)]
+    enum ErrorContext {
+        Default,
+        IfNotExists,
+        StateTransition,
+    }
+
     /// Parse error response into Error.
     pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
+        parse_error_inner(resp, ErrorContext::Default)
+    }
+
+    /// Parse an error response for an operation with `if_not_exists` semantics.
+    pub(crate) fn parse_error_with_if_not_exists(
+        resp: Response<Buffer>,
+        if_not_exists: bool,
+    ) -> Error {
+        let context = if if_not_exists {
+            ErrorContext::IfNotExists
+        } else {
+            ErrorContext::Default
+        };
+        parse_error_inner(resp, context)
+    }
+
+    /// Parse an error response produced while transitioning internal resource state.
+    pub(crate) fn parse_state_transition_error(resp: Response<Buffer>) -> Error {
+        parse_error_inner(resp, ErrorContext::StateTransition)
+    }
+
+    fn parse_error_inner(resp: Response<Buffer>, context: ErrorContext) -> Error {
         let (parts, body) = resp.into_parts();
         let bs = body.to_bytes();
 
-        let (kind, retryable) = match parts.status {
+        let bs_content = bs.chunk();
+        let mut azblob_error = de::from_reader::<_, AzblobError>(bs_content.reader()).ok();
+
+        if azblob_error.as_ref().is_none_or(|err| err.code.is_empty())
+            && let Some(code) = parts
+                .headers
+                .get("x-ms-error-code")
+                .and_then(|v| v.to_str().ok())
+        {
+            azblob_error.get_or_insert_with(AzblobError::default).code = code.to_string();
+        }
+
+        let (mut kind, mut retryable) = match parts.status {
             StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
             StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
+            StatusCode::NOT_MODIFIED => (ErrorKind::ConditionNotMatch, false),
             StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
             StatusCode::INTERNAL_SERVER_ERROR
             | StatusCode::BAD_GATEWAY
@@ -1244,27 +1283,24 @@ mod error {
             _ => (ErrorKind::Unexpected, false),
         };
 
-        let bs_content = bs.chunk();
-        let mut message = match de::from_reader::<_, AzblobError>(bs_content.reader()) {
-            Ok(azblob_err) => format!("{azblob_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        // If there is no body here, fill with error code.
-        if message.is_empty()
-            && let Some(code) = parts
-                .headers
-                .get("x-ms-error-code")
-                .and_then(|v| v.to_str().ok())
+        if let Some(azblob_error) = &azblob_error
+            && !azblob_error.code.is_empty()
         {
-            message = format!(
-                "{:?}",
-                AzblobError {
-                    code: code.to_string(),
-                    ..Default::default()
-                }
-            );
+            if let Some(classification) =
+                parse_azblob_error_code(&azblob_error.code, parts.status, context)
+            {
+                (kind, retryable) = classification;
+            } else if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
         }
+
+        let message = azblob_error
+            .map(|err| format!("{err:?}"))
+            .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
 
         let mut err = Error::new(kind, &message);
 
@@ -1275,6 +1311,90 @@ mod error {
         }
 
         err
+    }
+
+    /// Classify documented Blob Storage state errors by native code and status.
+    ///
+    /// Reference: <https://learn.microsoft.com/rest/api/storageservices/blob-service-error-codes>
+    fn parse_azblob_error_code(
+        code: &str,
+        status: StatusCode,
+        context: ErrorContext,
+    ) -> Option<(ErrorKind, bool)> {
+        match code {
+            "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet" => {
+                Some((ErrorKind::ConditionNotMatch, false))
+            }
+            "BlobAlreadyExists" | "ContainerAlreadyExists" | "ResourceAlreadyExists" => {
+                let kind = match context {
+                    ErrorContext::IfNotExists => ErrorKind::ConditionNotMatch,
+                    ErrorContext::Default => ErrorKind::AlreadyExists,
+                    ErrorContext::StateTransition => ErrorKind::Conflict,
+                };
+                Some((kind, false))
+            }
+            "DirectorySasNotSupportedVersion"
+            | "FeatureVersionMismatch"
+            | "PreviousSnapshotOperationNotSupported" => Some((ErrorKind::Unsupported, false)),
+            "SnapshotOperationRateExceeded" => Some((ErrorKind::RateLimited, true)),
+            "AppendPositionConditionNotMet"
+            | "BlobArchived"
+            | "BlobBeingRehydrated"
+            | "BlobImmutableDueToLegalHold"
+            | "BlobImmutableDueToPolicy"
+            | "BlobNotArchived"
+            | "BlobOperationNotSupported"
+            | "BlobOverwritten"
+            | "BlobTierInadequateForContentLength"
+            | "BlockCountExceedsLimit"
+            | "CannotChangeToLowerTier"
+            | "ContainerBeingDeleted"
+            | "ContainerDisabled"
+            | "ContainerHasLegalHold"
+            | "ContainerImmutabilityPolicyLocked"
+            | "ContentLengthLargerThanTierLimit"
+            | "CopyIdMismatch"
+            | "IncrementalCopyBlobMismatch"
+            | "IncrementalCopyOfEarlierSnapshotNotAllowed"
+            | "IncrementalCopyOfEarlierVersionSnapshotNotAllowed"
+            | "IncrementalCopySourceMustBeSnapshot"
+            | "InvalidBlobType"
+            | "InvalidSourceBlobType"
+            | "InvalidSourceBlobUrl"
+            | "LeaseAlreadyBroken"
+            | "LeaseAlreadyPresent"
+            | "LeaseIdMismatchWithBlobOperation"
+            | "LeaseIdMismatchWithContainerOperation"
+            | "LeaseIdMismatchWithLeaseOperation"
+            | "LeaseIdMissing"
+            | "LeaseIsBreakingAndCannotBeAcquired"
+            | "LeaseIsBreakingAndCannotBeChanged"
+            | "LeaseIsBrokenAndCannotBeRenewed"
+            | "LeaseLost"
+            | "LeaseNotPresentWithBlobOperation"
+            | "LeaseNotPresentWithContainerOperation"
+            | "LeaseNotPresentWithLeaseOperation"
+            | "InfiniteLeaseDurationRequired"
+            | "MaxBlobSizeConditionNotMet"
+            | "NoPendingCopyOperation"
+            | "OperationNotAllowedOnIncrementalCopyBlob"
+            | "PendingCopyOperation"
+            | "PreviousSnapshotNotFound"
+            | "SequenceNumberConditionNotMet"
+            | "SequenceNumberIncrementTooLarge"
+            | "SnapshotCountExceeded"
+            | "SnapshotsPresent"
+            | "SystemInUse"
+            | "ResourceTypeMismatch"
+                if matches!(
+                    status,
+                    StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+                ) =>
+            {
+                Some((ErrorKind::Conflict, false))
+            }
+            _ => None,
+        }
     }
 
     #[cfg(test)]
@@ -1329,6 +1449,77 @@ mod error {
                 "33537277-6a52-4a2b-b4eb-0f905051827b"
             );
             assert_eq!(out.reason, "invalid receipt format");
+        }
+
+        fn error_response(status: StatusCode, code: &str) -> Response<Buffer> {
+            Response::builder()
+                .status(status)
+                .body(Buffer::from(bytes::Bytes::from(format!(
+                    "<Error><Code>{code}</Code><Message>test</Message></Error>"
+                ))))
+                .expect("response must build")
+        }
+
+        #[test]
+        fn test_parse_condition_not_met() {
+            let err = parse_error(error_response(
+                StatusCode::PRECONDITION_FAILED,
+                "ConditionNotMet",
+            ));
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_state_conflict() {
+            let err = parse_error(error_response(StatusCode::CONFLICT, "PendingCopyOperation"));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_snapshot_operation_rate_exceeded() {
+            let err = parse_error(error_response(
+                StatusCode::CONFLICT,
+                "SnapshotOperationRateExceeded",
+            ));
+            assert_eq!(err.kind(), ErrorKind::RateLimited);
+            assert!(err.is_temporary());
+        }
+
+        #[test]
+        fn test_parse_already_exists_by_operation_context() {
+            let err = parse_error(error_response(StatusCode::CONFLICT, "BlobAlreadyExists"));
+            assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+
+            let err = parse_error_with_if_not_exists(
+                error_response(StatusCode::CONFLICT, "BlobAlreadyExists"),
+                true,
+            );
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+            let err = parse_state_transition_error(error_response(
+                StatusCode::CONFLICT,
+                "BlobAlreadyExists",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+        }
+
+        #[test]
+        fn test_parse_unknown_conflict_as_unexpected() {
+            let err = parse_error(error_response(StatusCode::CONFLICT, "UnknownConflict"));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+        }
+
+        #[test]
+        fn test_parse_unknown_precondition_as_unexpected() {
+            let err = parse_error(error_response(
+                StatusCode::PRECONDITION_FAILED,
+                "UnknownPrecondition",
+            ));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
         }
     }
 }

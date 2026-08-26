@@ -23,6 +23,8 @@ use uuid::Uuid;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_VERSION_ID;
 use super::core::parse_error;
+use super::core::parse_error_with_if_not_exists;
+use super::core::parse_state_transition_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -84,7 +86,7 @@ impl oio::AppendWrite for AzblobWriter {
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
                 if blob_type != Some("AppendBlob") {
                     return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
+                        ErrorKind::Conflict,
                         "the blob is not an appendable blob.",
                     ));
                 }
@@ -103,7 +105,7 @@ impl oio::AppendWrite for AzblobWriter {
                         // do nothing
                     }
                     _ => {
-                        return Err(parse_error(resp));
+                        return Err(parse_state_transition_error(resp));
                     }
                 }
                 Ok(0)
@@ -143,7 +145,10 @@ impl oio::BlockWrite for AzblobWriter {
         }
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error_with_if_not_exists(
+                resp,
+                self.op.if_not_exists(),
+            )),
         }
     }
 
@@ -170,7 +175,10 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error_with_if_not_exists(
+                resp,
+                self.op.if_not_exists(),
+            )),
         }
     }
 

@@ -45,6 +45,7 @@ def test_all_expected_exceptions_present():
         "ConditionNotMatch",
         "RateLimited",
         "RangeNotSatisfied",
+        "Conflict",
     ]
     for name in expected:
         assert hasattr(exceptions, name), f"exceptions.{name} is missing"
@@ -73,3 +74,5 @@ def test_exceptions_are_distinct():
     """RateLimited and RangeNotSatisfied must not accidentally catch each other."""
     assert not issubclass(exceptions.RateLimited, exceptions.RangeNotSatisfied)
     assert not issubclass(exceptions.RangeNotSatisfied, exceptions.RateLimited)
+    assert not issubclass(exceptions.Conflict, exceptions.ConditionNotMatch)
+    assert not issubclass(exceptions.ConditionNotMatch, exceptions.Conflict)

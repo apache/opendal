@@ -25,6 +25,7 @@ use http::StatusCode;
 use crate::core::S3Error;
 use crate::core::from_s3_error;
 use crate::core::parse_error;
+use crate::core::parse_put_object_error;
 use crate::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -83,7 +84,7 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_put_object_error(resp)),
         }
     }
 

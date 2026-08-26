@@ -19,7 +19,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::OnceLock;
 
 use http::header::AUTHORIZATION;
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use reqsign_core::{Context, Signer};
 use reqsign_google::Credential;
 use tonic::metadata::MetadataValue;
@@ -32,6 +32,12 @@ use crate::generated::google::storage::v2::Object;
 use crate::generated::google::storage::v2::storage_client::StorageClient;
 
 const MAX_GRPC_DECODING_MESSAGE_SIZE: usize = i32::MAX as usize;
+const ROUTING_VALUE_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'/')
+    .remove(b'_')
+    .remove(b'~');
 
 pub(crate) struct GcsGrpcCore {
     pub info: ServiceInfo,
@@ -141,7 +147,12 @@ fn build_routing_header(parameters: &[(&str, &str)]) -> Option<String> {
     (!parameters.is_empty()).then(|| {
         parameters
             .iter()
-            .map(|(key, value)| format!("{key}={}", utf8_percent_encode(value, NON_ALPHANUMERIC)))
+            .map(|(key, value)| {
+                format!(
+                    "{key}={}",
+                    utf8_percent_encode(value, ROUTING_VALUE_ENCODE_SET)
+                )
+            })
             .collect::<Vec<_>>()
             .join("&")
     })
@@ -237,12 +248,12 @@ mod tests {
 
         assert_eq!(
             build_routing_header(&[("bucket", bucket)]).as_deref(),
-            Some("bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket")
+            Some("bucket=projects/_/buckets/example-bucket")
         );
         assert_eq!(
             build_routing_header(&[("source_bucket", bucket), ("bucket", bucket)]).as_deref(),
             Some(
-                "source_bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket&bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket"
+                "source_bucket=projects/_/buckets/example-bucket&bucket=projects/_/buckets/example-bucket"
             )
         );
     }

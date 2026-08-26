@@ -1289,7 +1289,7 @@ mod error {
             && !azblob_error.code.is_empty()
         {
             if let Some(classification) =
-                parse_azblob_error_code(&azblob_error.code, parts.status, ctx)
+                parse_azblob_error_code(ctx, &azblob_error.code, parts.status)
             {
                 (kind, retryable) = classification;
             } else if matches!(
@@ -1320,9 +1320,9 @@ mod error {
     ///
     /// Reference: <https://learn.microsoft.com/rest/api/storageservices/blob-service-error-codes>
     fn parse_azblob_error_code(
+        ctx: ErrorContext,
         code: &str,
         status: StatusCode,
-        ctx: ErrorContext,
     ) -> Option<(ErrorKind, bool)> {
         match code {
             "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet" => {

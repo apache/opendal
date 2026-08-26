@@ -27,6 +27,7 @@ pub struct Package {
     path: PathBuf,
     version: Version,
     dependencies: Vec<Package>,
+    public_compat_dependencies: &'static [&'static str],
 }
 
 impl Package {
@@ -36,6 +37,30 @@ impl Package {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(super) fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub(super) fn public_compat_dependencies(&self) -> &'static [&'static str] {
+        self.public_compat_dependencies
+    }
+
+    pub(super) fn release_dependency_version(&self, crate_name: &str) -> Option<&Version> {
+        self.dependencies
+            .iter()
+            .find(|dependency| dependency.crate_name() == Some(crate_name))
+            .map(|dependency| &dependency.version)
+    }
+
+    fn with_public_compat_dependencies(mut self, dependencies: &'static [&'static str]) -> Self {
+        self.public_compat_dependencies = dependencies;
+        self
     }
 
     pub fn make_prefix(&self) -> String {
@@ -56,6 +81,7 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
         path,
         version,
         dependencies,
+        public_compat_dependencies: &[],
     }
 }
 
@@ -65,8 +91,10 @@ pub fn all_packages() -> Vec<Package> {
 
     // Integrations
     let dav_server = make_package("integrations/dav-server", "0.7.5", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.59.0", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.9.1", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.59.0", vec![core.clone()])
+        .with_public_compat_dependencies(&["opendal", "object_store"]);
+    let parquet = make_package("integrations/parquet", "0.9.1", vec![core.clone()])
+        .with_public_compat_dependencies(&["opendal", "parquet"]);
     let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.5", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
@@ -602,6 +630,27 @@ mod tests {
     }
 
     #[test]
+    fn integrations_track_public_compatibility_dependencies() {
+        let core = release_package("core");
+        let object_store = release_package("integrations/object_store");
+        let parquet = release_package("integrations/parquet");
+
+        assert_eq!(
+            object_store.public_compat_dependencies(),
+            ["opendal", "object_store"]
+        );
+        assert_eq!(parquet.public_compat_dependencies(), ["opendal", "parquet"]);
+        assert_eq!(
+            object_store.release_dependency_version("opendal"),
+            Some(core.version())
+        );
+        assert_eq!(
+            parquet.release_dependency_version("opendal"),
+            Some(core.version())
+        );
+    }
+
+    #[test]
     fn ruby_release_version_matches_manifest() {
         let ruby = release_package("bindings/ruby");
 
@@ -679,6 +728,7 @@ opendal = { version = "0.55.0", path = "../core" }
             path: dir.join("../../core"),
             version: Version::parse("0.56.0").unwrap(),
             dependencies: vec![],
+            public_compat_dependencies: &[],
         };
 
         let updated = update_cargo_version(

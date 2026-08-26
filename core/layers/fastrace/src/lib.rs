@@ -208,6 +208,16 @@ impl Service for FastraceAccessor {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let _guard = Span::enter_with_local_parent(Operation::Restore.into_static());
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let _guard = Span::enter_with_local_parent(Operation::Stat.into_static());
         self.inner.stat(ctx, path, args).await

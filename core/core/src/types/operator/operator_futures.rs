@@ -1574,3 +1574,22 @@ impl<F: Future<Output = Result<()>>> FutureRename<F> {
         self
     }
 }
+
+/// [`Operator::restore_with`] returns this future.
+///
+/// Use its methods to configure the operation before awaiting it.
+pub type FutureRestore<F> = OperatorFuture<options::RestoreOptions, (), F>;
+
+impl<F: Future<Output = Result<()>>> FutureRestore<F> {
+    /// Restore the specified historical version as the current version.
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.args.version = Some(version.into());
+        self
+    }
+
+    /// Restore the selected version only if the path does not currently exist.
+    pub fn if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.args.if_not_exists = if_not_exists;
+        self
+    }
+}

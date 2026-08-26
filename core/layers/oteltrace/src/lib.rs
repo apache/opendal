@@ -180,6 +180,20 @@ impl Service for OtelTraceService {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("restore");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
+        let cx = TraceContext::current_with_span(span);
+        self.inner.restore(ctx, path, args).with_context(cx).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("stat");

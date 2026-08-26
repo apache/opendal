@@ -102,6 +102,9 @@ impl Deleter {
         if input.recursive {
             op = op.with_recursive(true);
         }
+        if let Some(if_match) = &input.if_match {
+            op = op.with_if_match(if_match);
+        }
 
         self.deleter.delete(&input.path, op).await?;
         Ok(())

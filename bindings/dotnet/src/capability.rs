@@ -76,6 +76,8 @@ pub struct Capability {
     pub write_can_empty: bool,
     /// Indicates if append operations are supported.
     pub write_can_append: bool,
+    /// Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+    pub write_can_copy_from: bool,
     /// Indicates if Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
     /// Indicates if Content-Disposition can be specified during write operations.
@@ -124,6 +126,12 @@ pub struct Capability {
     pub copy_multi_max_size: usize,
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: usize,
+    /// Indicates if restore operations are supported.
+    pub restore: bool,
+    /// Indicates if restoring a specific version is supported.
+    pub restore_with_version: bool,
+    /// Indicates if conditional restore operations using if-not-exists are supported.
+    pub restore_with_if_not_exists: bool,
     /// Indicates if rename operations are supported.
     pub rename: bool,
     /// Indicates if conditional rename operations with if-not-exists are supported.
@@ -181,6 +189,7 @@ impl Capability {
             write_can_multi: cap.write_can_multi,
             write_can_empty: cap.write_can_empty,
             write_can_append: cap.write_can_append,
+            write_can_copy_from: cap.write_can_copy_from,
             write_with_content_type: cap.write_with_content_type,
             write_with_content_disposition: cap.write_with_content_disposition,
             write_with_content_encoding: cap.write_with_content_encoding,
@@ -205,6 +214,9 @@ impl Capability {
             copy_can_multi: cap.copy_can_multi,
             copy_multi_max_size: cap.copy_multi_max_size.unwrap_or(usize::MAX),
             copy_multi_min_size: cap.copy_multi_min_size.unwrap_or(usize::MAX),
+            restore: cap.restore,
+            restore_with_version: cap.restore_with_version,
+            restore_with_if_not_exists: cap.restore_with_if_not_exists,
             rename: cap.rename,
             rename_with_if_not_exists: cap.rename_with_if_not_exists,
             list: cap.list,

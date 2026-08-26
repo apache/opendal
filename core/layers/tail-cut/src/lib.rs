@@ -434,6 +434,15 @@ impl Service for TailCutService {
         .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.with_deadline(Operation::Stat, None, self.inner.stat(ctx, path, args))
             .await

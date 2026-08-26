@@ -261,6 +261,16 @@ impl Service for TimeoutService {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.timeout(Operation::Restore, self.inner.restore(ctx, path, args))
+            .await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.timeout(Operation::Stat, self.inner.stat(ctx, path, args))
             .await

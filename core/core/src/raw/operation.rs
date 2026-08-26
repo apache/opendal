@@ -41,6 +41,8 @@ pub enum Operation {
     Copy,
     /// Operation to rename a file.
     Rename,
+    /// Operation to restore a file.
+    Restore,
     /// Operation to stat a file or a directory.
     Stat,
     /// Operation to delete files.
@@ -73,6 +75,7 @@ impl From<Operation> for &'static str {
             Operation::Write => "write",
             Operation::Copy => "copy",
             Operation::Rename => "rename",
+            Operation::Restore => "restore",
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",

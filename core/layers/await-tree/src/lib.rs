@@ -137,6 +137,18 @@ impl Service for AwaitTreeAccessor {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner
+            .restore(ctx, path, args)
+            .instrument_await(format!("opendal::{}", Operation::Restore))
+            .await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner
             .stat(ctx, path, args)

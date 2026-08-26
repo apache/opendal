@@ -58,6 +58,7 @@ public struct Capability
         WriteCanMulti = native.writeCanMulti != 0;
         WriteCanEmpty = native.writeCanEmpty != 0;
         WriteCanAppend = native.writeCanAppend != 0;
+        WriteCanCopyFrom = native.writeCanCopyFrom != 0;
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
@@ -82,6 +83,9 @@ public struct Capability
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
+        Restore = native.restore != 0;
+        RestoreWithVersion = native.restoreWithVersion != 0;
+        RestoreWithIfNotExists = native.restoreWithIfNotExists != 0;
         Rename = native.rename != 0;
         RenameWithIfNotExists = native.renameWithIfNotExists != 0;
         List = native.list != 0;
@@ -214,6 +218,11 @@ public struct Capability
     public bool WriteCanAppend { get; private set; }
 
     /// <summary>
+    /// Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+    /// </summary>
+    public bool WriteCanCopyFrom { get; private set; }
+
+    /// <summary>
     /// Indicates if Content-Type can be specified during write operations.
     /// </summary>
     public bool WriteWithContentType { get; private set; }
@@ -332,6 +341,21 @@ public struct Capability
     /// Minimum size required for segmented copy tasks.
     /// </summary>
     public ulong? CopyMultiMinSize { get; private set; }
+
+    /// <summary>
+    /// Indicates if restore operations are supported.
+    /// </summary>
+    public bool Restore { get; private set; }
+
+    /// <summary>
+    /// Indicates if restoring a specific version is supported.
+    /// </summary>
+    public bool RestoreWithVersion { get; private set; }
+
+    /// <summary>
+    /// Indicates if conditional restore operations using if-not-exists are supported.
+    /// </summary>
+    public bool RestoreWithIfNotExists { get; private set; }
 
     /// <summary>
     /// Indicates if rename operations are supported.

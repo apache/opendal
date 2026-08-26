@@ -463,6 +463,29 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .map_err(|err| err.set_persistent())
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let mut attempt: u32 = 0;
+        { || self.inner.restore(ctx, path, args.clone()) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Restore,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|err| err.set_persistent())
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let mut attempt: u32 = 0;
         let lister = { || self.inner.list(ctx, path, args.clone()) }

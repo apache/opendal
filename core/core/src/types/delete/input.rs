@@ -28,6 +28,8 @@ pub struct DeleteInput {
     pub version: Option<String>,
     /// Whether to perform recursive deletion.
     pub recursive: bool,
+    /// Delete the path only when its ETag matches this value.
+    pub if_match: Option<String>,
 }
 
 /// IntoDeleteInput is a helper trait that makes it easier for users to play with `Deleter`.
@@ -80,6 +82,9 @@ impl IntoDeleteInput for (String, OpDelete) {
         if let Some(version) = args.version() {
             input.version = Some(version.to_string());
         }
+        if let Some(if_match) = args.if_match() {
+            input.if_match = Some(if_match.to_string());
+        }
         input
     }
 }
@@ -99,5 +104,21 @@ impl IntoDeleteInput for Entry {
             input.version = Some(version.to_string());
         }
         input
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_op_delete_input_preserves_if_match() {
+        let input = (
+            "path".to_string(),
+            OpDelete::new().with_if_match("\"etag\""),
+        )
+            .into_delete_input();
+
+        assert_eq!(input.if_match.as_deref(), Some("\"etag\""));
     }
 }

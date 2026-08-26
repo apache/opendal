@@ -2258,7 +2258,9 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         | "ExceedBucketQPSLimit"
         | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
         "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
-        "PreconditionFailed" => Some((ErrorKind::ConditionNotMatch, false)),
+        "PreconditionFailed" | "412 Precondition Failed" => {
+            Some((ErrorKind::ConditionNotMatch, false))
+        }
         "ConditionalRequestConflict" => Some((
             ErrorKind::Conflict,
             ctx.service_operation == ServiceOperation("PutObject"),

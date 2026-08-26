@@ -32,6 +32,7 @@ use opendal_core::*;
 const LABEL_CREATE_DIR: &str = "opendal.create_dir";
 const LABEL_READ: &str = "opendal.read";
 const LABEL_RENAME: &str = "opendal.rename";
+const LABEL_RESTORE: &str = "opendal.restore";
 const LABEL_STAT: &str = "opendal.stat";
 const LABEL_PRESIGN: &str = "opendal.presign";
 
@@ -163,6 +164,15 @@ impl Service for HotpathAccessor {
         args: OpRename,
     ) -> Result<RpRename> {
         hotpath::measure_async(LABEL_RENAME, self.inner.rename(ctx, from, to, args)).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        hotpath::measure_async(LABEL_RESTORE, self.inner.restore(ctx, path, args)).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {

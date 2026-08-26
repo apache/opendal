@@ -37,15 +37,19 @@ impl AzblobDeleter {
 }
 
 impl oio::BatchDelete for AzblobDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.azblob_delete_blob(&self.ctx, &path).await?;
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        let resp = self
+            .core
+            .azblob_delete_blob(&self.ctx, &path, &args)
+            .await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("DeleteBlob")),
+                ErrorContext::new(ServiceOperation("DeleteBlob"))
+                    .with_if_match(args.if_match().is_some()),
                 resp,
             )),
         }
@@ -53,10 +57,8 @@ impl oio::BatchDelete for AzblobDeleter {
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
         // TODO: Add remove version support.
-        let paths = batch.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-
         // construct and complete batch request
-        let resp = self.core.azblob_batch_delete(&self.ctx, &paths).await?;
+        let resp = self.core.azblob_batch_delete(&self.ctx, &batch).await?;
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
@@ -81,31 +83,26 @@ impl oio::BatchDelete for AzblobDeleter {
             Multipart::new().with_boundary(&boundary).parse(bs)?;
         let parts = multipart.into_parts();
 
-        if paths.len() != parts.len() {
+        if batch.len() != parts.len() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                "invalid batch response, paths and response parts don't match",
+                "invalid batch response, requests and response parts don't match",
             ));
         }
 
         let mut batched_result = BatchDeleteResult::default();
 
-        for (i, part) in parts.into_iter().enumerate() {
+        for (part, (path, args)) in parts.into_iter().zip(batch) {
             let resp = part.into_response();
-            let path = paths[i].clone();
 
             // deleting not existing objects is ok
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
-                batched_result.succeeded.push((path, OpDelete::default()));
+                batched_result.succeeded.push((path, args));
             } else {
-                batched_result.failed.push((
-                    path,
-                    OpDelete::default(),
-                    parse_error(
-                        ErrorContext::new(ServiceOperation("BatchDeleteBlobs")),
-                        resp,
-                    ),
-                ));
+                let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteBlobs"))
+                    .with_if_match(args.if_match().is_some());
+                let err = parse_error(error_ctx, resp);
+                batched_result.failed.push((path, args, err));
             }
         }
 

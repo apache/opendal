@@ -209,6 +209,31 @@ impl Service for CapabilityCheckService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let capability = self.capability();
+        let info = self.info();
+        if !capability.restore {
+            return Err(new_unsupported_error(&info, Operation::Restore, ""));
+        }
+        if args.version().is_some() && !capability.restore_with_version {
+            return Err(new_unsupported_error(&info, Operation::Restore, "version"));
+        }
+        if args.if_not_exists() && !capability.restore_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Restore,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,

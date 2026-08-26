@@ -228,6 +228,15 @@ impl Service for ImmutableIndexService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,

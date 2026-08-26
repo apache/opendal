@@ -23,6 +23,7 @@ use std::sync::LazyLock;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -56,6 +57,7 @@ use crate::lister::S3ObjectVersionsLister;
 use crate::reader::*;
 use crate::writer::S3Writer;
 use crate::writer::S3Writers;
+use opendal_core::raw::oio::Copy;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -1121,6 +1123,10 @@ impl Builder for S3Builder {
                         Some(usize::MAX)
                     },
 
+                    restore: !is_s3_express,
+                    restore_with_version: !is_s3_express,
+                    restore_with_if_not_exists: !is_s3_express,
+
                     list: true,
                     list_with_limit: true,
                     list_with_start_after: !is_s3_express,
@@ -1310,6 +1316,88 @@ impl Service for S3Backend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        if let Some(version) = args.version() {
+            let copy_args = OpCopy::new()
+                .with_source_version(version)
+                .with_if_not_exists(args.if_not_exists());
+            let mut copier = new_s3_copier(
+                self.core.clone(),
+                ctx,
+                path,
+                path,
+                copy_args,
+                OpCopier::default(),
+            )?;
+
+            return match copier.close().await {
+                Ok(_) => Ok(RpRestore::new()),
+                Err(err) => {
+                    let _ = copier.abort().await;
+                    Err(err)
+                }
+            };
+        }
+
+        if args.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            ));
+        }
+
+        let resp = self
+            .core
+            .s3_list_object_versions(ctx, path, "", Some(1), "", "")
+            .await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
+        }
+
+        let output: ListObjectVersionsOutput =
+            quick_xml::de::from_reader(resp.into_body().reader())
+                .map_err(new_xml_deserialize_error)
+                .map_err(Error::set_temporary)?;
+        let abs_path = build_abs_path(&self.core.root, path);
+
+        if output
+            .version
+            .iter()
+            .any(|version| version.key == abs_path && version.is_latest)
+        {
+            return Ok(RpRestore::new());
+        }
+
+        let Some(marker) = output
+            .delete_marker
+            .into_iter()
+            .find(|marker| marker.key == abs_path && marker.is_latest)
+        else {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no live object or current delete marker exists",
+            ));
+        };
+
+        let delete_args = OpDelete::new().with_version(&marker.version_id);
+        let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
+        match resp.status() {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpRestore::new()),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
+        }
     }
 
     async fn presign(
@@ -1866,6 +1954,9 @@ mod tests {
         assert!(!capability.write_with_content_encoding);
         assert!(!capability.delete_with_version);
         assert!(!capability.copy_with_source_version);
+        assert!(!capability.restore);
+        assert!(!capability.restore_with_version);
+        assert!(!capability.restore_with_if_not_exists);
         assert!(!capability.list_with_start_after);
         assert!(!capability.list_with_recursive);
         assert!(!capability.list_with_versions);

@@ -414,6 +414,7 @@ impl Builder for AzblobBuilder {
             write_with_user_metadata: true,
 
             delete: true,
+            delete_with_if_match: true,
             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
             copy: true,

@@ -90,7 +90,10 @@ impl oio::PageList for S3ListerV1 {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
         let bs = resp.into_body();
 
@@ -212,7 +215,10 @@ impl oio::PageList for S3ListerV2 {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectsV2")),
+                resp,
+            ));
         }
         let bs = resp.into_body();
 
@@ -326,7 +332,10 @@ impl oio::PageList for S3ObjectVersionsLister {
             )
             .await?;
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();

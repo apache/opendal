@@ -53,7 +53,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
                 op,
                 test_delete_with_if_match_match,
                 test_delete_with_if_match_mismatch,
-                test_delete_with_if_match_missing
+                test_delete_with_if_match_missing,
+                test_batch_delete_with_if_match
             ));
         }
         if cap.delete_with_if_none_match {
@@ -455,8 +456,8 @@ pub async fn test_delete_with_if_match_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Delete with a non-matching `If-Match` ETag should fail with
-/// [`ErrorKind::ConditionNotMatch`] and leave the object intact.
+/// Delete with a stale `If-Match` ETag should fail with
+/// [`ErrorKind::ConditionNotMatch`] and leave the replacement intact.
 pub async fn test_delete_with_if_match_mismatch(op: Operator) -> Result<()> {
     if !op.info().capability().delete_with_if_match {
         return Ok(());
@@ -465,14 +466,90 @@ pub async fn test_delete_with_if_match_mismatch(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&path, content).await.expect("write must succeed");
 
+    let stale_etag = op
+        .stat(&path)
+        .await
+        .expect("stat must succeed")
+        .etag()
+        .expect("etag must be present")
+        .to_string();
+    let replacement = "replacement generation";
+    op.write(&path, replacement)
+        .await
+        .expect("replacement write must succeed");
+
     let err = op
         .delete_with(&path)
-        .if_match("\"this-etag-does-not-match\"")
+        .if_match(&stale_etag)
         .await
-        .expect_err("delete must fail when etag mismatches");
+        .expect_err("stale ETag must not delete the replacement");
     assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(op.read(&path).await?.to_bytes(), replacement.as_bytes());
 
-    assert!(op.exists(&path).await?);
+    op.delete(&path).await?;
+
+    Ok(())
+}
+
+/// Batch delete should apply each entry's `If-Match` condition independently.
+pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
+    let mut cap = op.info().capability();
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
+
+    let (matching_path, matching_content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&matching_path, matching_content)
+        .await
+        .expect("write must succeed");
+    let matching_etag = op
+        .stat(&matching_path)
+        .await
+        .expect("stat must succeed")
+        .etag()
+        .expect("etag must be present")
+        .to_string();
+
+    let (stale_path, stale_content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&stale_path, stale_content)
+        .await
+        .expect("write must succeed");
+    let stale_etag = op
+        .stat(&stale_path)
+        .await
+        .expect("stat must succeed")
+        .etag()
+        .expect("etag must be present")
+        .to_string();
+    let replacement = "replacement generation";
+    op.write(&stale_path, replacement)
+        .await
+        .expect("replacement write must succeed");
+
+    let err = op
+        .delete_iter([
+            (
+                matching_path.clone(),
+                OpDelete::new().with_if_match(&matching_etag),
+            ),
+            (
+                stale_path.clone(),
+                OpDelete::new().with_if_match(&stale_etag),
+            ),
+        ])
+        .await
+        .expect_err("batch delete must report the stale ETag");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert!(!op.exists(&matching_path).await?);
+    assert_eq!(
+        op.read(&stale_path).await?.to_bytes(),
+        replacement.as_bytes()
+    );
+
+    op.delete(&stale_path).await?;
 
     Ok(())
 }

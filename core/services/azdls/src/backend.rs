@@ -20,12 +20,14 @@ use std::sync::Arc;
 
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -69,6 +71,7 @@ impl From<AzureConnectionConfig> for AzdlsConfig {
 #[derive(Default)]
 pub struct AzdlsBuilder {
     pub(super) config: AzdlsConfig,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for AzdlsBuilder {
@@ -187,6 +190,12 @@ impl AzdlsBuilder {
         self
     }
 
+    /// Replace the credential providers with a custom chain.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
+
     /// Set authority_host of this backend.
     ///
     /// - If authority_host is set, we will take user's input first.
@@ -300,22 +309,27 @@ impl Builder for AzdlsBuilder {
                 envs,
             });
 
-        let mut credential = DefaultCredentialProvider::new();
+        let mut credential_providers =
+            ProvideCredentialChain::new().push(DefaultCredentialProvider::new());
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
         {
-            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
-                account_name,
-                account_key,
-            ));
+            credential_providers = credential_providers.push_front(
+                StaticCredentialProvider::new_shared_key(account_name, account_key),
+            );
         }
         if let Some(sas_token) = self.config.sas_token.as_deref() {
-            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+            credential_providers =
+                credential_providers.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        if let Some(customized_credential_chain) = self.credential_providers {
+            credential_providers = customized_credential_chain;
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
+        let signer = Signer::new(sign_ctx.clone(), credential_providers, RequestSigner::new());
 
         let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
         let capability = Capability {
@@ -337,6 +351,7 @@ impl Builder for AzdlsBuilder {
             create_dir: true,
 
             delete: true,
+            delete_with_if_match: true,
             delete_with_recursive: true,
 
             rename: true,

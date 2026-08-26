@@ -279,7 +279,11 @@ impl Service for FoyerService {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.restore = false;
+        capability.restore_with_version = false;
+        capability.restore_with_if_not_exists = false;
+        capability
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -341,6 +345,18 @@ impl Service for FoyerService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpRestore,
+    ) -> Result<RpRestore> {
+        Err(
+            Error::new(ErrorKind::Unsupported, "operation is not supported")
+                .with_operation(Operation::Restore),
+        )
     }
 
     async fn presign(
@@ -483,6 +499,9 @@ mod tests {
             Capability {
                 read: true,
                 stat: true,
+                restore: true,
+                restore_with_version: true,
+                restore_with_if_not_exists: true,
                 ..Default::default()
             }
         }
@@ -570,6 +589,25 @@ mod tests {
 
     fn service_context(_: &Servicer) -> OperationContext {
         OperationContext::new()
+    }
+
+    #[tokio::test]
+    async fn test_restore_is_not_supported() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        assert!(source.capability().restore);
+
+        let service = FoyerLayer::new(cache).apply_service(source);
+        let capability = service.capability();
+        assert!(!capability.restore);
+        assert!(!capability.restore_with_version);
+        assert!(!capability.restore_with_if_not_exists);
+
+        let err = service
+            .restore(&OperationContext::new(), "test", OpRestore::new())
+            .await
+            .expect_err("FoyerLayer must reject restore operations");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     #[tokio::test]

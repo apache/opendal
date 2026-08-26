@@ -16,6 +16,7 @@
 // under the License.
 
 use super::backend::*;
+use super::core::ErrorContext;
 use super::core::constants::X_GOOG_GENERATION;
 use super::core::parse_error;
 use http::Response;
@@ -54,6 +55,11 @@ impl oio::StreamRead for GcsReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
+        let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_version_match(args.if_version_match().is_some())
+            .with_if_version_not_match(args.if_version_not_match().is_some());
         let resp = backend
             .core
             .gcs_get_object(&self.ctx, path, range, &args)
@@ -72,15 +78,7 @@ impl oio::StreamRead for GcsReader {
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                if part.status == StatusCode::NOT_FOUND
-                    && (args.if_version_match().is_some() || args.if_version_not_match().is_some())
-                {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "version precondition requires a live target",
-                    ));
-                }
-                return Err(parse_error(Response::from_parts(part, buf)));
+                return Err(parse_error(error_ctx, Response::from_parts(part, buf)));
             }
         };
 

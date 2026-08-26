@@ -463,18 +463,15 @@ impl Service for GcsBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_version_match(args.if_version_match().is_some())
+            .with_if_version_not_match(args.if_version_not_match().is_some());
         let resp = self.core.gcs_get_object_metadata(ctx, path, &args).await?;
 
         if !resp.status().is_success() {
-            if resp.status() == http::StatusCode::NOT_FOUND
-                && (args.if_version_match().is_some() || args.if_version_not_match().is_some())
-            {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "version precondition requires a live target",
-                ));
-            }
-            return Err(parse_error(resp));
+            return Err(parse_error(error_ctx, resp));
         }
 
         let slc = resp.into_body();

@@ -258,6 +258,18 @@ impl Service for RouteAccessor {
         }
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        match self.select(path) {
+            RouteSelected::Default(srv) => srv.restore(ctx, path, args).await,
+            RouteSelected::Target(target) => target.srv.restore(&target.ctx, path, args).await,
+        }
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.stat(ctx, path, args).await,

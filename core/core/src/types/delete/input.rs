@@ -167,3 +167,19 @@ impl IntoDeleteInput for Entry {
         input
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_op_delete_input_preserves_if_match() {
+        let input = (
+            "path".to_string(),
+            OpDelete::new().with_if_match("\"etag\""),
+        )
+            .into_delete_input();
+
+        assert_eq!(input.if_match.as_deref(), Some("\"etag\""));
+    }
+}

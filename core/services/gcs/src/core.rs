@@ -24,6 +24,7 @@ use bytes::Bytes;
 use constants::*;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -38,6 +39,7 @@ use reqsign_core::{Context, Signer};
 use reqsign_google::Credential;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::de;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -1552,115 +1554,160 @@ mod tests {
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
-    use serde::Deserialize;
-    use serde_json::de;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsErrorResponse {
-        error: GcsError,
-    }
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsError {
-        code: usize,
-        message: String,
-        errors: Vec<GcsErrorDetail>,
-    }
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsErrorDetail {
-        domain: String,
-        location: String,
-        location_type: String,
-        message: String,
-        reason: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match de::from_slice::<GcsErrorResponse>(&bs) {
-            Ok(gcs_err) => format!("{gcs_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
-{
-"error": {
- "errors": [
-  {
-   "domain": "global",
-   "reason": "required",
-   "message": "Login Required",
-   "locationType": "header",
-   "location": "Authorization"
-  }
- ],
- "code": 401,
- "message": "Login Required"
- }
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorContext {
+    service_operation: ServiceOperation,
+    if_match: bool,
+    if_none_match: bool,
+    if_not_exists: bool,
+    if_version_match: bool,
+    if_version_not_match: bool,
 }
-"#,
-            );
 
-            let out: GcsErrorResponse = de::from_slice(&bs).expect("must success");
-            println!("{out:?}");
-
-            assert_eq!(out.error.code, 401);
-            assert_eq!(out.error.message, "Login Required");
-            assert_eq!(out.error.errors[0].domain, "global");
-            assert_eq!(out.error.errors[0].reason, "required");
-            assert_eq!(out.error.errors[0].message, "Login Required");
-            assert_eq!(out.error.errors[0].location_type, "header");
-            assert_eq!(out.error.errors[0].location, "Authorization");
+impl ErrorContext {
+    pub const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            if_match: false,
+            if_none_match: false,
+            if_not_exists: false,
+            if_version_match: false,
+            if_version_not_match: false,
         }
+    }
+
+    pub const fn with_if_match(mut self, if_match: bool) -> Self {
+        self.if_match = if_match;
+        self
+    }
+
+    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
+        self.if_none_match = if_none_match;
+        self
+    }
+
+    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    pub const fn with_if_version_match(mut self, if_version_match: bool) -> Self {
+        self.if_version_match = if_version_match;
+        self
+    }
+
+    pub const fn with_if_version_not_match(mut self, if_version_not_match: bool) -> Self {
+        self.if_version_not_match = if_version_not_match;
+        self
+    }
+
+    const fn has_condition(self) -> bool {
+        self.if_match
+            || self.if_none_match
+            || self.if_not_exists
+            || self.if_version_match
+            || self.if_version_not_match
+    }
+
+    const fn has_version_condition(self) -> bool {
+        self.if_version_match || self.if_version_not_match
     }
 }
 
-pub(super) use error::*;
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsErrorResponse {
+    error: GcsError,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsError {
+    code: usize,
+    message: String,
+    errors: Vec<GcsErrorDetail>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsErrorDetail {
+    domain: String,
+    location: String,
+    location_type: String,
+    message: String,
+    reason: String,
+}
+
+/// Parse error response into Error.
+pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.has_version_condition() => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(gcs_error) = &gcs_error {
+        let has_reason = gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| !detail.reason.is_empty());
+        if gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == "conditionNotMet")
+        {
+            (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+        } else if gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == "conflict")
+        {
+            (kind, retryable) = (ErrorKind::Conflict, false);
+        } else if has_reason
+            && matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            )
+        {
+            (kind, retryable) = (ErrorKind::Unexpected, false);
+        }
+    }
+
+    let message = match gcs_error {
+        Some(gcs_err) => format!("{gcs_err:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err =
+        Error::new(kind, message).with_context("service_operation", ctx.service_operation.0);
+
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
 
 mod uri {
     use percent_encoding::AsciiSet;

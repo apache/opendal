@@ -9,11 +9,36 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
+
+## Object restoration
+
+S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]
+removes the current delete marker. Calling it on an already-live object succeeds.
+It does not scan or remove older marker versions. If no live object or current
+delete marker exists, it returns [`opendal_core::ErrorKind::NotFound`].
+
+Use [`opendal_core::Operator::restore_with`] to promote a specific version:
+
+```rust,no_run
+# use opendal_core::Operator;
+# use opendal_core::Result;
+# async fn restore(op: Operator, version: &str) -> Result<()> {
+op.restore_with("path/to/file")
+    .version(version)
+    .await?;
+# Ok(())
+# }
+```
+
+Add `.if_not_exists(true)` when a selected version must not overwrite an
+object recreated by another writer. This condition requires an explicit
+version.
 
 ## Configuration
 

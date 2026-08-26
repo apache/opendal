@@ -1640,6 +1640,94 @@ impl Operator {
         Ok(())
     }
 
+    /// Restore the given path from its latest deleted state.
+    ///
+    /// Calling `restore` on an already-live path succeeds. Calling it when no
+    /// live object or recoverable deletion state exists returns
+    /// [`ErrorKind::NotFound`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.restore("path/to/file").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn restore(&self, path: &str) -> Result<()> {
+        self.restore_with(path).await
+    }
+
+    /// Restore the given path with additional options.
+    ///
+    /// # Examples
+    ///
+    /// Restore a specific version only if the path has not been recreated:
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// op.restore_with("path/to/file")
+    ///     .version(version)
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn restore_with(&self, path: &str) -> FutureRestore<impl Future<Output = Result<()>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            options::RestoreOptions::default(),
+            Self::restore_inner,
+        )
+    }
+
+    /// Restore the given path with additional options.
+    pub async fn restore_options(
+        &self,
+        path: &str,
+        opts: impl Into<options::RestoreOptions>,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+        let opts = opts.into();
+
+        Self::restore_inner(self.context().clone(), self.service().clone(), path, opts).await
+    }
+
+    async fn restore_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        opts: options::RestoreOptions,
+    ) -> Result<()> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(Error::new(ErrorKind::IsADirectory, "path is a directory")
+                .with_operation(Operation::Restore)
+                .with_context("service", srv.info().scheme())
+                .with_context("path", path));
+        }
+
+        if opts.if_not_exists && opts.version.is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            )
+            .with_operation(Operation::Restore)
+            .with_context("service", srv.info().scheme())
+            .with_context("path", path));
+        }
+
+        srv.restore(&ctx, &path, opts.into()).await?;
+        Ok(())
+    }
+
     /// Delete the given path.
     ///
     /// # Notes

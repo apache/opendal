@@ -43,7 +43,9 @@ impl oio::BatchDelete for GcsDeleter {
         if resp.status().is_success() {
             Ok(())
         } else if resp.status() == StatusCode::NOT_FOUND
-            && (args.if_version_match().is_some() || args.if_version_not_match().is_some())
+            && (args.if_match().is_some()
+                || args.if_version_match().is_some()
+                || args.if_version_not_match().is_some())
         {
             Err(Error::new(
                 ErrorKind::ConditionNotMatch,
@@ -52,7 +54,14 @@ impl oio::BatchDelete for GcsDeleter {
         } else if resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
-            Err(parse_error(resp))
+            Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject"))
+                    .with_if_match(args.if_match().is_some())
+                    .with_if_none_match(args.if_none_match().is_some())
+                    .with_if_version_match(args.if_version_match().is_some())
+                    .with_if_version_not_match(args.if_version_not_match().is_some()),
+                resp,
+            ))
         }
     }
 
@@ -64,7 +73,10 @@ impl oio::BatchDelete for GcsDeleter {
         // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
         // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BatchDeleteObjects")),
+                resp,
+            ));
         }
 
         let boundary = parse_multipart_boundary(resp.headers())?.ok_or_else(|| {
@@ -88,7 +100,9 @@ impl oio::BatchDelete for GcsDeleter {
             if resp.status().is_success() {
                 batched_result.succeeded.push((path, op));
             } else if resp.status() == StatusCode::NOT_FOUND
-                && (op.if_version_match().is_some() || op.if_version_not_match().is_some())
+                && (op.if_match().is_some()
+                    || op.if_version_match().is_some()
+                    || op.if_version_not_match().is_some())
             {
                 batched_result.failed.push((
                     path,
@@ -101,7 +115,14 @@ impl oio::BatchDelete for GcsDeleter {
             } else if resp.status() == StatusCode::NOT_FOUND {
                 batched_result.succeeded.push((path, op));
             } else {
-                batched_result.failed.push((path, op, parse_error(resp)));
+                let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteObjects"))
+                    .with_if_match(op.if_match().is_some())
+                    .with_if_none_match(op.if_none_match().is_some())
+                    .with_if_version_match(op.if_version_match().is_some())
+                    .with_if_version_not_match(op.if_version_not_match().is_some());
+                batched_result
+                    .failed
+                    .push((path, op, parse_error(error_ctx, resp)));
             }
         }
 

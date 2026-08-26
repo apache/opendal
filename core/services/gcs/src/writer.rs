@@ -23,6 +23,7 @@ use http::header::LOCATION;
 use http::header::RANGE;
 
 use super::core::CompleteMultipartUploadRequestPart;
+use super::core::ErrorContext;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
 use super::core::constants::X_GOOG_GENERATION;
@@ -72,7 +73,11 @@ impl oio::MultipartWrite for GcsWriter {
                     GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
+                resp,
+            )),
         }
     }
 
@@ -83,7 +88,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            ));
         }
 
         let buf = resp.into_body();
@@ -108,7 +116,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            ));
         }
 
         let etag = parse_etag(resp.headers())?
@@ -147,7 +158,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            ));
         }
         let mut metadata = Metadata::new(EntryMode::from_path(&self.path));
         if let Some(etag) = parse_etag(resp.headers())? {
@@ -167,7 +181,10 @@ impl oio::MultipartWrite for GcsWriter {
         match resp.status() {
             // gcs returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }
@@ -202,7 +219,15 @@ impl GcsConditionalWriter {
                 .gcs_initiate_resumable_upload(&self.ctx, &self.path, &self.op)
                 .await?;
             if !resp.status().is_success() {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("InitiateResumableUpload"))
+                        .with_if_not_exists(self.op.if_not_exists())
+                        .with_if_match(self.op.if_match().is_some())
+                        .with_if_none_match(self.op.if_none_match().is_some())
+                        .with_if_version_match(self.op.if_version_match().is_some())
+                        .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                    resp,
+                ));
             }
             let location = parse_header_to_str(resp.headers(), LOCATION)?
                 .ok_or_else(|| {
@@ -296,7 +321,10 @@ impl GcsConditionalWriter {
                     .map(Some);
             }
 
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadResumableChunk")),
+                resp,
+            ));
         }
     }
 
@@ -313,7 +341,15 @@ impl GcsConditionalWriter {
             StatusCode::OK | StatusCode::CREATED => {
                 GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject"))
+                    .with_if_not_exists(self.op.if_not_exists())
+                    .with_if_match(self.op.if_match().is_some())
+                    .with_if_none_match(self.op.if_none_match().is_some())
+                    .with_if_version_match(self.op.if_version_match().is_some())
+                    .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                resp,
+            )),
         }
     }
 }
@@ -358,7 +394,10 @@ impl oio::Write for GcsConditionalWriter {
         {
             Ok(())
         } else {
-            Err(parse_error(resp))
+            Err(parse_error(
+                ErrorContext::new(ServiceOperation("CancelResumableUpload")),
+                resp,
+            ))
         }
     }
 }

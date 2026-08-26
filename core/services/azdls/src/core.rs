@@ -421,6 +421,7 @@ impl AzdlsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -433,7 +434,13 @@ impl AzdlsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::delete(&url)
+        let mut req = Request::delete(&url);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        let req = req
             .extension(Operation::Delete)
             .extension(ServiceOperation("DeletePath"))
             .body(Buffer::new())
@@ -447,6 +454,7 @@ impl AzdlsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -472,7 +480,13 @@ impl AzdlsCore {
                 url = url.push("continuation", &percent_encode_path(&continuation));
             }
 
-            let req = Request::delete(url.finish())
+            let mut req = Request::delete(url.finish());
+
+            if let Some(if_match) = args.if_match() {
+                req = req.header(IF_MATCH, if_match);
+            }
+
+            let req = req
                 .extension(Operation::Delete)
                 .extension(ServiceOperation("RecursiveDeletePath"))
                 .body(Buffer::new())

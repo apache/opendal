@@ -78,13 +78,17 @@ typedef enum opendal_code {
    */
   OPENDAL_IS_SAME_FILE,
   /**
-   * The condition of this operation is not match.
+   * A condition supplied through the OpenDAL operation evaluated to false.
    */
   OPENDAL_CONDITION_NOT_MATCH,
   /**
    * The range of the content is not satisfied.
    */
   OPENDAL_RANGE_NOT_SATISFIED,
+  /**
+   * The operation conflicts with the current or transitional state of the resource.
+   */
+  OPENDAL_CONFLICT,
 } opendal_code;
 
 typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;

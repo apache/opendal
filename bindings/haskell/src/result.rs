@@ -44,6 +44,7 @@ pub enum FFIErrorCode {
     AlreadyExists,
     RateLimited,
     IsSameFile,
+    Conflict,
 }
 
 impl<T> FFIResult<T> {
@@ -88,6 +89,7 @@ impl From<od::ErrorKind> for FFIErrorCode {
             od::ErrorKind::AlreadyExists => FFIErrorCode::AlreadyExists,
             od::ErrorKind::RateLimited => FFIErrorCode::RateLimited,
             od::ErrorKind::IsSameFile => FFIErrorCode::IsSameFile,
+            od::ErrorKind::Conflict => FFIErrorCode::Conflict,
             _ => FFIErrorCode::Unexpected,
         }
     }

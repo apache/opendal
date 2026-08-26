@@ -40,6 +40,22 @@ public class OperatorInfoTest
     }
 
     [Fact]
+    public void OperatorInfo_MemoryConfig_AbsentSizeLimitsAreNull()
+    {
+        using var op = new Operator(new MemoryServiceConfig());
+        var capability = op.Info.Capability;
+
+        // The memory service declares none of the size limits. They must
+        // surface as null, not as a sentinel leaking through the FFI layer.
+        Assert.Null(capability.WriteMultiMaxSize);
+        Assert.Null(capability.WriteMultiMinSize);
+        Assert.Null(capability.WriteTotalMaxSize);
+        Assert.Null(capability.DeleteMaxSize);
+        Assert.Null(capability.CopyMultiMaxSize);
+        Assert.Null(capability.CopyMultiMinSize);
+    }
+
+    [Fact]
     public void OperatorInfo_FsConfig_ReturnsExpectedSchemeAndCapabilities()
     {
         var root = Path.Combine(Path.GetTempPath(), $"opendal-dotnet-info-{Guid.NewGuid():N}");

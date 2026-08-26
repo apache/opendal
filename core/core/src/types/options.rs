@@ -703,3 +703,26 @@ pub struct RenameOptions {
     ///   [`crate::ErrorKind::Unsupported`].
     pub if_not_exists: bool,
 }
+
+/// Options for restore operations.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct RestoreOptions {
+    /// Restore a specific historical version as the current version.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`crate::Capability::restore_with_version`] before using this feature.
+    pub version: Option<String>,
+
+    /// Restore the selected version only if the path does not currently exist.
+    ///
+    /// This option requires [`RestoreOptions::version`] to be set. It protects
+    /// recovery workflows from overwriting an object recreated after the version
+    /// to restore was selected.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`crate::Capability::restore_with_if_not_exists`] before using this
+    /// feature.
+    pub if_not_exists: bool,
+}

@@ -413,6 +413,18 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         result
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.log_start(Operation::Restore, &[("path", path)]);
+        let result = self.inner.restore(ctx, path, args).await;
+        self.log_finish(Operation::Restore, &[("path", path)], result.as_ref().err());
+        result
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.log_start(Operation::List, &[("path", path)]);
         self.inner

@@ -333,6 +333,10 @@ pub mod rfc_7749_http_transporter {}
 #[doc = include_str!("7818_rename_if_not_exists.md")]
 pub mod rfc_7818_rename_if_not_exists {}
 
+/// Limited Read
+#[doc = include_str!("7945_limited_read.md")]
+pub mod rfc_7945_limited_read {}
+
 /// S3 Provider Presets
 #[doc = include_str!("7948_s3_provider_presets.md")]
 pub mod rfc_7948_s3_provider_presets {}
@@ -340,3 +344,7 @@ pub mod rfc_7948_s3_provider_presets {}
 /// Writer Copy From
 #[doc = include_str!("8109_writer_copy_from.md")]
 pub mod rfc_8109_writer_copy_from {}
+
+/// Conflict Error Kind
+#[doc = include_str!("8145_conflict_error_kind.md")]
+pub mod rfc_8145_conflict_error_kind {}

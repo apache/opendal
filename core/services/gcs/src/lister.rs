@@ -81,7 +81,10 @@ impl oio::PageList for GcsLister {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
         let bytes = resp.into_body();
 

@@ -472,10 +472,9 @@ impl Operator {
         let buffer = self
             .core
             .read_options(&path, opts.into())
-            .map_err(format_pyerr)?
-            .to_vec();
+            .map_err(format_pyerr)?;
 
-        Buffer::new(buffer).into_bytes_ref(py)
+        Ok(buffer_into_py_bytes(py, buffer)?.into_any())
     }
 
     /// Write bytes to a file at the given path.
@@ -1219,9 +1218,8 @@ impl AsyncOperator {
                 .map_err(format_pyerr)?
                 .read(range.to_range())
                 .await
-                .map_err(format_pyerr)?
-                .to_vec();
-            Python::attach(|py| Buffer::new(res).into_bytes(py))
+                .map_err(format_pyerr)?;
+            Python::attach(|py| buffer_into_py_bytes(py, res).map(Bound::unbind))
         })
     }
 

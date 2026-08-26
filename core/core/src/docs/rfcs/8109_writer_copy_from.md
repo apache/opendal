@@ -183,10 +183,6 @@ otherwise the operation returns `Unsupported`. Resolution does not add snapshot
 isolation: every subsequent request still uses the supplied conditions, and an
 unconditional copy retains ordinary read consistency.
 
-The normalized source path must differ from the destination path. Version 1
-rejects equal paths even when `version` or `if_match` is present because some
-services expose writes in place before the destination is committed.
-
 ## Lifecycle and observability
 
 The `Writer` owns the complete destination transaction across every `write` and

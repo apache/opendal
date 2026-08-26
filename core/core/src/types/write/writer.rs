@@ -220,16 +220,6 @@ impl Writer {
                     .with_context("path", &path),
             );
         }
-        if path == self.ctx.path() {
-            return Err(Error::new(
-                ErrorKind::IsSameFile,
-                "copy source and destination are the same",
-            )
-            .with_operation("Writer::copy_from")
-            .with_context("service", self.ctx.service().info().scheme())
-            .with_context("path", &path));
-        }
-
         let (range, args, options) = options.into();
         self.inner.copy_from(&path, args, options, range).await
     }

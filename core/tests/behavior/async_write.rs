@@ -58,7 +58,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_futures_copy_with_concurrent,
             test_writer_return_metadata,
             test_writer_copy_from_interleaved,
-            test_writer_copy_from_rejects_self_copy,
             test_writer_write_non_contiguous_data,
             test_writer_write_with_if_not_exists,
             test_writer_write_with_if_none_match,
@@ -404,21 +403,6 @@ pub async fn test_writer_copy_from_interleaved(op: Operator) -> Result<()> {
     expected.extend_from_slice(b"footer");
     expected.extend_from_slice(&source[15 * 1024 * 1024..]);
     assert_eq!(op.read(&target_path).await?.to_bytes(), expected);
-    Ok(())
-}
-
-/// Reject self-copy before the destination writer is mutated.
-pub async fn test_writer_copy_from_rejects_self_copy(op: Operator) -> Result<()> {
-    let path = TEST_FIXTURE.new_file_path();
-    op.write(&path, "source").await?;
-
-    let mut writer = op.writer(&path).await?;
-    let err = writer
-        .copy_from(&path, ..)
-        .await
-        .expect_err("self-copy must be rejected");
-    assert_eq!(err.kind(), ErrorKind::IsSameFile);
-    writer.abort().await?;
     Ok(())
 }
 

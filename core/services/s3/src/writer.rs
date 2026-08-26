@@ -184,6 +184,11 @@ impl oio::MultipartWrite for S3Writer {
             .size()
             .expect("multipart writer copy range must be bounded");
         let part_number = part_number + 1;
+        let error_context = ErrorContext::new(ServiceOperation("UploadPartCopy"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_modified_since(args.if_modified_since().is_some())
+            .with_if_unmodified_since(args.if_unmodified_since().is_some());
         let req = self
             .core
             .s3_upload_part_copy_request(S3UploadPartCopyRequest {
@@ -207,18 +212,15 @@ impl oio::MultipartWrite for S3Writer {
         match resp.status() {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes();
                 let result: CopyObjectResult =
-                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
 
+                // S3 may return 200 OK with an <Error> body for UploadPartCopy.
                 if result.etag.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: result.code,
-                            message: result.message,
-                            resource: String::new(),
-                            request_id: result.request_id,
-                        },
-                        parts,
+                    return Err(parse_error(
+                        error_context,
+                        Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
 
@@ -229,7 +231,7 @@ impl oio::MultipartWrite for S3Writer {
                     size: Some(size),
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_context, resp)),
         }
     }
 

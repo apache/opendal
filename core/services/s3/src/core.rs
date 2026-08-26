@@ -2224,6 +2224,10 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         // Although the status code is 404, NoSuchBucket is
         // a config invalid error, and it's not retryable from OpenDAL.
         "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
+        // S3 Express can return 200 OK with an embedded NoSuchKey error for
+        // CopyObject. Classify the error code explicitly because the HTTP
+        // status alone cannot preserve the NotFound semantics in this case.
+        "NoSuchKey" => Some((ErrorKind::NotFound, false)),
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
         //

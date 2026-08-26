@@ -37,26 +37,36 @@ impl GcsDeleter {
 }
 
 impl oio::BatchDelete for GcsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.gcs_delete_object(&self.ctx, &path).await?;
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        let resp = self.core.gcs_delete_object(&self.ctx, &path, &args).await?;
 
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+        if resp.status().is_success() {
+            Ok(())
+        } else if resp.status() == StatusCode::NOT_FOUND
+            && (args.if_match().is_some()
+                || args.if_version_match().is_some()
+                || args.if_version_not_match().is_some())
+        {
+            Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            ))
+        } else if resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
             Err(parse_error(
-                ErrorContext::new(ServiceOperation("DeleteObject")),
+                ErrorContext::new(ServiceOperation("DeleteObject"))
+                    .with_if_match(args.if_match().is_some())
+                    .with_if_none_match(args.if_none_match().is_some())
+                    .with_if_version_match(args.if_version_match().is_some())
+                    .with_if_version_not_match(args.if_version_not_match().is_some()),
                 resp,
             ))
         }
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let paths: Vec<String> = batch.into_iter().map(|(p, _)| p).collect();
-        let resp = self
-            .core
-            .gcs_delete_objects(&self.ctx, paths.clone())
-            .await?;
+        let resp = self.core.gcs_delete_objects(&self.ctx, &batch).await?;
 
         let status = resp.status();
 
@@ -85,20 +95,34 @@ impl oio::BatchDelete for GcsDeleter {
         for (i, part) in parts.into_iter().enumerate() {
             let resp = part.into_response();
             // TODO: maybe we can take it directly?
-            let path = paths[i].clone();
+            let (path, op) = batch[i].clone();
 
-            // deleting not existing objects is ok
-            if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                batched_result.succeeded.push((path, OpDelete::default()));
-            } else {
+            if resp.status().is_success() {
+                batched_result.succeeded.push((path, op));
+            } else if resp.status() == StatusCode::NOT_FOUND
+                && (op.if_match().is_some()
+                    || op.if_version_match().is_some()
+                    || op.if_version_not_match().is_some())
+            {
                 batched_result.failed.push((
                     path,
-                    OpDelete::default(),
-                    parse_error(
-                        ErrorContext::new(ServiceOperation("BatchDeleteObjects")),
-                        resp,
+                    op,
+                    Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "delete precondition requires a live target",
                     ),
                 ));
+            } else if resp.status() == StatusCode::NOT_FOUND {
+                batched_result.succeeded.push((path, op));
+            } else {
+                let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteObjects"))
+                    .with_if_match(op.if_match().is_some())
+                    .with_if_none_match(op.if_none_match().is_some())
+                    .with_if_version_match(op.if_version_match().is_some())
+                    .with_if_version_not_match(op.if_version_not_match().is_some());
+                batched_result
+                    .failed
+                    .push((path, op, parse_error(error_ctx, resp)));
             }
         }
 

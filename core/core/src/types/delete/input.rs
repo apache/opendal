@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Entry;
 use crate::raw::OpDelete;
+use crate::{Entry, Metadata};
 
 /// DeleteInput is the input for delete operations.
 #[non_exhaustive]
@@ -28,8 +28,68 @@ pub struct DeleteInput {
     pub version: Option<String>,
     /// Whether to perform recursive deletion.
     pub recursive: bool,
-    /// Delete the path only when its ETag matches this value.
+    /// Delete only when the current ETag matches this value.
     pub if_match: Option<String>,
+    /// Delete only when the current ETag does not match this value.
+    pub if_none_match: Option<String>,
+    /// Delete only when the current version matches this value.
+    pub if_version_match: Option<String>,
+    /// Delete only when the current version does not match this value.
+    pub if_version_not_match: Option<String>,
+    /// Delete only when the object still matches this metadata.
+    pub if_not_changed: Option<Metadata>,
+}
+
+impl DeleteInput {
+    /// Create a delete input for `path`.
+    pub fn new(path: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Select the object version to delete.
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Configure recursive deletion.
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
+        self
+    }
+
+    /// Delete only when the current ETag matches `etag`.
+    pub fn with_if_match(mut self, etag: impl Into<String>) -> Self {
+        self.if_match = Some(etag.into());
+        self
+    }
+
+    /// Delete only when the current ETag does not match `etag`.
+    pub fn with_if_none_match(mut self, etag: impl Into<String>) -> Self {
+        self.if_none_match = Some(etag.into());
+        self
+    }
+
+    /// Delete only when the current version matches `version`.
+    pub fn with_if_version_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_match = Some(version.into());
+        self
+    }
+
+    /// Delete only when the current version does not match `version`.
+    pub fn with_if_version_not_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_not_match = Some(version.into());
+        self
+    }
+
+    /// Delete only when the object still matches `metadata`.
+    pub fn with_if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.if_not_changed = Some(metadata.clone());
+        self
+    }
 }
 
 /// IntoDeleteInput is a helper trait that makes it easier for users to play with `Deleter`.
@@ -48,22 +108,14 @@ impl IntoDeleteInput for DeleteInput {
 /// Implement `IntoDeleteInput` for `&str` so we can use `&str` as a DeleteInput.
 impl IntoDeleteInput for &str {
     fn into_delete_input(self) -> DeleteInput {
-        DeleteInput {
-            path: self.to_string(),
-            recursive: false,
-            ..Default::default()
-        }
+        DeleteInput::new(self)
     }
 }
 
 /// Implement `IntoDeleteInput` for `String` so we can use `Vec<String>` as a DeleteInput stream.
 impl IntoDeleteInput for String {
     fn into_delete_input(self) -> DeleteInput {
-        DeleteInput {
-            path: self,
-            recursive: false,
-            ..Default::default()
-        }
+        DeleteInput::new(self)
     }
 }
 
@@ -82,8 +134,17 @@ impl IntoDeleteInput for (String, OpDelete) {
         if let Some(version) = args.version() {
             input.version = Some(version.to_string());
         }
-        if let Some(if_match) = args.if_match() {
-            input.if_match = Some(if_match.to_string());
+        if let Some(etag) = args.if_match() {
+            input.if_match = Some(etag.to_string());
+        }
+        if let Some(etag) = args.if_none_match() {
+            input.if_none_match = Some(etag.to_string());
+        }
+        if let Some(version) = args.if_version_match() {
+            input.if_version_match = Some(version.to_string());
+        }
+        if let Some(version) = args.if_version_not_match() {
+            input.if_version_not_match = Some(version.to_string());
         }
         input
     }

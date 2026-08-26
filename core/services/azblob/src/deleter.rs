@@ -46,10 +46,16 @@ impl oio::BatchDelete for AzblobDeleter {
         let status = resp.status();
 
         match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::ACCEPTED => Ok(()),
+            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            )),
+            StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("DeleteBlob"))
-                    .with_if_match(args.if_match().is_some()),
+                    .with_if_match(args.if_match().is_some())
+                    .with_if_none_match(args.if_none_match().is_some()),
                 resp,
             )),
         }
@@ -95,12 +101,23 @@ impl oio::BatchDelete for AzblobDeleter {
         for (part, (path, args)) in parts.into_iter().zip(batch) {
             let resp = part.into_response();
 
-            // deleting not existing objects is ok
-            if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
+            if resp.status() == StatusCode::NOT_FOUND && args.if_match().is_some() {
+                batched_result.failed.push((
+                    path,
+                    args,
+                    Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "delete precondition requires a live target",
+                    ),
+                ));
+            } else if resp.status() == StatusCode::ACCEPTED
+                || resp.status() == StatusCode::NOT_FOUND
+            {
                 batched_result.succeeded.push((path, args));
             } else {
                 let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteBlobs"))
-                    .with_if_match(args.if_match().is_some());
+                    .with_if_match(args.if_match().is_some())
+                    .with_if_none_match(args.if_none_match().is_some());
                 let err = parse_error(error_ctx, resp);
                 batched_result.failed.push((path, args, err));
             }

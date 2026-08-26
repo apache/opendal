@@ -109,6 +109,20 @@ impl Service for CorrectnessService {
                 "if_none_match",
             ));
         }
+        if !capability.read_with_if_version_match && args.if_version_match().is_some() {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Read,
+                "if_version_match",
+            ));
+        }
+        if !capability.read_with_if_version_not_match && args.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Read,
+                "if_version_not_match",
+            ));
+        }
         if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
             return Err(new_unsupported_error(
                 scheme,
@@ -153,6 +167,20 @@ impl Service for CorrectnessService {
 
             return Err(err);
         }
+        if args.if_version_match().is_some() && !capability.write_with_if_version_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Write,
+                "if_version_match",
+            ));
+        }
+        if args.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Write,
+                "if_version_not_match",
+            ));
+        }
 
         self.inner.write(ctx, path, args)
     }
@@ -171,6 +199,20 @@ impl Service for CorrectnessService {
                 scheme,
                 Operation::Stat,
                 "if_none_match",
+            ));
+        }
+        if !capability.stat_with_if_version_match && args.if_version_match().is_some() {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Stat,
+                "if_version_match",
+            ));
+        }
+        if !capability.stat_with_if_version_not_match && args.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Stat,
+                "if_version_not_match",
             ));
         }
         if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
@@ -216,6 +258,27 @@ impl Service for CorrectnessService {
         }
         if args.if_match().is_some() && !capability.copy_with_if_match {
             return Err(new_unsupported_error(scheme, Operation::Copy, "if_match"));
+        }
+        if args.if_none_match().is_some() && !capability.copy_with_if_none_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Copy,
+                "if_none_match",
+            ));
+        }
+        if args.if_version_match().is_some() && !capability.copy_with_if_version_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Copy,
+                "if_version_match",
+            ));
+        }
+        if args.if_version_not_match().is_some() && !capability.copy_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Copy,
+                "if_version_not_match",
+            ));
         }
         if args.source_version().is_some() && !capability.copy_with_source_version {
             return Err(new_unsupported_error(
@@ -343,6 +406,32 @@ impl<T> CheckWrapper<T> {
             ));
         }
 
+        if args.if_none_match().is_some() && !self.capability.delete_with_if_none_match {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Delete,
+                "if_none_match",
+            ));
+        }
+
+        if args.if_version_match().is_some() && !self.capability.delete_with_if_version_match {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Delete,
+                "if_version_match",
+            ));
+        }
+
+        if args.if_version_not_match().is_some()
+            && !self.capability.delete_with_if_version_not_match
+        {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Delete,
+                "if_version_not_match",
+            ));
+        }
+
         Ok(())
     }
 }
@@ -427,10 +516,7 @@ mod tests {
             _: OpCopy,
             _: OpCopier,
         ) -> Result<Self::Copier> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))
+            Ok(())
         }
 
         async fn rename(
@@ -608,6 +694,159 @@ mod tests {
         });
         let res = op.delete_with("path").version("version").await;
         assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_version_preconditions_are_forwarded() -> Result<()> {
+        let op = new_test_operator(Capability {
+            stat: true,
+            stat_with_version: true,
+            stat_with_if_version_match: true,
+            read: true,
+            read_with_if_version_match: true,
+            write: true,
+            write_with_if_match: true,
+            write_with_if_version_match: true,
+            delete: true,
+            delete_with_if_version_match: true,
+            delete_with_if_version_not_match: true,
+            copy: true,
+            copy_with_if_version_match: true,
+            ..Default::default()
+        });
+
+        op.stat_with("path").if_version_match("version").await?;
+        op.read_with("path").if_version_match("version").await?;
+        op.write_with("path", "")
+            .if_version_match("version")
+            .await?;
+        op.delete_with("path").if_version_match("version").await?;
+        op.copy_with("from", "to")
+            .if_version_match("version")
+            .await?;
+
+        op.write_with("path", "")
+            .if_match("etag")
+            .if_version_match("version")
+            .await?;
+
+        op.stat_with("path")
+            .version("selected")
+            .if_version_match("current")
+            .await?;
+
+        op.delete_with("path")
+            .if_version_match("matched")
+            .if_version_not_match("not-matched")
+            .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_if_not_changed_merges_at_dispatch() -> Result<()> {
+        let op = new_test_operator(Capability {
+            write: true,
+            write_with_if_match: true,
+            write_with_if_version_match: true,
+            delete: true,
+            delete_with_if_match: true,
+            copy: true,
+            copy_with_if_match: true,
+            ..Default::default()
+        });
+        let metadata = Metadata::default()
+            .with_etag("etag".to_string())
+            .with_version("version".to_string());
+
+        op.write_with("path", "")
+            .if_match("other-etag")
+            .if_version_match("version")
+            .if_not_changed(&metadata)
+            .await?;
+
+        let err = op
+            .write_with("path", "")
+            .if_version_match("other-version")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("different selected version must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        op.copy_with("from", "to")
+            .if_match("etag")
+            .if_not_changed(&metadata)
+            .await?;
+        let err = op
+            .copy_with("from", "to")
+            .if_match("other-etag")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("different selected etag must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        op.delete_with("path")
+            .if_match("etag")
+            .if_not_changed(&metadata)
+            .await?;
+        let err = op
+            .delete_with("path")
+            .if_match("other-etag")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("different selected etag must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_conditions_reach_service() {
+        let op = new_test_operator(Capability::default());
+
+        let err = op
+            .presign_stat_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::StatOptions {
+                    if_version_match: Some("version".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+
+        let err = op
+            .presign_delete_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::DeleteOptions {
+                    if_none_match: Some("etag".to_string()),
+                    if_version_not_match: Some("version".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+
+        let op = new_test_operator(Capability {
+            write_with_if_match: true,
+            ..Default::default()
+        });
+        let err = op
+            .presign_write_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    if_not_changed: Some(Metadata::default().with_etag("etag".to_string())),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
     }
 
     #[tokio::test]

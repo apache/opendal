@@ -53,7 +53,21 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
                 op,
                 test_delete_with_if_match_match,
                 test_delete_with_if_match_mismatch,
+                test_delete_with_if_match_missing,
                 test_batch_delete_with_if_match
+            ));
+        }
+        if cap.delete_with_if_none_match {
+            tests.extend(async_trials!(op, test_delete_with_if_none_match));
+        }
+        if cap.delete_with_if_version_match && cap.delete_with_if_version_not_match {
+            tests.extend(async_trials!(op, test_delete_with_version_conditions));
+        }
+        if cap.delete_with_if_match || cap.delete_with_if_version_match {
+            tests.extend(async_trials!(
+                op,
+                test_delete_if_not_changed,
+                test_deleter_if_not_changed
             ));
         }
     }
@@ -536,6 +550,145 @@ pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
     );
 
     op.delete(&stale_path).await?;
+
+    Ok(())
+}
+
+/// A matching delete condition requires a live target.
+pub async fn test_delete_with_if_match_missing(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .delete_with(&path)
+        .if_match("\"missing-etag\"")
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    Ok(())
+}
+
+/// Delete with `If-None-Match` should reject equality and accept inequality or absence.
+pub async fn test_delete_with_if_none_match(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&path, content).await?;
+    let etag = op
+        .stat(&path)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+
+    let err = op
+        .delete_with(&path)
+        .if_none_match(&etag)
+        .await
+        .expect_err("equal ETag non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert!(op.exists(&path).await?);
+
+    op.delete_with(&path)
+        .if_none_match("\"different-etag\"")
+        .await?;
+    op.delete_with(&path).if_none_match(&etag).await?;
+
+    Ok(())
+}
+
+/// Version preconditions should compare against the current live target version.
+pub async fn test_delete_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let path = TEST_FIXTURE.new_file_path();
+    let (first, _) = gen_bytes(cap);
+    let (second, _) = gen_bytes(cap);
+    assert_ne!(first, second);
+
+    op.write(&path, first).await?;
+    let stale = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.write(&path, second.clone()).await?;
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let err = op
+        .delete_with(&path)
+        .if_version_match(&stale)
+        .await
+        .expect_err("stale version match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    let err = op
+        .delete_with(&path)
+        .if_version_not_match(&current)
+        .await
+        .expect_err("equal version non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.delete_with(&path).if_version_not_match(&stale).await?;
+
+    for result in [
+        op.delete_with(&path).if_version_match(&current).await,
+        op.delete_with(&path).if_version_not_match(&current).await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing target must fail").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+    }
+
+    op.write(&path, second).await?;
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.delete_with(&path).if_version_match(&current).await?;
+
+    Ok(())
+}
+
+/// `if_not_changed` should reject stale metadata and accept the current state.
+pub async fn test_delete_if_not_changed(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let path = TEST_FIXTURE.new_file_path();
+    let (first, _) = gen_bytes(cap);
+    let (second, _) = gen_bytes(cap);
+    assert_ne!(first, second);
+
+    op.write(&path, first).await?;
+    let stale = op.stat(&path).await?;
+    op.write(&path, second).await?;
+
+    let err = op
+        .delete_with(&path)
+        .if_not_changed(&stale)
+        .await
+        .expect_err("stale metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let current = op.stat(&path).await?;
+    op.delete_with(&path).if_not_changed(&current).await?;
+    Ok(())
+}
+
+/// `Deleter` should lower and preserve `if_not_changed` for queued deletes.
+pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(&path, content).await?;
+    let expected = op.stat(&path).await?;
+
+    let mut deleter = op.deleter().await?;
+    deleter
+        .delete(DeleteInput::new(path.clone()).with_if_not_changed(&expected))
+        .await?;
+    deleter.close().await?;
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }

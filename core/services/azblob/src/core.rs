@@ -306,7 +306,6 @@ impl AzblobCore {
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
-
         if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
@@ -667,6 +666,12 @@ impl AzblobCore {
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
             latest: block_ids
@@ -743,9 +748,11 @@ impl AzblobCore {
 
     fn azblob_delete_blob_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
         let mut req = Request::delete(self.build_path_url(path));
-
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         req.header(CONTENT_LENGTH, 0)
@@ -788,6 +795,12 @@ impl AzblobCore {
         // Add if_not_exists condition using If-None-Match header
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let req = req

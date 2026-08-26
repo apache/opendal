@@ -67,6 +67,7 @@ impl S3Writer {
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
         ErrorContext::new(service_operation)
             .with_if_match(self.op.if_match().is_some())
+            .with_if_none_match(self.op.if_none_match().is_some())
             .with_if_not_exists(self.op.if_not_exists())
     }
 }
@@ -88,10 +89,17 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(
-                self.error_context(ServiceOperation("PutObject")),
-                resp,
-            )),
+            _ => {
+                let err = parse_error(self.error_context(ServiceOperation("PutObject")), resp);
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -219,19 +227,37 @@ impl oio::MultipartWrite for S3Writer {
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
                 if !ret.code.is_empty() {
-                    return Err(parse_error(
+                    let err = parse_error(
                         self.error_context(ServiceOperation("CompleteMultipartUpload")),
                         Response::from_parts(parts, Buffer::from(bs)),
-                    ));
+                    );
+                    return if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "write precondition requires a live target",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
                 meta.set_etag(&ret.etag);
 
                 Ok(meta)
             }
-            _ => Err(parse_error(
-                self.error_context(ServiceOperation("CompleteMultipartUpload")),
-                resp,
-            )),
+            _ => {
+                let err = parse_error(
+                    self.error_context(ServiceOperation("CompleteMultipartUpload")),
+                    resp,
+                );
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 

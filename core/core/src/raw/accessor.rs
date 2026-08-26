@@ -185,7 +185,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - The returned deleter handles one or more delete requests.
-    /// - Deleting a missing path should succeed.
+    /// - Deleting a missing path should succeed unless a condition requires a live target.
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter>;
 
     /// Invoke the `list` operation on the specified path.

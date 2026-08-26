@@ -36,6 +36,10 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// Indicates if conditional stat operations using If-None-Match are supported.
     pub stat_with_if_none_match: bool,
+    /// Indicates if conditional stat operations using version match are supported.
+    pub stat_with_if_version_match: bool,
+    /// Indicates if conditional stat operations using version non-match are supported.
+    pub stat_with_if_version_not_match: bool,
     /// Indicates if conditional stat operations using If-Modified-Since are supported.
     pub stat_with_if_modified_since: bool,
     /// Indicates if conditional stat operations using If-Unmodified-Since are supported.
@@ -54,6 +58,10 @@ pub struct Capability {
     pub read_with_if_match: bool,
     /// Indicates if conditional read operations using If-None-Match are supported.
     pub read_with_if_none_match: bool,
+    /// Indicates if conditional read operations using version match are supported.
+    pub read_with_if_version_match: bool,
+    /// Indicates if conditional read operations using version non-match are supported.
+    pub read_with_if_version_not_match: bool,
     /// Indicates if conditional read operations using If-Modified-Since are supported.
     pub read_with_if_modified_since: bool,
     /// Indicates if conditional read operations using If-Unmodified-Since are supported.
@@ -88,6 +96,10 @@ pub struct Capability {
     pub write_with_if_match: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
+    /// Indicates if conditional write operations using version match are supported.
+    pub write_with_if_version_match: bool,
+    /// Indicates if conditional write operations using version non-match are supported.
+    pub write_with_if_version_not_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
@@ -108,6 +120,12 @@ pub struct Capability {
     pub delete_with_recursive: bool,
     /// Indicates if conditional delete operations using If-Match are supported.
     pub delete_with_if_match: bool,
+    /// Indicates if conditional delete operations using If-None-Match are supported.
+    pub delete_with_if_none_match: bool,
+    /// Indicates if conditional delete operations using version match are supported.
+    pub delete_with_if_version_match: bool,
+    /// Indicates if conditional delete operations using version non-match are supported.
+    pub delete_with_if_version_not_match: bool,
     /// Maximum size supported for single delete operations.
     pub delete_max_size: usize,
     /// Indicates if copy operations are supported.
@@ -116,6 +134,12 @@ pub struct Capability {
     pub copy_with_if_not_exists: bool,
     /// Indicates if conditional copy operations with if-match are supported.
     pub copy_with_if_match: bool,
+    /// Indicates if conditional copy operations with if-none-match are supported.
+    pub copy_with_if_none_match: bool,
+    /// Indicates if conditional copy operations using version match are supported.
+    pub copy_with_if_version_match: bool,
+    /// Indicates if conditional copy operations using version non-match are supported.
+    pub copy_with_if_version_not_match: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
@@ -124,6 +148,12 @@ pub struct Capability {
     pub copy_multi_max_size: usize,
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: usize,
+    /// Indicates if restore operations are supported.
+    pub restore: bool,
+    /// Indicates if restoring a specific version is supported.
+    pub restore_with_version: bool,
+    /// Indicates if conditional restore operations using if-not-exists are supported.
+    pub restore_with_if_not_exists: bool,
     /// Indicates if rename operations are supported.
     pub rename: bool,
     /// Indicates if conditional rename operations with if-not-exists are supported.
@@ -161,6 +191,8 @@ impl Capability {
             stat: cap.stat,
             stat_with_if_match: cap.stat_with_if_match,
             stat_with_if_none_match: cap.stat_with_if_none_match,
+            stat_with_if_version_match: cap.stat_with_if_version_match,
+            stat_with_if_version_not_match: cap.stat_with_if_version_not_match,
             stat_with_if_modified_since: cap.stat_with_if_modified_since,
             stat_with_if_unmodified_since: cap.stat_with_if_unmodified_since,
             stat_with_override_cache_control: cap.stat_with_override_cache_control,
@@ -170,6 +202,8 @@ impl Capability {
             read: cap.read,
             read_with_if_match: cap.read_with_if_match,
             read_with_if_none_match: cap.read_with_if_none_match,
+            read_with_if_version_match: cap.read_with_if_version_match,
+            read_with_if_version_not_match: cap.read_with_if_version_not_match,
             read_with_if_modified_since: cap.read_with_if_modified_since,
             read_with_if_unmodified_since: cap.read_with_if_unmodified_since,
             read_with_override_cache_control: cap.read_with_override_cache_control,
@@ -187,6 +221,8 @@ impl Capability {
             write_with_cache_control: cap.write_with_cache_control,
             write_with_if_match: cap.write_with_if_match,
             write_with_if_none_match: cap.write_with_if_none_match,
+            write_with_if_version_match: cap.write_with_if_version_match,
+            write_with_if_version_not_match: cap.write_with_if_version_not_match,
             write_with_if_not_exists: cap.write_with_if_not_exists,
             write_with_user_metadata: cap.write_with_user_metadata,
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
@@ -197,14 +233,23 @@ impl Capability {
             delete_with_version: cap.delete_with_version,
             delete_with_recursive: cap.delete_with_recursive,
             delete_with_if_match: cap.delete_with_if_match,
+            delete_with_if_none_match: cap.delete_with_if_none_match,
+            delete_with_if_version_match: cap.delete_with_if_version_match,
+            delete_with_if_version_not_match: cap.delete_with_if_version_not_match,
             delete_max_size: cap.delete_max_size.unwrap_or(usize::MAX),
             copy: cap.copy,
             copy_with_if_not_exists: cap.copy_with_if_not_exists,
             copy_with_if_match: cap.copy_with_if_match,
+            copy_with_if_none_match: cap.copy_with_if_none_match,
+            copy_with_if_version_match: cap.copy_with_if_version_match,
+            copy_with_if_version_not_match: cap.copy_with_if_version_not_match,
             copy_with_source_version: cap.copy_with_source_version,
             copy_can_multi: cap.copy_can_multi,
             copy_multi_max_size: cap.copy_multi_max_size.unwrap_or(usize::MAX),
             copy_multi_min_size: cap.copy_multi_min_size.unwrap_or(usize::MAX),
+            restore: cap.restore,
+            restore_with_version: cap.restore_with_version,
+            restore_with_if_not_exists: cap.restore_with_if_not_exists,
             rename: cap.rename,
             rename_with_if_not_exists: cap.rename_with_if_not_exists,
             list: cap.list,

@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod capability;
 mod docs;
+mod dotnet;
 mod gcs_grpc;
 mod java;
 mod options;
@@ -49,6 +51,7 @@ pub fn run(language: &str) -> Result<()> {
     match language {
         "java" => java::generate(workspace_dir, services),
         "python" | "py" => python::generate(workspace_dir, services),
+        "dotnet" | "cs" => dotnet::generate(workspace_dir, services),
         "docs" => docs::generate(workspace_dir, services),
         _ => anyhow::bail!("unsupported language: {}", language),
     }

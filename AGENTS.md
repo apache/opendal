@@ -17,8 +17,15 @@ policy.
 - Do not publish an Issue, Pull Request, Discussion, or review comment unless a
   human has meaningfully reviewed the content and explicitly asked you to submit
   it.
-- Treat source-code findings as hypotheses until they are reproduced. Reproduce
-  service-specific bugs against the actual service.
+- Do not implement or submit a service-specific change based only on source-code
+  analysis, a mock or emulator, a synthetic malformed response, or another
+  service's implementation. Reproduce the problem against the actual service
+  first.
+- If actual-service reproduction is unavailable, stop before changing code or
+  opening a Pull Request. Raise the hypothesis in a Discussion unless a
+  maintainer has explicitly accepted it as a hardening or maintenance goal.
+- A test against a fabricated response can verify implementation behavior, but
+  it does not establish that the change solves a real-world problem.
 - In a Pull Request, briefly disclose AI's material role and any assumptions or
   unknowns that affect review. Do not repeat routine validation output.
 

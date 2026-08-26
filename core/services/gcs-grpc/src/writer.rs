@@ -105,11 +105,7 @@ impl GcsGrpcWriter {
         };
         let request = self
             .core
-            .request(
-                &self.ctx,
-                request,
-                &[("write_object_spec.resource.bucket", &bucket)],
-            )
+            .request(&self.ctx, request, &[("bucket", &bucket)])
             .await?;
         let response = self
             .core
@@ -236,12 +232,13 @@ impl GcsGrpcWriter {
                 .expect("pending upload must exist")
                 .in_flight = true;
 
-            let first_message = write_object_request::FirstMessage::UploadId(upload_id.clone());
+            let first_message = write_object_request::FirstMessage::UploadId(upload_id);
             let requests =
                 write_object_requests(body.clone(), write_offset, finish_write, first_message)?;
+            let bucket = self.core.bucket_resource();
             let request = self
                 .core
-                .request(&self.ctx, requests, &[("upload_id", &upload_id)])
+                .request(&self.ctx, requests, &[("bucket", &bucket)])
                 .await?;
             let response = self
                 .core
@@ -284,9 +281,10 @@ impl GcsGrpcWriter {
         let request = QueryWriteStatusRequest {
             upload_id: upload_id.to_string(),
         };
+        let bucket = self.core.bucket_resource();
         let request = self
             .core
-            .request(&self.ctx, request, &[("upload_id", upload_id)])
+            .request(&self.ctx, request, &[("bucket", &bucket)])
             .await?;
         let response = match self.core.client().query_write_status(request).await {
             Ok(response) => response.into_inner(),
@@ -420,9 +418,10 @@ impl oio::Write for GcsGrpcWriter {
             let request = CancelResumableWriteRequest {
                 upload_id: upload_id.to_string(),
             };
+            let bucket = self.core.bucket_resource();
             let request = self
                 .core
-                .request(&self.ctx, request, &[("upload_id", upload_id)])
+                .request(&self.ctx, request, &[("bucket", &bucket)])
                 .await?;
             match self.core.client().cancel_resumable_write(request).await {
                 Ok(_) => {}

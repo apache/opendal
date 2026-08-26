@@ -37,6 +37,7 @@ use super::config::AzblobConfig;
 use super::copier::AzblobCopiers;
 use super::copier::new_azblob_copier;
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_META_PREFIX;
@@ -486,6 +487,9 @@ impl Service for AzblobBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("GetBlobProperties"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some());
         let resp = self
             .core
             .azblob_get_blob_properties(ctx, path, &args)
@@ -508,7 +512,7 @@ impl Service for AzblobBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

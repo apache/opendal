@@ -21,6 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::CompleteMultipartUploadRequestPart;
+use super::core::ErrorContext;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
 use super::core::parse_error;
@@ -67,7 +68,11 @@ impl oio::MultipartWrite for GcsWriter {
                     GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InsertObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
+                resp,
+            )),
         }
     }
 
@@ -78,7 +83,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            ));
         }
 
         let buf = resp.into_body();
@@ -103,7 +111,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            ));
         }
 
         let etag = parse_etag(resp.headers())?
@@ -142,7 +153,10 @@ impl oio::MultipartWrite for GcsWriter {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            ));
         }
         // we don't extract metadata from `CompleteMultipartUploadResult`, since we only need the `ETag` from it.
         // However, the `ETag` differs from the `ETag` obtained through the `stat` operation.
@@ -158,7 +172,10 @@ impl oio::MultipartWrite for GcsWriter {
         match resp.status() {
             // gcs returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }

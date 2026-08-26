@@ -19,11 +19,13 @@ use std::fmt::Debug;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use bytes::Buf;
 use bytes::Bytes;
 use constants::X_MS_META_PREFIX;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HeaderName;
@@ -31,6 +33,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
+use opendal_service_azure_common::with_azure_error_response_context;
+use quick_xml::de;
 use reqsign_azure_storage::Credential;
 use reqsign_core::{Context, Signer};
 use serde::Deserialize;
@@ -1188,155 +1192,247 @@ mod tests {
     }
 }
 
-mod error {
-    use std::fmt::Debug;
+/// AzblobError is the error returned by azure blob service.
+#[derive(Default, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct AzblobError {
+    code: String,
+    message: String,
+    query_parameter_name: String,
+    query_parameter_value: String,
+    reason: String,
+}
 
-    use bytes::Buf;
-    use http::Response;
-    use http::StatusCode;
-    use opendal_core::*;
-    use opendal_service_azure_common::with_azure_error_response_context;
-    use quick_xml::de;
-    use serde::Deserialize;
+impl Debug for AzblobError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("AzblobError");
+        de.field("code", &self.code);
+        // replace `\n` to ` ` for better reading.
+        de.field("message", &self.message.replace('\n', " "));
 
-    /// AzblobError is the error returned by azure blob service.
-    #[derive(Default, Deserialize)]
-    #[serde(default, rename_all = "PascalCase")]
-    struct AzblobError {
-        code: String,
-        message: String,
-        query_parameter_name: String,
-        query_parameter_value: String,
-        reason: String,
-    }
-
-    impl Debug for AzblobError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let mut de = f.debug_struct("AzblobError");
-            de.field("code", &self.code);
-            // replace `\n` to ` ` for better reading.
-            de.field("message", &self.message.replace('\n', " "));
-
-            if !self.query_parameter_name.is_empty() {
-                de.field("query_parameter_name", &self.query_parameter_name);
-            }
-            if !self.query_parameter_value.is_empty() {
-                de.field("query_parameter_value", &self.query_parameter_value);
-            }
-            if !self.reason.is_empty() {
-                de.field("reason", &self.reason);
-            }
-
-            de.finish()
+        if !self.query_parameter_name.is_empty() {
+            de.field("query_parameter_name", &self.query_parameter_name);
         }
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let bs_content = bs.chunk();
-        let mut message = match de::from_reader::<_, AzblobError>(bs_content.reader()) {
-            Ok(azblob_err) => format!("{azblob_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        // If there is no body here, fill with error code.
-        if message.is_empty()
-            && let Some(code) = parts
-                .headers
-                .get("x-ms-error-code")
-                .and_then(|v| v.to_str().ok())
-        {
-            message = format!(
-                "{:?}",
-                AzblobError {
-                    code: code.to_string(),
-                    ..Default::default()
-                }
-            );
+        if !self.query_parameter_value.is_empty() {
+            de.field("query_parameter_value", &self.query_parameter_value);
+        }
+        if !self.reason.is_empty() {
+            de.field("reason", &self.reason);
         }
 
-        let mut err = Error::new(kind, &message);
-
-        err = with_azure_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
-<?xml version="1.0" encoding="utf-8"?>
-<Error>
-  <Code>string-value</Code>
-  <Message>string-value</Message>
-</Error>
-"#,
-            );
-
-            let out: AzblobError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
-
-            assert_eq!(out.code, "string-value");
-            assert_eq!(out.message, "string-value");
-        }
-
-        #[test]
-        fn test_parse_error_with_reason() {
-            let bs = bytes::Bytes::from(
-                r#"
-<?xml version="1.0" encoding="utf-8"?>
-<Error>
-  <Code>InvalidQueryParameterValue</Code>
-  <Message>Value for one of the query parameters specified in the request URI is invalid.</Message>
-  <QueryParameterName>popreceipt</QueryParameterName>
-  <QueryParameterValue>33537277-6a52-4a2b-b4eb-0f905051827b</QueryParameterValue>
-  <Reason>invalid receipt format</Reason>
-</Error>
-"#,
-            );
-
-            let out: AzblobError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
-
-            assert_eq!(out.code, "InvalidQueryParameterValue");
-            assert_eq!(
-                out.message,
-                "Value for one of the query parameters specified in the request URI is invalid."
-            );
-            assert_eq!(out.query_parameter_name, "popreceipt");
-            assert_eq!(
-                out.query_parameter_value,
-                "33537277-6a52-4a2b-b4eb-0f905051827b"
-            );
-            assert_eq!(out.reason, "invalid receipt format");
-        }
+        de.finish()
     }
 }
 
-pub(super) use error::*;
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorContext {
+    service_operation: ServiceOperation,
+    if_match: bool,
+    if_none_match: bool,
+    if_modified_since: bool,
+    if_unmodified_since: bool,
+    if_not_exists: bool,
+    is_append_blob_initialization: bool,
+}
+
+impl ErrorContext {
+    pub const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            if_match: false,
+            if_none_match: false,
+            if_modified_since: false,
+            if_unmodified_since: false,
+            if_not_exists: false,
+            is_append_blob_initialization: false,
+        }
+    }
+
+    pub const fn with_if_match(mut self, if_match: bool) -> Self {
+        self.if_match = if_match;
+        self
+    }
+
+    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
+        self.if_none_match = if_none_match;
+        self
+    }
+
+    pub const fn with_if_modified_since(mut self, if_modified_since: bool) -> Self {
+        self.if_modified_since = if_modified_since;
+        self
+    }
+
+    pub const fn with_if_unmodified_since(mut self, if_unmodified_since: bool) -> Self {
+        self.if_unmodified_since = if_unmodified_since;
+        self
+    }
+
+    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    pub const fn with_append_blob_initialization(
+        mut self,
+        is_append_blob_initialization: bool,
+    ) -> Self {
+        self.is_append_blob_initialization = is_append_blob_initialization;
+        self
+    }
+
+    const fn has_condition(self) -> bool {
+        self.if_match
+            || self.if_none_match
+            || self.if_modified_since
+            || self.if_unmodified_since
+            || self.if_not_exists
+    }
+}
+
+/// Parse error response into Error.
+pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let bs_content = bs.chunk();
+    let mut azblob_error = de::from_reader::<_, AzblobError>(bs_content.reader()).ok();
+
+    if azblob_error.as_ref().is_none_or(|err| err.code.is_empty())
+        && let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|v| v.to_str().ok())
+    {
+        azblob_error.get_or_insert_with(AzblobError::default).code = code.to_string();
+    }
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(azblob_error) = &azblob_error
+        && !azblob_error.code.is_empty()
+    {
+        if let Some(classification) = parse_azblob_error_code(ctx, &azblob_error.code, parts.status)
+        {
+            (kind, retryable) = classification;
+        } else if matches!(
+            parts.status,
+            StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+        ) {
+            (kind, retryable) = (ErrorKind::Unexpected, false);
+        }
+    }
+
+    let message = azblob_error
+        .map(|err| format!("{err:?}"))
+        .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
+
+    let mut err =
+        Error::new(kind, &message).with_context("service_operation", ctx.service_operation.0);
+
+    err = with_azure_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
+
+/// Classify documented Blob Storage state errors by native code and status.
+///
+/// Reference: <https://learn.microsoft.com/rest/api/storageservices/blob-service-error-codes>
+fn parse_azblob_error_code(
+    ctx: ErrorContext,
+    code: &str,
+    status: StatusCode,
+) -> Option<(ErrorKind, bool)> {
+    match code {
+        "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet" => {
+            Some((ErrorKind::ConditionNotMatch, false))
+        }
+        "BlobAlreadyExists" | "ContainerAlreadyExists" | "ResourceAlreadyExists" => {
+            let kind = if ctx.if_not_exists {
+                ErrorKind::ConditionNotMatch
+            } else if ctx.is_append_blob_initialization {
+                ErrorKind::Conflict
+            } else {
+                ErrorKind::AlreadyExists
+            };
+            Some((kind, false))
+        }
+        "DirectorySasNotSupportedVersion"
+        | "FeatureVersionMismatch"
+        | "PreviousSnapshotOperationNotSupported" => Some((ErrorKind::Unsupported, false)),
+        "SnapshotOperationRateExceeded" => Some((ErrorKind::RateLimited, true)),
+        "AppendPositionConditionNotMet"
+        | "BlobArchived"
+        | "BlobBeingRehydrated"
+        | "BlobImmutableDueToLegalHold"
+        | "BlobImmutableDueToPolicy"
+        | "BlobNotArchived"
+        | "BlobOperationNotSupported"
+        | "BlobOverwritten"
+        | "BlobTierInadequateForContentLength"
+        | "BlockCountExceedsLimit"
+        | "CannotChangeToLowerTier"
+        | "ContainerBeingDeleted"
+        | "ContainerDisabled"
+        | "ContainerHasLegalHold"
+        | "ContainerImmutabilityPolicyLocked"
+        | "ContentLengthLargerThanTierLimit"
+        | "CopyIdMismatch"
+        | "IncrementalCopyBlobMismatch"
+        | "IncrementalCopyOfEarlierSnapshotNotAllowed"
+        | "IncrementalCopyOfEarlierVersionSnapshotNotAllowed"
+        | "IncrementalCopySourceMustBeSnapshot"
+        | "InvalidBlobType"
+        | "InvalidSourceBlobType"
+        | "InvalidSourceBlobUrl"
+        | "LeaseAlreadyBroken"
+        | "LeaseAlreadyPresent"
+        | "LeaseIdMismatchWithBlobOperation"
+        | "LeaseIdMismatchWithContainerOperation"
+        | "LeaseIdMismatchWithLeaseOperation"
+        | "LeaseIdMissing"
+        | "LeaseIsBreakingAndCannotBeAcquired"
+        | "LeaseIsBreakingAndCannotBeChanged"
+        | "LeaseIsBrokenAndCannotBeRenewed"
+        | "LeaseLost"
+        | "LeaseNotPresentWithBlobOperation"
+        | "LeaseNotPresentWithContainerOperation"
+        | "LeaseNotPresentWithLeaseOperation"
+        | "InfiniteLeaseDurationRequired"
+        | "MaxBlobSizeConditionNotMet"
+        | "NoPendingCopyOperation"
+        | "OperationNotAllowedOnIncrementalCopyBlob"
+        | "PendingCopyOperation"
+        | "PreviousSnapshotNotFound"
+        | "SequenceNumberConditionNotMet"
+        | "SequenceNumberIncrementTooLarge"
+        | "SnapshotCountExceeded"
+        | "SnapshotsPresent"
+        | "SystemInUse"
+        | "ResourceTypeMismatch"
+            if matches!(
+                status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+        {
+            Some((ErrorKind::Conflict, false))
+        }
+        _ => None,
+    }
+}

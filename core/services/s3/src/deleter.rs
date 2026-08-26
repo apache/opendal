@@ -45,6 +45,8 @@ impl oio::BatchDelete for S3Deleter {
             return Ok(());
         }
 
+        let error_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
+            .with_if_match(args.if_match().is_some());
         let resp = self.core.s3_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
@@ -55,7 +57,7 @@ impl oio::BatchDelete for S3Deleter {
             // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
             // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
 
@@ -64,7 +66,10 @@ impl oio::BatchDelete for S3Deleter {
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -101,8 +106,11 @@ impl oio::BatchDelete for S3Deleter {
 }
 
 fn parse_delete_objects_result_error(err: DeleteObjectsResultError) -> Error {
-    let (kind, retryable) =
-        parse_s3_error_code(err.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+    let (kind, retryable) = parse_s3_error_code(
+        ErrorContext::new(ServiceOperation("DeleteObjects")),
+        err.code.as_str(),
+    )
+    .unwrap_or((ErrorKind::Unexpected, false));
     let mut err: Error = Error::new(kind, format!("{err:?}"));
     if retryable {
         err = err.set_temporary();

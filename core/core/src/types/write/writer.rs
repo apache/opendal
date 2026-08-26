@@ -94,7 +94,7 @@ use crate::*;
 /// Possible Errors:
 ///
 /// - Some services store normal file and appendable file in different way. Trying to append
-///   on non-appendable file could return [`ErrorKind::ConditionNotMatch`] error.
+///   on non-appendable file could return [`ErrorKind::Conflict`] error.
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {

@@ -21,6 +21,7 @@ use http::StatusCode;
 use uuid::Uuid;
 
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::X_MS_VERSION_ID;
 use super::core::parse_error;
 use opendal_core::raw::*;
@@ -67,6 +68,13 @@ impl AzblobWriter {
 
         Ok(metadata)
     }
+
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.op.if_match().is_some())
+            .with_if_none_match(self.op.if_none_match().is_some())
+            .with_if_not_exists(self.op.if_not_exists())
+    }
 }
 
 impl oio::AppendWrite for AzblobWriter {
@@ -84,7 +92,7 @@ impl oio::AppendWrite for AzblobWriter {
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
                 if blob_type != Some("AppendBlob") {
                     return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
+                        ErrorKind::Conflict,
                         "the blob is not an appendable blob.",
                     ));
                 }
@@ -103,12 +111,19 @@ impl oio::AppendWrite for AzblobWriter {
                         // do nothing
                     }
                     _ => {
-                        return Err(parse_error(resp));
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("PutBlob"))
+                                .with_append_blob_initialization(true),
+                            resp,
+                        ));
                     }
                 }
                 Ok(0)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                resp,
+            )),
         }
     }
 
@@ -122,7 +137,10 @@ impl oio::AppendWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AppendBlock")),
+                resp,
+            )),
         }
     }
 }
@@ -143,7 +161,10 @@ impl oio::BlockWrite for AzblobWriter {
         }
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                self.error_context(ServiceOperation("PutBlob")),
+                resp,
+            )),
         }
     }
 
@@ -156,7 +177,10 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlock")),
+                resp,
+            )),
         }
     }
 
@@ -170,7 +194,10 @@ impl oio::BlockWrite for AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                self.error_context(ServiceOperation("PutBlockList")),
+                resp,
+            )),
         }
     }
 

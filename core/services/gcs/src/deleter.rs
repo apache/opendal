@@ -44,7 +44,10 @@ impl oio::BatchDelete for GcsDeleter {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
-            Err(parse_error(resp))
+            Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            ))
         }
     }
 
@@ -60,7 +63,10 @@ impl oio::BatchDelete for GcsDeleter {
         // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
         // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BatchDeleteObjects")),
+                resp,
+            ));
         }
 
         let boundary = parse_multipart_boundary(resp.headers())?.ok_or_else(|| {
@@ -85,9 +91,14 @@ impl oio::BatchDelete for GcsDeleter {
             if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
                 batched_result.succeeded.push((path, OpDelete::default()));
             } else {
-                batched_result
-                    .failed
-                    .push((path, OpDelete::default(), parse_error(resp)));
+                batched_result.failed.push((
+                    path,
+                    OpDelete::default(),
+                    parse_error(
+                        ErrorContext::new(ServiceOperation("BatchDeleteObjects")),
+                        resp,
+                    ),
+                ));
             }
         }
 

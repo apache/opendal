@@ -21,6 +21,7 @@ use http::StatusCode;
 use uuid::Uuid;
 
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_VERSION_ID;
@@ -95,7 +96,10 @@ impl oio::BlockCopy for AzblobCopier {
                 }
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                resp,
+            )),
         }
     }
 
@@ -107,7 +111,11 @@ impl oio::BlockCopy for AzblobCopier {
 
         match resp.status() {
             StatusCode::ACCEPTED => AzblobWriter::parse_metadata(resp.headers()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CopyBlob"))
+                    .with_if_not_exists(self.args.if_not_exists()),
+                resp,
+            )),
         }
     }
 
@@ -126,7 +134,10 @@ impl oio::BlockCopy for AzblobCopier {
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlockFromUrl")),
+                resp,
+            )),
         }
     }
 
@@ -139,7 +150,11 @@ impl oio::BlockCopy for AzblobCopier {
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlockList"))
+                    .with_if_not_exists(self.args.if_not_exists()),
+                resp,
+            )),
         }
     }
 

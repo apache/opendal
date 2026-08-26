@@ -69,7 +69,8 @@ impl oio::MultipartWrite for GcsWriter {
                 Ok(metadata)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("InsertObject")),
+                ErrorContext::new(ServiceOperation("InsertObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }

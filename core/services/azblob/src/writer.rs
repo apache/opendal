@@ -68,6 +68,13 @@ impl AzblobWriter {
 
         Ok(metadata)
     }
+
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.op.if_match().is_some())
+            .with_if_none_match(self.op.if_none_match().is_some())
+            .with_if_not_exists(self.op.if_not_exists())
+    }
 }
 
 impl oio::AppendWrite for AzblobWriter {
@@ -155,8 +162,7 @@ impl oio::BlockWrite for AzblobWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutBlob"))
-                    .with_if_not_exists(self.op.if_not_exists()),
+                self.error_context(ServiceOperation("PutBlob")),
                 resp,
             )),
         }
@@ -189,8 +195,7 @@ impl oio::BlockWrite for AzblobWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutBlockList"))
-                    .with_if_not_exists(self.op.if_not_exists()),
+                self.error_context(ServiceOperation("PutBlockList")),
                 resp,
             )),
         }

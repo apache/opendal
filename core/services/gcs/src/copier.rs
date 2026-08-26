@@ -91,7 +91,8 @@ impl oio::Copy for GcsCopier {
 
         if !resp.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(ServiceOperation("RewriteObject")),
+                ErrorContext::new(ServiceOperation("RewriteObject"))
+                    .with_if_not_exists(self.args.if_not_exists()),
                 resp,
             ));
         }

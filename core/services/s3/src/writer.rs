@@ -63,6 +63,12 @@ impl S3Writer {
         }
         Ok(meta)
     }
+
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.op.if_match().is_some())
+            .with_if_not_exists(self.op.if_not_exists())
+    }
 }
 
 impl oio::MultipartWrite for S3Writer {
@@ -83,7 +89,7 @@ impl oio::MultipartWrite for S3Writer {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutObject")),
+                self.error_context(ServiceOperation("PutObject")),
                 resp,
             )),
         }
@@ -214,7 +220,7 @@ impl oio::MultipartWrite for S3Writer {
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
                 if !ret.code.is_empty() {
                     return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                        self.error_context(ServiceOperation("CompleteMultipartUpload")),
                         Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
@@ -223,7 +229,7 @@ impl oio::MultipartWrite for S3Writer {
                 Ok(meta)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                self.error_context(ServiceOperation("CompleteMultipartUpload")),
                 resp,
             )),
         }
@@ -265,6 +271,11 @@ impl oio::AppendWrite for S3Writer {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        let error_ctx = if offset == 0 {
+            self.error_context(ServiceOperation("PutObject"))
+        } else {
+            ErrorContext::new(ServiceOperation("PutObject"))
+        };
         let req = self
             .core
             .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
@@ -280,10 +291,7 @@ impl oio::AppendWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutObject")),
-                resp,
-            )),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
 }

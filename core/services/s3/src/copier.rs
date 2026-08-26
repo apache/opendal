@@ -85,6 +85,14 @@ pub struct S3Copier {
     args: OpCopy,
 }
 
+impl S3Copier {
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.args.if_match().is_some())
+            .with_if_not_exists(self.args.if_not_exists())
+    }
+}
+
 impl oio::MultipartCopy for S3Copier {
     async fn source_metadata(&self) -> Result<Metadata> {
         let mut args = OpStat::default();
@@ -128,7 +136,7 @@ impl oio::MultipartCopy for S3Copier {
                 // S3 may return 200 OK with an <Error> body for CopyObject.
                 if result.etag.is_empty() {
                     return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("CopyObject")),
+                        self.error_context(ServiceOperation("CopyObject")),
                         Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
@@ -145,7 +153,7 @@ impl oio::MultipartCopy for S3Copier {
                 Ok(meta)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CopyObject")),
+                self.error_context(ServiceOperation("CopyObject")),
                 resp,
             )),
         }
@@ -260,7 +268,7 @@ impl oio::MultipartCopy for S3Copier {
                 // S3 may return 200 OK with an <Error> body for CompleteMultipartUpload.
                 if ret.etag.is_empty() {
                     return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                        self.error_context(ServiceOperation("CompleteMultipartUpload")),
                         Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
@@ -274,7 +282,7 @@ impl oio::MultipartCopy for S3Copier {
                 Ok(meta)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                self.error_context(ServiceOperation("CompleteMultipartUpload")),
                 resp,
             )),
         }

@@ -17,9 +17,65 @@
 
 use std::os::raw::c_int;
 
+use bytes::Buf;
 use pyo3::IntoPyObjectExt;
+use pyo3::exceptions::PyOverflowError;
 use pyo3::ffi;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
+
+use crate::ocore;
+
+/// Copy an OpenDAL buffer directly into a new Python `bytes` object.
+pub fn buffer_into_py_bytes<'py>(
+    py: Python<'py>,
+    mut buffer: ocore::Buffer,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let len = buffer.remaining();
+    let py_len = len
+        .try_into()
+        .map_err(|_| PyOverflowError::new_err("buffer is too large for Python bytes"))?;
+
+    unsafe {
+        let bytes = Bound::from_owned_ptr_or_err(
+            py,
+            ffi::PyBytes_FromStringAndSize(std::ptr::null(), py_len),
+        )?
+        .cast_into_unchecked::<PyBytes>();
+
+        // PyBytes_FromStringAndSize with a null source allocates an uninitialized
+        // buffer. `buffer` has exactly `len` remaining bytes, so copy_to_slice
+        // initializes the entire Python object before it becomes observable.
+        let dst =
+            std::slice::from_raw_parts_mut(ffi::PyBytes_AsString(bytes.as_ptr()).cast::<u8>(), len);
+        buffer.copy_to_slice(dst);
+
+        Ok(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use pyo3::types::PyBytesMethods;
+
+    use super::*;
+
+    #[test]
+    fn test_buffer_into_py_bytes() {
+        Python::initialize();
+        Python::attach(|py| {
+            let buffer = [Bytes::from_static(b"hello, "), Bytes::from_static(b"world")]
+                .into_iter()
+                .collect();
+            let result = buffer_into_py_bytes(py, buffer).unwrap();
+            assert_eq!(result.as_bytes(), b"hello, world");
+
+            let result = buffer_into_py_bytes(py, ocore::Buffer::new()).unwrap();
+            assert!(result.as_bytes().is_empty());
+        });
+    }
+}
 
 /// A bytes-like object that implements buffer protocol.
 #[pyclass(module = "opendal")]

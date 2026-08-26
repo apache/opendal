@@ -160,7 +160,7 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
 }
 
 /// Collect the doc comment of a struct or field as trimmed lines.
-fn doc_lines(attrs: &[syn::Attribute]) -> Vec<String> {
+pub(super) fn doc_lines(attrs: &[syn::Attribute]) -> Vec<String> {
     attrs
         .iter()
         .filter(|attr| attr.path().is_ident("doc"))

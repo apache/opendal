@@ -21,6 +21,10 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Write if not changed
+#[doc = include_str!("8147_write_if_not_changed.md")]
+pub mod rfc_8147_write_if_not_changed {}
+
 /// Object native API
 #[doc = include_str!("0041_object_native_api.md")]
 pub mod rfc_0041_object_native_api {}
@@ -336,3 +340,7 @@ pub mod rfc_7948_s3_provider_presets {}
 /// Writer Copy From
 #[doc = include_str!("8109_writer_copy_from.md")]
 pub mod rfc_8109_writer_copy_from {}
+
+/// Conflict Error Kind
+#[doc = include_str!("8145_conflict_error_kind.md")]
+pub mod rfc_8145_conflict_error_kind {}

@@ -55,6 +55,7 @@ pub mod constants {
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_COPY_SOURCE_RANGE: &str = "x-ms-source-range";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
+    pub const X_MS_BLOB_CONTENT_TYPE: &str = "x-ms-blob-content-type";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
     pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
@@ -590,6 +591,17 @@ impl AzblobCore {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
+        // Put Block List is where Azure applies the blob's properties and metadata;
+        // the headers on the individual Put Block requests are ignored.
+        if let Some(ty) = args.content_type() {
+            req = req.header(constants::X_MS_BLOB_CONTENT_TYPE, ty);
+        }
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value);
+            }
+        }
+
         // Put Block List is the request that actually commits a blocked write, so the
         // write's preconditions have to be evaluated here rather than on Put Block.
         if args.if_not_exists() {
@@ -900,6 +912,10 @@ mod tests {
     use quick_xml::de;
 
     use super::*;
+    use std::collections::HashMap;
+
+    use reqsign_azure_storage::RequestSigner;
+    use reqsign_azure_storage::StaticCredentialProvider;
 
     #[test]
     fn test_parse_xml() {
@@ -1081,6 +1097,53 @@ mod tests {
     }
 
     /// This example is from https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list?tabs=microsoft-entra-id
+    /// Put Block List is the commit point of a blocked write, and the only request
+    /// in that sequence where Azure applies blob properties and metadata. azblob
+    /// declares `write_with_content_type` and `write_with_user_metadata`, so both
+    /// have to be carried here as well as on the one-shot Put Blob path.
+    #[test]
+    fn test_put_block_list_carries_content_type_and_user_metadata() {
+        let core = AzblobCore {
+            info: ServiceInfo::new("azblob", "/", "c"),
+            capability: Capability::default(),
+            container: "c".to_string(),
+            root: "/".to_string(),
+            endpoint: "https://acc.blob.core.windows.net".to_string(),
+            encryption_key: None,
+            encryption_key_sha256: None,
+            encryption_algorithm: None,
+            skip_signature: true,
+            signer: Signer::new(
+                Context::new(),
+                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                RequestSigner::new(),
+            ),
+        };
+
+        let mut meta = HashMap::new();
+        meta.insert("k".to_string(), "v".to_string());
+        let args = OpWrite::default()
+            .with_content_type("application/json")
+            .with_user_metadata(meta);
+
+        let req = core
+            .azblob_complete_put_block_list_request("a.txt", vec![Uuid::nil()], &args)
+            .expect("must build");
+
+        assert_eq!(
+            req.headers()
+                .get(constants::X_MS_BLOB_CONTENT_TYPE)
+                .map(|v| v.to_str().unwrap()),
+            Some("application/json")
+        );
+        assert_eq!(
+            req.headers()
+                .get("x-ms-meta-k")
+                .map(|v| v.to_str().unwrap()),
+            Some("v")
+        );
+    }
+
     #[test]
     fn test_serialize_put_block_list_request() {
         let req = PutBlockListRequest {

@@ -16,6 +16,9 @@
 // under the License.
 
 use std::sync::Arc;
+use std::time::Duration;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use fastpool::ManageObject;
 use fastpool::ObjectStatus;
@@ -163,6 +166,30 @@ pub struct MemcachedCore {
     conn: Arc<bounded::Pool<MemcacheConnectionManager>>,
 }
 
+/// memcached reads an expiration larger than 30 days as an absolute Unix
+/// timestamp rather than as an offset from now, so a longer TTL sent verbatim
+/// lands in 1970 and the server stores the item as already expired.
+///
+/// See the `Expiration times` section of memcached's protocol.txt.
+const MAX_RELATIVE_EXPIRATION_SECS: u64 = 60 * 60 * 24 * 30;
+
+/// Convert a TTL into the expiration value memcached expects.
+///
+/// `0` means "never expire", which is what an unset TTL maps to.
+fn expiration_secs(ttl: Option<Duration>, now_unix_secs: u64) -> u32 {
+    let Some(ttl) = ttl else {
+        return 0;
+    };
+
+    let secs = ttl.as_secs();
+    if secs <= MAX_RELATIVE_EXPIRATION_SECS {
+        secs as u32
+    } else {
+        // Send it the way memcached will read it.
+        now_unix_secs.saturating_add(secs).min(u32::MAX as u64) as u32
+    }
+}
+
 impl MemcachedCore {
     pub fn new(
         endpoint: Endpoint,
@@ -202,13 +229,15 @@ impl MemcachedCore {
     pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut conn = self.conn().await?;
 
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|v| v.as_secs())
+            .unwrap_or_default();
+
         conn.set(
             &percent_encode_path(key),
             &value.to_vec(),
-            // Set expiration to 0 if ttl not set.
-            self.default_ttl
-                .map(|v| v.as_secs() as u32)
-                .unwrap_or_default(),
+            expiration_secs(self.default_ttl, now),
         )
         .await
     }
@@ -224,6 +253,44 @@ impl MemcachedCore {
 mod tests {
     use super::*;
     use tokio::net::TcpListener;
+
+    const NOW: u64 = 1_800_000_000;
+
+    #[test]
+    fn expiration_under_thirty_days_stays_relative() {
+        assert_eq!(expiration_secs(None, NOW), 0);
+        assert_eq!(expiration_secs(Some(Duration::from_secs(60)), NOW), 60);
+        // Exactly thirty days is still an offset; one second more is not.
+        assert_eq!(
+            expiration_secs(Some(Duration::from_secs(MAX_RELATIVE_EXPIRATION_SECS)), NOW),
+            MAX_RELATIVE_EXPIRATION_SECS as u32
+        );
+    }
+
+    #[test]
+    fn expiration_over_thirty_days_becomes_absolute() {
+        // Sent verbatim this would be read as a Unix time in 1970, i.e. already
+        // expired, and the write would be silently discarded.
+        let sixty_days = 60 * 60 * 24 * 60;
+        assert_eq!(
+            expiration_secs(Some(Duration::from_secs(sixty_days)), NOW),
+            (NOW + sixty_days) as u32
+        );
+
+        let thirty_days_and_one = MAX_RELATIVE_EXPIRATION_SECS + 1;
+        assert_eq!(
+            expiration_secs(Some(Duration::from_secs(thirty_days_and_one)), NOW),
+            (NOW + thirty_days_and_one) as u32
+        );
+    }
+
+    #[test]
+    fn expiration_saturates_instead_of_wrapping() {
+        assert_eq!(
+            expiration_secs(Some(Duration::from_secs(u64::MAX)), NOW),
+            u32::MAX
+        );
+    }
 
     // regression test for connecting to a webdav server.
     // Because setting up a dedicated behavior test is expensive, we choose to test `SocketStream::connect_tcp` instead.

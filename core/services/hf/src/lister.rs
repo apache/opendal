@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use super::core::{HfCore, PathInfo};
-use asyncband::once::LazyCell;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -85,9 +84,7 @@ impl HfLister {
         recursive: bool,
         cursor: Option<&str>,
     ) -> Result<FileTree> {
-        let uri = LazyCell::try_force_with(&self.core.repo, &self.ctx)
-            .await?
-            .uri(&self.core.root, path);
+        let uri = self.core.canonical_uri(&self.ctx, path).await?;
         let url = uri.file_tree_url(&self.core.endpoint, recursive, cursor);
 
         let req = self

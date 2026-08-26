@@ -42,15 +42,7 @@ rust-version = "1.91"
 version = "0.58.2"
 
 [workspace.dependencies]
-asyncband = { git = "https://github.com/mhambre/asyncband", branch = "feat/async-lazylock", features = [
-  "lazy-cell",
-  "mpsc",
-  "mutex",
-  "once-cell",
-  "oneshot",
-  "rwlock",
-  "semaphore",
-] }
+asyncband = { version = "0.6" }
 base64 = "0.23"
 bytes = "1.10"
 ctor = "1.0.7"

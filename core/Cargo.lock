@@ -438,7 +438,12 @@ dependencies = [
 [[package]]
 name = "asyncband"
 version = "0.6.7"
-source = "git+https://github.com/mhambre/asyncband?branch=feat%2Fasync-lazylock#683cc8e3f01ed20ab1d5c64f7f96186b2888371a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94a214ba60d6231afd0e805e3c27c45a1626d9debaa5a5061c45a1ea1b2f1ed0"
+dependencies = [
+ "hashbrown 0.17.1",
+ "slab",
+]
 
 [[package]]
 name = "atoi"

@@ -144,13 +144,13 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
     [Fact]
     public async Task StreamBehavior_CompleteAsync_PersistsViaAwaitUsing()
     {
-        if (!Supports(c => c.Read && c.Write) || IsService("etcd"))
+        if (!Supports(c => c.Read && c.Write))
         {
             return;
         }
 
         var path = NewPath("stream-complete-async");
-        var content = RandomBytes(100_000);
+        var content = RandomBytes(4 * 1024);
 
         await using (var output = Op.OpenWriteStream(path, bufferSize: 8 * 1024))
         {

@@ -74,7 +74,7 @@ impl oio::MultipartWrite for GcsWriter {
                 Ok(metadata)
             }
             _ => Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("InsertObject"))
+                ErrorContext::new(ServiceOperation("InsertObject"))
                     .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
@@ -89,7 +89,7 @@ impl oio::MultipartWrite for GcsWriter {
 
         if !resp.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("CreateMultipartUpload")),
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
                 resp,
             ));
         }
@@ -117,7 +117,7 @@ impl oio::MultipartWrite for GcsWriter {
 
         if !resp.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("UploadPart")),
+                ErrorContext::new(ServiceOperation("UploadPart")),
                 resp,
             ));
         }
@@ -159,10 +159,7 @@ impl oio::MultipartWrite for GcsWriter {
 
         if !resp.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(
-                    Operation::Write,
-                    ServiceOperation("CompleteMultipartUpload"),
-                ),
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,
             ));
         }
@@ -185,7 +182,7 @@ impl oio::MultipartWrite for GcsWriter {
             // gcs returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
             _ => Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("AbortMultipartUpload")),
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
                 resp,
             )),
         }
@@ -223,15 +220,12 @@ impl GcsConditionalWriter {
                 .await?;
             if !resp.status().is_success() {
                 return Err(parse_error(
-                    ErrorContext::new(
-                        Operation::Write,
-                        ServiceOperation("InitiateResumableUpload"),
-                    )
-                    .with_if_not_exists(self.op.if_not_exists())
-                    .with_if_match(self.op.if_match().is_some())
-                    .with_if_none_match(self.op.if_none_match().is_some())
-                    .with_if_version_match(self.op.if_version_match().is_some())
-                    .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                    ErrorContext::new(ServiceOperation("InitiateResumableUpload"))
+                        .with_if_not_exists(self.op.if_not_exists())
+                        .with_if_match(self.op.if_match().is_some())
+                        .with_if_none_match(self.op.if_none_match().is_some())
+                        .with_if_version_match(self.op.if_version_match().is_some())
+                        .with_if_version_not_match(self.op.if_version_not_match().is_some()),
                     resp,
                 ));
             }
@@ -328,7 +322,7 @@ impl GcsConditionalWriter {
             }
 
             return Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("UploadResumableChunk"))
+                ErrorContext::new(ServiceOperation("UploadResumableChunk"))
                     .with_if_not_exists(self.op.if_not_exists())
                     .with_if_match(self.op.if_match().is_some())
                     .with_if_none_match(self.op.if_none_match().is_some())
@@ -353,7 +347,7 @@ impl GcsConditionalWriter {
                 GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())
             }
             _ => Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("InsertObject"))
+                ErrorContext::new(ServiceOperation("InsertObject"))
                     .with_if_not_exists(self.op.if_not_exists())
                     .with_if_match(self.op.if_match().is_some())
                     .with_if_none_match(self.op.if_none_match().is_some())
@@ -406,7 +400,7 @@ impl oio::Write for GcsConditionalWriter {
             Ok(())
         } else {
             Err(parse_error(
-                ErrorContext::new(Operation::Write, ServiceOperation("CancelResumableUpload")),
+                ErrorContext::new(ServiceOperation("CancelResumableUpload")),
                 resp,
             ))
         }

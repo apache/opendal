@@ -55,7 +55,7 @@ impl oio::BatchDelete for GcsDeleter {
             Ok(())
         } else {
             Err(parse_error(
-                ErrorContext::new(Operation::Delete, ServiceOperation("DeleteObject"))
+                ErrorContext::new(ServiceOperation("DeleteObject"))
                     .with_if_match(args.if_match().is_some())
                     .with_if_none_match(args.if_none_match().is_some())
                     .with_if_version_match(args.if_version_match().is_some())
@@ -74,7 +74,7 @@ impl oio::BatchDelete for GcsDeleter {
         // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
         if status != StatusCode::OK {
             return Err(parse_error(
-                ErrorContext::new(Operation::Delete, ServiceOperation("BatchDeleteObjects")),
+                ErrorContext::new(ServiceOperation("BatchDeleteObjects")),
                 resp,
             ));
         }
@@ -115,12 +115,11 @@ impl oio::BatchDelete for GcsDeleter {
             } else if resp.status() == StatusCode::NOT_FOUND {
                 batched_result.succeeded.push((path, op));
             } else {
-                let error_ctx =
-                    ErrorContext::new(Operation::Delete, ServiceOperation("BatchDeleteObjects"))
-                        .with_if_match(op.if_match().is_some())
-                        .with_if_none_match(op.if_none_match().is_some())
-                        .with_if_version_match(op.if_version_match().is_some())
-                        .with_if_version_not_match(op.if_version_not_match().is_some());
+                let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteObjects"))
+                    .with_if_match(op.if_match().is_some())
+                    .with_if_none_match(op.if_none_match().is_some())
+                    .with_if_version_match(op.if_version_match().is_some())
+                    .with_if_version_not_match(op.if_version_not_match().is_some());
                 batched_result
                     .failed
                     .push((path, op, parse_error(error_ctx, resp)));

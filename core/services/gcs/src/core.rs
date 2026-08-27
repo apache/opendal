@@ -1370,18 +1370,11 @@ mod tests {
             parse_error(ctx, resp).kind()
         };
 
-        let stat = ErrorContext::new(Operation::Stat, ServiceOperation("GetObject"))
-            .with_if_version_match(true);
-        assert_eq!(parse_missing(stat), ErrorKind::NotFound);
-
-        let read = ErrorContext::new(Operation::Read, ServiceOperation("GetObject"))
-            .with_if_version_not_match(true);
-        assert_eq!(parse_missing(read), ErrorKind::NotFound);
-
-        for operation in [Operation::Write, Operation::Delete, Operation::Copy] {
-            let mutation = ErrorContext::new(operation, ServiceOperation("Mutation"))
-                .with_if_version_match(true);
-            assert_eq!(parse_missing(mutation), ErrorKind::ConditionNotMatch);
+        for ctx in [
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_match(true),
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_not_match(true),
+        ] {
+            assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
         }
     }
 
@@ -1581,7 +1574,6 @@ mod tests {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorContext {
-    operation: Operation,
     service_operation: ServiceOperation,
     if_match: bool,
     if_none_match: bool,
@@ -1591,9 +1583,8 @@ pub struct ErrorContext {
 }
 
 impl ErrorContext {
-    pub const fn new(operation: Operation, service_operation: ServiceOperation) -> Self {
+    pub const fn new(service_operation: ServiceOperation) -> Self {
         Self {
-            operation,
             service_operation,
             if_match: false,
             if_none_match: false,
@@ -1635,10 +1626,6 @@ impl ErrorContext {
             || self.if_version_match
             || self.if_version_not_match
     }
-
-    const fn has_version_condition(self) -> bool {
-        self.if_version_match || self.if_version_not_match
-    }
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1673,15 +1660,6 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND
-            if ctx.has_version_condition()
-                && matches!(
-                    ctx.operation,
-                    Operation::Write | Operation::Delete | Operation::Copy
-                ) =>
-        {
-            (ErrorKind::ConditionNotMatch, false)
-        }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {

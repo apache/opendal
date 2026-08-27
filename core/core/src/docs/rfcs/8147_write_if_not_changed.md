@@ -174,12 +174,11 @@ GCS maps version conditions to JSON API generation parameters:
 | `if_not_changed(meta)` | Lower to `if_version_match(meta.version())`. |
 
 GCS applies these parameters to JSON API get, insert, delete, and destination
-rewrite requests. `ifGenerationNotMatch` fails when no live object exists.
-OpenDAL returns `NotFound` for a missing get target and `ConditionNotMatch` when
-a mutation condition requires a missing target. Multi-request rewrite keeps the
-destination condition across requests. Because GCS advertises version match
-rather than ETag match for mutations, the shared lowering rule selects the
-object generation for `if_not_changed`.
+rewrite requests. OpenDAL preserves missing-object responses as `NotFound` and
+maps native precondition failures to `ConditionNotMatch`. Multi-request rewrite
+keeps the destination condition across requests. Because GCS advertises version
+match rather than ETag match for mutations, the shared lowering rule selects
+the object generation for `if_not_changed`.
 
 GCS must use a write path that can preserve generation conditions, such as
 JSON resumable upload, before advertising a conditional write capability. It

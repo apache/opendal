@@ -46,11 +46,10 @@ impl oio::BatchDelete for GcsDeleter {
             .with_if_version_not_match(args.if_version_not_match().is_some())
             .with_delete();
 
-        if resp.status().is_success() {
-            Ok(())
-        } else if resp.status() == StatusCode::NOT_FOUND
-            && args.if_match().is_none()
-            && args.if_version_match().is_none()
+        if resp.status().is_success()
+            || (resp.status() == StatusCode::NOT_FOUND
+                && args.if_match().is_none()
+                && args.if_version_match().is_none())
         {
             Ok(())
         } else {
@@ -96,11 +95,10 @@ impl oio::BatchDelete for GcsDeleter {
                 .with_if_version_not_match(op.if_version_not_match().is_some())
                 .with_delete();
 
-            if resp.status().is_success() {
-                batched_result.succeeded.push((path, op));
-            } else if resp.status() == StatusCode::NOT_FOUND
-                && op.if_match().is_none()
-                && op.if_version_match().is_none()
+            if resp.status().is_success()
+                || (resp.status() == StatusCode::NOT_FOUND
+                    && op.if_match().is_none()
+                    && op.if_version_match().is_none())
             {
                 batched_result.succeeded.push((path, op));
             } else {

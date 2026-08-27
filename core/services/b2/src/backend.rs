@@ -393,7 +393,7 @@ impl Service for B2Backend {
                     parts.headers,
                 )))
             }
-            PresignOperation::Read(_, _) => {
+            PresignOperation::Read(range, _) => {
                 let resp = self
                     .core
                     .get_download_authorization(ctx, path, args.expire())
@@ -410,7 +410,10 @@ impl Service for B2Backend {
                     resp.authorization_token
                 );
 
-                let req = Request::get(url);
+                let mut req = Request::get(url);
+                if !range.is_full() {
+                    req = req.header(http::header::RANGE, range.to_header());
+                }
 
                 let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

@@ -118,6 +118,20 @@ def test_sync_reader_readline(service_name, operator, async_operator):
     operator.delete(filename)
 
 
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_readline_with_size(operator):
+    filename = f"random_file_{str(uuid4())}"
+    content = b"alpha\nbeta\ngamma"
+    operator.write(filename, content)
+
+    expected = io.BytesIO(content)
+    with operator.open(filename, "rb") as reader:
+        for size in [3, 10, 0, 5, 2, 10, 10]:
+            assert reader.readline(size) == expected.readline(size)
+
+    operator.delete(filename)
+
+
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
 async def test_async_read(service_name, operator, async_operator):

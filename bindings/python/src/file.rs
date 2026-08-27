@@ -164,13 +164,12 @@ impl File {
                 buffer
             }
             Some(size) => {
-                let mut bs = vec![0; size];
+                let mut buffer = Vec::new();
                 let mut reader = reader.take(size as u64);
-                let n = reader
-                    .read_until(b'\n', &mut bs)
+                reader
+                    .read_until(b'\n', &mut buffer)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                bs.truncate(n);
-                bs
+                buffer
             }
         };
 

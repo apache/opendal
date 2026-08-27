@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
@@ -526,7 +525,7 @@ impl Operator {
     pub fn write(
         &self,
         path: PathBuf,
-        bs: Vec<u8>,
+        bs: &Bound<PyAny>,
         append: Option<bool>,
         chunk: Option<usize>,
         concurrent: Option<usize>,
@@ -540,6 +539,7 @@ impl Operator {
         user_metadata: Option<HashMap<String, String>>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        let bs = py_bytes_like_into_buffer(bs)?;
         let opts = WriteOptions {
             append,
             chunk,
@@ -1278,7 +1278,7 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        bs: &Bound<PyBytes>,
+        bs: &Bound<PyAny>,
         append: Option<bool>,
         chunk: Option<usize>,
         concurrent: Option<usize>,
@@ -1305,7 +1305,7 @@ impl AsyncOperator {
             user_metadata,
         };
         let this = self.core.clone();
-        let bs = bs.as_bytes().to_vec();
+        let bs = py_bytes_like_into_buffer(bs)?;
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.write_options(&path, bs, opts.into())

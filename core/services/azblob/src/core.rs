@@ -1373,7 +1373,13 @@ fn parse_azblob_error_code(
     status: StatusCode,
 ) -> Option<(ErrorKind, bool)> {
     match code {
-        "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet" => {
+        "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet"
+            if ctx.has_condition()
+                && matches!(
+                    status,
+                    StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED
+                ) =>
+        {
             Some((ErrorKind::ConditionNotMatch, false))
         }
         "BlobAlreadyExists" | "ContainerAlreadyExists" | "ResourceAlreadyExists" => {

@@ -23,6 +23,15 @@ use crate::types::BytesRange;
 use std::collections::HashMap;
 
 /// Options for delete operations.
+///
+/// Delete conditions are predicates over the current live target and are
+/// combined with logical AND. A missing target makes positive match conditions
+/// (`if_match`, `if_version_match`, and `if_not_changed`) false, so the delete
+/// returns [`crate::ErrorKind::ConditionNotMatch`]. It makes negative match
+/// conditions (`if_none_match` and `if_version_not_match`) true, so the delete
+/// succeeds as a no-op. An unconditional delete of a missing target also
+/// succeeds. Only concrete ETag values have portable delete semantics;
+/// wildcard values such as `"*"` are service-specific.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DeleteOptions {
     /// The version of the file to delete.
@@ -33,8 +42,7 @@ pub struct DeleteOptions {
     /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
     ///   will be removed.
     pub recursive: bool,
-    /// Sets the condition that delete will succeed only if the existing
-    /// object has the given ETag.
+    /// Delete only when the current object's ETag matches this value.
     ///
     /// ### Capability
     ///
@@ -42,25 +50,37 @@ pub struct DeleteOptions {
     ///
     /// ### Behavior
     ///
-    /// - If supported, the delete will only succeed when the existing object's
-    ///   ETag matches the given value.
+    /// - An existing object with a different ETag returns
+    ///   [`crate::ErrorKind::ConditionNotMatch`].
+    /// - A missing object returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_match: Option<String>,
     /// Delete only when the current object's ETag does not match this value.
+    ///
+    /// An existing object with the same ETag returns
+    /// [`crate::ErrorKind::ConditionNotMatch`]. A different or missing object
+    /// satisfies the condition; deleting a missing object is a no-op.
     ///
     /// Check [`crate::Capability::delete_with_if_none_match`] before using this feature.
     pub if_none_match: Option<String>,
     /// Delete only when the current object's version matches this value.
     ///
+    /// A different or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
+    ///
     /// Check [`crate::Capability::delete_with_if_version_match`] before using this feature.
     pub if_version_match: Option<String>,
     /// Delete only when the current object's version does not match this value.
+    ///
+    /// An existing object with the same version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`]. A different or missing object
+    /// satisfies the condition; deleting a missing object is a no-op.
     ///
     /// Check [`crate::Capability::delete_with_if_version_not_match`] before using this feature.
     pub if_version_not_match: Option<String>,
     /// Delete only when the object still matches the supplied metadata.
     ///
     /// OpenDAL prefers `version` when the service supports version preconditions and
-    /// otherwise uses `ETag`.
+    /// otherwise uses `ETag`. A changed or missing object returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_not_changed: Option<Metadata>,
 }
 
@@ -87,6 +107,10 @@ pub struct ListOptions {
 }
 
 /// Options for read operations.
+///
+/// Conditional reads return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReadOptions {
     /// Set `range` for this operation.
@@ -122,8 +146,15 @@ pub struct ReadOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Read only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Read only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
@@ -199,6 +230,10 @@ pub struct ReadOptions {
 }
 
 /// Options for reader operations.
+///
+/// Conditional reads return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReaderOptions {
     /// Set `version` for this operation.
@@ -223,8 +258,15 @@ pub struct ReaderOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Read only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Read only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
@@ -301,6 +343,10 @@ pub struct ReaderOptions {
 }
 
 /// Options for stat operations.
+///
+/// Conditional stats return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct StatOptions {
     /// Set `version` for this operation.
@@ -325,8 +371,15 @@ pub struct StatOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Stat only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Stat only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///

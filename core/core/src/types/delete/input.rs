@@ -21,9 +21,9 @@ use crate::{Entry, Metadata};
 /// Per-entry input for delete operations.
 ///
 /// Conditional fields follow the current-target predicate contract documented
-/// by [`crate::DeleteOptions`]. A missing target fails positive match conditions
-/// with [`crate::ErrorKind::ConditionNotMatch`] and satisfies negative match
-/// conditions as a successful no-op.
+/// by [`crate::options::DeleteOptions`]. A missing target fails positive match
+/// conditions with [`crate::ErrorKind::ConditionNotMatch`] and satisfies negative
+/// match conditions as a successful no-op.
 #[non_exhaustive]
 #[derive(Default, Debug)]
 pub struct DeleteInput {

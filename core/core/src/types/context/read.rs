@@ -123,29 +123,20 @@ impl ReadContext {
         }
 
         let mut op_stat = OpStat::new();
-        let capability = self.srv.capability();
 
         if let Some(v) = self.args().version() {
             op_stat = op_stat.with_version(v);
         }
-        if capability.stat_with_if_match
-            && let Some(v) = self.args().if_match()
-        {
+        if let Some(v) = self.args().if_match() {
             op_stat = op_stat.with_if_match(v);
         }
-        if capability.stat_with_if_none_match
-            && let Some(v) = self.args().if_none_match()
-        {
+        if let Some(v) = self.args().if_none_match() {
             op_stat = op_stat.with_if_none_match(v);
         }
-        if capability.stat_with_if_modified_since
-            && let Some(v) = self.args().if_modified_since()
-        {
+        if let Some(v) = self.args().if_modified_since() {
             op_stat = op_stat.with_if_modified_since(v);
         }
-        if capability.stat_with_if_unmodified_since
-            && let Some(v) = self.args().if_unmodified_since()
-        {
+        if let Some(v) = self.args().if_unmodified_since() {
             op_stat = op_stat.with_if_unmodified_since(v);
         }
 
@@ -280,8 +271,6 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::layers::CapabilityOverrideLayer;
-    use crate::layers::CorrectnessCheckLayer;
 
     fn new_read_context(
         ctx: OperationContext,
@@ -419,33 +408,6 @@ mod tests {
         let range = ctx.parse_into_range(BytesRange::suffix(10)).await?;
 
         pretty_assertions::assert_eq!(range, 32..42);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_parse_into_range_skips_unsupported_stat_conditions() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?;
-        op.write("test", Buffer::from("HelloWorld")).await?;
-
-        let srv = CapabilityOverrideLayer::new(|mut capability| {
-            capability.read_with_if_match = true;
-            capability.stat_with_if_match = false;
-            capability
-        })
-        .apply_service(op.base_service().clone());
-        let srv = CorrectnessCheckLayer.apply_service(srv);
-
-        let (_, args, options) = options::ReadOptions {
-            if_match: Some("invalid-etag".to_string()),
-            ..Default::default()
-        }
-        .into();
-        let ctx =
-            new_read_context_with_args(op.base_context().clone(), srv, "test", args, options)?;
-
-        let range = ctx.parse_into_range(..).await?;
-
-        pretty_assertions::assert_eq!(range, 0..10);
         Ok(())
     }
 }

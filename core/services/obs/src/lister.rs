@@ -70,7 +70,10 @@ impl oio::PageList for ObsLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();

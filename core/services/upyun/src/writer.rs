@@ -21,9 +21,9 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::UpyunCore;
 use super::core::constants::X_UPYUN_MULTI_UUID;
 use super::core::parse_error;
+use super::core::{ErrorContext, UpyunCore};
 
 pub type UpyunWriters = oio::MultipartWriter<UpyunWriter>;
 
@@ -55,7 +55,10 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadFile")),
+                resp,
+            )),
         }
     }
 
@@ -77,7 +80,10 @@ impl oio::MultipartWrite for UpyunWriter {
 
                 Ok(id.to_string())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -103,7 +109,10 @@ impl oio::MultipartWrite for UpyunWriter {
                 checksum: None,
                 size: None,
             }),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -121,7 +130,10 @@ impl oio::MultipartWrite for UpyunWriter {
 
         match status {
             StatusCode::NO_CONTENT => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 

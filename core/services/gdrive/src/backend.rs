@@ -21,11 +21,11 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveRecentPathState;
 use super::core::normalize_dir_path;
 use super::core::parse_error;
+use super::core::{ErrorContext, GdriveCore};
 use super::deleter::GdriveDeleter;
 use super::lister::GdriveFlatLister;
 use super::lister::GdriveLister;
@@ -285,7 +285,10 @@ impl Service for GdriveBackend {
         }
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFile")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -449,10 +452,16 @@ impl Service for GdriveBackend {
 
                             Ok(Metadata::default())
                         }
-                        _ => Err(parse_error(resp)),
+                        _ => Err(parse_error(
+                            ErrorContext::new(ServiceOperation("CopyFile")),
+                            resp,
+                        )),
                     }
                 }
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyFile")),
+                    resp,
+                )),
             }
         }))
     }
@@ -528,7 +537,10 @@ impl Service for GdriveBackend {
                     .await?;
 
                 if resp.status() != StatusCode::OK {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("MoveFile")),
+                        resp,
+                    ));
                 }
 
                 let body = resp.into_body();
@@ -570,7 +582,10 @@ impl Service for GdriveBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("MoveFile")),
+                resp,
+            )),
         }
     }
 

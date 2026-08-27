@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::SeafileCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, SeafileCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -51,7 +51,10 @@ impl oio::OneShotWrite for SeafileWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadFile")),
+                resp,
+            )),
         }
     }
 }

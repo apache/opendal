@@ -231,7 +231,10 @@ impl oio::Write for GhacWriterV1 {
             .ghac_v1_write(&self.ctx, &self.url, size, offset, bs)
             .await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).with_operation("Backend::ghac_upload"));
+            return Err(
+                parse_error(ErrorContext::new(ServiceOperation("UploadChunk")), resp)
+                    .with_operation("Backend::ghac_upload"),
+            );
         }
         self.size += size;
         Ok(())

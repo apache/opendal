@@ -1376,6 +1376,11 @@ mod tests {
         ] {
             assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
         }
+
+        let delete_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
+            .with_if_version_match(true)
+            .with_delete();
+        assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
     }
 
     #[test]
@@ -1580,6 +1585,7 @@ pub struct ErrorContext {
     if_not_exists: bool,
     if_version_match: bool,
     if_version_not_match: bool,
+    is_delete: bool,
 }
 
 impl ErrorContext {
@@ -1591,6 +1597,7 @@ impl ErrorContext {
             if_not_exists: false,
             if_version_match: false,
             if_version_not_match: false,
+            is_delete: false,
         }
     }
 
@@ -1616,6 +1623,11 @@ impl ErrorContext {
 
     pub const fn with_if_version_not_match(mut self, if_version_not_match: bool) -> Self {
         self.if_version_not_match = if_version_not_match;
+        self
+    }
+
+    pub const fn with_delete(mut self) -> Self {
+        self.is_delete = true;
         self
     }
 
@@ -1660,6 +1672,9 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.is_delete && (ctx.if_match || ctx.if_version_match) => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {

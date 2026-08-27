@@ -32,9 +32,9 @@ use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
-use super::core::AzfileCore;
 use super::core::X_MS_META_PREFIX;
 use super::core::parse_error;
+use super::core::{AzfileCore, ErrorContext};
 use super::deleter::AzfileDeleter;
 use super::lister::AzfileLister;
 use super::reader::*;
@@ -314,7 +314,10 @@ impl Service for AzfileBackend {
                 {
                     Ok(RpCreateDir::default())
                 } else {
-                    Err(parse_error(resp))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateDirectory")),
+                        resp,
+                    ))
                 }
             }
         }
@@ -338,7 +341,14 @@ impl Service for AzfileBackend {
                 }
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(if path.ends_with('/') {
+                    ServiceOperation("GetDirectoryProperties")
+                } else {
+                    ServiceOperation("GetFileProperties")
+                }),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -425,7 +435,10 @@ impl Service for AzfileBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                resp,
+            )),
         }
     }
 

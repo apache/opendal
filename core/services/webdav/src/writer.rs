@@ -92,13 +92,19 @@ impl oio::OneShotWrite for WebdavWriter {
                         let xml = String::from_utf8_lossy(&body);
                         check_proppatch_response(&xml)?;
                     } else if !proppatch_status.is_success() {
-                        return Err(parse_error(proppatch_resp));
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("Proppatch")),
+                            proppatch_resp,
+                        ));
                     }
                 }
 
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Put")),
+                resp,
+            )),
         }
     }
 }

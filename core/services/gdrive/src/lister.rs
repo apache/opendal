@@ -23,11 +23,11 @@ use std::sync::Arc;
 use asyncband::mutex::Mutex;
 use http::StatusCode;
 
-use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveFileList;
 use super::core::GdriveRecentPathState;
 use super::core::parse_error;
+use super::core::{ErrorContext, GdriveCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -173,7 +173,10 @@ impl oio::PageList for GdriveLister {
                 resp = self.core.gdrive_stat_by_id(&self.ctx, &file_id).await?;
             }
             if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetFile")),
+                    resp,
+                ));
             }
 
             let bytes = resp.into_body().to_bytes();
@@ -215,7 +218,12 @@ impl oio::PageList for GdriveLister {
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),
-            _ => return Err(parse_error(resp)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("ListFiles")),
+                    resp,
+                ));
+            }
         };
 
         // Google Drive returns an empty response when attempting to list a non-existent directory.
@@ -524,7 +532,10 @@ impl GdriveFlatLister {
             resp = self.core.gdrive_stat_by_id(&self.ctx, &root_id).await?;
         }
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFile")),
+                resp,
+            ));
         }
 
         let bytes = resp.into_body().to_bytes();
@@ -645,7 +656,12 @@ impl GdriveFlatLister {
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),
-            _ => return Err(parse_error(resp)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("ListFiles")),
+                    resp,
+                ));
+            }
         };
 
         log::debug!("GdriveFlatLister: response size: {} bytes", bytes.len());

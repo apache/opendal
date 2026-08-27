@@ -21,9 +21,7 @@ use bytes::Buf;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::ListObjectsResponse;
-use super::core::UpyunCore;
-use super::core::parse_error;
+use super::core::{ErrorContext, ListObjectsResponse, UpyunCore, parse_error};
 
 pub struct UpyunLister {
     core: Arc<UpyunCore>,
@@ -68,7 +66,10 @@ impl oio::PageList for UpyunLister {
                 return Ok(());
             }
             _ => {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("ListObjects")),
+                    resp,
+                ));
             }
         }
 

@@ -25,9 +25,9 @@ use log::debug;
 use super::VERCEL_BLOB_SCHEME;
 use super::config::VercelBlobConfig;
 use super::core::Blob;
-use super::core::VercelBlobCore;
 use super::core::parse_blob;
 use super::core::parse_error;
+use super::core::{ErrorContext, VercelBlobCore};
 use super::deleter::VercelBlobDeleter;
 use super::lister::VercelBlobLister;
 use super::reader::*;
@@ -173,7 +173,10 @@ impl Service for VercelBlobBackend {
 
                 parse_blob(&resp).map(RpStat::new)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadBlob")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -222,7 +225,10 @@ impl Service for VercelBlobBackend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyBlob")),
+                    resp,
+                )),
             }
         }))
     }

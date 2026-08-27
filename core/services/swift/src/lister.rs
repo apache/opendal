@@ -75,7 +75,7 @@ impl oio::PageList for SwiftLister {
         let status_code = response.status();
 
         if !status_code.is_success() {
-            let error = parse_error(response);
+            let error = parse_error(ErrorContext::new(ServiceOperation("ListObjects")), response);
             return Err(error);
         }
 

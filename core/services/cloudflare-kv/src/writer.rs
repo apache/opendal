@@ -21,8 +21,8 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::CloudflareKvCore;
 use super::core::parse_error;
+use super::core::{CloudflareKvCore, ErrorContext};
 use super::model::CfKvMetadata;
 
 pub struct CloudflareWriter {
@@ -62,7 +62,10 @@ impl oio::OneShotWrite for CloudflareWriter {
 
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("WriteValue")),
+                resp,
+            )),
         }
     }
 }

@@ -118,7 +118,9 @@ impl Service for ChaosService {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability
     }
 
     async fn create_dir(
@@ -171,6 +173,15 @@ impl Service for ChaosService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn presign(

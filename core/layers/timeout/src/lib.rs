@@ -261,6 +261,16 @@ impl Service for TimeoutService {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.timeout(Operation::Restore, self.inner.restore(ctx, path, args))
+            .await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.timeout(Operation::Stat, self.inner.stat(ctx, path, args))
             .await
@@ -371,6 +381,11 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let fut = self.inner.copy_from(path, args, range);
         Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 

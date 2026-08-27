@@ -88,6 +88,12 @@ For example:
 
 Run `just update-version` to bump the version in the project.
 
+Before updating any files, this command compares public compatibility dependencies
+against the latest reachable final release tag. It rejects an integration target
+that uses a patch bump after `opendal` or another configured public dependency
+crosses a Cargo-incompatible version boundary. Fetch the repository tags before
+running the command.
+
 ### Update docs
 
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.

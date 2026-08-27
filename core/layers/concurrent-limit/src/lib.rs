@@ -310,6 +310,16 @@ where
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let _permit = self.semaphore.acquire().await;
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self.semaphore.acquire().await;
         self.inner.stat(ctx, path, args).await
@@ -436,6 +446,11 @@ where
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.acquire().await;
         self.inner.write(bs).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.acquire().await;
+        self.inner.copy_from(path, args, range).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {

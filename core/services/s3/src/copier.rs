@@ -18,10 +18,9 @@
 use std::sync::Arc;
 
 use bytes::Buf;
+use http::Response;
 use http::StatusCode;
 
-use crate::core::S3Error;
-use crate::core::from_s3_error;
 use crate::core::parse_error;
 use crate::core::*;
 use opendal_core::raw::*;
@@ -86,6 +85,15 @@ pub struct S3Copier {
     args: OpCopy,
 }
 
+impl S3Copier {
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.args.if_match().is_some())
+            .with_if_none_match(self.args.if_none_match().is_some())
+            .with_if_not_exists(self.args.if_not_exists())
+    }
+}
+
 impl oio::MultipartCopy for S3Copier {
     async fn source_metadata(&self) -> Result<Metadata> {
         let mut args = OpStat::default();
@@ -103,7 +111,10 @@ impl oio::MultipartCopy for S3Copier {
                 let headers = resp.headers();
                 parse_into_metadata(&self.from, headers)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
@@ -125,15 +136,18 @@ impl oio::MultipartCopy for S3Copier {
 
                 // S3 may return 200 OK with an <Error> body for CopyObject.
                 if result.etag.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: result.code,
-                            message: result.message,
-                            resource: String::new(),
-                            request_id: result.request_id,
-                        },
-                        parts,
-                    ));
+                    let err = parse_error(
+                        self.error_context(ServiceOperation("CopyObject")),
+                        Response::from_parts(parts, Buffer::from(bs)),
+                    );
+                    return if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "copy precondition requires a live destination",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
 
                 let mut meta = Metadata::new(EntryMode::from_path(&self.to));
@@ -147,7 +161,17 @@ impl oio::MultipartCopy for S3Copier {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(self.error_context(ServiceOperation("CopyObject")), resp);
+                if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "copy precondition requires a live destination",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -166,7 +190,10 @@ impl oio::MultipartCopy for S3Copier {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -185,12 +212,20 @@ impl oio::MultipartCopy for S3Copier {
                 from: &self.from,
                 to: &self.to,
                 source_version: self.args.source_version(),
+                if_match: None,
+                if_none_match: None,
+                if_modified_since: None,
+                if_unmodified_since: None,
                 upload_id,
                 part_number,
                 range,
+                operation: Operation::Copy,
             })?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.iam())
+            .await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -201,14 +236,9 @@ impl oio::MultipartCopy for S3Copier {
 
                 // S3 may return 200 OK with an <Error> body for UploadPartCopy.
                 if result.etag.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: result.code,
-                            message: result.message,
-                            resource: String::new(),
-                            request_id: result.request_id,
-                        },
-                        parts,
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("UploadPartCopy")),
+                        Response::from_parts(parts, Buffer::from(bs)),
                     ));
                 }
 
@@ -219,7 +249,10 @@ impl oio::MultipartCopy for S3Copier {
                     size: Some(size),
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPartCopy")),
+                resp,
+            )),
         }
     }
 
@@ -247,22 +280,26 @@ impl oio::MultipartCopy for S3Copier {
         match status {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes();
                 let version = parse_header_to_str(&parts.headers, constants::X_AMZ_VERSION_ID)?
                     .map(str::to_string);
 
                 let ret: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
                 // S3 may return 200 OK with an <Error> body for CompleteMultipartUpload.
                 if ret.etag.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: ret.code,
-                            message: ret.message,
-                            resource: "".to_string(),
-                            request_id: ret.request_id,
-                        },
-                        parts,
-                    ));
+                    let err = parse_error(
+                        self.error_context(ServiceOperation("CompleteMultipartUpload")),
+                        Response::from_parts(parts, Buffer::from(bs)),
+                    );
+                    return if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "copy precondition requires a live destination",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
 
                 let mut meta = Metadata::new(EntryMode::from_path(&self.to));
@@ -273,7 +310,20 @@ impl oio::MultipartCopy for S3Copier {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(
+                    self.error_context(ServiceOperation("CompleteMultipartUpload")),
+                    resp,
+                );
+                if self.args.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "copy precondition requires a live destination",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -284,7 +334,10 @@ impl oio::MultipartCopy for S3Copier {
             .await?;
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use fastpool::ManageObject;
 use fastpool::ObjectStatus;
@@ -163,6 +164,14 @@ pub struct MemcachedCore {
     conn: Arc<bounded::Pool<MemcacheConnectionManager>>,
 }
 
+/// memcached reads an expiration larger than 30 days as an absolute Unix
+/// timestamp rather than as an offset from now, so a longer TTL sent verbatim
+/// lands in 1970 and the server stores the item as already expired.
+///
+/// See the `Expiration times` section of memcached's protocol.txt. The builder
+/// rejects a `default_ttl` above this, so `set` can pass the value through.
+pub(super) const MAX_RELATIVE_EXPIRATION_SECS: u64 = 60 * 60 * 24 * 30;
+
 impl MemcachedCore {
     pub fn new(
         endpoint: Endpoint,
@@ -205,7 +214,8 @@ impl MemcachedCore {
         conn.set(
             &percent_encode_path(key),
             &value.to_vec(),
-            // Set expiration to 0 if ttl not set.
+            // The builder rejects anything above MAX_RELATIVE_EXPIRATION_SECS, so
+            // this stays an offset and never lands in memcached's absolute range.
             self.default_ttl
                 .map(|v| v.as_secs() as u32)
                 .unwrap_or_default(),

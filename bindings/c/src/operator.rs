@@ -819,6 +819,8 @@ pub unsafe extern "C" fn opendal_operator_delete_with(
         core::options::DeleteOptions {
             version,
             recursive: o.recursive,
+            if_match: None,
+            ..Default::default()
         }
     };
     match op.deref().delete_options(path, delete_opts) {

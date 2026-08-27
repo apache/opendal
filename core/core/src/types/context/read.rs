@@ -127,6 +127,18 @@ impl ReadContext {
         if let Some(v) = self.args().version() {
             op_stat = op_stat.with_version(v);
         }
+        if let Some(v) = self.args().if_match() {
+            op_stat = op_stat.with_if_match(v);
+        }
+        if let Some(v) = self.args().if_none_match() {
+            op_stat = op_stat.with_if_none_match(v);
+        }
+        if let Some(v) = self.args().if_modified_since() {
+            op_stat = op_stat.with_if_modified_since(v);
+        }
+        if let Some(v) = self.args().if_unmodified_since() {
+            op_stat = op_stat.with_if_unmodified_since(v);
+        }
 
         Ok(self
             .srv
@@ -160,6 +172,15 @@ impl ReadContext {
                 (content_length.saturating_sub(size), content_length)
             }
         };
+
+        if start > end {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range starts after the end of the object",
+            )
+            .with_context("offset", start)
+            .with_context("content_length", end));
+        }
 
         Ok(start..end)
     }

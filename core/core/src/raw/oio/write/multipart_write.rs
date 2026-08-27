@@ -91,6 +91,23 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
         body: Buffer,
     ) -> impl Future<Output = Result<MultipartPart>> + MaybeSend;
 
+    /// Copy one absolute bounded source range into a multipart part.
+    fn copy_part(
+        &self,
+        _upload_id: &str,
+        _part_number: usize,
+        _path: &str,
+        _args: OpRead,
+        _range: BytesRange,
+    ) -> impl Future<Output = Result<MultipartPart>> + MaybeSend {
+        async {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "multipart writer doesn't support native copy",
+            ))
+        }
+    }
+
     /// complete_part will complete the multipart upload to build the final
     /// file.
     fn complete_part(
@@ -122,12 +139,21 @@ pub struct MultipartPart {
     pub size: Option<u64>,
 }
 
+enum MultipartInput {
+    Write(Buffer),
+    Copy {
+        path: String,
+        args: Box<OpRead>,
+        range: BytesRange,
+    },
+}
+
 struct WriteInput<W: MultipartWrite> {
     w: Arc<W>,
     executor: Executor,
     upload_id: Arc<String>,
     part_number: usize,
-    bytes: Buffer,
+    input: MultipartInput,
 }
 
 /// MultipartWriter will implement [`oio::Write`] based on multipart
@@ -163,12 +189,33 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin({
                     async move {
-                        let fut = input.w.write_part(
-                            &input.upload_id,
-                            input.part_number,
-                            input.bytes.len() as u64,
-                            input.bytes.clone(),
-                        );
+                        let fut = async {
+                            match &input.input {
+                                MultipartInput::Write(bytes) => {
+                                    input
+                                        .w
+                                        .write_part(
+                                            &input.upload_id,
+                                            input.part_number,
+                                            bytes.len() as u64,
+                                            bytes.clone(),
+                                        )
+                                        .await
+                                }
+                                MultipartInput::Copy { path, args, range } => {
+                                    input
+                                        .w
+                                        .copy_part(
+                                            &input.upload_id,
+                                            input.part_number,
+                                            path,
+                                            args.as_ref().clone(),
+                                            *range,
+                                        )
+                                        .await
+                                }
+                            }
+                        };
                         match input.executor.timeout() {
                             None => {
                                 let result = fut.await;
@@ -202,6 +249,31 @@ impl<W: MultipartWrite> MultipartWriter<W> {
         self.cache = Some(bs);
         size
     }
+
+    async fn upload_id(&mut self) -> Result<Arc<String>> {
+        if let Some(upload_id) = &self.upload_id {
+            return Ok(upload_id.clone());
+        }
+
+        let upload_id = Arc::new(self.w.initiate_part().await?);
+        self.upload_id = Some(upload_id.clone());
+        Ok(upload_id)
+    }
+
+    async fn schedule(&mut self, upload_id: Arc<String>, input: MultipartInput) -> Result<()> {
+        let part_number = self.next_part_number;
+        self.tasks
+            .execute(WriteInput {
+                w: self.w.clone(),
+                executor: self.executor.clone(),
+                upload_id,
+                part_number,
+                input,
+            })
+            .await?;
+        self.next_part_number += 1;
+        Ok(())
+    }
 }
 
 impl<W> oio::Write for MultipartWriter<W>
@@ -209,37 +281,43 @@ where
     W: MultipartWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let upload_id = match self.upload_id.clone() {
-            Some(v) => v,
-            None => {
-                // Fill cache with the first write.
-                if self.cache.is_none() {
-                    self.fill_cache(bs);
-                    return Ok(());
-                }
+        if self.cache.is_none() {
+            self.fill_cache(bs);
+            return Ok(());
+        }
 
-                let upload_id = self.w.initiate_part().await?;
-                let upload_id = Arc::new(upload_id);
-                self.upload_id = Some(upload_id.clone());
-                upload_id
-            }
-        };
-
+        let upload_id = self.upload_id().await?;
         let bytes = self.cache.clone().expect("pending write must exist");
-        let part_number = self.next_part_number;
-
-        self.tasks
-            .execute(WriteInput {
-                w: self.w.clone(),
-                executor: self.executor.clone(),
-                upload_id: upload_id.clone(),
-                part_number,
-                bytes,
-            })
+        self.schedule(upload_id, MultipartInput::Write(bytes))
             .await?;
         self.cache = None;
-        self.next_part_number += 1;
         self.fill_cache(bs);
+        Ok(())
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        if range.is_suffix() || range.size().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires an absolute bounded range",
+            ));
+        }
+
+        let upload_id = self.upload_id().await?;
+        if let Some(bytes) = self.cache.clone() {
+            self.schedule(upload_id.clone(), MultipartInput::Write(bytes))
+                .await?;
+            self.cache = None;
+        }
+        self.schedule(
+            upload_id,
+            MultipartInput::Copy {
+                path: path.to_string(),
+                args: Box::new(args),
+                range,
+            },
+        )
+        .await?;
         Ok(())
     }
 
@@ -261,19 +339,9 @@ where
         };
 
         if let Some(cache) = self.cache.clone() {
-            let part_number = self.next_part_number;
-
-            self.tasks
-                .execute(WriteInput {
-                    w: self.w.clone(),
-                    executor: self.executor.clone(),
-                    upload_id: upload_id.clone(),
-                    part_number,
-                    bytes: cache,
-                })
+            self.schedule(upload_id.clone(), MultipartInput::Write(cache))
                 .await?;
             self.cache = None;
-            self.next_part_number += 1;
         }
 
         loop {
@@ -323,15 +391,25 @@ mod tests {
         part_numbers: Vec<usize>,
         length: u64,
         content: Option<Buffer>,
+        fail_randomly: bool,
     }
 
     impl TestWrite {
         pub fn new() -> Arc<Mutex<Self>> {
+            Self::new_with_failures(true)
+        }
+
+        pub fn new_stable() -> Arc<Mutex<Self>> {
+            Self::new_with_failures(false)
+        }
+
+        fn new_with_failures(fail_randomly: bool) -> Arc<Mutex<Self>> {
             let v = Self {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
                 length: 0,
                 content: None,
+                fail_randomly,
             };
 
             Arc::new(Mutex::new(v))
@@ -342,7 +420,7 @@ mod tests {
         async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
             sleep(Duration::from_nanos(50)).await;
 
-            if rng().random_bool(1.0 / 10.0) {
+            if self.lock().await.fail_randomly && rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -375,7 +453,7 @@ mod tests {
             sleep(Duration::from_nanos(50)).await;
 
             // We will have 10% percent rate for write part to fail.
-            if rng().random_bool(1.0 / 10.0) {
+            if self.lock().await.fail_randomly && rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -392,6 +470,27 @@ mod tests {
                 etag: "etag".to_string(),
                 checksum: None,
                 size: None,
+            })
+        }
+
+        async fn copy_part(
+            &self,
+            upload_id: &str,
+            part_number: usize,
+            _: &str,
+            _: OpRead,
+            range: BytesRange,
+        ) -> Result<MultipartPart> {
+            let size = range.size().expect("test range must be bounded");
+            let mut test = self.lock().await;
+            assert_eq!(upload_id, test.upload_id);
+            test.part_numbers.push(part_number);
+            test.length += size;
+            Ok(MultipartPart {
+                part_number,
+                etag: "copied-etag".to_string(),
+                checksum: None,
+                size: Some(size),
             })
         }
 
@@ -512,5 +611,31 @@ mod tests {
             assert!(inner.content.is_some());
             assert_eq!(inner.content.clone().unwrap().to_bytes(), bs);
         }
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_interleaves_writes_and_copies() -> Result<()> {
+        let inner = TestWrite::new_stable();
+        let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+        writer.write(Buffer::from("local-a")).await?;
+        writer
+            .copy_from("source", OpRead::new(), BytesRange::new(10, Some(11)))
+            .await?;
+        writer.write(Buffer::from("local-b")).await?;
+        writer
+            .copy_from("source", OpRead::new(), BytesRange::new(30, Some(13)))
+            .await?;
+        let metadata = loop {
+            match writer.close().await {
+                Ok(metadata) => break metadata,
+                Err(err) if err.is_temporary() => continue,
+                Err(err) => return Err(err),
+            }
+        };
+
+        assert_eq!(metadata.content_length(), 7 + 11 + 7 + 13);
+        assert_eq!(inner.lock().await.part_numbers, vec![0, 1, 2, 3]);
+        Ok(())
     }
 }

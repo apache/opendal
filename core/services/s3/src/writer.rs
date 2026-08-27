@@ -20,10 +20,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
+use http::Response;
 use http::StatusCode;
 
-use crate::core::S3Error;
-use crate::core::from_s3_error;
 use crate::core::parse_error;
 use crate::core::*;
 use opendal_core::raw::*;
@@ -64,6 +63,13 @@ impl S3Writer {
         }
         Ok(meta)
     }
+
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation)
+            .with_if_match(self.op.if_match().is_some())
+            .with_if_none_match(self.op.if_none_match().is_some())
+            .with_if_not_exists(self.op.if_not_exists())
+    }
 }
 
 impl oio::MultipartWrite for S3Writer {
@@ -72,7 +78,10 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.default())
+            .await?;
 
         let status = resp.status();
 
@@ -80,7 +89,17 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(self.error_context(ServiceOperation("PutObject")), resp);
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -101,7 +120,10 @@ impl oio::MultipartWrite for S3Writer {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -126,7 +148,10 @@ impl oio::MultipartWrite for S3Writer {
             checksum.clone(),
         )?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.default())
+            .await?;
 
         let status = resp.status();
 
@@ -148,7 +173,73 @@ impl oio::MultipartWrite for S3Writer {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
+        }
+    }
+
+    async fn copy_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> Result<oio::MultipartPart> {
+        let size = range
+            .size()
+            .expect("multipart writer copy range must be bounded");
+        let part_number = part_number + 1;
+        let error_context = ErrorContext::new(ServiceOperation("UploadPartCopy"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_modified_since(args.if_modified_since().is_some())
+            .with_if_unmodified_since(args.if_unmodified_since().is_some());
+        let req = self
+            .core
+            .s3_upload_part_copy_request(S3UploadPartCopyRequest {
+                from: path,
+                to: &self.path,
+                source_version: args.version(),
+                if_match: args.if_match(),
+                if_none_match: args.if_none_match(),
+                if_modified_since: args.if_modified_since(),
+                if_unmodified_since: args.if_unmodified_since(),
+                upload_id,
+                part_number,
+                range,
+                operation: Operation::Write,
+            })?;
+
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.iam())
+            .await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes();
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
+
+                // S3 may return 200 OK with an <Error> body for UploadPartCopy.
+                if result.etag.is_empty() {
+                    return Err(parse_error(
+                        error_context,
+                        Response::from_parts(parts, Buffer::from(bs)),
+                    ));
+                }
+
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag: result.etag,
+                    checksum: None,
+                    size: Some(size),
+                })
+            }
+            _ => Err(parse_error(error_context, resp)),
         }
     }
 
@@ -194,25 +285,42 @@ impl oio::MultipartWrite for S3Writer {
                 // still check if there is any error because S3 might return error for status code 200
                 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Example_4
                 let (parts, body) = resp.into_parts();
+                let bs = body.to_bytes();
 
                 let ret: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(body.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
                 if !ret.code.is_empty() {
-                    return Err(from_s3_error(
-                        S3Error {
-                            code: ret.code,
-                            message: ret.message,
-                            resource: "".to_string(),
-                            request_id: ret.request_id,
-                        },
-                        parts,
-                    ));
+                    let err = parse_error(
+                        self.error_context(ServiceOperation("CompleteMultipartUpload")),
+                        Response::from_parts(parts, Buffer::from(bs)),
+                    );
+                    return if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                        Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "write precondition requires a live target",
+                        ))
+                    } else {
+                        Err(err)
+                    };
                 }
                 meta.set_etag(&ret.etag);
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => {
+                let err = parse_error(
+                    self.error_context(ServiceOperation("CompleteMultipartUpload")),
+                    resp,
+                );
+                if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 
@@ -224,7 +332,10 @@ impl oio::MultipartWrite for S3Writer {
         match resp.status() {
             // s3 returns code 204 if abort succeeds.
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }
@@ -241,16 +352,27 @@ impl oio::AppendWrite for S3Writer {
         match status {
             StatusCode::OK => Ok(parse_content_length(resp.headers())?.unwrap_or_default()),
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        let error_ctx = if offset == 0 {
+            self.error_context(ServiceOperation("PutObject"))
+        } else {
+            ErrorContext::new(ServiceOperation("PutObject"))
+        };
         let req = self
             .core
             .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        let resp = self.core.send(&self.ctx, req).await?;
+        let resp = self
+            .core
+            .send(&self.ctx, req, self.core.signers.default())
+            .await?;
 
         let status = resp.status();
 
@@ -258,7 +380,7 @@ impl oio::AppendWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
 }

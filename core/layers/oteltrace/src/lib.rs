@@ -180,6 +180,20 @@ impl Service for OtelTraceService {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("restore");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
+        let cx = TraceContext::current_with_span(span);
+        self.inner.restore(ctx, path, args).with_context(cx).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("stat");
@@ -263,6 +277,13 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).with_context(self.cx.clone()).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .with_context(self.cx.clone())
+            .await
     }
 
     async fn abort(&mut self) -> Result<()> {

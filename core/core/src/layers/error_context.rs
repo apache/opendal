@@ -154,6 +154,19 @@ impl Service for ErrorContextService {
         })
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await.map_err(|err| {
+            err.with_operation(Operation::Restore)
+                .with_context("service", self.info().scheme())
+                .with_context("path", path)
+        })
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(ctx, path, args).await.map_err(|err| {
             err.with_operation(Operation::Stat)
@@ -288,6 +301,29 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
                     .with_context("service", self.scheme)
                     .with_context("path", &self.path)
                     .with_context("size", size.to_string())
+                    .with_context("written", self.processed.to_string())
+            })
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range.size().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires a bounded range",
+            )
+        })?;
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|_| {
+                self.processed += size;
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Write)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+                    .with_context("source", path)
+                    .with_context("range", range.to_string())
                     .with_context("written", self.processed.to_string())
             })
     }

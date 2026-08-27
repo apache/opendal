@@ -135,6 +135,16 @@ impl Service for AsyncBacktraceAccessor {
     }
 
     #[async_backtrace::framed]
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
+    #[async_backtrace::framed]
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(ctx, path, args).await
     }
@@ -198,6 +208,11 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).await
+    }
+
+    #[async_backtrace::framed]
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner.copy_from(path, args, range).await
     }
 
     #[async_backtrace::framed]

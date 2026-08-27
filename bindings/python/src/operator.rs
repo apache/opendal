@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
@@ -472,10 +471,9 @@ impl Operator {
         let buffer = self
             .core
             .read_options(&path, opts.into())
-            .map_err(format_pyerr)?
-            .to_vec();
+            .map_err(format_pyerr)?;
 
-        Buffer::new(buffer).into_bytes_ref(py)
+        Ok(buffer_into_py_bytes(py, buffer)?.into_any())
     }
 
     /// Write bytes to a file at the given path.
@@ -527,7 +525,7 @@ impl Operator {
     pub fn write(
         &self,
         path: PathBuf,
-        bs: Vec<u8>,
+        bs: &Bound<PyAny>,
         append: Option<bool>,
         chunk: Option<usize>,
         concurrent: Option<usize>,
@@ -541,6 +539,7 @@ impl Operator {
         user_metadata: Option<HashMap<String, String>>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        let bs = py_bytes_like_into_buffer(bs)?;
         let opts = WriteOptions {
             append,
             chunk,
@@ -709,18 +708,23 @@ impl Operator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None))]
     pub fn delete(
         &self,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        if version.is_some() || recursive.is_some() {
+        if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
                 version,
                 recursive: recursive.unwrap_or(false),
+                if_match,
+                ..Default::default()
             };
             self.core.delete_options(&path, opts).map_err(format_pyerr)
         } else {
@@ -1214,9 +1218,8 @@ impl AsyncOperator {
                 .map_err(format_pyerr)?
                 .read(range.to_range())
                 .await
-                .map_err(format_pyerr)?
-                .to_vec();
-            Python::attach(|py| Buffer::new(res).into_bytes(py))
+                .map_err(format_pyerr)?;
+            Python::attach(|py| buffer_into_py_bytes(py, res).map(Bound::unbind))
         })
     }
 
@@ -1275,7 +1278,7 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        bs: &Bound<PyBytes>,
+        bs: &Bound<PyAny>,
         append: Option<bool>,
         chunk: Option<usize>,
         concurrent: Option<usize>,
@@ -1302,7 +1305,7 @@ impl AsyncOperator {
             user_metadata,
         };
         let this = self.core.clone();
-        let bs = bs.as_bytes().to_vec();
+        let bs = py_bytes_like_into_buffer(bs)?;
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
             this.write_options(&path, bs, opts.into())
@@ -1530,21 +1533,26 @@ impl AsyncOperator {
     /// recursive : bool, optional
     ///     If True, delete the path recursively.
     ///     Only supported on backends that support recursive delete.
-    #[pyo3(signature = (path, *, version=None, recursive=None) -> "collections.abc.Awaitable[None]")]
+    /// if_match : str, optional
+    ///     If set, only delete when the existing object's ETag matches.
+    #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None) -> "collections.abc.Awaitable[None]")]
     pub fn delete<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
+        if_match: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            if version.is_some() || recursive.is_some() {
+            if version.is_some() || recursive.is_some() || if_match.is_some() {
                 let opts = ocore::options::DeleteOptions {
                     version,
                     recursive: recursive.unwrap_or(false),
+                    if_match,
+                    ..Default::default()
                 };
                 this.delete_options(&path, opts).await.map_err(format_pyerr)
             } else {

@@ -37,4 +37,4 @@ http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

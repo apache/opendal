@@ -413,6 +413,18 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         result
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.log_start(Operation::Restore, &[("path", path)]);
+        let result = self.inner.restore(ctx, path, args).await;
+        self.log_finish(Operation::Restore, &[("path", path)], result.as_ref().err());
+        result
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.log_start(Operation::List, &[("path", path)]);
         self.inner
@@ -628,6 +640,34 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
                     Operation::Write,
                     &[
                         ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        match self.inner.copy_from(path, args, range).await {
+            Ok(()) => {
+                self.written += size;
+                Ok(())
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Write,
+                    &[
+                        ("path", &self.path),
+                        ("source", path),
                         ("written", &self.written.to_string()),
                         ("size", &size.to_string()),
                     ],

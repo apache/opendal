@@ -17,12 +17,38 @@ policy.
 - Do not publish an Issue, Pull Request, Discussion, or review comment unless a
   human has meaningfully reviewed the content and explicitly asked you to submit
   it.
-- Treat source-code findings as hypotheses until they are reproduced. Reproduce
-  service-specific bugs against the actual service.
+- Do not implement or submit a service-specific change based only on source-code
+  analysis, a mock or emulator, a synthetic malformed response, or another
+  service's implementation. Reproduce the problem against the actual service
+  first.
+- If actual-service reproduction is unavailable, stop before changing code or
+  opening a Pull Request. Raise the hypothesis in a Discussion unless a
+  maintainer has explicitly accepted it as a hardening or maintenance goal.
+- A test against a fabricated response can verify implementation behavior, but
+  it does not establish that the change solves a real-world problem.
 - In a Pull Request, briefly disclose AI's material role and any assumptions or
   unknowns that affect review. Do not repeat routine validation output.
 
 The human contributor remains responsible for every submitted claim and change.
+
+## Helper Functions
+
+- Extract a helper only when it owns a stable, cohesive responsibility, such as
+  a non-trivial invariant or algorithm, shared protocol encoding with identical
+  semantics, a state-machine transition, or a trait or interface boundary.
+- Do not introduce an intermediate type or helper merely to deduplicate a short
+  condition, merge, forwarding step, request parameter, or error mapping.
+  Prefer a few duplicated lines when they keep each operation easier to read
+  and maintain in isolation.
+- Keep operation-specific validation, lowering, request construction, and
+  response handling at the dispatch, request-builder, or response-processing
+  boundary that owns the behavior. A reader should be able to see how one
+  operation maps its options without following a chain of generic helpers.
+- Before sharing code, verify that the call sites have the same contract,
+  inputs, failure semantics, and reasons to change. Similar syntax alone does
+  not justify an abstraction.
+- Reuse an existing helper only when it already expresses the same contract. Do
+  not broaden it with operation-specific branches merely to obtain reuse.
 
 ## Documentation Style
 
@@ -160,7 +186,6 @@ When adding or changing a public optional layer:
 - Use `opendal_core::raw::Access`, `Layer`, and `LayeredAccess` for internal implementations.
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.
-- Prefer existing helpers in `opendal-core` before adding service-local utilities.
 
 ## Security
 

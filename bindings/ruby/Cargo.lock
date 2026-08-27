@@ -538,7 +538,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1290,6 +1290,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mea"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c709842c4ce65cb91e2666ad5319dfc1efc3af0d34f02075eddca9000d9f8afb"
+dependencies = [
+ "hashbrown 0.17.1",
+ "slab",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1992,7 +2002,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2196,9 +2206,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-aws-core"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d63b56638bb3cc7bd376a7cdce1ba3089777a08f47e4097888f2d784cc3f46c"
+checksum = "bac4749b7dfa7bfaccd01eb03e9dc795ed37e3f20d6f0f38e2c67ee85ad6bc86"
 dependencies = [
  "bytes",
  "form_urlencoded",
@@ -2217,9 +2227,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-aws-v4"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a0c499f4ed12d04c3d4c78fe4cb01aee22c9dae22848c14db2c6313d9df9f43"
+checksum = "ff250f0fd0b913fbd565e405acc553da0f13bde30bfb5403178c9d0313cdc15f"
 dependencies = [
  "bytes",
  "http",
@@ -2253,9 +2263,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-core"
-version = "3.3.0"
+version = "3.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4ac1510872d9481205975d264deb39c109797e5068cc882ed9064270eaae5fa"
+checksum = "ff052daffb0599681c50f85c59e7236438976efe991ab864edd9f3b235501a0f"
 dependencies = [
  "anyhow",
  "base64 0.23.0",
@@ -2266,6 +2276,7 @@ dependencies = [
  "http",
  "jiff",
  "log",
+ "mea",
  "percent-encoding",
  "rsa",
  "serde",
@@ -2277,9 +2288,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-file-read-tokio"
-version = "3.0.5"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95c3371bfc7e5c7f9627a04133af3583fd6c28715e7c83f79db38f3b384f535f"
+checksum = "b3235df90a6bca681aa47dd86f2393d122a6d77042aa8a7c81e218cd45c5bfc0"
 dependencies = [
  "anyhow",
  "reqsign-core",
@@ -2440,7 +2451,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2497,7 +2508,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3240,7 +3251,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

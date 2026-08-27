@@ -22,10 +22,13 @@ use sha2::{Digest, Sha512};
 use std::io::BufReader;
 use std::io::Read;
 
+mod bump;
 mod package;
 
 pub fn update_version() -> anyhow::Result<()> {
     let packages = package::all_packages();
+    bump::validate_release_versions(&packages)?;
+
     let mut updated = false;
     for package in packages {
         updated |= package::update_package_version(&package);

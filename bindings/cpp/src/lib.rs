@@ -462,6 +462,7 @@ fn stat_options(opts: ffi::FfiStatOptions) -> Result<od::options::StatOptions> {
         override_content_type: optional_string(opts.override_content_type),
         override_cache_control: optional_string(opts.override_cache_control),
         override_content_disposition: optional_string(opts.override_content_disposition),
+        ..Default::default()
     })
 }
 
@@ -480,6 +481,7 @@ fn read_options(opts: ffi::FfiReadOptions) -> Result<od::options::ReadOptions> {
         override_content_type: optional_string(opts.override_content_type),
         override_cache_control: optional_string(opts.override_cache_control),
         override_content_disposition: optional_string(opts.override_content_disposition),
+        ..Default::default()
     })
 }
 
@@ -495,6 +497,7 @@ fn reader_options(opts: ffi::FfiReaderOptions) -> Result<od::options::ReaderOpti
         chunk: optional_usize(opts.chunk),
         gap: optional_usize(opts.gap),
         prefetch: opts.prefetch,
+        ..Default::default()
     })
 }
 
@@ -511,6 +514,7 @@ fn write_options(opts: ffi::FfiWriteOptions) -> od::options::WriteOptions {
         if_not_exists: opts.if_not_exists,
         concurrent: opts.concurrent,
         chunk: optional_usize(opts.chunk),
+        ..Default::default()
     }
 }
 
@@ -522,6 +526,7 @@ fn copy_options(opts: ffi::FfiCopyOptions) -> od::options::CopyOptions {
         source_content_length_hint: optional_u64(opts.source_content_length_hint),
         concurrent: opts.concurrent,
         chunk: optional_usize(opts.chunk),
+        ..Default::default()
     }
 }
 
@@ -535,6 +540,8 @@ fn delete_options(opts: ffi::FfiDeleteOptions) -> od::options::DeleteOptions {
     od::options::DeleteOptions {
         version: optional_string(opts.version),
         recursive: opts.recursive,
+        if_match: None,
+        ..Default::default()
     }
 }
 

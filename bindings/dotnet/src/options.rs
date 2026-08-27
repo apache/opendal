@@ -181,6 +181,7 @@ pub fn parse_stat_options(
         override_content_type: parse_string(values, "override_content_type"),
         override_cache_control: parse_string(values, "override_cache_control"),
         override_content_disposition: parse_string(values, "override_content_disposition"),
+        ..Default::default()
     })
 }
 
@@ -217,5 +218,7 @@ pub fn parse_delete_options(
     Ok(opendal::options::DeleteOptions {
         version: parse_string(values, "version"),
         recursive: parse_bool(values, "recursive")?.unwrap_or(false),
+        if_match: parse_string(values, "if_match"),
+        ..Default::default()
     })
 }

@@ -101,6 +101,18 @@ impl<F: Future<Output = Result<Metadata>>> FutureStat<F> {
         self
     }
 
+    /// Refer to [`options::StatOptions::if_version_match`] for more details.
+    pub fn if_version_match(mut self, v: &str) -> Self {
+        self.args.if_version_match = Some(v.to_string());
+        self
+    }
+
+    /// Refer to [`options::StatOptions::if_version_not_match`] for more details.
+    pub fn if_version_not_match(mut self, v: &str) -> Self {
+        self.args.if_version_not_match = Some(v.to_string());
+        self
+    }
+
     /// Set the If-Modified-Since for this operation.
     ///
     /// Refer to [`options::StatOptions::if_modified_since`] for more details.
@@ -378,6 +390,18 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
         self
     }
 
+    /// Set the current object version that this read must match.
+    pub fn if_version_match(mut self, v: &str) -> Self {
+        self.args.if_version_match = Some(v.to_string());
+        self
+    }
+
+    /// Set the current object version that this read must not match.
+    pub fn if_version_not_match(mut self, v: &str) -> Self {
+        self.args.if_version_not_match = Some(v.to_string());
+        self
+    }
+
     /// ## `if_modified_since`
     ///
     /// Set `if_modified_since` for this `read` request.
@@ -577,6 +601,18 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// ```
     pub fn if_none_match(mut self, etag: &str) -> Self {
         self.args.if_none_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set the current object version that this reader must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current object version that this reader must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.if_version_not_match = Some(version.to_string());
         self
     }
 
@@ -869,6 +905,24 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ```
     pub fn if_none_match(mut self, s: &str) -> Self {
         self.args.0.if_none_match = Some(s.to_string());
+        self
+    }
+
+    /// Set the current object version that this write must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current object version that this write must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Write only when the object still matches `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.0.if_not_changed = Some(metadata.clone());
         self
     }
 
@@ -1209,6 +1263,24 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
+    /// Set the current object version that this writer must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current object version that this writer must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Write only when the object still matches `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.if_not_changed = Some(metadata.clone());
+        self
+    }
+
     /// Sets the condition that write operation will succeed only if target does not exist.
     ///
     /// Refer to [`options::WriteOptions::if_not_exists`] for more details.
@@ -1282,6 +1354,36 @@ impl<F: Future<Output = Result<()>>> FutureDelete<F> {
     /// Enable recursive deletion.
     pub fn recursive(mut self, recursive: bool) -> Self {
         self.args.recursive = recursive;
+        self
+    }
+
+    /// Set `if_match` for this delete operation.
+    pub fn if_match(mut self, etag: &str) -> Self {
+        self.args.if_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set `if_none_match` for this delete operation.
+    pub fn if_none_match(mut self, etag: &str) -> Self {
+        self.args.if_none_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set the current object version that this delete must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current object version that this delete must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Delete only when the object still matches `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.if_not_changed = Some(metadata.clone());
         self
     }
 }
@@ -1451,6 +1553,30 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Set the destination ETag that this copy must not match.
+    pub fn if_none_match(mut self, etag: &str) -> Self {
+        self.args.0.if_none_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set the current destination version that this copy must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current destination version that this copy must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Copy only when the destination still matches `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.0.if_not_changed = Some(metadata.clone());
+        self
+    }
+
     /// Sets source version for this copy operation.
     ///
     /// Refer to [`options::CopyOptions::source_version`] for more details.
@@ -1504,6 +1630,30 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     /// Refer to [`options::CopyOptions::if_match`] for more details.
     pub fn if_match(mut self, etag: &str) -> Self {
         self.args.0.if_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set the destination ETag that this copier must not match.
+    pub fn if_none_match(mut self, etag: &str) -> Self {
+        self.args.0.if_none_match = Some(etag.to_string());
+        self
+    }
+
+    /// Set the current destination version that this copier must match.
+    pub fn if_version_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_match = Some(version.to_string());
+        self
+    }
+
+    /// Set the current destination version that this copier must not match.
+    pub fn if_version_not_match(mut self, version: &str) -> Self {
+        self.args.0.if_version_not_match = Some(version.to_string());
+        self
+    }
+
+    /// Copy only when the destination still matches `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.0.if_not_changed = Some(metadata.clone());
         self
     }
 
@@ -1565,6 +1715,25 @@ impl<F: Future<Output = Result<()>>> FutureRename<F> {
     /// ```
     pub fn if_not_exists(mut self, v: bool) -> Self {
         self.args.0.if_not_exists = v;
+        self
+    }
+}
+
+/// [`Operator::restore_with`] returns this future.
+///
+/// Use its methods to configure the operation before awaiting it.
+pub type FutureRestore<F> = OperatorFuture<options::RestoreOptions, (), F>;
+
+impl<F: Future<Output = Result<()>>> FutureRestore<F> {
+    /// Restore the specified historical version as the current version.
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.args.version = Some(version.into());
+        self
+    }
+
+    /// Restore the selected version only if the path does not currently exist.
+    pub fn if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.args.if_not_exists = if_not_exists;
         self
     }
 }

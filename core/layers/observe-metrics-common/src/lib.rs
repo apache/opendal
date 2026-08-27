@@ -911,6 +911,41 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         res
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let labels = MetricLabels::new(self.info.clone(), Operation::Restore.into_static());
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        let res = self
+            .inner
+            .restore(ctx, path, args)
+            .await
+            .inspect(|_| {
+                self.interceptor.observe(
+                    labels.clone(),
+                    MetricValue::OperationDurationSeconds(start.elapsed()),
+                );
+            })
+            .inspect_err(|err| {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+            });
+
+        guard.complete();
+        res
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
 
@@ -1213,6 +1248,20 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             .await
             .inspect(|_| {
                 self.size += size as u64;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|_| {
+                self.size += size;
             })
             .inspect_err(|err| self.record_error(err))
     }

@@ -21,6 +21,7 @@ use bytes::Buf;
 use quick_xml::de;
 
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::ListBlobsOutput;
 use super::core::parse_error;
 use opendal_core::raw::*;
@@ -69,7 +70,10 @@ impl oio::PageList for AzblobLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListBlobs")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();

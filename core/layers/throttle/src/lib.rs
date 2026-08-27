@@ -181,6 +181,15 @@ impl Service for ThrottleAccessor {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner.list(ctx, path, args)
     }
@@ -256,6 +265,10 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         })?;
 
         self.inner.write(bs).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner.copy_from(path, args, range).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {

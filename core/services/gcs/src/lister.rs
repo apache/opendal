@@ -81,7 +81,10 @@ impl oio::PageList for GcsLister {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
         let bytes = resp.into_body();
 
@@ -118,6 +121,9 @@ impl oio::PageList for GcsLister {
             // set metadata fields
             meta.set_content_md5(object.md5_hash.as_str());
             meta.set_etag(object.etag.as_str());
+            if !object.generation.is_empty() {
+                meta.set_version(&object.generation);
+            }
 
             let size = object.size.parse().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)

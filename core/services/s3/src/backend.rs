@@ -23,6 +23,7 @@ use std::sync::LazyLock;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -32,6 +33,8 @@ use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
+use reqsign_aws_v4::S3ExpressSessionConfig;
+use reqsign_aws_v4::S3ExpressSessionProvider;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
@@ -54,6 +57,7 @@ use crate::lister::S3ObjectVersionsLister;
 use crate::reader::*;
 use crate::writer::S3Writer;
 use crate::writer::S3Writers;
+use opendal_core::raw::oio::Copy;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -559,6 +563,87 @@ impl S3Builder {
         endpoint
     }
 
+    fn invalid_s3_express_config(message: &'static str) -> Error {
+        Error::new(ErrorKind::ConfigInvalid, message)
+            .with_operation("Builder::build")
+            .with_context("service", S3_SCHEME)
+    }
+
+    fn is_aws_host(host: &str) -> bool {
+        host == "s3.amazonaws.com"
+            || host.ends_with(".amazonaws.com")
+            || host.ends_with(".amazonaws.com.cn")
+    }
+
+    fn resolve_s3_express_config(
+        config: &S3Config,
+        region: &str,
+    ) -> Result<Option<S3ExpressSessionConfig>> {
+        if !config.bucket.ends_with("--x-s3") {
+            return Ok(None);
+        }
+
+        let endpoint = match &config.endpoint {
+            Some(endpoint) => {
+                let endpoint = if endpoint.starts_with("http") {
+                    endpoint.to_string()
+                } else {
+                    format!("https://{endpoint}")
+                };
+                let endpoint = Url::parse(&endpoint).map_err(|err| {
+                    Self::invalid_s3_express_config("invalid S3 endpoint").set_source(err)
+                })?;
+                let Some(host) = endpoint.host_str() else {
+                    return Ok(None);
+                };
+                let host = host
+                    .strip_prefix(&format!("{}.", config.bucket))
+                    .unwrap_or(host);
+                if !Self::is_aws_host(host) {
+                    return Ok(None);
+                }
+                if endpoint.scheme() != "https"
+                    || endpoint.path() != "/"
+                    || endpoint.query().is_some()
+                    || endpoint.fragment().is_some()
+                    || endpoint.port().is_some_and(|port| port != 443)
+                    || !endpoint.username().is_empty()
+                    || endpoint.password().is_some()
+                {
+                    return Err(Self::invalid_s3_express_config(
+                        "unsupported AWS endpoint for an S3 directory bucket",
+                    ));
+                }
+                Some(host.to_string())
+            }
+            None => None,
+        };
+
+        let express_config =
+            S3ExpressSessionConfig::from_bucket(&config.bucket, region).map_err(|err| {
+                Self::invalid_s3_express_config("invalid AWS S3 directory bucket configuration")
+                    .set_source(err)
+            })?;
+
+        if let Some(endpoint) = endpoint {
+            let dns_suffix = express_config.partition().dns_suffix();
+            let region = express_config.region();
+            let regional = format!("s3.{region}.{dns_suffix}");
+            let zonal = format!(
+                "s3express-{}.{region}.{dns_suffix}",
+                express_config.zone_id()
+            );
+            let global = (dns_suffix == "amazonaws.com").then_some("s3.amazonaws.com");
+            if endpoint != regional && Some(endpoint.as_str()) != global && endpoint != zonal {
+                return Err(Self::invalid_s3_express_config(
+                    "AWS endpoint does not match the S3 directory bucket",
+                ));
+            }
+        }
+
+        Ok(Some(express_config))
+    }
+
     /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -852,8 +937,14 @@ impl Builder for S3Builder {
             }
         }
 
+        let s3_express_config = Self::resolve_s3_express_config(&config, &region)?;
+        let is_s3_express = s3_express_config.is_some();
+
         // Building endpoint.
-        let endpoint = Self::build_endpoint(&config, &region);
+        let endpoint = match &s3_express_config {
+            Some(config) => config.endpoint().to_string(),
+            None => Self::build_endpoint(&config, &region),
+        };
         debug!("backend use endpoint: {endpoint}");
 
         // The base signer context only carries local config readers. HTTP
@@ -928,11 +1019,27 @@ impl Builder for S3Builder {
             provider
         };
 
-        // Create request signer for S3
-        let request_signer = AwsV4Signer::new("s3", &region);
-
-        // Create the signer
-        let signer = Signer::new(ctx, provider, request_signer);
+        let signers = if is_s3_express {
+            let provider = Arc::new(provider);
+            let iam_signer = Signer::new(
+                ctx.clone(),
+                provider.clone(),
+                AwsV4Signer::new("s3express", &region).with_standard_session_token(),
+            );
+            let session_provider =
+                S3ExpressSessionProvider::new(bucket, provider).with_region(&region);
+            let session_signer = Signer::new(
+                ctx,
+                session_provider,
+                AwsV4Signer::new("s3express", &region),
+            );
+            S3Signers::Express {
+                iam: iam_signer,
+                session: session_signer,
+            }
+        } else {
+            S3Signers::General(Signer::new(ctx, provider, AwsV4Signer::new("s3", &region)))
+        };
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -946,7 +1053,7 @@ impl Builder for S3Builder {
                     stat_with_override_cache_control: true,
                     stat_with_override_content_disposition: true,
                     stat_with_override_content_type: true,
-                    stat_with_version: true,
+                    stat_with_version: !is_s3_express,
 
                     read: true,
                     read_with_if_match: true,
@@ -956,18 +1063,19 @@ impl Builder for S3Builder {
                     read_with_override_cache_control: true,
                     read_with_override_content_disposition: true,
                     read_with_override_content_type: true,
-                    read_with_version: true,
+                    read_with_version: !is_s3_express,
                     read_with_suffix: true,
 
                     write: true,
                     write_can_empty: true,
                     write_can_multi: true,
                     write_can_append: true,
+                    write_can_copy_from: checksum_algorithm.is_none(),
 
                     write_with_cache_control: true,
                     write_with_content_type: true,
                     write_with_content_disposition: true,
-                    write_with_content_encoding: true,
+                    write_with_content_encoding: !is_s3_express,
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
@@ -995,13 +1103,14 @@ impl Builder for S3Builder {
 
                     delete: true,
                     delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
-                    delete_with_version: true,
+                    delete_with_version: !is_s3_express,
+                    delete_with_if_match: true,
 
                     copy: true,
                     copy_can_multi: true,
                     copy_with_if_not_exists: true,
                     copy_with_if_match: true,
-                    copy_with_source_version: true,
+                    copy_with_source_version: !is_s3_express,
                     // The min multipart size of S3 is 5 MiB.
                     //
                     // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1015,12 +1124,16 @@ impl Builder for S3Builder {
                         Some(usize::MAX)
                     },
 
+                    restore: !is_s3_express,
+                    restore_with_version: !is_s3_express,
+                    restore_with_if_not_exists: !is_s3_express,
+
                     list: true,
                     list_with_limit: true,
-                    list_with_start_after: true,
-                    list_with_recursive: true,
-                    list_with_versions: true,
-                    list_with_deleted: true,
+                    list_with_start_after: !is_s3_express,
+                    list_with_recursive: !is_s3_express,
+                    list_with_versions: !is_s3_express,
+                    list_with_deleted: !is_s3_express,
 
                     presign: true,
                     presign_stat: true,
@@ -1044,7 +1157,7 @@ impl Builder for S3Builder {
                 skip_signature: config.skip_signature,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
-                signer,
+                signers,
                 checksum_algorithm,
                 default_acl: config.default_acl,
             }),
@@ -1086,13 +1199,18 @@ impl Service for S3Backend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("HeadObject"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_modified_since(args.if_modified_since().is_some())
+            .with_if_unmodified_since(args.if_unmodified_since().is_some());
         let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(error_ctx, resp)),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -1201,6 +1319,88 @@ impl Service for S3Backend {
         ))
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        if let Some(version) = args.version() {
+            let copy_args = OpCopy::new()
+                .with_source_version(version)
+                .with_if_not_exists(args.if_not_exists());
+            let mut copier = new_s3_copier(
+                self.core.clone(),
+                ctx,
+                path,
+                path,
+                copy_args,
+                OpCopier::default(),
+            )?;
+
+            return match copier.close().await {
+                Ok(_) => Ok(RpRestore::new()),
+                Err(err) => {
+                    let _ = copier.abort().await;
+                    Err(err)
+                }
+            };
+        }
+
+        if args.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            ));
+        }
+
+        let resp = self
+            .core
+            .s3_list_object_versions(ctx, path, "", Some(1), "", "")
+            .await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
+        }
+
+        let output: ListObjectVersionsOutput =
+            quick_xml::de::from_reader(resp.into_body().reader())
+                .map_err(new_xml_deserialize_error)
+                .map_err(Error::set_temporary)?;
+        let abs_path = build_abs_path(&self.core.root, path);
+
+        if output
+            .version
+            .iter()
+            .any(|version| version.key == abs_path && version.is_latest)
+        {
+            return Ok(RpRestore::new());
+        }
+
+        let Some(marker) = output
+            .delete_marker
+            .into_iter()
+            .find(|marker| marker.key == abs_path && marker.is_latest)
+        else {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no live object or current delete marker exists",
+            ));
+        };
+
+        let delete_args = OpDelete::new().with_version(&marker.version_id);
+        let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
+        match resp.status() {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpRestore::new()),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
+        }
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,
@@ -1238,12 +1438,472 @@ impl Service for S3Backend {
 }
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use http::HeaderMap;
+    use http::Method;
+    use http::Request;
+    use http::Response;
+
     use super::*;
+
+    #[derive(Clone, Copy)]
+    enum CreateSessionOutcome {
+        Success,
+        Body(&'static str),
+        Status(StatusCode),
+        TemporaryTransportError,
+    }
+
+    #[derive(Clone)]
+    struct CapturedRequest {
+        method: Method,
+        uri: http::Uri,
+        headers: HeaderMap,
+    }
+
+    #[derive(Clone)]
+    struct S3ExpressMockTransport {
+        outcome: CreateSessionOutcome,
+        requests: Arc<Mutex<Vec<CapturedRequest>>>,
+    }
+
+    impl S3ExpressMockTransport {
+        fn new(outcome: CreateSessionOutcome) -> Self {
+            Self {
+                outcome,
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn requests(&self) -> Vec<CapturedRequest> {
+            self.requests.lock().expect("lock poisoned").clone()
+        }
+
+        fn response(status: StatusCode, body: impl Into<Bytes>) -> Response<HttpBody> {
+            let body = Buffer::from(body.into());
+            let size = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(body)]),
+                    Some(size),
+                ))
+                .expect("mock response must build")
+        }
+    }
+
+    impl HttpTransport for S3ExpressMockTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let is_create_session = req.uri().query() == Some("session");
+            self.requests
+                .lock()
+                .expect("lock poisoned")
+                .push(CapturedRequest {
+                    method: req.method().clone(),
+                    uri: req.uri().clone(),
+                    headers: req.headers().clone(),
+                });
+
+            if is_create_session {
+                tokio::task::yield_now().await;
+                return match self.outcome {
+                    CreateSessionOutcome::Success => Ok(Self::response(
+                        StatusCode::OK,
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                         <CreateSessionResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\
+                         <Credentials>\
+                         <SessionToken>session-token</SessionToken>\
+                         <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                         <AccessKeyId>session-access-key</AccessKeyId>\
+                         <Expiration>2099-01-01T00:05:00Z</Expiration>\
+                         </Credentials>\
+                         </CreateSessionResult>",
+                    )),
+                    CreateSessionOutcome::Body(body) => Ok(Self::response(StatusCode::OK, body)),
+                    CreateSessionOutcome::Status(status) => {
+                        Ok(Self::response(status, Bytes::new()))
+                    }
+                    CreateSessionOutcome::TemporaryTransportError => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "temporary mock transport failure",
+                    )
+                    .set_temporary()),
+                };
+            }
+
+            let query = req.uri().query().unwrap_or_default();
+            if req.headers().contains_key(constants::X_AMZ_COPY_SOURCE) {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<CopyObjectResult><ETag>\"etag\"</ETag>\
+                     <LastModified>2026-08-24T00:00:00Z</LastModified></CopyObjectResult>",
+                ));
+            }
+            if query == "uploads" {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<InitiateMultipartUploadResult><UploadId>upload-id</UploadId>\
+                     </InitiateMultipartUploadResult>",
+                ));
+            }
+            if query.contains("list-type=2") {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>",
+                ));
+            }
+            if req.method() == Method::POST && query.contains("uploadId=") {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<CompleteMultipartUploadResult><Bucket>example</Bucket><Key>target</Key>\
+                     <Location>https://example.invalid/target</Location><ETag>\"etag\"</ETag>\
+                     </CompleteMultipartUploadResult>",
+                ));
+            }
+
+            Ok(Self::response(StatusCode::OK, Bytes::new()))
+        }
+    }
+
+    fn s3_express_operator(transport: S3ExpressMockTransport) -> Operator {
+        Operator::new(
+            S3Builder::default()
+                .bucket("example--usw2-az1--x-s3")
+                .region("us-west-2")
+                .access_key_id("source-access-key")
+                .secret_access_key("source-secret-key")
+                .session_token("source-session-token")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 Express operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    fn s3_general_operator(transport: S3ExpressMockTransport) -> Operator {
+        Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("source-access-key")
+                .secret_access_key("source-secret-key")
+                .session_token("source-session-token")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    fn header<'a>(request: &'a CapturedRequest, name: &str) -> &'a str {
+        request
+            .headers
+            .get(name)
+            .unwrap_or_else(|| panic!("missing {name} header"))
+            .to_str()
+            .expect("header must be text")
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_signing_chain_and_session_reuse() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let (first, second) = tokio::join!(
+            op.write("first", "first-body"),
+            op.write("second", "second-body")
+        );
+        first.expect("first write must succeed");
+        second.expect("second write must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(
+            requests[0].uri.query(),
+            Some("session"),
+            "CreateSession must complete before object requests are signed"
+        );
+        let create_sessions = requests
+            .iter()
+            .filter(|request| request.uri.query() == Some("session"))
+            .collect::<Vec<_>>();
+        assert_eq!(create_sessions.len(), 1, "session must be reused");
+
+        let create_session = create_sessions[0];
+        assert_eq!(create_session.method, Method::GET);
+        assert_eq!(
+            header(create_session, "x-amz-create-session-mode"),
+            "ReadWrite"
+        );
+        assert_eq!(
+            header(create_session, "x-amz-security-token"),
+            "source-session-token"
+        );
+        assert!(!create_session.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(create_session, "authorization").contains("source-access-key/"));
+
+        let puts = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect::<Vec<_>>();
+        assert_eq!(puts.len(), 2);
+        for request in puts {
+            assert_eq!(header(request, "x-amz-s3session-token"), "session-token");
+            assert!(!request.headers.contains_key("x-amz-security-token"));
+            assert!(header(request, "authorization").contains("session-access-key/"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_list_uses_session_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let entries = op.list("").await.expect("list must succeed");
+        assert!(entries.is_empty());
+
+        let requests = transport.requests();
+        let list = requests
+            .iter()
+            .find(|request| {
+                request
+                    .uri
+                    .query()
+                    .is_some_and(|query| query.contains("list-type=2"))
+            })
+            .expect("ListObjectsV2 request must be captured");
+        assert_eq!(header(list, "x-amz-s3session-token"), "session-token");
+        assert!(!list.headers.contains_key("x-amz-security-token"));
+        assert!(header(list, "authorization").contains("session-access-key/"));
+    }
+
+    #[tokio::test]
+    async fn test_s3_general_bucket_always_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.write("source", "body")
+            .await
+            .expect("write must succeed");
+        op.copy_with("source", "target")
+            .source_content_length_hint(1)
+            .await
+            .expect("copy must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        for request in requests {
+            assert_eq!(
+                header(&request, "x-amz-security-token"),
+                "source-session-token"
+            );
+            assert!(!request.headers.contains_key("x-amz-s3session-token"));
+            assert!(header(&request, "authorization").contains("source-access-key/"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_copy_and_presign_use_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .source_content_length_hint(1)
+            .await
+            .expect("copy must succeed");
+        let requests = transport.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            0,
+            "CopyObject must not create an S3 Express session"
+        );
+        let copy = requests
+            .iter()
+            .find(|request| request.headers.contains_key(constants::X_AMZ_COPY_SOURCE))
+            .expect("CopyObject request must be captured");
+        assert_eq!(header(copy, "x-amz-security-token"), "source-session-token");
+        assert!(!copy.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(copy, "authorization").contains("source-access-key/"));
+
+        let presigned = op
+            .presign_read("source", Duration::from_secs(60))
+            .await
+            .expect("presign must succeed");
+        let query = presigned.uri().query().expect("presign query must exist");
+        assert!(query.contains("X-Amz-Credential=source-access-key%2F"));
+        assert!(query.contains("X-Amz-Security-Token=source-session-token"));
+        assert!(!query.contains("session-access-key"));
+        assert!(!query.contains("x-amz-s3session-token"));
+        assert_eq!(transport.requests().len(), requests.len());
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .chunk(5 * 1024 * 1024)
+            .source_content_length_hint(5 * 1024 * 1024 + 1)
+            .await
+            .expect("multipart copy must succeed");
+
+        let requests = transport.requests();
+        let part_copies = requests
+            .iter()
+            .filter(|request| {
+                request.headers.contains_key(constants::X_AMZ_COPY_SOURCE)
+                    && request
+                        .uri
+                        .query()
+                        .is_some_and(|query| query.contains("partNumber="))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(part_copies.len(), 2);
+        for request in part_copies {
+            assert_eq!(
+                header(request, "x-amz-security-token"),
+                "source-session-token"
+            );
+            assert!(!request.headers.contains_key("x-amz-s3session-token"));
+            assert!(header(request, "authorization").contains("source-access-key/"));
+        }
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            1,
+            "session operations in multipart copy must share one session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_writer_copy_from_uses_iam_credentials() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op.writer("target").await.expect("writer must open");
+        writer
+            .copy_from("source", 0..5 * 1024 * 1024_u64)
+            .await
+            .expect("writer copy must succeed");
+        writer.close().await.expect("writer must close");
+
+        let requests = transport.requests();
+        let part_copy = requests
+            .iter()
+            .find(|request| {
+                request.headers.contains_key(constants::X_AMZ_COPY_SOURCE)
+                    && request
+                        .uri
+                        .query()
+                        .is_some_and(|query| query.contains("partNumber="))
+            })
+            .expect("UploadPartCopy request must be captured");
+        assert_eq!(
+            header(part_copy, "x-amz-security-token"),
+            "source-session-token"
+        );
+        assert!(!part_copy.headers.contains_key("x-amz-s3session-token"));
+        assert!(header(part_copy, "authorization").contains("source-access-key/"));
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.uri.query() == Some("session"))
+                .count(),
+            1,
+            "writer multipart operations must share one session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_create_session_error_mapping() {
+        for (outcome, kind, temporary) in [
+            (
+                CreateSessionOutcome::Status(StatusCode::FORBIDDEN),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                CreateSessionOutcome::Status(StatusCode::TOO_MANY_REQUESTS),
+                ErrorKind::RateLimited,
+                true,
+            ),
+            (
+                CreateSessionOutcome::Status(StatusCode::INTERNAL_SERVER_ERROR),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                CreateSessionOutcome::TemporaryTransportError,
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                CreateSessionOutcome::Body(
+                    "<CreateSessionResult><Credentials>\
+                     <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                     <AccessKeyId>session-access-key</AccessKeyId>\
+                     <Expiration>2099-01-01T00:05:00Z</Expiration>\
+                     </Credentials></CreateSessionResult>",
+                ),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                CreateSessionOutcome::Body(
+                    "<CreateSessionResult><Credentials>\
+                     <SessionToken>session-token</SessionToken>\
+                     <SecretAccessKey>session-secret-key</SecretAccessKey>\
+                     <AccessKeyId>session-access-key</AccessKeyId>\
+                     <Expiration>2020-01-01T00:05:00Z</Expiration>\
+                     </Credentials></CreateSessionResult>",
+                ),
+                ErrorKind::Unexpected,
+                false,
+            ),
+        ] {
+            let transport = S3ExpressMockTransport::new(outcome);
+            let op = s3_express_operator(transport);
+            let err = op
+                .write("test", "body")
+                .await
+                .expect_err("CreateSession failure must reach the caller");
+            assert_eq!(err.kind(), kind);
+            assert_eq!(err.is_temporary(), temporary);
+        }
+    }
 
     #[test]
     fn test_profile() {
         let builder = S3Builder::default().profile("selected");
         assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
+
+    #[test]
+    fn test_write_can_copy_from_capability() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .endpoint("http://127.0.0.1:9000")
+            .build()
+            .unwrap();
+        assert!(backend.capability().write_can_copy_from);
+
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .endpoint("http://127.0.0.1:9000")
+            .checksum_algorithm("crc32c")
+            .build()
+            .unwrap();
+        assert!(!backend.capability().write_can_copy_from);
     }
 
     #[test]
@@ -1296,6 +1956,98 @@ mod tests {
 
             let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
+        }
+    }
+
+    #[test]
+    fn test_resolve_s3_express_config() {
+        let directory_bucket = "example--usw2-az1--x-s3";
+
+        for endpoint in [
+            None,
+            Some("s3.amazonaws.com"),
+            Some("https://s3.us-west-2.amazonaws.com"),
+            Some("https://s3.us-west-2.amazonaws.com:443"),
+            Some("https://example--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com"),
+        ] {
+            let mut builder = S3Builder::default().bucket(directory_bucket);
+            if let Some(endpoint) = endpoint {
+                builder = builder.endpoint(endpoint);
+            }
+
+            let config = S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect("valid directory bucket must resolve")
+                .expect("AWS directory bucket must enable session authentication");
+            assert_eq!(
+                config.endpoint(),
+                "https://example--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com"
+            );
+        }
+    }
+
+    #[test]
+    fn test_s3_express_classification_does_not_change_compatible_services() {
+        let builder = S3Builder::default()
+            .bucket("example--usw2-az1--x-s3")
+            .endpoint("https://s3.example.com");
+
+        assert!(
+            S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect("custom endpoint classification must succeed")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_s3_express_capabilities() {
+        let backend = S3Builder::default()
+            .bucket("example--usw2-az1--x-s3")
+            .region("us-west-2")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("S3 Express backend must build");
+        let capability = backend.capability();
+
+        assert!(!capability.stat_with_version);
+        assert!(!capability.read_with_version);
+        assert!(!capability.write_with_content_encoding);
+        assert!(!capability.delete_with_version);
+        assert!(!capability.copy_with_source_version);
+        assert!(!capability.restore);
+        assert!(!capability.restore_with_version);
+        assert!(!capability.restore_with_if_not_exists);
+        assert!(!capability.list_with_start_after);
+        assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_versions);
+        assert!(!capability.list_with_deleted);
+    }
+
+    #[test]
+    fn test_invalid_aws_directory_bucket_configuration_is_rejected() {
+        let builder = S3Builder::default().bucket("example--usw2-az1--x-s3");
+
+        let err = S3Builder::resolve_s3_express_config(&builder.config, "us-east-1")
+            .expect_err("zone and region mismatch must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn test_unsupported_aws_directory_bucket_endpoints_are_rejected() {
+        for endpoint in [
+            "https://s3.dualstack.us-west-2.amazonaws.com",
+            "https://example--usw2-az1--x-s3.s3express-usw2-az1.dualstack.us-west-2.amazonaws.com",
+            "https://example--usw2-az1--x-s3.s3express-use1-az1.us-west-2.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com/path",
+            "https://s3.us-west-2.amazonaws.com.cn",
+        ] {
+            let builder = S3Builder::default()
+                .bucket("example--usw2-az1--x-s3")
+                .endpoint(endpoint);
+
+            let err = S3Builder::resolve_s3_express_config(&builder.config, "us-west-2")
+                .expect_err("unsupported AWS directory bucket endpoint must be rejected");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "endpoint: {endpoint}");
         }
     }
 

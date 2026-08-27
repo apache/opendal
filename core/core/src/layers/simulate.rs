@@ -171,11 +171,13 @@ impl SimulateService {
                 return Ok(RpStat::new(meta));
             }
 
-            if self.config.stat_dir && capability.list_with_recursive {
+            if self.config.stat_dir && capability.list {
                 let mut l = self.srv.list(
                     ctx,
                     path,
-                    OpList::default().with_recursive(true).with_limit(1),
+                    OpList::default()
+                        .with_recursive(capability.list_with_recursive)
+                        .with_limit(1),
                 )?;
 
                 return if l.next().await?.is_some() {
@@ -341,6 +343,15 @@ impl Service for SimulateService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.srv.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.srv.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -625,10 +636,25 @@ mod tests {
         capability: Capability,
     }
 
+    struct MockLister(bool);
+
+    impl oio::List for MockLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            if self.0 {
+                return Ok(None);
+            }
+            self.0 = true;
+            Ok(Some(oio::Entry::new(
+                "parent/file",
+                Metadata::new(EntryMode::FILE),
+            )))
+        }
+    }
+
     impl Service for MockService {
         type Reader = ();
         type Writer = ();
-        type Lister = ();
+        type Lister = MockLister;
         type Deleter = ();
         type Copier = ();
 
@@ -681,10 +707,10 @@ mod tests {
         }
 
         fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))
+            if self.capability.list {
+                return Ok(MockLister(false));
+            }
+            Err(Error::new(ErrorKind::Unsupported, "list is not supported"))
         }
 
         fn copy(
@@ -772,6 +798,26 @@ mod tests {
             .apply_service(srv);
 
         assert!(!srv.capability().read_with_suffix);
+    }
+
+    #[tokio::test]
+    async fn simulate_stat_dir_without_recursive_list() -> Result<()> {
+        let capability = Capability {
+            stat: true,
+            list: true,
+            list_with_recursive: false,
+            ..Default::default()
+        };
+        let srv = Arc::new(MockService { capability }) as Servicer;
+        let srv = SimulateLayer::default().apply_service(srv);
+
+        let metadata = srv
+            .stat(&OperationContext::new(), "parent/", OpStat::default())
+            .await?
+            .into_metadata();
+
+        assert_eq!(metadata.mode(), EntryMode::DIR);
+        Ok(())
     }
 
     #[tokio::test]

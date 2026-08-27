@@ -52,21 +52,16 @@ const (
 	CodeRateLimited
 	// The given file paths are same.
 	CodeIsSameFile
-	// The condition of this operation is not match.
-	//
-	// The `condition` itself is context based.
-	//
-	// For example, in S3, the `condition` can be:
-	// 1. writing a file with If-Match header but the file's ETag is not match (will get a 412 Precondition Failed).
-	// 2. reading a file with If-None-Match header but the file's ETag is match (will get a 304 Not Modified).
-	//
-	// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
-	// So users could to handle this error by themselves.
+	// A condition supplied through the OpenDAL operation evaluated to false.
 	CodeConditionNotMatch
 	// The range of the content is not satisfied.
 	//
 	// OpenDAL returns this error to indicate that the range of the read request is not satisfied.
 	CodeRangeNotSatisfied
+	// The operation conflicts with the current or transitional state of the resource.
+	//
+	// This error code does not indicate whether retrying the same operation is safe.
+	CodeConflict
 )
 
 func parseError(ctx context.Context, err *opendalError) error {

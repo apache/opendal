@@ -24,6 +24,7 @@ use bytes::Bytes;
 use constants::*;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -38,11 +39,13 @@ use reqsign_core::{Context, Signer};
 use reqsign_google::Credential;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::de;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub mod constants {
+    pub const X_GOOG_GENERATION: &str = "x-goog-generation";
     pub const GCS_REWRITE_MIN_CHUNK_SIZE: usize = 1024 * 1024;
     #[cfg(target_pointer_width = "64")]
     pub const GCS_REWRITE_MAX_CHUNK_SIZE: usize =
@@ -162,11 +165,20 @@ impl GcsCore {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/storage/v1/b/{}/o/{}?alt=media",
+            "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             gcs_percent_encode_path(&p)
         );
+
+        let mut url = QueryPairsWriter::new(&url).push("alt", "media");
+        if let Some(version) = args.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        }
+        if let Some(version) = args.if_version_not_match() {
+            url = url.push("ifGenerationNotMatch", &gcs_percent_encode_path(version));
+        }
+        let url = url.finish();
 
         let mut req = Request::get(&url);
 
@@ -207,6 +219,9 @@ impl GcsCore {
         }
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(version) = args.if_version_match() {
+            req = req.header("x-goog-if-generation-match", version);
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
@@ -275,11 +290,23 @@ impl GcsCore {
             write!(&mut url, "&predefinedAcl={acl}").unwrap();
         }
 
-        // Makes the operation conditional on whether the object's current generation
-        // matches the given value. Setting to 0 makes the operation succeed only if
-        // there are no live versions of the object.
-        if op.if_not_exists() {
+        if let Some(version) = op.if_version_match() {
+            write!(
+                &mut url,
+                "&ifGenerationMatch={}",
+                gcs_percent_encode_path(version)
+            )
+            .unwrap();
+        } else if op.if_not_exists() {
             write!(&mut url, "&ifGenerationMatch=0").unwrap();
+        }
+        if let Some(version) = op.if_version_not_match() {
+            write!(
+                &mut url,
+                "&ifGenerationNotMatch={}",
+                gcs_percent_encode_path(version)
+            )
+            .unwrap();
         }
 
         let mut req = Request::post(&url);
@@ -329,6 +356,105 @@ impl GcsCore {
         }
     }
 
+    pub fn gcs_initiate_resumable_upload_request(
+        &self,
+        path: &str,
+        op: &OpWrite,
+    ) -> Result<Request<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+        let base = format!("{}/upload/storage/v1/b/{}/o", self.endpoint, self.bucket);
+        let mut url = QueryPairsWriter::new(&base)
+            .push("uploadType", "resumable")
+            .push("name", &gcs_percent_encode_path(&p));
+
+        if let Some(acl) = &self.predefined_acl {
+            url = url.push("predefinedAcl", acl);
+        }
+        if let Some(version) = op.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        } else if op.if_not_exists() {
+            url = url.push("ifGenerationMatch", "0");
+        }
+        if let Some(version) = op.if_version_not_match() {
+            url = url.push("ifGenerationNotMatch", &gcs_percent_encode_path(version));
+        }
+
+        let metadata = InsertRequestMetadata {
+            storage_class: self.default_storage_class.as_deref(),
+            cache_control: op.cache_control(),
+            content_type: op.content_type(),
+            content_encoding: op.content_encoding(),
+            metadata: op.user_metadata(),
+        };
+        let body = serde_json::to_vec(&metadata).map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(url.finish())
+            .header(CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(CONTENT_LENGTH, body.len());
+        if let Some(content_type) = op.content_type() {
+            req = req.header("x-upload-content-type", content_type);
+        }
+
+        req.extension(Operation::Write)
+            .extension(ServiceOperation("InitiateResumableUpload"))
+            .body(Buffer::from(Bytes::from(body)))
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn gcs_initiate_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        op: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let req = self.gcs_initiate_resumable_upload_request(path, op)?;
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn gcs_upload_resumable_chunk(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        offset: u64,
+        body: Buffer,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let end = offset + body.len() as u64;
+        let content_range = if body.is_empty() {
+            format!("bytes */{}", total.unwrap_or_default())
+        } else {
+            format!(
+                "bytes {}-{}/{}",
+                offset,
+                end - 1,
+                total.map_or_else(|| "*".to_string(), |v| v.to_string())
+            )
+        };
+        let req = Request::put(session_uri)
+            .header(CONTENT_LENGTH, body.len())
+            .header("content-range", content_range)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadResumableChunk"))
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn gcs_cancel_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+    ) -> Result<Response<Buffer>> {
+        let req = Request::delete(session_uri)
+            .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.send(ctx, req).await
+    }
+
     // It's for presign operation. Gcs only supports query sign over XML API.
     pub fn gcs_insert_object_xml_request(
         &self,
@@ -368,6 +494,18 @@ impl GcsCore {
             req = req.header(X_GOOG_STORAGE_CLASS, storage_class);
         }
 
+        if let Some(version) = args.if_version_match() {
+            req = req.header("x-goog-if-generation-match", version);
+        } else if args.if_not_exists() {
+            req = req.header("x-goog-if-generation-match", "0");
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("InsertObject"));
@@ -387,6 +525,15 @@ impl GcsCore {
             gcs_percent_encode_path(&p)
         );
 
+        let mut url = QueryPairsWriter::new(&url);
+        if let Some(version) = args.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        }
+        if let Some(version) = args.if_version_not_match() {
+            url = url.push("ifGenerationNotMatch", &gcs_percent_encode_path(version));
+        }
+        let url = url.finish();
+
         let mut req = Request::get(&url);
 
         if let Some(if_none_match) = args.if_none_match() {
@@ -396,7 +543,6 @@ impl GcsCore {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-
         let req = req
             .extension(Operation::Stat)
             .extension(ServiceOperation("GetObject"));
@@ -425,6 +571,9 @@ impl GcsCore {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
+        if let Some(version) = args.if_version_match() {
+            req = req.header("x-goog-if-generation-match", version);
+        }
 
         let req = req
             .extension(Operation::Stat)
@@ -452,14 +601,19 @@ impl GcsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let req = self.gcs_delete_object_request(path)?;
+        let req = self.gcs_delete_object_request(path, args)?;
 
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
 
-    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<Buffer>> {
+    pub fn gcs_delete_object_request(
+        &self,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -468,6 +622,18 @@ impl GcsCore {
             self.bucket,
             gcs_percent_encode_path(&p)
         );
+
+        let mut url = QueryPairsWriter::new(&url);
+        if let Some(version) = args.version() {
+            url = url.push("generation", &gcs_percent_encode_path(version));
+        }
+        if let Some(version) = args.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        }
+        if let Some(version) = args.if_version_not_match() {
+            url = url.push("ifGenerationNotMatch", &gcs_percent_encode_path(version));
+        }
+        let url = url.finish();
 
         Request::delete(&url)
             .extension(Operation::Delete)
@@ -479,14 +645,14 @@ impl GcsCore {
     pub async fn gcs_delete_objects(
         &self,
         ctx: &OperationContext,
-        paths: Vec<String>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
 
-        for (idx, path) in paths.iter().enumerate() {
-            let req = self.gcs_delete_object_request(path)?;
+        for (idx, (path, args)) in paths.iter().enumerate() {
+            let req = self.gcs_delete_object_request(path, args)?;
 
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
@@ -502,15 +668,14 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
-    pub async fn gcs_rewrite_object(
+    pub fn gcs_rewrite_object_request(
         &self,
-        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
         max_bytes_rewritten_per_call: Option<usize>,
         rewrite_token: Option<&str>,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let dest = build_abs_path(&self.root, to);
 
@@ -528,8 +693,13 @@ impl GcsCore {
         if let Some(version) = args.source_version() {
             url = url.push("sourceGeneration", &gcs_percent_encode_path(version));
         }
-        if args.if_not_exists() {
+        if let Some(version) = args.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        } else if args.if_not_exists() {
             url = url.push("ifGenerationMatch", "0");
+        }
+        if let Some(version) = args.if_version_not_match() {
+            url = url.push("ifGenerationNotMatch", &gcs_percent_encode_path(version));
         }
         if let Some(max_bytes) = max_bytes_rewritten_per_call {
             url = url.push("maxBytesRewrittenPerCall", &max_bytes.to_string());
@@ -538,13 +708,30 @@ impl GcsCore {
             url = url.push("rewriteToken", &gcs_percent_encode_path(token));
         }
 
-        let req = Request::post(url.finish())
+        Request::post(url.finish())
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Copy)
             .extension(ServiceOperation("RewriteObject"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
 
+    pub async fn gcs_rewrite_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+        max_bytes_rewritten_per_call: Option<usize>,
+        rewrite_token: Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let req = self.gcs_rewrite_object_request(
+            from,
+            to,
+            args,
+            max_bytes_rewritten_per_call,
+            rewrite_token,
+        )?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -867,6 +1054,7 @@ pub struct ListResponseItem {
     pub size: String,
     // metadata
     pub etag: String,
+    pub generation: String,
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
@@ -960,8 +1148,7 @@ mod tests {
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
 
-    #[tokio::test]
-    async fn test_insert_object_signing_preserves_wire_uri() {
+    fn test_core() -> GcsCore {
         let sign_ctx = Context::new();
         let signer = Signer::new(
             sign_ctx.clone(),
@@ -969,7 +1156,7 @@ mod tests {
             RequestSigner::new("storage"),
         );
 
-        let core = GcsCore {
+        GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability::default(),
             endpoint: "https://storage.googleapis.com".to_string(),
@@ -980,7 +1167,12 @@ mod tests {
             predefined_acl: None,
             default_storage_class: None,
             skip_signature: false,
-        };
+        }
+    }
+
+    #[tokio::test]
+    async fn test_insert_object_signing_preserves_wire_uri() {
+        let core = test_core();
         let req = core
             .gcs_insert_object_request(
                 "nested/object #1.txt",
@@ -1004,6 +1196,168 @@ mod tests {
             .expect("request must sign");
 
         assert_eq!(signed.uri(), &original_uri);
+    }
+
+    #[test]
+    fn test_generation_preconditions_are_mapped_to_json_api() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_request(
+                "object",
+                BytesRange::default(),
+                &OpRead::default().with_if_version_match("123"),
+            )
+            .expect("read request must build");
+        assert!(
+            read.uri()
+                .query()
+                .unwrap()
+                .contains("ifGenerationMatch=123")
+        );
+
+        let read_zero = core
+            .gcs_get_object_request(
+                "object",
+                BytesRange::default(),
+                &OpRead::default().with_if_version_match("0"),
+            )
+            .expect("generation zero must be forwarded");
+        assert!(
+            read_zero
+                .uri()
+                .query()
+                .unwrap()
+                .contains("ifGenerationMatch=0")
+        );
+
+        let stat = core
+            .gcs_head_object_request(
+                "object",
+                &OpStat::default().with_if_version_not_match("456"),
+            )
+            .expect("stat request must build");
+        assert!(
+            stat.uri()
+                .query()
+                .unwrap()
+                .contains("ifGenerationNotMatch=456")
+        );
+
+        let write = core
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &OpWrite::default()
+                    .with_if_not_exists(true)
+                    .with_if_version_match("123"),
+                Buffer::new(),
+            )
+            .expect("write request must build");
+        let query = write.uri().query().unwrap();
+        assert!(query.contains("ifGenerationMatch=123"));
+        assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+
+        let delete = core
+            .gcs_delete_object_request(
+                "object",
+                &OpDelete::default().with_if_version_not_match("456"),
+            )
+            .expect("delete request must build");
+        assert!(
+            delete
+                .uri()
+                .query()
+                .unwrap()
+                .contains("ifGenerationNotMatch=456")
+        );
+
+        let resumable = core
+            .gcs_initiate_resumable_upload_request(
+                "object",
+                &OpWrite::default()
+                    .with_if_not_exists(true)
+                    .with_if_version_match("123"),
+            )
+            .expect("resumable request must build");
+        let query = resumable.uri().query().unwrap();
+        assert!(query.contains("ifGenerationMatch=123"));
+        assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+
+        let rewrite = core
+            .gcs_rewrite_object_request(
+                "source",
+                "target",
+                &OpCopy::default().with_if_version_not_match("456"),
+                Some(GCS_REWRITE_MIN_CHUNK_SIZE),
+                Some("token"),
+            )
+            .expect("rewrite request must build");
+        let query = rewrite.uri().query().unwrap();
+        assert!(query.contains("ifGenerationNotMatch=456"));
+        assert!(query.contains("rewriteToken=token"));
+
+        let rewrite = core
+            .gcs_rewrite_object_request(
+                "source",
+                "target",
+                &OpCopy::default()
+                    .with_if_not_exists(true)
+                    .with_if_version_match("123"),
+                None,
+                None,
+            )
+            .expect("rewrite request must build");
+        let query = rewrite.uri().query().unwrap();
+        assert!(query.contains("ifGenerationMatch=123"));
+        assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+    }
+
+    #[test]
+    fn test_generation_match_is_mapped_to_xml_api() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_xml_request(
+                "object",
+                BytesRange::default(),
+                &OpRead::default().with_if_version_match("123"),
+            )
+            .expect("read request must build");
+        assert_eq!(read.headers()["x-goog-if-generation-match"], "123");
+
+        let stat = core
+            .gcs_head_object_xml_request("object", &OpStat::default().with_if_version_match("123"))
+            .expect("stat request must build");
+        assert_eq!(stat.headers()["x-goog-if-generation-match"], "123");
+
+        let write = core
+            .gcs_insert_object_xml_request(
+                "object",
+                &OpWrite::default()
+                    .with_if_not_exists(true)
+                    .with_if_version_match("123"),
+                Buffer::new(),
+            )
+            .expect("write request must build");
+        assert_eq!(write.headers()["x-goog-if-generation-match"], "123");
+        assert_eq!(
+            write
+                .headers()
+                .get_all("x-goog-if-generation-match")
+                .iter()
+                .count(),
+            1
+        );
+
+        let create = core
+            .gcs_insert_object_xml_request(
+                "object",
+                &OpWrite::default().with_if_not_exists(true),
+                Buffer::new(),
+            )
+            .expect("create request must build");
+        assert_eq!(create.headers()["x-goog-if-generation-match"], "0");
     }
 
     #[test]
@@ -1118,6 +1472,7 @@ mod tests {
         assert_eq!(output.items[0].size, "56535");
         assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(output.items[0].generation, "1660563214863653");
         assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
         assert_eq!(output.items[1].name, "2.png");
         assert_eq!(output.items[1].size, "45506");
@@ -1199,115 +1554,160 @@ mod tests {
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
-    use serde::Deserialize;
-    use serde_json::de;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsErrorResponse {
-        error: GcsError,
-    }
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsError {
-        code: usize,
-        message: String,
-        errors: Vec<GcsErrorDetail>,
-    }
-
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "camelCase")]
-    struct GcsErrorDetail {
-        domain: String,
-        location: String,
-        location_type: String,
-        message: String,
-        reason: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match de::from_slice::<GcsErrorResponse>(&bs) {
-            Ok(gcs_err) => format!("{gcs_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
-{
-"error": {
- "errors": [
-  {
-   "domain": "global",
-   "reason": "required",
-   "message": "Login Required",
-   "locationType": "header",
-   "location": "Authorization"
-  }
- ],
- "code": 401,
- "message": "Login Required"
- }
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorContext {
+    service_operation: ServiceOperation,
+    if_match: bool,
+    if_none_match: bool,
+    if_not_exists: bool,
+    if_version_match: bool,
+    if_version_not_match: bool,
 }
-"#,
-            );
 
-            let out: GcsErrorResponse = de::from_slice(&bs).expect("must success");
-            println!("{out:?}");
-
-            assert_eq!(out.error.code, 401);
-            assert_eq!(out.error.message, "Login Required");
-            assert_eq!(out.error.errors[0].domain, "global");
-            assert_eq!(out.error.errors[0].reason, "required");
-            assert_eq!(out.error.errors[0].message, "Login Required");
-            assert_eq!(out.error.errors[0].location_type, "header");
-            assert_eq!(out.error.errors[0].location, "Authorization");
+impl ErrorContext {
+    pub const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            if_match: false,
+            if_none_match: false,
+            if_not_exists: false,
+            if_version_match: false,
+            if_version_not_match: false,
         }
+    }
+
+    pub const fn with_if_match(mut self, if_match: bool) -> Self {
+        self.if_match = if_match;
+        self
+    }
+
+    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
+        self.if_none_match = if_none_match;
+        self
+    }
+
+    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    pub const fn with_if_version_match(mut self, if_version_match: bool) -> Self {
+        self.if_version_match = if_version_match;
+        self
+    }
+
+    pub const fn with_if_version_not_match(mut self, if_version_not_match: bool) -> Self {
+        self.if_version_not_match = if_version_not_match;
+        self
+    }
+
+    const fn has_condition(self) -> bool {
+        self.if_match
+            || self.if_none_match
+            || self.if_not_exists
+            || self.if_version_match
+            || self.if_version_not_match
+    }
+
+    const fn has_version_condition(self) -> bool {
+        self.if_version_match || self.if_version_not_match
     }
 }
 
-pub(super) use error::*;
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsErrorResponse {
+    error: GcsError,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsError {
+    code: usize,
+    message: String,
+    errors: Vec<GcsErrorDetail>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct GcsErrorDetail {
+    domain: String,
+    location: String,
+    location_type: String,
+    message: String,
+    reason: String,
+}
+
+/// Parse error response into Error.
+pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.has_version_condition() => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(gcs_error) = &gcs_error {
+        let has_reason = gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| !detail.reason.is_empty());
+        if gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == "conditionNotMet")
+        {
+            (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+        } else if gcs_error
+            .error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == "conflict")
+        {
+            (kind, retryable) = (ErrorKind::Conflict, false);
+        } else if has_reason
+            && matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            )
+        {
+            (kind, retryable) = (ErrorKind::Unexpected, false);
+        }
+    }
+
+    let message = match gcs_error {
+        Some(gcs_err) => format!("{gcs_err:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err =
+        Error::new(kind, message).with_context("service_operation", ctx.service_operation.0);
+
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
 
 mod uri {
     use percent_encoding::AsciiSet;

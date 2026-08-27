@@ -32,6 +32,7 @@ use opendal_core::*;
 const LABEL_CREATE_DIR: &str = "opendal.create_dir";
 const LABEL_READ: &str = "opendal.read";
 const LABEL_RENAME: &str = "opendal.rename";
+const LABEL_RESTORE: &str = "opendal.restore";
 const LABEL_STAT: &str = "opendal.stat";
 const LABEL_PRESIGN: &str = "opendal.presign";
 
@@ -165,6 +166,15 @@ impl Service for HotpathAccessor {
         hotpath::measure_async(LABEL_RENAME, self.inner.rename(ctx, from, to, args)).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        hotpath::measure_async(LABEL_RESTORE, self.inner.restore(ctx, path, args)).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         hotpath::measure_async(LABEL_STAT, self.inner.stat(ctx, path, args)).await
     }
@@ -221,6 +231,10 @@ impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
 impl<R: oio::Write> oio::Write for HotpathWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.write(bs)).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.copy_from(path, args, range)).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {

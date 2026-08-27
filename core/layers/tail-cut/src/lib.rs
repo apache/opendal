@@ -434,6 +434,15 @@ impl Service for TailCutService {
         .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.with_deadline(Operation::Stat, None, self.inner.stat(ctx, path, args))
             .await
@@ -611,6 +620,19 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
             self.size,
             Operation::Write,
             self.inner.write(bs),
+        )
+        .await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Write);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Write,
+            self.inner.copy_from(path, args, range),
         )
         .await
     }

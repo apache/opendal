@@ -202,7 +202,9 @@ impl Service for RouteAccessor {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability
     }
 
     async fn create_dir(
@@ -255,6 +257,18 @@ impl Service for RouteAccessor {
         match self.select(from) {
             RouteSelected::Default(srv) => srv.rename(ctx, from, to, args).await,
             RouteSelected::Target(target) => target.srv.rename(&target.ctx, from, to, args).await,
+        }
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        match self.select(path) {
+            RouteSelected::Default(srv) => srv.restore(ctx, path, args).await,
+            RouteSelected::Target(target) => target.srv.restore(&target.ctx, path, args).await,
         }
     }
 

@@ -229,6 +229,15 @@ impl Service for DTraceService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let c_path = CString::new(path).unwrap();
         probe_lazy!(opendal, stat_start, c_path.as_ptr());
@@ -403,6 +412,20 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
+            .await
+            .map(|_| {
+                probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                probe_lazy!(opendal, writer_write_error, c_path.as_ptr());
+            })
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
+        self.inner
+            .copy_from(path, args, range)
             .await
             .map(|_| {
                 probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());

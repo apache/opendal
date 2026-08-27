@@ -65,6 +65,28 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_none_match {
+        tests.extend(async_trials!(op, test_copy_with_if_none_match))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.copy
+        && cap.copy_with_if_version_match
+        && cap.copy_with_if_version_not_match
+    {
+        tests.extend(async_trials!(op, test_copy_with_version_conditions))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.stat
+        && cap.copy
+        && (cap.copy_with_if_match || cap.copy_with_if_version_match)
+    {
+        tests.extend(async_trials!(op, test_copy_if_not_changed))
+    }
+
     if cap.read && cap.write && cap.stat && cap.copy && cap.copy_with_source_version {
         tests.extend(async_trials!(
             op,
@@ -437,8 +459,144 @@ pub async fn test_copy_with_if_match_mismatch(op: Operator) -> Result<()> {
         sha256_digest(&target_content),
     );
 
+    let missing_path = uuid::Uuid::new_v4().to_string();
+    let err = op
+        .copy_with(&source_path, &missing_path)
+        .if_match("\"00000000000000000000000000000000\"")
+        .await
+        .expect_err("missing destination must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with `If-None-Match` should reject equality and accept inequality or absence.
+pub async fn test_copy_with_if_none_match(op: Operator) -> Result<()> {
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let missing_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    let (target_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, target_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    op.write(&target_path, target_content).await?;
+    let etag = op
+        .stat(&target_path)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_none_match(&etag)
+        .await
+        .expect_err("equal ETag non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.copy_with(&source_path, &target_path)
+        .if_none_match("\"different-etag\"")
+        .await?;
+    op.copy_with(&source_path, &missing_path)
+        .if_none_match(&etag)
+        .await?;
+
+    assert_eq!(op.read(&target_path).await?.to_bytes(), source_content);
+    Ok(())
+}
+
+/// Version preconditions should compare against the current destination version.
+pub async fn test_copy_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let missing_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(cap);
+    let (first_target, _) = gen_bytes(cap);
+    let (second_target, _) = gen_bytes(cap);
+    assert_ne!(source_content, first_target);
+    assert_ne!(source_content, second_target);
+    assert_ne!(first_target, second_target);
+
+    op.write(&source_path, source_content).await?;
+    op.write(&target_path, first_target).await?;
+    let stale = op
+        .stat(&target_path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.write(&target_path, second_target).await?;
+    let current = op
+        .stat(&target_path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_version_match(&stale)
+        .await
+        .expect_err("stale destination version must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_version_not_match(&current)
+        .await
+        .expect_err("equal destination version must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.copy_with(&source_path, &target_path)
+        .if_version_match(&current)
+        .await?;
+    op.copy_with(&source_path, &target_path)
+        .if_version_not_match(&current)
+        .await?;
+
+    for result in [
+        op.copy_with(&source_path, &missing_path)
+            .if_version_match(&current)
+            .await,
+        op.copy_with(&source_path, &missing_path)
+            .if_version_not_match(&current)
+            .await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing destination must fail").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+    }
+
+    Ok(())
+}
+
+/// `if_not_changed` should guard the destination against a stale observation.
+pub async fn test_copy_if_not_changed(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(cap);
+    let (target_content, _) = gen_bytes(cap);
+    assert_ne!(source_content, target_content);
+
+    op.write(&source_path, source_content).await?;
+    op.write(&target_path, target_content).await?;
+    let expected = op.stat(&target_path).await?;
+
+    op.copy_with(&source_path, &target_path)
+        .if_not_changed(&expected)
+        .await?;
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_not_changed(&expected)
+        .await
+        .expect_err("stale destination metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
     Ok(())
 }
 

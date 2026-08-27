@@ -152,6 +152,8 @@ class DeleteKwargs(TypedDict, total=False):
 
     Only supported on backends that support recursive delete.
     """
+    if_match: str
+    """The ETag that the object must match before deletion."""
 
 
 class OpenKwargs(ReadKwargs, WriteKwargs, total=False):

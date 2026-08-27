@@ -463,6 +463,29 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
             .map_err(|err| err.set_persistent())
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let mut attempt: u32 = 0;
+        { || self.inner.restore(ctx, path, args.clone()) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                attempt += 1;
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Restore,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
+            })
+            .await
+            .map_err(|err| err.set_persistent())
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let mut attempt: u32 = 0;
         let lister = { || self.inner.list(ctx, path, args.clone()) }
@@ -750,6 +773,38 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .retry(self.builder)
         .when(|e| e.is_temporary())
         .context((inner, bs))
+        .notify(|err, dur| {
+            attempt += 1;
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|err| err.set_persistent())
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let path = path.to_string();
+        let mut attempt: u32 = 0;
+
+        let ((inner, _, _, _), res) = {
+            |(mut r, path, args, range): (R, String, OpRead, BytesRange)| async move {
+                let res = r.copy_from(&path, args.clone(), range).await;
+
+                ((r, path, args, range), res)
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context((inner, path, args, range))
         .notify(|err, dur| {
             attempt += 1;
             self.notify.intercept(RetryEvent {

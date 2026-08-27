@@ -45,6 +45,7 @@ use super::core::*;
 use super::deleter::GcsDeleter;
 use super::lister::GcsLister;
 use super::reader::*;
+use super::writer::GcsConditionalWriter;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
@@ -343,12 +344,16 @@ impl Builder for GcsBuilder {
             stat: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
+            stat_with_if_version_match: true,
+            stat_with_if_version_not_match: true,
 
             read: true,
             read_with_suffix: true,
 
             read_with_if_match: true,
             read_with_if_none_match: true,
+            read_with_if_version_match: true,
+            read_with_if_version_not_match: true,
 
             write: true,
             write_can_empty: true,
@@ -358,6 +363,8 @@ impl Builder for GcsBuilder {
             write_with_content_encoding: true,
             write_with_user_metadata: true,
             write_with_if_not_exists: true,
+            write_with_if_version_match: true,
+            write_with_if_version_not_match: true,
 
             // The min multipart size of Gcs is 5 MiB.
             //
@@ -373,9 +380,13 @@ impl Builder for GcsBuilder {
             },
 
             delete: true,
+            delete_with_if_version_match: true,
+            delete_with_if_version_not_match: true,
             delete_max_size: Some(100),
 
             copy: true,
+            copy_with_if_version_match: true,
+            copy_with_if_version_not_match: true,
             copy_can_multi: true,
             // GCS rewrite requires maxBytesRewrittenPerCall to be an
             // integral multiple of 1 MiB if specified.
@@ -452,10 +463,15 @@ impl Service for GcsBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
+            .with_if_match(args.if_match().is_some())
+            .with_if_none_match(args.if_none_match().is_some())
+            .with_if_version_match(args.if_version_match().is_some())
+            .with_if_version_not_match(args.if_version_not_match().is_some());
         let resp = self.core.gcs_get_object_metadata(ctx, path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(error_ctx, resp));
         }
 
         let slc = resp.into_body();
@@ -477,15 +493,24 @@ impl Service for GcsBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: GcsWriters = {
+        let conditional = args.if_not_exists()
+            || args.if_version_match().is_some()
+            || args.if_version_not_match().is_some();
+        let output: GcsWriters = if conditional {
+            TwoWays::Two(GcsConditionalWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args,
+            ))
+        } else {
             let concurrent = args.concurrent();
             let w = GcsWriter::new(self.core.clone(), ctx.clone(), path, args);
             // Multipart uploads schedule work through the operation executor
             // supplied by the caller.
             let w = oio::MultipartWriter::new(ctx.executor().clone(), w, concurrent);
-
-            Ok(w)
-        }?;
+            TwoWays::One(w)
+        };
 
         Ok(output)
     }

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
+use super::core::ErrorContext;
 use super::core::GcsCore;
 use super::core::RewriteResponse;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
@@ -89,7 +90,15 @@ impl oio::Copy for GcsCopier {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("RewriteObject"))
+                    .with_if_not_exists(self.args.if_not_exists())
+                    .with_if_match(self.args.if_match().is_some())
+                    .with_if_none_match(self.args.if_none_match().is_some())
+                    .with_if_version_match(self.args.if_version_match().is_some())
+                    .with_if_version_not_match(self.args.if_version_not_match().is_some()),
+                resp,
+            ));
         }
 
         let result: RewriteResponse = serde_json::from_reader(resp.into_body().reader())

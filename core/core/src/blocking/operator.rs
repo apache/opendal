@@ -654,6 +654,18 @@ impl Operator {
         self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
     }
 
+    /// Restore the given path from its latest deleted state.
+    pub fn restore(&self, path: &str) -> Result<()> {
+        self.restore_options(path, options::RestoreOptions::default())
+    }
+
+    /// Restore the given path with additional options.
+    pub fn restore_options(&self, path: &str, opts: options::RestoreOptions) -> Result<()> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.restore_options(&path, opts).await })?
+    }
+
     /// Delete given path.
     ///
     /// # Notes

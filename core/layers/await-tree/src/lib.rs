@@ -137,6 +137,18 @@ impl Service for AwaitTreeAccessor {
             .await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner
+            .restore(ctx, path, args)
+            .instrument_await(format!("opendal::{}", Operation::Restore))
+            .await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner
             .stat(ctx, path, args)
@@ -210,6 +222,13 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner
             .write(bs)
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
             .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
             .await
     }

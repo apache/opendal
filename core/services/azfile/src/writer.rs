@@ -24,6 +24,10 @@ use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+// Azure Files limits each Put Range update to 4 MiB.
+// https://learn.microsoft.com/en-us/rest/api/storageservices/put-range
+const AZFILE_MAX_WRITE_SIZE: usize = 4 * 1024 * 1024;
+
 pub type AzfileWriters = TwoWays<oio::OneShotWriter<AzfileWriter>, oio::AppendWriter<AzfileWriter>>;
 
 pub struct AzfileWriter {
@@ -47,6 +51,46 @@ impl AzfileWriter {
         self.core
             .ensure_parent_dir_exists(&self.ctx, &self.path)
             .await
+    }
+
+    async fn write_ranges(&self, offset: u64, bs: Buffer) -> Result<Metadata> {
+        let size = bs.len();
+        let mut position = 0;
+        let mut metadata;
+
+        loop {
+            let chunk_size = (size - position).min(AZFILE_MAX_WRITE_SIZE);
+            let end = position + chunk_size;
+            let body = bs.slice(position..end);
+
+            let resp = self
+                .core
+                .azfile_update(
+                    &self.ctx,
+                    &self.path,
+                    chunk_size as u64,
+                    offset + position as u64,
+                    body,
+                )
+                .await?;
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::CREATED => {
+                    metadata = AzfileWriter::parse_metadata(resp.headers())?;
+                }
+                _ => {
+                    return Err(parse_error(resp).with_operation("Backend::azfile_update"));
+                }
+            }
+
+            position = end;
+            if position == size {
+                break;
+            }
+        }
+
+        metadata.set_content_length(offset + size as u64);
+        Ok(metadata)
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -82,17 +126,7 @@ impl oio::OneShotWrite for AzfileWriter {
             }
         }
 
-        let resp = self
-            .core
-            .azfile_update(&self.ctx, &self.path, size as u64, 0, bs)
-            .await?;
-        let status = resp.status();
-        let mut meta = AzfileWriter::parse_metadata(resp.headers())?;
-        meta.set_content_length(size as u64);
-        match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
-        }
+        self.write_ranges(0, bs).await
     }
 }
 
@@ -113,18 +147,7 @@ impl oio::AppendWrite for AzfileWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let resp = self
-            .core
-            .azfile_update(&self.ctx, &self.path, size, offset, body)
-            .await?;
-
-        let status = resp.status();
-        let mut meta = AzfileWriter::parse_metadata(resp.headers())?;
-        meta.set_content_length(offset + size);
-        match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
-        }
+    async fn append(&self, offset: u64, _size: u64, body: Buffer) -> Result<Metadata> {
+        self.write_ranges(offset, body).await
     }
 }

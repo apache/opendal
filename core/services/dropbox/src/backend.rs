@@ -270,7 +270,10 @@ impl Service for DropboxBackend {
                 }
                 Ok(RpStat::new(metadata))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetMetadata")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -344,7 +347,7 @@ impl Service for DropboxBackend {
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
                 _ => {
-                    let err = parse_error(resp);
+                    let err = parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp);
                     match err.kind() {
                         ErrorKind::NotFound => Ok(Metadata::default()),
                         _ => Err(err),
@@ -368,7 +371,7 @@ impl Service for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => {
-                let err = parse_error(resp);
+                let err = parse_error(ErrorContext::new(ServiceOperation("MoveFile")), resp);
                 match err.kind() {
                     ErrorKind::NotFound => Ok(RpRename::default()),
                     _ => Err(err),

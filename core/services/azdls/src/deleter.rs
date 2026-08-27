@@ -49,7 +49,14 @@ impl oio::OneShotDelete for AzdlsDeleter {
 
         match status {
             StatusCode::OK | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(if args.recursive() {
+                    ServiceOperation("RecursiveDeletePath")
+                } else {
+                    ServiceOperation("DeletePath")
+                }),
+                resp,
+            )),
         }
     }
 }

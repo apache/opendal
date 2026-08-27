@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::IpmfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, IpmfsCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -44,7 +44,10 @@ impl oio::OneShotWrite for IpmfsWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Add")),
+                resp,
+            )),
         }
     }
 }

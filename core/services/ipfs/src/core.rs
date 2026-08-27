@@ -246,24 +246,32 @@ impl IpfsCore {
                 Ok(m)
             }
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => Ok(Metadata::new(EntryMode::DIR)),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Resolve")),
+                resp,
+            )),
         }
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
-        let (kind, retryable) = match parts.status {
+    let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -275,18 +283,16 @@ mod error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-        let message = String::from_utf8_lossy(&bs);
+    let message = String::from_utf8_lossy(&bs);
 
-        let mut err = Error::new(kind, message);
+    let mut err = Error::new(kind, message);
 
-        err = with_error_response_context(err, parts);
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
 
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+    if retryable {
+        err = err.set_temporary();
     }
-}
 
-pub(super) use error::*;
+    err
+}

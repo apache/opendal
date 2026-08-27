@@ -68,7 +68,14 @@ impl oio::PageList for DropboxLister {
         let status_code = response.status();
 
         if !status_code.is_success() {
-            let error = parse_error(response);
+            let error = parse_error(
+                ErrorContext::new(if ctx.token.is_empty() {
+                    ServiceOperation("ListFolder")
+                } else {
+                    ServiceOperation("ListFolderContinue")
+                }),
+                response,
+            );
 
             let result = match error.kind() {
                 ErrorKind::NotFound => Ok(()),

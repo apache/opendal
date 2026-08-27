@@ -35,9 +35,9 @@ use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
 use super::OBS_SCHEME;
 use super::config::ObsConfig;
-use super::core::ObsCore;
 use super::core::constants;
 use super::core::parse_error;
+use super::core::{ErrorContext, ObsCore};
 use super::deleter::ObsDeleter;
 use super::lister::ObsLister;
 use super::reader::*;
@@ -328,7 +328,10 @@ impl Service for ObsBackend {
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -409,7 +412,10 @@ impl Service for ObsBackend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
             }
         }))
     }

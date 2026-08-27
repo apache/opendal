@@ -20,11 +20,11 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::B2Core;
 use super::core::StartLargeFileResponse;
 use super::core::UploadPartResponse;
 use super::core::UploadResponse;
 use super::core::parse_error;
+use super::core::{B2Core, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -85,7 +85,10 @@ impl oio::MultipartWrite for B2Writer {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadFile")),
+                resp,
+            )),
         }
     }
 
@@ -106,7 +109,10 @@ impl oio::MultipartWrite for B2Writer {
 
                 Ok(result.file_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("StartLargeFile")),
+                resp,
+            )),
         }
     }
 
@@ -141,7 +147,10 @@ impl oio::MultipartWrite for B2Writer {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -180,7 +189,10 @@ impl oio::MultipartWrite for B2Writer {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FinishLargeFile")),
+                resp,
+            )),
         }
     }
 
@@ -189,7 +201,10 @@ impl oio::MultipartWrite for B2Writer {
         match resp.status() {
             // b2 returns code 200 if abort succeeds.
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CancelLargeFile")),
+                resp,
+            )),
         }
     }
 }

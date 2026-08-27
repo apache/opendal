@@ -25,8 +25,8 @@ use log::debug;
 use super::GITHUB_SCHEME;
 use super::config::GithubConfig;
 use super::core::Entry;
-use super::core::GithubCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, GithubCore};
 use super::deleter::GithubDeleter;
 use super::lister::GithubLister;
 use super::reader::*;
@@ -187,7 +187,10 @@ impl Service for GithubBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateOrUpdateFileContents")),
+                resp,
+            )),
         }
     }
 
@@ -212,7 +215,10 @@ impl Service for GithubBackend {
 
                 Ok(RpStat::new(m))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetRepositoryContent")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

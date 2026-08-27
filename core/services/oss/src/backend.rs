@@ -680,7 +680,10 @@ impl Service for OssBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -771,7 +774,10 @@ impl Service for OssBackend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
             }
         }))
     }

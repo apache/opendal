@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::File;
-use super::core::KoofrCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, KoofrCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -71,7 +71,10 @@ impl oio::OneShotWrite for KoofrWriter {
                 let metadata = Self::parse_metadata(&file)?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesPut")),
+                resp,
+            )),
         }
     }
 }

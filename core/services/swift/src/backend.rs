@@ -274,7 +274,10 @@ impl Service for SwiftBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -389,7 +392,10 @@ impl Service for SwiftBackend {
 
             match status {
                 StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
             }
         }))
     }

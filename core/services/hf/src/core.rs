@@ -477,7 +477,18 @@ impl HfCore {
             .request(http::Method::GET, &url, scope.operation(), "XetToken")?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (_, info): (_, XetTokenResponse) = self.send_parse(ctx, req).await?;
+        let resp = ctx.http_transport().fetch(req).await?;
+        if !resp.status().is_success() {
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("XetToken")),
+                parts,
+            ));
+        }
+        let (_, mut body) = resp.into_parts();
+        let buffer = body.to_buffer().await?;
+        let info: XetTokenResponse =
+            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
         let fresh = XetToken {
             cas_url: info.cas_url,
             access_token: info.access_token,
@@ -589,7 +600,18 @@ impl HfCore {
                     .request(http::Method::GET, &url, Operation::Stat, "RepoInfo")?
                     .body(Buffer::new())
                     .map_err(new_request_build_error)?;
-                let (_, info) = self.send_parse::<RepoInfoResponse>(ctx, req).await?;
+                let resp = ctx.http_transport().fetch(req).await?;
+                if !resp.status().is_success() {
+                    let (parts, _) = resp.into_parts();
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("RepoInfo")),
+                        parts,
+                    ));
+                }
+                let (_, mut body) = resp.into_parts();
+                let buffer = body.to_buffer().await?;
+                let info: RepoInfoResponse =
+                    serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
 
                 let mut repo = self.repo.clone();
                 repo.repo_id = info.id;
@@ -613,41 +635,6 @@ impl HfCore {
             .to_string()
     }
 
-    /// Send a request and return the successful streaming response or a parsed error.
-    ///
-    /// Uses `fetch` so error response bodies are never read into memory —
-    /// `parse_error` reads only response headers.
-    async fn send(
-        &self,
-        ctx: &OperationContext,
-        req: Request<Buffer>,
-    ) -> Result<Response<HttpBody>> {
-        let resp = ctx.http_transport().fetch(req).await?;
-        let (parts, body) = resp.into_parts();
-        if parts.status.is_success() {
-            Ok(Response::from_parts(parts, body))
-        } else {
-            // Drop the streaming body without reading it.
-            Err(parse_error(parts))
-        }
-    }
-
-    /// Send a request, check for success, and deserialize the JSON response.
-    ///
-    /// Returns the response parts (status, headers, etc.) alongside the
-    /// deserialized body so callers can inspect headers when needed.
-    pub(super) async fn send_parse<T: serde::de::DeserializeOwned>(
-        &self,
-        ctx: &OperationContext,
-        req: Request<Buffer>,
-    ) -> Result<(http::response::Parts, T)> {
-        let (parts, mut body) = self.send(ctx, req).await?.into_parts();
-        let buffer = body.to_buffer().await?;
-        let parsed =
-            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
-        Ok((parts, parsed))
-    }
-
     pub(super) async fn path_info(&self, ctx: &OperationContext, path: &str) -> Result<PathInfo> {
         let uri = self.canonical_uri(ctx, path).await?;
         let url = uri.paths_info_url(&self.endpoint);
@@ -658,7 +645,18 @@ impl HfCore {
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(Bytes::from(form_body)))
             .map_err(new_request_build_error)?;
-        let (_, mut files) = self.send_parse::<Vec<PathInfo>>(ctx, req).await?;
+        let resp = ctx.http_transport().fetch(req).await?;
+        if !resp.status().is_success() {
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("PathInfo")),
+                parts,
+            ));
+        }
+        let (_, mut body) = resp.into_parts();
+        let buffer = body.to_buffer().await?;
+        let mut files: Vec<PathInfo> =
+            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
 
         // NOTE: if the file is not found, the server will return 200 with an empty array
         if files.is_empty() {
@@ -704,7 +702,7 @@ impl HfCore {
             // only response headers, so there is no need to buffer the body
             // (which may be a large HTML error page).
             let (parts, _) = resp.into_parts();
-            let mut err = parse_error(parts);
+            let mut err = parse_error(ErrorContext::new(ServiceOperation("Resolve")), parts);
             if status == http::StatusCode::NOT_FOUND && self.path_info(ctx, path).await.is_ok() {
                 err = err.set_temporary();
             }
@@ -747,8 +745,17 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        let (_, resp) = self.send_parse::<CommitResponse>(ctx, req).await?;
-        Ok(resp)
+        let resp = ctx.http_transport().fetch(req).await?;
+        if !resp.status().is_success() {
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CommitGit")),
+                parts,
+            ));
+        }
+        let (_, mut body) = resp.into_parts();
+        let buffer = body.to_buffer().await?;
+        serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)
     }
 
     /// Commit file changes to a bucket repo via the NDJSON batch API.
@@ -782,7 +789,14 @@ impl HfCore {
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await?;
+        let resp = ctx.http_transport().fetch(req).await?;
+        if !resp.status().is_success() {
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CommitBucket")),
+                parts,
+            ));
+        }
         Ok(())
     }
 }
@@ -1018,6 +1032,9 @@ pub(crate) mod test_utils {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+
+    use http::Response;
+    use http::StatusCode;
 
     use super::super::core::HfRepoType;
     use super::test_utils::create_test_core;
@@ -1499,70 +1516,10 @@ mod tests {
 
         Ok(())
     }
-}
 
-mod error {
-    use http::StatusCode;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    pub(crate) fn parse_error(parts: http::response::Parts) -> Error {
-        // HF sets x-error-message on every error response with a short human-readable
-        // description. Using the header avoids reading the response body, which can be
-        // a large HTML error page (e.g. 52 KB on 404s from the /resolve/ endpoint).
-        let message = parts
-            .headers
-            .get("x-error-message")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("unknown error")
-            .to_string();
-
-        // HF git-style commit APIs reject stale branch snapshots with 412.
-        // Treat this specific conflict as temporary so RetryLayer can replay
-        // the whole write/delete close sequence on a fresh branch head.
-        let branch_updated_conflict = parts.status == StatusCode::PRECONDITION_FAILED
-            && message
-                .to_ascii_lowercase()
-                .contains("branch was updated since you opened this page");
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                (ErrorKind::PermissionDenied, false)
-            }
-            StatusCode::PRECONDITION_FAILED => {
-                (ErrorKind::ConditionNotMatch, branch_updated_conflict)
-            }
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod test {
-        use http::Response;
-        use http::StatusCode;
-
-        use super::*;
-
-        #[test]
-        fn test_parse_error_branch_update_conflict_is_temporary() {
-            let (parts, _) = Response::builder()
+    #[test]
+    fn test_parse_error_branch_update_conflict_is_temporary() {
+        let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
             .header(
                 "x-error-message",
@@ -1572,30 +1529,85 @@ mod error {
             .unwrap()
             .into_parts();
 
-            let err = parse_error(parts);
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), parts);
 
-            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-            assert!(err.is_temporary());
-        }
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(err.is_temporary());
+    }
 
-        #[test]
-        fn test_parse_error_other_precondition_failed_is_not_temporary() {
-            let (parts, _) = Response::builder()
-                .status(StatusCode::PRECONDITION_FAILED)
-                .header("x-error-message", "etag mismatch")
-                .body(())
-                .unwrap()
-                .into_parts();
+    #[test]
+    fn test_parse_error_other_precondition_failed_is_not_temporary() {
+        let (parts, _) = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .header("x-error-message", "etag mismatch")
+            .body(())
+            .unwrap()
+            .into_parts();
 
-            let err = parse_error(parts);
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), parts);
 
-            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-            assert!(!err.is_temporary());
-        }
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
     }
 }
 
-pub(super) use error::*;
+use http::StatusCode;
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, parts: http::response::Parts) -> Error {
+    // HF sets x-error-message on every error response with a short human-readable
+    // description. Using the header avoids reading the response body, which can be
+    // a large HTML error page (e.g. 52 KB on 404s from the /resolve/ endpoint).
+    let message = parts
+        .headers
+        .get("x-error-message")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown error")
+        .to_string();
+
+    // HF git-style commit APIs reject stale branch snapshots with 412.
+    // Treat this specific conflict as temporary so RetryLayer can replay
+    // the whole write/delete close sequence on a fresh branch head.
+    let branch_updated_conflict = parts.status == StatusCode::PRECONDITION_FAILED
+        && message
+            .to_ascii_lowercase()
+            .contains("branch was updated since you opened this page");
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, branch_updated_conflict),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
 
 mod uri {
     use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};

@@ -109,7 +109,10 @@ impl SeafileCore {
                     };
                 }
                 _ => {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("AuthToken")),
+                        resp,
+                    ));
                 }
             }
 
@@ -150,7 +153,10 @@ impl SeafileCore {
                     }
                 }
                 _ => {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ListRepositories")),
+                        resp,
+                    ));
                 }
             }
             Ok(signer.auth_info.clone())
@@ -185,7 +191,10 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(upload_url)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetUploadLink")),
+                resp,
+            )),
         }
     }
 
@@ -256,7 +265,10 @@ impl SeafileCore {
 
         match resp.status() {
             StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Mkdir")),
+                resp,
+            )),
         }
     }
 
@@ -290,7 +302,10 @@ impl SeafileCore {
 
                 Ok(download_url)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetDownloadLink")),
+                resp,
+            )),
         }
     }
 
@@ -344,7 +359,10 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(file_detail)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileDetail")),
+                resp,
+            )),
         }
     }
 
@@ -377,7 +395,10 @@ impl SeafileCore {
                     .map_err(new_json_deserialize_error)?;
                 Ok(dir_detail)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetDirDetail")),
+                resp,
+            )),
         }
     }
 
@@ -415,7 +436,10 @@ impl SeafileCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Delete")),
+                resp,
+            )),
         }
     }
 
@@ -457,7 +481,10 @@ impl SeafileCore {
                 infos: None,
                 rooted_abs_path,
             }),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListDir")),
+                resp,
+            )),
         }
     }
 }
@@ -528,77 +555,78 @@ pub struct ListResponse {
     pub rooted_abs_path: String,
 }
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use serde::Deserialize;
+/// the error response of seafile
+#[derive(Default, Debug, Deserialize)]
+#[allow(dead_code)]
+struct SeafileError {
+    error_msg: String,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    /// the error response of seafile
-    #[derive(Default, Debug, Deserialize)]
-    #[allow(dead_code)]
-    struct SeafileError {
-        error_msg: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, _retryable) = match parts.status.as_u16() {
-            403 => (ErrorKind::PermissionDenied, false),
-            404 => (ErrorKind::NotFound, false),
-            520 => (ErrorKind::Unexpected, false),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let (message, _seafile_err) =
-            serde_json::from_reader::<_, SeafileError>(bs.clone().reader())
-                .map(|seafile_err| (format!("{seafile_err:?}"), Some(seafile_err)))
-                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        err
-    }
-
-    #[cfg(test)]
-    mod test {
-        use http::StatusCode;
-
-        use super::*;
-
-        #[tokio::test]
-        async fn test_parse_error() {
-            let err_res = vec![
-                (
-                    r#"{"error_msg": "Permission denied"}"#,
-                    ErrorKind::PermissionDenied,
-                    StatusCode::FORBIDDEN,
-                ),
-                (
-                    r#"{"error_msg": "Folder /e982e75a-fead-487c-9f41-63094d9bf0de/a9d867b9-778d-4612-b674-47e674c14c28/ not found."}"#,
-                    ErrorKind::NotFound,
-                    StatusCode::NOT_FOUND,
-                ),
-            ];
-
-            for res in err_res {
-                let bs = bytes::Bytes::from(res.0);
-                let body = Buffer::from(bs);
-                let resp = Response::builder().status(res.2).body(body).unwrap();
-
-                let err = parse_error(resp);
-
-                assert_eq!(err.kind(), res.1);
-            }
-        }
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
 }
 
-pub(super) use error::*;
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, _retryable) = match parts.status.as_u16() {
+        403 => (ErrorKind::PermissionDenied, false),
+        404 => (ErrorKind::NotFound, false),
+        520 => (ErrorKind::Unexpected, false),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let (message, _seafile_err) = serde_json::from_reader::<_, SeafileError>(bs.clone().reader())
+        .map(|seafile_err| (format!("{seafile_err:?}"), Some(seafile_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    err
+}
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_error() {
+        let err_res = vec![
+            (
+                r#"{"error_msg": "Permission denied"}"#,
+                ErrorKind::PermissionDenied,
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                r#"{"error_msg": "Folder /e982e75a-fead-487c-9f41-63094d9bf0de/a9d867b9-778d-4612-b674-47e674c14c28/ not found."}"#,
+                ErrorKind::NotFound,
+                StatusCode::NOT_FOUND,
+            ),
+        ];
+
+        for res in err_res {
+            let bs = bytes::Bytes::from(res.0);
+            let body = Buffer::from(bs);
+            let resp = Response::builder().status(res.2).body(body).unwrap();
+
+            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+
+            assert_eq!(err.kind(), res.1);
+        }
+    }
+}

@@ -16,7 +16,7 @@
 // under the License.
 
 use super::backend::*;
-use super::core::parse_error;
+use super::core::{ErrorContext, parse_error};
 use super::model::*;
 use bytes::Buf;
 use http::StatusCode;
@@ -58,7 +58,10 @@ impl oio::StreamRead for CloudflareKvReader {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetValue")),
+                resp,
+            ));
         }
 
         let resp_body = resp.into_body();
@@ -71,7 +74,10 @@ impl oio::StreamRead for CloudflareKvReader {
             let meta_resp = backend.core.metadata(&self.ctx, &path).await?;
 
             if meta_resp.status() != StatusCode::OK {
-                return Err(parse_error(meta_resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetMetadata")),
+                    meta_resp,
+                ));
             }
 
             let cf_response: CfKvStatResponse =

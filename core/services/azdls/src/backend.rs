@@ -34,9 +34,9 @@ use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
-use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::core::parse_error;
+use super::core::{AzdlsCore, ErrorContext};
 use super::deleter::AzdlsDeleter;
 use super::lister::AzdlsLister;
 use super::reader::*;
@@ -413,7 +413,10 @@ impl Service for AzdlsBackend {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateDirectory")),
+                resp,
+            )),
         }
     }
 
@@ -520,7 +523,12 @@ impl Service for AzdlsBackend {
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateDirectory")),
+                        resp,
+                    ));
+                }
             }
         }
 
@@ -530,7 +538,10 @@ impl Service for AzdlsBackend {
 
         match status {
             StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("RenamePath")),
+                resp,
+            )),
         }
     }
 

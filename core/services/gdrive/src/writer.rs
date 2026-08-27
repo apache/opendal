@@ -20,9 +20,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::parse_error;
+use super::core::{ErrorContext, GdriveCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -106,7 +106,12 @@ impl oio::OneShotWrite for GdriveWriter {
                     current_file_id = self.core.resolve_path(&self.ctx, &self.path).await?;
                     continue;
                 }
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("UploadFile")),
+                        resp,
+                    ));
+                }
             }
         }
     }

@@ -77,7 +77,10 @@ impl oio::MultipartWrite for TosWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                resp,
+            )),
         }
     }
 
@@ -97,7 +100,10 @@ impl oio::MultipartWrite for TosWriter {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -135,7 +141,10 @@ impl oio::MultipartWrite for TosWriter {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -179,7 +188,10 @@ impl oio::MultipartWrite for TosWriter {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -191,7 +203,10 @@ impl oio::MultipartWrite for TosWriter {
 
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }

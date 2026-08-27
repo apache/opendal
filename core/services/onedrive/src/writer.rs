@@ -24,8 +24,8 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::OneDriveCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, OneDriveCore};
 use super::graph_model::OneDriveItem;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 
@@ -92,7 +92,10 @@ impl OneDriveWriter {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadContent")),
+                response,
+            )),
         }
     }
 
@@ -147,7 +150,12 @@ impl OneDriveWriter {
                     meta.set_last_modified(date_utc_last_modified);
                     return Ok(meta);
                 }
-                _ => return Err(parse_error(response)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("UploadFragment")),
+                        response,
+                    ));
+                }
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
@@ -170,7 +178,10 @@ impl OneDriveWriter {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateUploadSession")),
+                response,
+            )),
         }
     }
 }

@@ -20,8 +20,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::WebhdfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, WebhdfsCore};
 use super::message::*;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -65,7 +65,12 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ListStatus")),
+                        resp,
+                    ));
+                }
             }
         } else {
             let resp = self
@@ -98,7 +103,12 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     return Ok(());
                 }
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ListStatusBatch")),
+                        resp,
+                    ));
+                }
             }
         };
 

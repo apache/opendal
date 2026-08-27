@@ -20,10 +20,10 @@ use std::sync::Arc;
 use asyncband::once::OnceCell;
 use http::StatusCode;
 
-use super::core::AzdlsCore;
 use super::core::FILE;
 use super::core::X_MS_VERSION_ID;
 use super::core::parse_error;
+use super::core::{AzdlsCore, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -77,11 +77,16 @@ impl AzdlsWriter {
             .await?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            StatusCode::CONFLICT if self.op.if_not_exists() => {
-                Err(parse_error(resp).with_operation("Backend::azdls_create_request"))
-            }
+            StatusCode::CONFLICT if self.op.if_not_exists() => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFile")),
+                resp,
+            )
+            .with_operation("Backend::azdls_create_request")),
             StatusCode::CONFLICT => Ok(()),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp)
+                    .with_operation("Backend::azdls_create_request"),
+            ),
         }
     }
 
@@ -114,7 +119,10 @@ impl oio::PositionWrite for AzdlsWriter {
 
         match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_append_request")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("AppendData")), resp)
+                    .with_operation("Backend::azdls_append_request"),
+            ),
         }
     }
 
@@ -130,7 +138,10 @@ impl oio::PositionWrite for AzdlsWriter {
 
         match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_flush_request")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("FlushData")), resp)
+                    .with_operation("Backend::azdls_flush_request"),
+            ),
         }
     }
 
@@ -171,7 +182,10 @@ impl oio::AppendWrite for AzdlsWriter {
         match status {
             StatusCode::OK => Ok(parse_content_length(headers)?.unwrap_or_default()),
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetPathProperties")),
+                resp,
+            )),
         }
     }
 
@@ -196,7 +210,10 @@ impl oio::AppendWrite for AzdlsWriter {
 
         match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_append_request")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("AppendData")), resp)
+                    .with_operation("Backend::azdls_append_request"),
+            ),
         }
     }
 }

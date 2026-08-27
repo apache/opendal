@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
-use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::core::parse_error;
+use super::core::{ErrorContext, KoofrCore};
 use opendal_core::EntryMode;
 use opendal_core::Metadata;
 use opendal_core::OperationContext;
@@ -58,7 +58,10 @@ impl oio::PageList for KoofrLister {
         match resp.status() {
             http::StatusCode::OK => {}
             _ => {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("FilesList")),
+                    resp,
+                ));
             }
         }
 

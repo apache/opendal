@@ -27,9 +27,9 @@ use log::debug;
 use super::KOOFR_SCHEME;
 use super::config::KoofrConfig;
 use super::core::File;
-use super::core::KoofrCore;
 use super::core::KoofrSigner;
 use super::core::parse_error;
+use super::core::{ErrorContext, KoofrCore};
 use super::deleter::KoofrDeleter;
 use super::lister::KoofrLister;
 use super::reader::*;
@@ -239,7 +239,10 @@ impl Service for KoofrBackend {
 
                 Ok(RpStat::new(md))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesInfo")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -310,7 +313,10 @@ impl Service for KoofrBackend {
                 let status = resp.status();
 
                 if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-                    Err(parse_error(resp))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("FilesRemove")),
+                        resp,
+                    ))
                 } else {
                     let resp = core.copy(&ctx, &from, &to).await?;
 
@@ -318,7 +324,10 @@ impl Service for KoofrBackend {
 
                     match status {
                         StatusCode::OK => Ok(Metadata::default()),
-                        _ => Err(parse_error(resp)),
+                        _ => Err(parse_error(
+                            ErrorContext::new(ServiceOperation("FilesCopy")),
+                            resp,
+                        )),
                     }
                 }
             }
@@ -343,7 +352,10 @@ impl Service for KoofrBackend {
         let status = resp.status();
 
         if status != StatusCode::OK && status != StatusCode::NOT_FOUND {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesRemove")),
+                resp,
+            ));
         }
 
         let resp = self.core.move_object(ctx, from, to).await?;
@@ -352,7 +364,10 @@ impl Service for KoofrBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesMove")),
+                resp,
+            )),
         }
     }
 

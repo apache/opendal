@@ -23,8 +23,8 @@ use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::OneDriveCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, OneDriveCore};
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
 
@@ -77,7 +77,10 @@ impl oio::PageList for OneDriveLister {
                 ctx.done = true;
                 return Ok(());
             }
-            return Err(parse_error(response));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListChildren")),
+                response,
+            ));
         }
 
         let bytes = response.into_body();

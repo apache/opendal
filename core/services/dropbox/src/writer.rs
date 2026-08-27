@@ -21,7 +21,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::parse_error;
-use super::core::{DropboxCore, DropboxMetadataResponse};
+use super::core::{DropboxCore, DropboxMetadataResponse, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -84,7 +84,10 @@ impl oio::OneShotWrite for DropboxWriter {
                 let metadata = DropboxWriter::parse_metadata(decoded_response)?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadFile")),
+                resp,
+            )),
         }
     }
 }

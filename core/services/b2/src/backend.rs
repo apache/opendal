@@ -25,11 +25,11 @@ use log::debug;
 
 use super::B2_SCHEME;
 use super::config::B2Config;
-use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;
 use super::core::parse_error;
 use super::core::parse_file_info;
+use super::core::{B2Core, ErrorContext};
 use super::deleter::B2Deleter;
 use super::lister::B2Lister;
 use super::reader::*;
@@ -338,7 +338,10 @@ impl Service for B2Backend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyFile")),
+                    resp,
+                )),
             }
         }))
     }

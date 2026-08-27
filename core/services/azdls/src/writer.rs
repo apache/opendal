@@ -173,7 +173,7 @@ impl oio::AppendWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .azdls_get_properties(&self.ctx, &self.path)
+            .azdls_get_properties(&self.ctx, &self.path, &OpStat::default())
             .await?;
 
         let status = resp.status();

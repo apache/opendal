@@ -1628,17 +1628,56 @@ mod tests {
 
         assert!(check_proppatch_response(xml).is_ok());
     }
+
+    #[test]
+    fn test_parse_error_maps_missing_if_match_to_not_found() {
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(Buffer::from(
+                "An If-Match header was specified and the resource did not exist",
+            ))
+            .unwrap();
+
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("Get")).with_if_match(true),
+            resp,
+        );
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_parse_error_preserves_etag_mismatch() {
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(Buffer::from("The ETag did not match"))
+            .unwrap();
+
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("Get")).with_if_match(true),
+            resp,
+        );
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
 }
 
 /// Context needed to classify an error from this service.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    if_match: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            if_match: false,
+        }
+    }
+
+    pub(crate) const fn with_if_match(mut self, if_match: bool) -> Self {
+        self.if_match = if_match;
+        self
     }
 }
 
@@ -1646,6 +1685,8 @@ impl ErrorContext {
 pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
+
+    let message = String::from_utf8_lossy(&bs);
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
@@ -1655,6 +1696,11 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         // precondition failed; 304 means an If-None-Match /
         // If-Modified-Since precondition matched. Surface both as
         // ConditionNotMatch so callers can branch on it.
+        StatusCode::PRECONDITION_FAILED
+            if ctx.if_match && message.contains("resource did not exist") =>
+        {
+            (ErrorKind::NotFound, false)
+        }
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -1666,8 +1712,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
-
-    let message = String::from_utf8_lossy(&bs);
 
     let mut err = Error::new(kind, message);
 

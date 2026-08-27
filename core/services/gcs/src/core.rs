@@ -1361,6 +1361,29 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_missing_target_with_version_condition() {
+        let parse_missing = |ctx| {
+            let resp = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Buffer::new())
+                .expect("response must build");
+            parse_error(ctx, resp).kind()
+        };
+
+        for ctx in [
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_match(true),
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_not_match(true),
+        ] {
+            assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
+        }
+
+        let delete_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
+            .with_if_version_match(true)
+            .with_delete();
+        assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
+    }
+
+    #[test]
     fn test_deserialize_get_object_json_response() {
         let content = r#"{
     "kind": "storage#object",
@@ -1562,6 +1585,7 @@ pub struct ErrorContext {
     if_not_exists: bool,
     if_version_match: bool,
     if_version_not_match: bool,
+    is_delete: bool,
 }
 
 impl ErrorContext {
@@ -1573,6 +1597,7 @@ impl ErrorContext {
             if_not_exists: false,
             if_version_match: false,
             if_version_not_match: false,
+            is_delete: false,
         }
     }
 
@@ -1601,16 +1626,17 @@ impl ErrorContext {
         self
     }
 
+    pub const fn with_delete(mut self) -> Self {
+        self.is_delete = true;
+        self
+    }
+
     const fn has_condition(self) -> bool {
         self.if_match
             || self.if_none_match
             || self.if_not_exists
             || self.if_version_match
             || self.if_version_not_match
-    }
-
-    const fn has_version_condition(self) -> bool {
-        self.if_version_match || self.if_version_not_match
     }
 }
 
@@ -1646,7 +1672,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.has_version_condition() => {
+        StatusCode::NOT_FOUND if ctx.is_delete && (ctx.if_match || ctx.if_version_match) => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),

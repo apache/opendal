@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import gc
 import os
 from pathlib import Path
 from random import randint
@@ -148,6 +149,25 @@ async def test_async_writer(service_name, operator, async_operator):
     await async_operator.delete(filename)
     with pytest.raises(NotFound):
         await async_operator.stat(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "read", "delete")
+async def test_async_writer_keeps_bytes_alive(service_name, operator, async_operator):
+    filename = f"test_file_{str(uuid4())}.txt"
+    expected = bytes(range(256)) * 4
+    content = bytes(bytearray(expected))
+    f = await async_operator.open(filename, "wb")
+
+    write = f.write(content)
+    del content
+    gc.collect()
+
+    written_bytes = await write
+    assert written_bytes == len(expected)
+    await f.close()
+    assert await async_operator.read(filename) == expected
+    await async_operator.delete(filename)
 
 
 @pytest.mark.asyncio

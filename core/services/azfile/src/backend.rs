@@ -237,6 +237,9 @@ impl Builder for AzfileBuilder {
 
             write: true,
             write_with_user_metadata: true,
+            // Azure Files limits each Put Range update to 4 MiB.
+            // ref: <https://learn.microsoft.com/en-us/rest/api/storageservices/put-range>
+            write_total_max_size: Some(4 * 1024 * 1024),
 
             create_dir: true,
             delete: true,

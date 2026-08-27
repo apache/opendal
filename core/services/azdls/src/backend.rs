@@ -334,6 +334,10 @@ impl Builder for AzdlsBuilder {
         let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
         let capability = Capability {
             stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
 
             read: true,
             read_with_if_match: true,
@@ -420,14 +424,14 @@ impl Service for AzdlsBackend {
         }
     }
 
-    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         // TODO: include metadata for the root (#4746)
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let metadata = self.core.azdls_stat_metadata(ctx, path).await?;
+        let metadata = self.core.azdls_stat_metadata(ctx, path, &args).await?;
         Ok(RpStat::new(metadata))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

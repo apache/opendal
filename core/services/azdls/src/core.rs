@@ -339,6 +339,7 @@ impl AzdlsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpStat,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -351,7 +352,20 @@ impl AzdlsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::head(&url);
+        let mut req = Request::head(&url);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
+        }
 
         let req = req
             .extension(Operation::Stat)
@@ -367,8 +381,9 @@ impl AzdlsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpStat,
     ) -> Result<Metadata> {
-        let resp = self.azdls_get_properties(ctx, path).await?;
+        let resp = self.azdls_get_properties(ctx, path, args).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(
@@ -649,6 +664,25 @@ mod tests {
         assert_eq!(decoded.len(), 1);
         assert_eq!(decoded.get("good"), Some(&"good".to_string()));
     }
+
+    #[test]
+    fn test_parse_missing_target_uses_operation_context() {
+        let parse_missing = |ctx| {
+            let resp = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Buffer::new())
+                .expect("response must build");
+            parse_error(ctx, resp).kind()
+        };
+
+        let read_ctx = ErrorContext::new(ServiceOperation("ReadFile")).with_if_match(true);
+        assert_eq!(parse_missing(read_ctx), ErrorKind::NotFound);
+
+        let delete_ctx = ErrorContext::new(ServiceOperation("DeletePath"))
+            .with_if_match(true)
+            .with_delete();
+        assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
+    }
 }
 
 use bytes::Buf;
@@ -693,11 +727,27 @@ impl Debug for AzdlsError {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    if_match: bool,
+    is_delete: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            if_match: false,
+            is_delete: false,
+        }
+    }
+
+    pub(crate) const fn with_if_match(mut self, if_match: bool) -> Self {
+        self.if_match = if_match;
+        self
+    }
+
+    pub(crate) const fn with_delete(mut self) -> Self {
+        self.is_delete = true;
+        self
     }
 }
 
@@ -707,6 +757,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.is_delete && ctx.if_match => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {

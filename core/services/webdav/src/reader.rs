@@ -68,7 +68,8 @@ impl oio::StreamRead for WebdavReader {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
                 return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("Get")),
+                    ErrorContext::new(ServiceOperation("Get"))
+                        .with_if_match(args.if_match().is_some()),
                     Response::from_parts(part, buf),
                 ));
             }

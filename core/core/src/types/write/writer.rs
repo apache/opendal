@@ -103,6 +103,21 @@ pub struct Writer {
     inner: WriteGenerator<oio::Writer>,
 }
 
+impl std::fmt::Debug for Writer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let info = self.ctx.accessor().info();
+        let root = info.root();
+
+        f.debug_struct("Writer")
+            .field("scheme", &info.scheme())
+            .field("root", &root)
+            .field("path", &self.ctx.path())
+            .field("args", self.ctx.args())
+            .field("options", self.ctx.options())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) async fn new(ctx: WriteContext) -> Result<Self> {
@@ -426,6 +441,7 @@ mod tests {
     use rand::{Rng, RngExt};
 
     use crate::Operator;
+    use crate::Result;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
@@ -494,5 +510,23 @@ mod tests {
             buf.to_bytes(),
             chain_same.copy_to_bytes(chain_same.remaining())
         );
+    }
+
+    #[tokio::test]
+    async fn test_debug() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let mut writer = op.writer_with(path).chunk(8).await?;
+        let output = format!("{writer:?}");
+        writer.abort().await?;
+
+        assert!(output.contains("Writer"), "{output}");
+        assert!(output.contains("memory"), "{output}");
+        assert!(output.contains(path), "{output}");
+        assert!(output.contains("args"), "{output}");
+        assert!(output.contains("options"), "{output}");
+
+        Ok(())
     }
 }

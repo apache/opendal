@@ -29,9 +29,7 @@ async def test_async_list_batching_preserves_order():
     expected = [f"items/{idx:03d}" for idx in range(130)]
     await asyncio.gather(*(op.write(path, b"test") for path in expected))
 
-    actual = [
-        entry.path async for entry in await op.list("items/", recursive=True)
-    ]
+    actual = [entry.path async for entry in await op.list("items/", recursive=True)]
     assert actual == expected
 
 

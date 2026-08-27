@@ -119,7 +119,7 @@ Missing-target results are part of the portable contract:
 | --- | --- | --- |
 | `if_match` | `NotFound` | `ConditionNotMatch` |
 | `if_none_match` | `NotFound` | The condition succeeds. Delete is an idempotent no-op. |
-| `if_version_match` or `if_version_not_match` | `ConditionNotMatch` | `ConditionNotMatch` |
+| `if_version_match` or `if_version_not_match` | `NotFound` | `ConditionNotMatch` |
 | `if_not_exists` | N/A | The condition succeeds. |
 | `if_not_changed` | N/A | `ConditionNotMatch`, inherited from the selected primitive. |
 
@@ -174,11 +174,12 @@ GCS maps version conditions to JSON API generation parameters:
 | `if_not_changed(meta)` | Lower to `if_version_match(meta.version())`. |
 
 GCS applies these parameters to JSON API get, insert, delete, and destination
-rewrite requests. `ifGenerationNotMatch` fails when no live object exists, and
-OpenDAL maps that failure to `ConditionNotMatch`. Multi-request rewrite keeps
-the destination condition across requests. Because GCS advertises version
-match rather than ETag match for mutations, the shared lowering rule selects
-the object generation for `if_not_changed`.
+rewrite requests. `ifGenerationNotMatch` fails when no live object exists.
+OpenDAL returns `NotFound` for a missing get target and `ConditionNotMatch` when
+a mutation condition requires a missing target. Multi-request rewrite keeps the
+destination condition across requests. Because GCS advertises version match
+rather than ETag match for mutations, the shared lowering rule selects the
+object generation for `if_not_changed`.
 
 GCS must use a write path that can preserve generation conditions, such as
 JSON resumable upload, before advertising a conditional write capability. It
@@ -189,10 +190,12 @@ through `if_not_changed`.
 # Compatibility and migration
 
 The new options and primitive capabilities are additive and default to
-disabled. Existing version selectors, ETag conditions, and `if_not_exists`
-retain their behavior except for conditional delete when its required live
-target is absent. Lowering `if_not_changed` in core produces the same native
-conditions and errors as choosing the identity separately in each service.
+disabled. Version conditions on stat and read follow the existing ETag
+condition contract for missing targets. Existing version selectors, ETag
+conditions, and `if_not_exists` retain their behavior except for conditional
+delete when its required live target is absent. Lowering `if_not_changed` in
+core produces the same native conditions and errors as choosing the identity
+separately in each service.
 
 Conditional delete currently inherits unconditional delete's idempotent 404
 handling on some services. After this RFC, a delete guarded by `if_match`, a

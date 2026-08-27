@@ -87,6 +87,10 @@ pub struct ListOptions {
 }
 
 /// Options for read operations.
+///
+/// Conditional reads return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReadOptions {
     /// Set `range` for this operation.
@@ -122,8 +126,15 @@ pub struct ReadOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Read only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Read only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
@@ -199,6 +210,10 @@ pub struct ReadOptions {
 }
 
 /// Options for reader operations.
+///
+/// Conditional reads return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ReaderOptions {
     /// Set `version` for this operation.
@@ -223,8 +238,15 @@ pub struct ReaderOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Read only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Read only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///
@@ -301,6 +323,10 @@ pub struct ReaderOptions {
 }
 
 /// Options for stat operations.
+///
+/// Conditional stats return [`crate::ErrorKind::NotFound`] when no live target
+/// exists. An existing target that fails a condition returns
+/// [`crate::ErrorKind::ConditionNotMatch`].
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct StatOptions {
     /// Set `version` for this operation.
@@ -325,8 +351,15 @@ pub struct StatOptions {
     /// will be returned.
     pub if_none_match: Option<String>,
     /// Stat only when the current object's version matches this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with a different version returns
+    /// [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Stat only when the current object's version does not match this value.
+    ///
+    /// A missing live target returns [`crate::ErrorKind::NotFound`]. An existing
+    /// target with the same version returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_not_match: Option<String>,
     /// Set `if_modified_since` for this operation.
     ///

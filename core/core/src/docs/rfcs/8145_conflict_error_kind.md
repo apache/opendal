@@ -97,6 +97,11 @@ Conflict,
 > A condition supplied through the OpenDAL operation evaluated to false at
 > the authoritative service or native operation boundary.
 
+Stat and read resolve the current live target before evaluating conditions. If
+no live target exists, OpenDAL returns `NotFound`; it does not treat the missing
+target as a false condition. Mutation operations define missing-target behavior
+according to the condition attached to the mutation.
+
 The condition can originate from a public option such as `if_match`,
 `if_none_match`, or `if_not_exists`. A backend may translate a native
 `AlreadyExists` result to `ConditionNotMatch` when that result authoritatively

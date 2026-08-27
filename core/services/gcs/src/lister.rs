@@ -82,7 +82,7 @@ impl oio::PageList for GcsLister {
 
         if !resp.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(ServiceOperation("ListObjects")),
+                ErrorContext::new(Operation::List, ServiceOperation("ListObjects")),
                 resp,
             ));
         }

@@ -463,7 +463,7 @@ impl Service for GcsBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
+        let error_ctx = ErrorContext::new(Operation::Stat, ServiceOperation("GetObject"))
             .with_if_match(args.if_match().is_some())
             .with_if_none_match(args.if_none_match().is_some())
             .with_if_version_match(args.if_version_match().is_some())

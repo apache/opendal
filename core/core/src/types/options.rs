@@ -30,7 +30,8 @@ use std::collections::HashMap;
 /// returns [`crate::ErrorKind::ConditionNotMatch`]. It makes negative match
 /// conditions (`if_none_match` and `if_version_not_match`) true, so the delete
 /// succeeds as a no-op. An unconditional delete of a missing target also
-/// succeeds.
+/// succeeds. Only concrete ETag values have portable delete semantics;
+/// wildcard values such as `"*"` are service-specific.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DeleteOptions {
     /// The version of the file to delete.
@@ -52,14 +53,12 @@ pub struct DeleteOptions {
     /// - An existing object with a different ETag returns
     ///   [`crate::ErrorKind::ConditionNotMatch`].
     /// - A missing object returns [`crate::ErrorKind::ConditionNotMatch`].
-    /// - `"*"` requires a live target.
     pub if_match: Option<String>,
     /// Delete only when the current object's ETag does not match this value.
     ///
     /// An existing object with the same ETag returns
     /// [`crate::ErrorKind::ConditionNotMatch`]. A different or missing object
-    /// satisfies the condition; deleting a missing object is a no-op. `"*"`
-    /// therefore requires the target to be absent.
+    /// satisfies the condition; deleting a missing object is a no-op.
     ///
     /// Check [`crate::Capability::delete_with_if_none_match`] before using this feature.
     pub if_none_match: Option<String>,

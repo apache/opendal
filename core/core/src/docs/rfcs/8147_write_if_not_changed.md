@@ -84,9 +84,9 @@ historical version.
 | `if_not_exists` | No live target exists. |
 | `if_not_changed(meta)` | One supported identity in `meta` still matches the target. |
 
-For ETag conditions, `if_match("*")` requires a live target and
-`if_none_match("*")` requires the target to be absent. Multiple supplied
-conditions are combined with logical AND.
+Only concrete ETag values have portable delete semantics. Wildcard values such
+as `"*"` are outside the portable delete contract. Multiple supplied conditions
+are combined with logical AND.
 
 `if_not_changed` is a derived condition. At the shared write, delete, or copy
 entry point, OpenDAL uses the effective capabilities after all layers and

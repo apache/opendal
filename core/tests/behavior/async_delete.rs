@@ -54,7 +54,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
                 test_delete_with_if_match_match,
                 test_delete_with_if_match_mismatch,
                 test_delete_with_if_match_missing,
-                test_delete_with_if_match_wildcard,
                 test_batch_delete_with_if_match
             ));
         }
@@ -62,7 +61,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             tests.extend(async_trials!(
                 op,
                 test_delete_with_if_none_match,
-                test_delete_with_if_none_match_wildcard,
                 test_batch_delete_with_if_none_match
             ));
         }
@@ -575,24 +573,6 @@ pub async fn test_delete_with_if_match_missing(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// `If-Match: *` should require and delete a live target.
-pub async fn test_delete_with_if_match_wildcard(op: Operator) -> Result<()> {
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-    op.write(&path, content).await?;
-
-    op.delete_with(&path).if_match("*").await?;
-    assert!(!op.exists(&path).await?);
-
-    let err = op
-        .delete_with(&path)
-        .if_match("*")
-        .await
-        .expect_err("wildcard match requires a live target");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-
-    Ok(())
-}
-
 /// Delete with `If-None-Match` should reject equality and accept inequality or absence.
 pub async fn test_delete_with_if_none_match(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
@@ -616,25 +596,6 @@ pub async fn test_delete_with_if_none_match(op: Operator) -> Result<()> {
         .if_none_match("\"different-etag\"")
         .await?;
     op.delete_with(&path).if_none_match(&etag).await?;
-
-    Ok(())
-}
-
-/// `If-None-Match: *` should require the target to be absent.
-pub async fn test_delete_with_if_none_match_wildcard(op: Operator) -> Result<()> {
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-    op.write(&path, content).await?;
-
-    let err = op
-        .delete_with(&path)
-        .if_none_match("*")
-        .await
-        .expect_err("wildcard non-match must reject a live target");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-    assert!(op.exists(&path).await?);
-
-    op.delete(&path).await?;
-    op.delete_with(&path).if_none_match("*").await?;
 
     Ok(())
 }

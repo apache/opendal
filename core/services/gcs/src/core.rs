@@ -1361,6 +1361,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_missing_target_with_version_condition() {
+        let parse_missing = |ctx| {
+            let resp = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Buffer::new())
+                .expect("response must build");
+            parse_error(ctx, resp).kind()
+        };
+
+        for ctx in [
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_match(true),
+            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_not_match(true),
+        ] {
+            assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
+        }
+    }
+
+    #[test]
     fn test_deserialize_get_object_json_response() {
         let content = r#"{
     "kind": "storage#object",
@@ -1608,10 +1626,6 @@ impl ErrorContext {
             || self.if_version_match
             || self.if_version_not_match
     }
-
-    const fn has_version_condition(self) -> bool {
-        self.if_version_match || self.if_version_not_match
-    }
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1646,9 +1660,6 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.has_version_condition() => {
-            (ErrorKind::ConditionNotMatch, false)
-        }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {

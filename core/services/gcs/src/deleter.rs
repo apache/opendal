@@ -43,9 +43,7 @@ impl oio::BatchDelete for GcsDeleter {
         if resp.status().is_success() {
             Ok(())
         } else if resp.status() == StatusCode::NOT_FOUND
-            && (args.if_match().is_some()
-                || args.if_version_match().is_some()
-                || args.if_version_not_match().is_some())
+            && (args.if_match().is_some() || args.if_version_match().is_some())
         {
             Err(Error::new(
                 ErrorKind::ConditionNotMatch,
@@ -100,9 +98,7 @@ impl oio::BatchDelete for GcsDeleter {
             if resp.status().is_success() {
                 batched_result.succeeded.push((path, op));
             } else if resp.status() == StatusCode::NOT_FOUND
-                && (op.if_match().is_some()
-                    || op.if_version_match().is_some()
-                    || op.if_version_not_match().is_some())
+                && (op.if_match().is_some() || op.if_version_match().is_some())
             {
                 batched_result.failed.push((
                     path,

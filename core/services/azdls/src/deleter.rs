@@ -48,6 +48,10 @@ impl oio::OneShotDelete for AzdlsDeleter {
         let status = resp.status();
 
         match status {
+            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            )),
             StatusCode::OK | StatusCode::NOT_FOUND => Ok(()),
             _ => Err(parse_error(resp)),
         }

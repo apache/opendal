@@ -18,7 +18,12 @@
 use crate::raw::OpDelete;
 use crate::{Entry, Metadata};
 
-/// DeleteInput is the input for delete operations.
+/// Per-entry input for delete operations.
+///
+/// Conditional fields follow the current-target predicate contract documented
+/// by [`crate::options::DeleteOptions`]. A missing target fails positive match
+/// conditions with [`crate::ErrorKind::ConditionNotMatch`] and satisfies negative
+/// match conditions as a successful no-op.
 #[non_exhaustive]
 #[derive(Default, Debug)]
 pub struct DeleteInput {
@@ -29,14 +34,26 @@ pub struct DeleteInput {
     /// Whether to perform recursive deletion.
     pub recursive: bool,
     /// Delete only when the current ETag matches this value.
+    ///
+    /// A different or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_match: Option<String>,
     /// Delete only when the current ETag does not match this value.
+    ///
+    /// An equal ETag returns [`crate::ErrorKind::ConditionNotMatch`]. A different
+    /// or missing object satisfies the condition.
     pub if_none_match: Option<String>,
     /// Delete only when the current version matches this value.
+    ///
+    /// A different or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_version_match: Option<String>,
     /// Delete only when the current version does not match this value.
+    ///
+    /// An equal version returns [`crate::ErrorKind::ConditionNotMatch`]. A
+    /// different or missing object satisfies the condition.
     pub if_version_not_match: Option<String>,
     /// Delete only when the object still matches this metadata.
+    ///
+    /// A changed or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
     pub if_not_changed: Option<Metadata>,
 }
 

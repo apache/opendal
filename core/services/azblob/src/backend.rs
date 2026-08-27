@@ -415,7 +415,9 @@ impl Builder for AzblobBuilder {
 
             delete: true,
             delete_with_if_match: true,
-            delete_with_if_none_match: true,
+            // Azure Blob treats `If-None-Match: *` as a literal ETag on delete.
+            // It cannot satisfy OpenDAL's portable wildcard contract.
+            delete_with_if_none_match: false,
             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
             copy: true,

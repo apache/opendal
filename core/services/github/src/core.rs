@@ -211,7 +211,7 @@ impl GithubCore {
         self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str, args: &OpDelete) -> Result<()> {
         // If path is a directory, we should delete path/.gitkeep
         let formatted_path = format!("{path}.gitkeep");
         let p = if path.ends_with('/') {
@@ -220,8 +220,12 @@ impl GithubCore {
             path
         };
 
-        let Some(sha) = self.get_file_sha(ctx, p).await? else {
-            return Ok(());
+        let sha = match args.if_match() {
+            Some(sha) => sha.to_string(),
+            None => match self.get_file_sha(ctx, p).await? {
+                Some(sha) => sha,
+                None => return Ok(()),
+            },
         };
 
         let path = build_abs_path(&self.root, p);
@@ -257,7 +261,15 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            )),
             StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::CONFLICT if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete sha does not match the current blob",
+            )),
             _ => Err(parse_error(resp)),
         }
     }
@@ -412,7 +424,7 @@ mod error {
         let (kind, retryable) = match parts.status.as_u16() {
             401 | 403 => (ErrorKind::PermissionDenied, false),
             404 => (ErrorKind::NotFound, false),
-            304 | 412 => (ErrorKind::ConditionNotMatch, false),
+            304 | 409 | 412 => (ErrorKind::ConditionNotMatch, false),
             // https://github.com/apache/opendal/issues/4146
             // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
             // We should retry it when we get 423 error.
@@ -450,14 +462,24 @@ mod error {
 
         #[tokio::test]
         async fn test_parse_error() {
-            let err_res = vec![(
-                r#"{
+            let err_res = vec![
+                (
+                    r#"{
                 "message": "Not Found",
                 "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content"
             }"#,
-                ErrorKind::NotFound,
-                StatusCode::NOT_FOUND,
-            )];
+                    ErrorKind::NotFound,
+                    StatusCode::NOT_FOUND,
+                ),
+                (
+                    r#"{
+                "message": "is at abc123 but expected def456",
+                "documentation_url": "https://docs.github.com/rest/repos/contents#delete-a-file"
+            }"#,
+                    ErrorKind::ConditionNotMatch,
+                    StatusCode::CONFLICT,
+                ),
+            ];
 
             for res in err_res {
                 let bs = bytes::Bytes::from(res.0);

@@ -24,7 +24,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 
 use asyncband::mutex::Mutex;
-use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 use pyo3::IntoPyObjectExt;
@@ -99,24 +98,12 @@ impl File {
         };
 
         let buffer = match size {
-            Some(size) => {
-                let mut bs = vec![0; size];
-                let n = reader
-                    .read(&mut bs)
-                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                bs.truncate(n);
-                bs
-            }
-            None => {
-                let mut buffer = Vec::new();
-                reader
-                    .read_to_end(&mut buffer)
-                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                buffer
-            }
-        };
+            Some(size) => reader.read_buffer(size),
+            None => reader.read_to_end_buffer(),
+        }
+        .map_err(|err| PyIOError::new_err(err.to_string()))?;
 
-        Buffer::new(buffer).into_bytes_ref(py)
+        buffer_into_py_bytes(py, buffer).map(Bound::into_any)
     }
 
     /// Read one line from this file.
@@ -175,7 +162,7 @@ impl File {
             }
         };
 
-        Buffer::new(buffer).into_bytes_ref(py)
+        buffer_into_py_bytes(py, buffer.into()).map(Bound::into_any)
     }
 
     /// Read bytes into a pre-allocated buffer.
@@ -492,27 +479,12 @@ impl AsyncFile {
             };
 
             let buffer = match size {
-                Some(size) => {
-                    // TODO: optimize here by using uninit slice.
-                    let mut bs = vec![0; size];
-                    let n = reader
-                        .read(&mut bs)
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    bs.truncate(n);
-                    bs
-                }
-                None => {
-                    let mut buffer = Vec::new();
-                    reader
-                        .read_to_end(&mut buffer)
-                        .await
-                        .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                    buffer
-                }
-            };
+                Some(size) => reader.read_buffer(size).await,
+                None => reader.read_to_end_buffer().await,
+            }
+            .map_err(|err| PyIOError::new_err(err.to_string()))?;
 
-            Python::attach(|py| Buffer::new(buffer).into_bytes(py))
+            Python::attach(|py| buffer_into_py_bytes(py, buffer).map(Bound::unbind))
         })
     }
 

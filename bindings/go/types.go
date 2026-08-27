@@ -434,16 +434,13 @@ type opendalResultListerNext struct {
 type opendalEntry struct{}
 
 func toOpendalBytes(data []byte) *opendalBytes {
-	var ptr *byte
 	l := len(data)
-	if l > 0 {
-		ptr = &data[0]
-	} else {
-		var b byte
-		ptr = &b
+	if l == 0 {
+		return &opendalBytes{}
 	}
+
 	return &opendalBytes{
-		data:     ptr,
+		data:     &data[0],
 		len:      uintptr(l),
 		capacity: uintptr(cap(data)),
 	}

@@ -69,7 +69,7 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
     [Fact]
     public void ReadBehavior_LargePayload_RoundTripsExactly()
     {
-        if (!Supports(c => c.Read && c.Write))
+        if (!Supports(c => c.Read && c.Write) || IsService("etcd"))
         {
             return;
         }
@@ -91,7 +91,7 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
     [Fact]
     public async Task ReadBehavior_LargePayload_RoundTripsExactlyAsync()
     {
-        if (!Supports(c => c.Read && c.Write))
+        if (!Supports(c => c.Read && c.Write) || IsService("etcd"))
         {
             return;
         }

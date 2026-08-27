@@ -31,6 +31,8 @@ use pyo3::IntoPyObjectExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
+use pyo3::pybacked::PyBackedBytes;
+use pyo3::types::PyBytes;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -526,11 +528,13 @@ impl AsyncFile {
     /// coroutine
     ///     An awaitable that returns the number of bytes written.
     #[pyo3(signature = (bs: "bytes") -> "collections.abc.Awaitable[int]")]
-    pub fn write<'p>(&'p mut self, py: Python<'p>, bs: &'p [u8]) -> PyResult<Bound<'p, PyAny>> {
+    pub fn write<'p>(
+        &'p mut self,
+        py: Python<'p>,
+        bs: &Bound<PyBytes>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
-
-        // FIXME: can we avoid this clone?
-        let bs = bs.to_vec();
+        let bs = PyBackedBytes::from(bs.clone());
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;

@@ -413,6 +413,9 @@ impl Reader {
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     ///
+    /// Unbounded ranges fetch the object length only when an operation, such as
+    /// seeking relative to the end, requires it.
+    ///
     /// # Notes
     ///
     /// FuturesAsyncReader is not a zero-cost abstraction. The underlying reader
@@ -476,8 +479,7 @@ impl Reader {
         self,
         range: impl Into<BytesRange>,
     ) -> Result<FuturesAsyncReader> {
-        let range = self.ctx.parse_into_range(range).await?;
-        Ok(FuturesAsyncReader::new(self.ctx, range))
+        FuturesAsyncReader::new(self.ctx, range).await
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].

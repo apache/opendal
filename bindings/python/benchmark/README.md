@@ -24,3 +24,20 @@ export AWS_S3_BUCKET=opendal
 uv run async_opendal_benchmark.py
 uv run async_origin_s3_benchmark_with_gevent.py
 ```
+
+## File Open and Read over HTTP
+
+The repository's nginx fixture provides a reproducible benchmark for opening a
+Python file object and reading its first byte:
+
+```shell
+docker compose -f fixtures/http/docker-compose-nginx.yml up -d --wait
+
+cd bindings/python
+uv run maturin develop
+uv run python benchmark/file_open_read_benchmark.py
+```
+
+The benchmark reports the per-operation latency for synchronous and asynchronous
+file APIs. The nginx access log can be used to verify the corresponding HTTP
+request count.

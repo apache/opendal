@@ -17,7 +17,6 @@
 
 use std::io;
 use std::io::SeekFrom;
-use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -47,7 +46,8 @@ pub struct FuturesAsyncReader {
     stream: BufferStream,
     buf: Buffer,
     start: u64,
-    end: u64,
+    end: Option<u64>,
+    end_fut: Option<BoxedFuture<'static, Result<u64>>>,
     pos: u64,
 }
 
@@ -61,17 +61,120 @@ impl FuturesAsyncReader {
     ///
     /// Extend this API to accept `impl RangeBounds`.
     #[inline]
-    pub(super) fn new(ctx: Arc<ReadContext>, range: Range<u64>) -> Self {
-        let (start, end) = (range.start, range.end);
-        let stream = BufferStream::new(ctx.clone(), start, Some(end - start));
+    pub(super) async fn new(ctx: Arc<ReadContext>, range: impl Into<BytesRange>) -> Result<Self> {
+        let range = range.into();
+        let (start, mut end) = match range {
+            BytesRange::Range { offset, size } => {
+                let end = size
+                    .map(|size| {
+                        offset.checked_add(size).ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::RangeNotSatisfied,
+                                "range end overflow: offset + size exceeds u64::MAX",
+                            )
+                        })
+                    })
+                    .transpose()?;
+                (offset, end)
+            }
+            BytesRange::Suffix { .. } => {
+                let range = ctx.parse_into_range(range).await?;
+                (range.start, Some(range.end))
+            }
+        };
 
-        FuturesAsyncReader {
+        if end.is_none() {
+            end = ctx.known_content_length();
+        }
+        if end.is_none() && ctx.options().chunk().is_some() {
+            end = Some(ctx.content_length().await?);
+        }
+
+        if let Some(end) = end
+            && start > end
+        {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range starts after the end of the object",
+            )
+            .with_context("offset", start)
+            .with_context("content_length", end));
+        }
+
+        let stream = BufferStream::new(ctx.clone(), start, end.map(|end| end - start));
+
+        Ok(FuturesAsyncReader {
             ctx,
             stream,
             buf: Buffer::new(),
             start,
             end,
+            end_fut: None,
             pos: 0,
+        })
+    }
+
+    fn observe_read_metadata(&mut self) {
+        if self.end.is_none() {
+            self.end = self.ctx.known_content_length();
+        }
+    }
+
+    fn observe_eof(&mut self) -> io::Result<()> {
+        if self.end.is_none() {
+            self.end = Some(self.start.checked_add(self.pos).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "reader position overflow")
+            })?);
+        }
+        Ok(())
+    }
+
+    fn length(&self) -> io::Result<Option<u64>> {
+        self.end
+            .map(|end| {
+                end.checked_sub(self.start).ok_or_else(|| {
+                    format_std_io_error(
+                        Error::new(
+                            ErrorKind::RangeNotSatisfied,
+                            "range starts after the end of the object",
+                        )
+                        .with_context("offset", self.start)
+                        .with_context("content_length", end),
+                    )
+                })
+            })
+            .transpose()
+    }
+
+    fn resolve_end(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+        self.observe_read_metadata();
+
+        if let Some(end) = self.end {
+            self.length()?;
+            return Poll::Ready(Ok(end));
+        }
+
+        if self.end_fut.is_none() {
+            let ctx = self.ctx.clone();
+            self.end_fut = Some(Box::pin(async move { ctx.content_length().await }));
+        }
+
+        let result = ready!(
+            self.end_fut
+                .as_mut()
+                .expect("content length future must exist")
+                .as_mut()
+                .poll(cx)
+        );
+        self.end_fut = None;
+
+        match result {
+            Ok(end) => {
+                self.end = Some(end);
+                self.length()?;
+                Poll::Ready(Ok(end))
+            }
+            Err(err) => Poll::Ready(Err(format_std_io_error(err))),
         }
     }
 }
@@ -85,9 +188,15 @@ impl AsyncBufRead for FuturesAsyncReader {
             }
 
             this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
-                Some(Ok(buf)) => buf,
+                Some(Ok(buf)) => {
+                    this.observe_read_metadata();
+                    buf
+                }
                 Some(Err(err)) => return Poll::Ready(Err(format_std_io_error(err))),
-                None => return Poll::Ready(Ok(&[])),
+                None => {
+                    this.observe_eof()?;
+                    return Poll::Ready(Ok(&[]));
+                }
             };
         }
     }
@@ -122,9 +231,15 @@ impl AsyncRead for FuturesAsyncReader {
             }
 
             this.buf = match ready!(this.stream.poll_next_unpin(cx)) {
-                Some(Ok(buf)) => buf,
+                Some(Ok(buf)) => {
+                    this.observe_read_metadata();
+                    buf
+                }
                 Some(Err(err)) => return Poll::Ready(Err(format_std_io_error(err))),
-                None => return Poll::Ready(Ok(0)),
+                None => {
+                    this.observe_eof()?;
+                    return Poll::Ready(Ok(0));
+                }
             };
         }
     }
@@ -133,12 +248,15 @@ impl AsyncRead for FuturesAsyncReader {
 impl AsyncSeek for FuturesAsyncReader {
     fn poll_seek(
         mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        cx: &mut Context<'_>,
         pos: SeekFrom,
     ) -> Poll<io::Result<u64>> {
         let new_pos = match pos {
             SeekFrom::Start(pos) => pos as i64,
-            SeekFrom::End(pos) => self.end as i64 - self.start as i64 + pos,
+            SeekFrom::End(pos) => {
+                let end = ready!(self.resolve_end(cx))?;
+                end as i64 - self.start as i64 + pos
+            }
             SeekFrom::Current(pos) => self.pos as i64 + pos,
         };
 
@@ -151,7 +269,27 @@ impl AsyncSeek for FuturesAsyncReader {
         }
 
         let new_pos = new_pos as u64;
-        let length = self.end - self.start;
+
+        if new_pos == self.pos {
+            return Poll::Ready(Ok(self.pos));
+        }
+
+        let buffered_end = self.pos.saturating_add(self.buf.remaining() as u64);
+        if (self.pos..=buffered_end).contains(&new_pos) {
+            let cnt = new_pos - self.pos;
+            self.buf.advance(cnt as _);
+            self.pos = new_pos;
+            return Poll::Ready(Ok(self.pos));
+        }
+
+        let length = match self.length()? {
+            Some(length) => length,
+            None => {
+                ready!(self.resolve_end(cx))?;
+                self.length()?
+                    .expect("content length must be available after resolution")
+            }
+        };
 
         // Check if new_pos is past the end of the range.
         if new_pos > length {
@@ -161,17 +299,12 @@ impl AsyncSeek for FuturesAsyncReader {
             )));
         }
 
-        if (self.pos..self.pos + self.buf.remaining() as u64).contains(&new_pos) {
-            let cnt = new_pos - self.pos;
-            self.buf.advance(cnt as _);
-        } else {
-            self.buf = Buffer::new();
-            self.stream = BufferStream::new(
-                self.ctx.clone(),
-                new_pos + self.start,
-                Some(length - new_pos),
-            );
-        }
+        self.buf = Buffer::new();
+        self.stream = BufferStream::new(
+            self.ctx.clone(),
+            new_pos + self.start,
+            Some(length - new_pos),
+        );
 
         self.pos = new_pos;
         Poll::Ready(Ok(self.pos))
@@ -181,6 +314,9 @@ impl AsyncSeek for FuturesAsyncReader {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
     use bytes::Bytes;
     use futures::AsyncBufReadExt;
@@ -189,6 +325,164 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::raw::oio::ReadStream as _;
+
+    #[derive(Clone, Debug, Default)]
+    struct RequestCounts {
+        stats: Arc<AtomicUsize>,
+        opens: Arc<Mutex<Vec<BytesRange>>>,
+    }
+
+    #[derive(Debug)]
+    struct CountingService {
+        content: Bytes,
+        counts: RequestCounts,
+    }
+
+    impl Service for CountingService {
+        type Reader = CountingReader;
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("counting")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                stat: true,
+                read: true,
+                read_with_suffix: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            self.counts.stats.fetch_add(1, Ordering::SeqCst);
+            Ok(RpStat::new(
+                Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
+            ))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(CountingReader {
+                content: self.content.clone(),
+                opens: self.counts.opens.clone(),
+            })
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn copy(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpCopy,
+            _: OpCopier,
+        ) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+    }
+
+    struct CountingReader {
+        content: Bytes,
+        opens: Arc<Mutex<Vec<BytesRange>>>,
+    }
+
+    impl oio::Read for CountingReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.opens
+                .lock()
+                .expect("request counter mutex must not poison")
+                .push(range);
+            let content = self
+                .content
+                .slice(range.to_content_range(self.content.len())?);
+            let metadata =
+                Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64);
+            Ok((RpRead::new(metadata), Box::new(content)))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            let (rp, mut stream) = self.open(range).await?;
+            Ok((rp, stream.read_all().await?))
+        }
+    }
+
+    fn new_counting_operator() -> (Operator, RequestCounts) {
+        let counts = RequestCounts::default();
+        let service = CountingService {
+            content: Bytes::from_static(b"HelloWorld"),
+            counts: counts.clone(),
+        };
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(service));
+        (op, counts)
+    }
+
+    fn opened_ranges(counts: &RequestCounts) -> Vec<BytesRange> {
+        counts
+            .opens
+            .lock()
+            .expect("request counter mutex must not poison")
+            .clone()
+    }
 
     fn new_read_context(
         ctx: OperationContext,
@@ -215,7 +509,7 @@ mod tests {
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
-        let v = FuturesAsyncReader::new(ctx, 4..8);
+        let v = FuturesAsyncReader::new(ctx, 4..8).await?;
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
         Ok(())
@@ -234,7 +528,7 @@ mod tests {
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
-        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8).await?;
         let mut bs = vec![];
         fr.read_to_end(&mut bs).await.unwrap();
         assert_eq!(&bs, "oWor".as_bytes());
@@ -266,7 +560,7 @@ mod tests {
             OpReader::new().with_concurrent(3).with_chunk(1),
         )?);
 
-        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8).await?;
         let mut bs = vec![];
         fr.read_to_end(&mut bs).await.unwrap();
         assert_eq!(&bs, "oWor".as_bytes());
@@ -298,7 +592,7 @@ mod tests {
             OpReader::new().with_concurrent(3).with_chunk(1),
         )?);
 
-        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8).await?;
         let chunk = fr.fill_buf().await.unwrap();
         assert_eq!(chunk, "o".as_bytes());
 
@@ -323,7 +617,7 @@ mod tests {
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
         // Range 4..8, in total 4 bytes of logical data.
-        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8).await?;
 
         // Seek to position 5, which is past the 4-byte logical range.
         let res = fr.seek(SeekFrom::Start(5)).await;
@@ -334,6 +628,104 @@ mod tests {
         let pos = fr.seek(SeekFrom::Start(4)).await.unwrap();
         assert_eq!(pos, 4);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_unbounded_reader_opens_without_stat() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let mut reader = op.reader("test").await?.into_futures_async_read(..).await?;
+
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert!(opened_ranges(&counts).is_empty());
+        assert_eq!(reader.stream_position().await.unwrap(), 0);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+
+        let mut content = Vec::new();
+        reader.read_to_end(&mut content).await.unwrap();
+        assert_eq!(content, b"HelloWorld");
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert_eq!(opened_ranges(&counts), vec![BytesRange::new(0, None)]);
+
+        let mut byte = [0];
+        assert_eq!(reader.read(&mut byte).await.unwrap(), 0);
+        assert_eq!(opened_ranges(&counts).len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_seek_before_read_fetches_length_lazily() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let mut reader = op.reader("test").await?.into_futures_async_read(..).await?;
+
+        assert_eq!(reader.seek(SeekFrom::Start(5)).await.unwrap(), 5);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 1);
+        assert!(opened_ranges(&counts).is_empty());
+
+        assert_eq!(reader.seek(SeekFrom::Current(-1)).await.unwrap(), 4);
+        assert_eq!(reader.seek(SeekFrom::End(-2)).await.unwrap(), 8);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 1);
+
+        let mut content = Vec::new();
+        reader.read_to_end(&mut content).await.unwrap();
+        assert_eq!(content, b"ld");
+        assert_eq!(opened_ranges(&counts), vec![BytesRange::new(8, Some(2))]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_seek_after_read_uses_read_metadata() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let mut reader = op.reader("test").await?.into_futures_async_read(..).await?;
+
+        let mut prefix = [0; 2];
+        reader.read_exact(&mut prefix).await.unwrap();
+        assert_eq!(&prefix, b"He");
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert_eq!(opened_ranges(&counts), vec![BytesRange::new(0, None)]);
+
+        assert_eq!(reader.seek(SeekFrom::Start(0)).await.unwrap(), 0);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+
+        let mut content = Vec::new();
+        reader.read_to_end(&mut content).await.unwrap();
+        assert_eq!(content, b"HelloWorld");
+        assert_eq!(
+            opened_ranges(&counts),
+            vec![BytesRange::new(0, None), BytesRange::new(0, Some(10))]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bounded_and_suffix_ranges_keep_length_semantics() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let mut bounded = op
+            .reader("test")
+            .await?
+            .into_futures_async_read(2..7)
+            .await?;
+
+        assert_eq!(bounded.seek(SeekFrom::End(-2)).await.unwrap(), 3);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        let mut content = Vec::new();
+        bounded.read_to_end(&mut content).await.unwrap();
+        assert_eq!(content, b"Wo");
+        assert_eq!(opened_ranges(&counts), vec![BytesRange::new(5, Some(2))]);
+
+        let mut suffix = op
+            .reader("test")
+            .await?
+            .into_futures_async_read(BytesRange::suffix(5))
+            .await?;
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 1);
+        let mut content = Vec::new();
+        suffix.read_to_end(&mut content).await.unwrap();
+        assert_eq!(content, b"World");
+        assert_eq!(
+            opened_ranges(&counts),
+            vec![BytesRange::new(5, Some(2)), BytesRange::new(5, Some(5))]
+        );
         Ok(())
     }
 }

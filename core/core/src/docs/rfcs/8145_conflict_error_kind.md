@@ -97,9 +97,12 @@ Conflict,
 > A condition supplied through the OpenDAL operation evaluated to false at
 > the authoritative service or native operation boundary.
 
-OpenDAL preserves `NotFound` when the authoritative service reports that the
-target is missing, even if the operation carries a condition. It returns
-`ConditionNotMatch` only when the service reports that the condition failed.
+Observation operations such as stat and read preserve `NotFound` when the
+authoritative service reports that the target is missing. Mutation operations
+interpret target absence according to the documented condition predicate. For
+example, a conditional delete returns `ConditionNotMatch` when a positive
+match requires a live target, while a negative match succeeds as an idempotent
+no-op.
 
 The condition can originate from a public option such as `if_match`,
 `if_none_match`, or `if_not_exists`. A backend may translate a native

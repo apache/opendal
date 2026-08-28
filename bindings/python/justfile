@@ -111,23 +111,31 @@ test *args: install-dev
 # Documentation
 # ==============================================================================
 
-# Convert the example notebooks to Markdown so Zensical can render them
+# Install the documentation dependencies and a minimal native extension for autodoc
 [group('docs')]
-docs-notebooks: setup
+docs-setup:
+    @echo "{{ BOLD }}--- Installing documentation dependencies ---{{ NORMAL }}"
+    @uv sync --locked --managed-python --group docs
+    @echo "{{ BOLD }}--- Building the extension for API documentation ---{{ NORMAL }}"
+    @uv run maturin develop --no-default-features --features services-memory
+
+# Convert the example notebooks to Markdown so MyST can render them
+[group('docs')]
+docs-notebooks: docs-setup
     @echo "{{ BOLD }}--- Converting example notebooks to Markdown ---{{ NORMAL }}"
     @uv run jupyter nbconvert --to markdown docs/examples/*.ipynb
 
-# Build the documentation site into site/
+# Build the documentation site into docs/_build/html/
 [group('docs')]
 docs-build *args: docs-notebooks
     @echo "{{ BOLD }}--- Building docs ---{{ NORMAL }}"
-    @uv run zensical build {{ args }}
+    @uv run sphinx-build -W --keep-going -n -b dirhtml docs docs/_build/html {{ args }}
 
 # Serve the documentation site locally with live reload
 [group('docs')]
 docs-serve *args: docs-notebooks
     @echo "{{ BOLD }}--- Serving docs ---{{ NORMAL }}"
-    @uv run zensical serve {{ args }}
+    @uv run sphinx-autobuild -W -n -b dirhtml docs docs/_build/html {{ args }}
 
 # ==============================================================================
 # Code Quality & Formatting

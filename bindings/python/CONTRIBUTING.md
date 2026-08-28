@@ -110,13 +110,15 @@ makes it easy to ensure your code meets our quality standards.
 
 ### Building Documentation
 
-The documentation is built with [Zensical](https://zensical.org/), which reads the
-existing `mkdocs.yml`. The example notebooks under `docs/examples/` are converted to
+The documentation is built with [Sphinx](https://www.sphinx-doc.org/) and the
+[PyData Sphinx Theme](https://pydata-sphinx-theme.readthedocs.io/). Markdown pages are
+parsed with MyST. The example notebooks under `docs/examples/` are converted to
 Markdown with `nbconvert` before the site is built; the generated `.md` files are not
-tracked by Git.
+tracked by Git. Sphinx imports the Python package to build the API reference, so the
+documentation setup also compiles a minimal extension with the memory service.
 
 ```shell
-# Build the docs into site/
+# Build the docs into docs/_build/html/
 just docs-build
 
 # Serve the docs locally with live reload
@@ -128,6 +130,12 @@ Building the project also builds the docs:
 ```shell
 just build-dev
 ```
+
+The documentation workflow uploads `docs/_build/html/` as the Python documentation
+artifact. The website job places that artifact under `website/static/docs/python/`
+before building and publishing the main Docusaurus site. The Python API reference is
+therefore served at `https://opendal.apache.org/docs/python/`; it does not use a
+separate documentation hosting service.
 
 ### Cleaning the Workspace
 

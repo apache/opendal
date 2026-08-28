@@ -12,8 +12,8 @@ from opendal.config import S3Config
 op = Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
 ```
 
-::: opendal.config
-    options:
-      heading: "opendal.config"
-      heading_level: 2
-      show_source: false
+```{eval-rst}
+.. automodule:: opendal.config
+   :members:
+   :show-inheritance:
+```

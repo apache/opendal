@@ -1,45 +1,9 @@
-This page documents all exceptions raised by the OpenDAL.
+# Exceptions
 
-::: opendal.exceptions.Error
-    options:
-      heading_level: 2
+This page documents the exceptions raised by OpenDAL.
 
-::: opendal.exceptions.AlreadyExists
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.ConditionNotMatch
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.ConfigInvalid
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.IsADirectory
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.IsSameFile
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.NotADirectory
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.NotFound
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.PermissionDenied
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.Unexpected
-    options:
-      heading_level: 2
-
-::: opendal.exceptions.Unsupported
-    options:
-      heading_level: 2
+```{eval-rst}
+.. automodule:: opendal.exceptions
+   :members:
+   :show-inheritance:
+```

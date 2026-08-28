@@ -27,15 +27,15 @@ a wrong value type.
 Build a config with the call form or an annotated variable, then pass it to
 `Operator.from_config` / `AsyncOperator.from_config`:
 
-```python
-from opendal import Operator
-from opendal.config import S3Config
+.. code-block:: python
 
-op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
+    from opendal import Operator
+    from opendal.config import S3Config
 
-config: S3Config = {"scheme": "s3", "bucket": "b"}
-op = Operator.from_config(config)
-```
+    op = Operator.from_config(S3Config(scheme="s3", bucket="b"))
+
+    config: S3Config = {"scheme": "s3", "bucket": "b"}
+    op = Operator.from_config(config)
 
 `ServiceConfig` is the discriminated union of every `*Config`; `from_config`
 accepts it, so a single signature type-checks every service.

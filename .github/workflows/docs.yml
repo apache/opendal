@@ -169,7 +169,11 @@ jobs:
       - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          uv sync --group docs
+          uv sync --locked --group docs
+
+      - name: Build and install Python binding
+        working-directory: bindings/python
+        run: uv run maturin develop --no-default-features --features services-memory
 
       - name: Convert example notebooks to Markdown
         working-directory: bindings/python
@@ -177,13 +181,13 @@ jobs:
 
       - name: Build Docs
         working-directory: bindings/python
-        run: uv run zensical build
+        run: uv run sphinx-build -W --keep-going -n -b dirhtml docs docs/_build/html
 
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
           name: binding-python-documentation
-          path: ./bindings/python/site
+          path: ./bindings/python/docs/_build/html
 
   build-ruby-doc:
     runs-on: ubuntu-latest

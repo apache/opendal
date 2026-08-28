@@ -231,14 +231,14 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.Operator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -275,12 +275,14 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.Operator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
     #[pyo3(signature = (config: "ServiceConfig"))]
     pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
@@ -817,9 +819,9 @@ impl Operator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------
@@ -985,14 +987,14 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.AsyncOperator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -1029,12 +1031,14 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.AsyncOperator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
     #[pyo3(signature = (config: "ServiceConfig"))]
     pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
@@ -1659,9 +1663,9 @@ impl AsyncOperator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------

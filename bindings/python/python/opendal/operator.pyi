@@ -191,14 +191,14 @@ class AsyncOperator:
 
         Examples
         --------
-        ```python
-        import opendal
-        from opendal.config import S3Config
+        .. code-block:: python
 
-        op = opendal.AsyncOperator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
-        ```
+            import opendal
+            from opendal.config import S3Config
+
+            op = opendal.AsyncOperator.from_config(
+                S3Config(scheme="s3", bucket="my-bucket")
+            )
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs: str) -> AsyncOperator:
@@ -225,16 +225,16 @@ class AsyncOperator:
 
         Examples
         --------
-        ```python
-        from urllib.parse import urlencode
-        import opendal
+        .. code-block:: python
 
-        op = opendal.AsyncOperator.from_uri("memory://")
-        query = urlencode({"region": "us-east-1"})
-        op = opendal.AsyncOperator.from_uri(
-            f"s3://bucket/path?{query}"
-        )
-        ```
+            from urllib.parse import urlencode
+            import opendal
+
+            op = opendal.AsyncOperator.from_uri("memory://")
+            query = urlencode({"region": "us-east-1"})
+            op = opendal.AsyncOperator.from_uri(
+                f"s3://bucket/path?{query}"
+            )
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
@@ -577,9 +577,9 @@ class AsyncOperator:
         """
         Recursively list entries in the given directory.
 
-        Deprecated
-        ----------
-            Use `list()` with `recursive=True` instead.
+        Notes
+        -----
+        This method is deprecated. Use `list()` with `recursive=True` instead.
 
         Parameters
         ----------
@@ -847,14 +847,14 @@ class Operator:
 
         Examples
         --------
-        ```python
-        import opendal
-        from opendal.config import S3Config
+        .. code-block:: python
 
-        op = opendal.Operator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
-        ```
+            import opendal
+            from opendal.config import S3Config
+
+            op = opendal.Operator.from_config(
+                S3Config(scheme="s3", bucket="my-bucket")
+            )
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs: str) -> Operator:
@@ -881,14 +881,14 @@ class Operator:
 
         Examples
         --------
-        ```python
-        from urllib.parse import urlencode
-        import opendal
+        .. code-block:: python
 
-        op = opendal.Operator.from_uri("memory://")
-        query = urlencode({"region": "us-east-1"})
-        op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
-        ```
+            from urllib.parse import urlencode
+            import opendal
+
+            op = opendal.Operator.from_uri("memory://")
+            query = urlencode({"region": "us-east-1"})
+            op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
         """
     def layer(self, /, layer: Layer) -> Operator:
         """
@@ -1056,9 +1056,9 @@ class Operator:
         """
         Recursively list entries in the given directory.
 
-        Deprecated
-        ----------
-            Use `list()` with `recursive=True` instead.
+        Notes
+        -----
+        This method is deprecated. Use `list()` with `recursive=True` instead.
 
         Parameters
         ----------

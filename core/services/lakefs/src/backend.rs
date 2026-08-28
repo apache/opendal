@@ -25,9 +25,9 @@ use opendal_core::*;
 
 use super::LAKEFS_SCHEME;
 use super::config::LakefsConfig;
-use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::core::parse_error;
+use super::core::{ErrorContext, LakefsCore};
 use super::deleter::LakefsDeleter;
 use super::lister::LakefsLister;
 use super::reader::*;
@@ -234,7 +234,10 @@ impl Service for LakefsBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("StatObject")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -310,7 +313,10 @@ impl Service for LakefsBackend {
 
             match status {
                 StatusCode::CREATED => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
             }
         }))
     }

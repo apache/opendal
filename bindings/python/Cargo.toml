@@ -59,6 +59,7 @@ services-all = [
   'services-dashmap',
   'services-dropbox',
   'services-ftp',
+  'services-gcs-grpc',
   'services-gdrive',
   'services-gridfs',
   'services-hdfs-native',
@@ -116,6 +117,7 @@ services-foyer = ["opendal/services-foyer"]
 services-fs = ["opendal/services-fs"]
 services-ftp = ["opendal/services-ftp"]
 services-gcs = ["opendal/services-gcs"]
+services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
 services-github = [

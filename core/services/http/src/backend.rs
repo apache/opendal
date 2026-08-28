@@ -23,8 +23,7 @@ use log::debug;
 
 use super::HTTP_SCHEME;
 use super::config::HttpConfig;
-use super::core::HttpCore;
-use super::core::parse_error;
+use super::core::{ErrorContext, HttpCore, parse_error};
 use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -217,7 +216,10 @@ impl Service for HttpBackend {
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Head")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

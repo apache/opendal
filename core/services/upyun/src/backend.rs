@@ -210,7 +210,10 @@ impl Service for UpyunBackend {
 
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFolder")),
+                resp,
+            )),
         }
     }
 
@@ -221,7 +224,10 @@ impl Service for UpyunBackend {
 
         match status {
             StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileInfo")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -289,7 +295,10 @@ impl Service for UpyunBackend {
 
             match status {
                 StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyFile")),
+                    resp,
+                )),
             }
         }))
     }
@@ -307,7 +316,10 @@ impl Service for UpyunBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("MoveFile")),
+                resp,
+            )),
         }
     }
 

@@ -1144,72 +1144,12 @@ mod tests {
             ]
         )
     }
-}
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use http::StatusCode;
-    use quick_xml::de;
-    use serde::Deserialize;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    /// OssError is the error returned by oss service.
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "PascalCase")]
-    struct OssError {
-        code: String,
-        message: String,
-        request_id: String,
-        host_id: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
-            Ok(oss_err) => format!("{oss_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        /// Error response example is from https://www.alibabacloud.com/help/en/object-storage-service/latest/error-responses
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
+    /// Error response example is from https://www.alibabacloud.com/help/en/object-storage-service/latest/error-responses
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
 <?xml version="1.0" ?>
 <Error xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
     <Code>
@@ -1226,20 +1166,79 @@ mod error {
     </HostId>
 </Error>
 "#,
-            );
+        );
 
-            let out: OssError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
+        let out: OssError = de::from_reader(bs.reader()).expect("must success");
+        println!("{out:?}");
 
-            assert_eq!(out.code.trim(), "AccessDenied");
-            assert_eq!(
-                out.message.trim(),
-                "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters"
-            );
-            assert_eq!(out.request_id.trim(), "1D842BC54255****");
-            assert_eq!(out.host_id.trim(), "oss-cn-hangzhou.aliyuncs.com");
-        }
+        assert_eq!(out.code.trim(), "AccessDenied");
+        assert_eq!(
+            out.message.trim(),
+            "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters"
+        );
+        assert_eq!(out.request_id.trim(), "1D842BC54255****");
+        assert_eq!(out.host_id.trim(), "oss-cn-hangzhou.aliyuncs.com");
     }
 }
 
-pub(super) use error::*;
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
+
+/// OssError is the error returned by oss service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct OssError {
+    code: String,
+    message: String,
+    request_id: String,
+    host_id: String,
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
+        Ok(oss_err) => format!("{oss_err:?}"),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}

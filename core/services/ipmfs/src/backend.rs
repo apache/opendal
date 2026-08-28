@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::core::IpmfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, IpmfsCore};
 use super::deleter::IpmfsDeleter;
 use super::lister::IpmfsLister;
 use super::reader::*;
@@ -187,7 +187,10 @@ impl Service for IpmfsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesMkdir")),
+                resp,
+            )),
         }
     }
 
@@ -219,7 +222,10 @@ impl Service for IpmfsBackend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("FilesStat")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

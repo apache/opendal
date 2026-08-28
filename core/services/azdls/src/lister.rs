@@ -21,8 +21,8 @@ use bytes::Buf;
 use serde::Deserialize;
 use serde_json::de;
 
-use super::core::AzdlsCore;
 use super::core::parse_error;
+use super::core::{AzdlsCore, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -64,7 +64,10 @@ impl oio::PageList for AzdlsLister {
         }
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListPaths")),
+                resp,
+            ));
         }
 
         // Return self at the first page.

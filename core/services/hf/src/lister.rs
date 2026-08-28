@@ -17,7 +17,9 @@
 
 use std::sync::Arc;
 
-use super::core::{HfCore, PathInfo};
+use bytes::Buf;
+
+use super::core::{ErrorContext, HfCore, PathInfo, parse_error};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -92,10 +94,18 @@ impl HfLister {
             .request(http::Method::GET, &url, Operation::List, "FileTree")?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (parts, files) = self
-            .core
-            .send_parse::<Vec<PathInfo>>(&self.ctx, req)
-            .await?;
+        let resp = self.ctx.http_transport().fetch(req).await?;
+        if !resp.status().is_success() {
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("FileTree")),
+                parts,
+            ));
+        }
+        let (parts, mut body) = resp.into_parts();
+        let buffer = body.to_buffer().await?;
+        let files: Vec<PathInfo> =
+            serde_json::from_reader(buffer.reader()).map_err(new_json_deserialize_error)?;
 
         let next_cursor = parts
             .headers

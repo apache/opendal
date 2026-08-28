@@ -80,7 +80,10 @@ impl oio::PageList for OssLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectsV2")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -176,7 +179,10 @@ impl oio::PageList for OssObjectVersionsLister {
             )
             .await?;
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();

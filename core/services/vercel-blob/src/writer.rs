@@ -23,8 +23,8 @@ use http::StatusCode;
 use super::core::InitiateMultipartUploadResponse;
 use super::core::Part;
 use super::core::UploadPartResponse;
-use super::core::VercelBlobCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, VercelBlobCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -64,7 +64,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlob")),
+                resp,
+            )),
         }
     }
 
@@ -85,7 +88,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
                 Ok(resp.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -119,7 +125,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -145,7 +154,10 @@ impl oio::MultipartWrite for VercelBlobWriter {
 
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 

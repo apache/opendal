@@ -160,54 +160,50 @@ impl ManageObject for Manager {
     }
 }
 
-mod error {
-    use openssh::Error as SshError;
-    use openssh_sftp_client::Error as SftpClientError;
-    use openssh_sftp_client::error::SftpErrorKind;
+use openssh::Error as SshError;
+use openssh_sftp_client::Error as SftpClientError;
+use openssh_sftp_client::error::SftpErrorKind;
 
-    use opendal_core::Error;
-    use opendal_core::ErrorKind;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 
-    pub fn parse_sftp_error(e: SftpClientError) -> Error {
-        let kind = match &e {
-            SftpClientError::UnsupportedSftpProtocol { version: _ } => ErrorKind::Unsupported,
-            SftpClientError::SftpError(kind, _msg) => match kind {
-                SftpErrorKind::NoSuchFile => ErrorKind::NotFound,
-                SftpErrorKind::PermDenied => ErrorKind::PermissionDenied,
-                SftpErrorKind::OpUnsupported => ErrorKind::Unsupported,
-                _ => ErrorKind::Unexpected,
-            },
+pub fn parse_sftp_error(e: SftpClientError) -> Error {
+    let kind = match &e {
+        SftpClientError::UnsupportedSftpProtocol { version: _ } => ErrorKind::Unsupported,
+        SftpClientError::SftpError(kind, _msg) => match kind {
+            SftpErrorKind::NoSuchFile => ErrorKind::NotFound,
+            SftpErrorKind::PermDenied => ErrorKind::PermissionDenied,
+            SftpErrorKind::OpUnsupported => ErrorKind::Unsupported,
             _ => ErrorKind::Unexpected,
-        };
+        },
+        _ => ErrorKind::Unexpected,
+    };
 
-        let mut err = Error::new(kind, "sftp error").set_source(e);
+    let mut err = Error::new(kind, "sftp error").set_source(e);
 
-        // Mark error as temporary if it's unexpected.
-        if kind == ErrorKind::Unexpected {
-            err = err.set_temporary();
-        }
-
-        err
+    // Mark error as temporary if it's unexpected.
+    if kind == ErrorKind::Unexpected {
+        err = err.set_temporary();
     }
 
-    pub fn parse_ssh_error(e: SshError) -> Error {
-        Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
-    }
-
-    pub(crate) fn is_not_found(e: &SftpClientError) -> bool {
-        matches!(e, SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _))
-    }
-
-    pub(crate) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
-        matches!(e, SftpClientError::SftpError(_, _))
-    }
-
-    pub(crate) fn is_sftp_failure(e: &SftpClientError) -> bool {
-        matches!(e, SftpClientError::SftpError(SftpErrorKind::Failure, _))
-    }
+    err
 }
 
-pub(super) use error::*;
+pub fn parse_ssh_error(e: SshError) -> Error {
+    Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
+}
+
+pub(crate) fn is_not_found(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _))
+}
+
+pub(crate) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(_, _))
+}
+
+pub(crate) fn is_sftp_failure(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::Failure, _))
+}
 
 mod utils {
     use openssh_sftp_client::metadata::MetaData as SftpMeta;

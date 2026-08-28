@@ -46,7 +46,10 @@ impl oio::BatchDelete for OssDeleter {
 
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 
@@ -63,7 +66,10 @@ impl oio::BatchDelete for OssDeleter {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteMultipleObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();

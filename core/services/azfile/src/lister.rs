@@ -22,8 +22,8 @@ use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 
-use super::core::AzfileCore;
 use super::core::parse_error;
+use super::core::{AzfileCore, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -64,7 +64,10 @@ impl oio::PageList for AzfileLister {
                 ctx.done = true;
                 return Ok(());
             }
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListDirectoriesAndFiles")),
+                resp,
+            ));
         }
 
         // Return self at the first page.

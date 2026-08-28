@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::AzfileCore;
 use super::core::parse_error;
+use super::core::{AzfileCore, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -78,7 +78,10 @@ impl oio::OneShotWrite for AzfileWriter {
         match status {
             StatusCode::OK | StatusCode::CREATED => {}
             _ => {
-                return Err(parse_error(resp).with_operation("Backend::azfile_create_file"));
+                return Err(
+                    parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp)
+                        .with_operation("Backend::azfile_create_file"),
+                );
             }
         }
 
@@ -91,7 +94,10 @@ impl oio::OneShotWrite for AzfileWriter {
         meta.set_content_length(size as u64);
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("PutRange")), resp)
+                    .with_operation("Backend::azfile_update"),
+            ),
         }
     }
 }
@@ -109,7 +115,10 @@ impl oio::AppendWrite for AzfileWriter {
 
         match status {
             StatusCode::OK => Ok(parse_content_length(resp.headers())?.unwrap_or_default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileProperties")),
+                resp,
+            )),
         }
     }
 
@@ -124,7 +133,10 @@ impl oio::AppendWrite for AzfileWriter {
         meta.set_content_length(offset + size);
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("PutRange")), resp)
+                    .with_operation("Backend::azfile_update"),
+            ),
         }
     }
 }

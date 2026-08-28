@@ -92,6 +92,25 @@ def test_sync_reader(service_name, operator, async_operator):
 
 
 @pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_read_sizes(operator):
+    filename = f"random_file_{str(uuid4())}"
+    content = b"hello, world"
+    operator.write(filename, content)
+
+    with operator.open(filename, "rb") as reader:
+        assert reader.read(0) == b""
+        assert reader.tell() == 0
+        assert reader.read(5) == b"hello"
+        assert reader.tell() == 5
+        assert reader.read(1024) == b", world"
+        assert reader.read(1) == b""
+        reader.seek(2)
+        assert reader.read() == b"llo, world"
+
+    operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
 def test_sync_reader_readline(service_name, operator, async_operator):
     size = randint(1, 1024)
     lines = randint(1, min(100, size))
@@ -204,6 +223,26 @@ async def test_async_reader(service_name, operator, async_operator):
         read_content = await reader.read()
         assert read_content is not None
         assert read_content == content[range_start:range_end]
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_read_sizes(async_operator):
+    filename = f"random_file_{str(uuid4())}"
+    content = b"hello, world"
+    await async_operator.write(filename, content)
+
+    async with await async_operator.open(filename, "rb") as reader:
+        assert await reader.read(0) == b""
+        assert await reader.tell() == 0
+        assert await reader.read(5) == b"hello"
+        assert await reader.tell() == 5
+        assert await reader.read(1024) == b", world"
+        assert await reader.read(1) == b""
+        await reader.seek(2)
+        assert await reader.read() == b"llo, world"
 
     await async_operator.delete(filename)
 

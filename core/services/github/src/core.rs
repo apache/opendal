@@ -104,7 +104,10 @@ impl GithubCore {
                 Ok(Some(resp.sha))
             }
             StatusCode::NOT_FOUND => Ok(None),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetRepositoryContent")),
+                resp,
+            )),
         }
     }
 
@@ -258,7 +261,10 @@ impl GithubCore {
         match resp.status() {
             StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteFile")),
+                resp,
+            )),
         }
     }
 
@@ -296,7 +302,10 @@ impl GithubCore {
                 Ok(resp)
             }
             StatusCode::NOT_FOUND => Ok(ListResponse::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetRepositoryContent")),
+                resp,
+            )),
         }
     }
 
@@ -331,7 +340,10 @@ impl GithubCore {
 
                 Ok(resp.tree)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetTree")),
+                resp,
+            )),
         }
     }
 }
@@ -383,93 +395,93 @@ pub struct ContentResponse {
     pub content: Entry,
 }
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use serde::Deserialize;
+#[derive(Default, Debug, Deserialize)]
+#[allow(dead_code)]
+struct GithubError {
+    error: GithubSubError,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+#[derive(Default, Debug, Deserialize)]
+#[allow(dead_code)]
+struct GithubSubError {
+    message: String,
+    documentation_url: String,
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    #[allow(dead_code)]
-    struct GithubError {
-        error: GithubSubError,
-    }
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    #[allow(dead_code)]
-    struct GithubSubError {
-        message: String,
-        documentation_url: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status.as_u16() {
-            401 | 403 => (ErrorKind::PermissionDenied, false),
-            404 => (ErrorKind::NotFound, false),
-            304 | 412 => (ErrorKind::ConditionNotMatch, false),
-            // https://github.com/apache/opendal/issues/4146
-            // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
-            // We should retry it when we get 423 error.
-            423 => (ErrorKind::RateLimited, true),
-            // Service like Upyun could return 499 error with a message like:
-            // Client Disconnect, we should retry it.
-            499 => (ErrorKind::Unexpected, true),
-            500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let (message, _github_content_err) =
-            serde_json::from_reader::<_, GithubError>(bs.clone().reader())
-                .map(|github_content_err| {
-                    (format!("{github_content_err:?}"), Some(github_content_err))
-                })
-                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod test {
-        use http::StatusCode;
-
-        use super::*;
-
-        #[tokio::test]
-        async fn test_parse_error() {
-            let err_res = vec![(
-                r#"{
-                "message": "Not Found",
-                "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content"
-            }"#,
-                ErrorKind::NotFound,
-                StatusCode::NOT_FOUND,
-            )];
-
-            for res in err_res {
-                let bs = bytes::Bytes::from(res.0);
-                let body = Buffer::from(bs);
-                let resp = Response::builder().status(res.2).body(body).unwrap();
-
-                let err = parse_error(resp);
-
-                assert_eq!(err.kind(), res.1);
-            }
-        }
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
 }
 
-pub(super) use error::*;
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status.as_u16() {
+        401 | 403 => (ErrorKind::PermissionDenied, false),
+        404 => (ErrorKind::NotFound, false),
+        304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        // https://github.com/apache/opendal/issues/4146
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
+        // We should retry it when we get 423 error.
+        423 => (ErrorKind::RateLimited, true),
+        // Service like Upyun could return 499 error with a message like:
+        // Client Disconnect, we should retry it.
+        499 => (ErrorKind::Unexpected, true),
+        500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let (message, _github_content_err) =
+        serde_json::from_reader::<_, GithubError>(bs.clone().reader())
+            .map(|github_content_err| (format!("{github_content_err:?}"), Some(github_content_err)))
+            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_error() {
+        let err_res = vec![(
+            r#"{
+                "message": "Not Found",
+                "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content"
+            }"#,
+            ErrorKind::NotFound,
+            StatusCode::NOT_FOUND,
+        )];
+
+        for res in err_res {
+            let bs = bytes::Bytes::from(res.0);
+            let body = Buffer::from(bs);
+            let resp = Response::builder().status(res.2).body(body).unwrap();
+
+            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+
+            assert_eq!(err.kind(), res.1);
+        }
+    }
+}

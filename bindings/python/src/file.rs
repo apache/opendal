@@ -254,6 +254,13 @@ impl File {
     ///     The reference point for the offset.
     ///     0: start of file (default); 1: current position; 2: end of file.
     ///
+    /// Notes
+    /// -----
+    /// Unbounded readable files allow non-negative positions beyond EOF. Reads
+    /// from those positions return empty bytes when the backing service reports
+    /// an unsatisfied unbounded range. Other service errors propagate. Explicit
+    /// bounded views reject positions beyond their range.
+    ///
     /// Returns
     /// -------
     /// int
@@ -542,6 +549,13 @@ impl AsyncFile {
     /// whence : int, optional
     ///     The reference point for the offset.
     ///     0: start of file (default); 1: current position; 2: end of file.
+    ///
+    /// Notes
+    /// -----
+    /// Unbounded readable files allow non-negative positions beyond EOF. Reads
+    /// from those positions return empty bytes when the backing service reports
+    /// an unsatisfied unbounded range. Other service errors propagate. Explicit
+    /// bounded views reject positions beyond their range.
     ///
     /// Returns
     /// -------

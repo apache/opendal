@@ -83,27 +83,19 @@ use crate::*;
 /// ```
 pub struct Deleter {
     deleter: oio::Deleter,
-    scheme: &'static str,
-    capability: Capability,
 }
 
 impl Deleter {
     pub(crate) fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
-        let scheme = srv.info().scheme();
-        let capability = srv.capability();
         let deleter = srv.delete(&ctx)?;
 
-        Ok(Self {
-            deleter,
-            scheme,
-            capability,
-        })
+        Ok(Self { deleter })
     }
 
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let input = input.into_delete_input();
-        let mut opts = options::DeleteOptions {
+        let opts = options::DeleteOptions {
             version: input.version,
             recursive: input.recursive,
             if_match: input.if_match,
@@ -112,54 +104,6 @@ impl Deleter {
             if_version_not_match: input.if_version_not_match,
             if_not_changed: input.if_not_changed,
         };
-        if let Some(metadata) = opts.if_not_changed.take() {
-            if self.capability.delete_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if self.capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !self.capability.delete_with_if_version_match
-                && !self.capability.delete_with_if_match
-            {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation delete with if_not_changed",
-                        self.scheme
-                    ),
-                )
-                .with_operation(Operation::Delete.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by delete",
-                )
-                .with_operation(Operation::Delete.into_static()));
-            }
-        }
         let op = opts.into();
 
         self.deleter.delete(&input.path, op).await?;
@@ -294,8 +238,6 @@ mod tests {
 
         let deleter = Deleter {
             deleter: Box::new(mock),
-            scheme: "test",
-            capability: Capability::default(),
         };
         let mut sink = deleter.into_sink::<String>();
 

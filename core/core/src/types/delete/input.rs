@@ -140,7 +140,7 @@ impl IntoDeleteInput for String {
 /// as a DeleteInput stream.
 impl IntoDeleteInput for (String, OpDelete) {
     fn into_delete_input(self) -> DeleteInput {
-        let (path, args) = self;
+        let (path, mut args) = self;
 
         let mut input = DeleteInput {
             path,
@@ -162,6 +162,16 @@ impl IntoDeleteInput for (String, OpDelete) {
         }
         if let Some(version) = args.if_version_not_match() {
             input.if_version_not_match = Some(version.to_string());
+        }
+        if let Some(identity) = args.take_if_not_changed() {
+            let mut metadata = Metadata::default();
+            if let Some(version) = identity.version() {
+                metadata = metadata.with_version(version.to_string());
+            }
+            if let Some(etag) = identity.etag() {
+                metadata = metadata.with_etag(etag.to_string());
+            }
+            input.if_not_changed = Some(metadata);
         }
         input
     }
@@ -198,5 +208,23 @@ mod tests {
             .into_delete_input();
 
         assert_eq!(input.if_match.as_deref(), Some("\"etag\""));
+    }
+
+    #[test]
+    fn test_op_delete_input_preserves_if_not_changed() {
+        let metadata = Metadata::default()
+            .with_version("version".to_string())
+            .with_etag("etag".to_string());
+        let args = crate::options::DeleteOptions {
+            if_not_changed: Some(metadata),
+            ..Default::default()
+        }
+        .into();
+
+        let input = ("path".to_string(), args).into_delete_input();
+        let metadata = input.if_not_changed.expect("identity must be preserved");
+
+        assert_eq!(metadata.version(), Some("version"));
+        assert_eq!(metadata.etag(), Some("etag"));
     }
 }

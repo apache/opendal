@@ -1150,54 +1150,6 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let capability = srv.capability();
-            if capability.write_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Write.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if capability.write_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Write.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation write with if_not_changed",
-                        srv.info().scheme()
-                    ),
-                )
-                .with_operation(Operation::Write.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by write",
-                )
-                .with_operation(Operation::Write.into_static()));
-            }
-        }
         let (args, opts) = opts.into();
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context).await?;
@@ -1335,7 +1287,7 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         to: String,
-        mut opts: options::ComposeOptions,
+        opts: options::ComposeOptions,
     ) -> Result<Composer> {
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
@@ -1344,55 +1296,6 @@ impl Operator {
                     .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
-        }
-
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let capability = srv.capability();
-            if capability.compose_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if capability.compose_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !capability.compose_with_if_version_match && !capability.compose_with_if_match
-            {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support compose with if_not_changed",
-                        srv.info().scheme()
-                    ),
-                )
-                .with_operation(Operation::Compose.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata has no identity supported by compose",
-                )
-                .with_operation(Operation::Compose.into_static()));
-            }
         }
 
         std::future::ready(Composer::create(ctx, srv, to, opts.into())).await
@@ -1638,54 +1541,6 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let capability = srv.capability();
-            if capability.copy_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Copy.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if capability.copy_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Copy.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !capability.copy_with_if_version_match && !capability.copy_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation copy with if_not_changed",
-                        srv.info().scheme()
-                    ),
-                )
-                .with_operation(Operation::Copy.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by copy",
-                )
-                .with_operation(Operation::Copy.into_static()));
-            }
-        }
         let args = opts.into();
         std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
     }
@@ -2848,54 +2703,6 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let capability = srv.capability();
-            if capability.write_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Write.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if capability.write_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Write.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation write with if_not_changed",
-                        srv.info().scheme()
-                    ),
-                )
-                .with_operation(Operation::Write.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by write",
-                )
-                .with_operation(Operation::Write.into_static()));
-            }
-        }
         let (op_write, _) = opts.into();
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -3009,54 +2816,6 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let capability = srv.capability();
-            if capability.delete_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !capability.delete_with_if_version_match && !capability.delete_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation delete with if_not_changed",
-                        srv.info().scheme()
-                    ),
-                )
-                .with_operation(Operation::Delete.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by delete",
-                )
-                .with_operation(Operation::Delete.into_static()));
-            }
-        }
         let op = OpPresign::new(OpDelete::from(opts), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())

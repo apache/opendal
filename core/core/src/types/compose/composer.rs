@@ -28,7 +28,6 @@ pub struct Composer {
     composer: oio::Composer,
     to: String,
     scheme: &'static str,
-    capability: Capability,
     accepted: usize,
     metadata: Option<Metadata>,
     errored: bool,
@@ -42,14 +41,12 @@ impl Composer {
         args: OpCompose,
     ) -> Result<Self> {
         let scheme = srv.info().scheme();
-        let capability = srv.capability();
         let composer = srv.compose(&ctx, &to, args)?;
 
         Ok(Self {
             composer,
             to,
             scheme,
-            capability,
             accepted: 0,
             metadata: None,
             errored: false,
@@ -95,84 +92,15 @@ impl Composer {
             .with_context("path", path));
         }
 
-        let mut version = input.version;
-        let mut if_match = input.if_match;
-        if let Some(metadata) = input.if_not_changed {
-            if self.capability.compose_with_source_version
-                && let Some(metadata_version) = metadata.version()
-            {
-                if let Some(explicit) = version.as_deref() {
-                    if explicit != metadata_version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with source version",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    version = Some(metadata_version.to_string());
-                }
-            } else if self.capability.compose_with_source_if_match
-                && let Some(metadata_etag) = metadata.etag()
-            {
-                if let Some(explicit) = if_match.as_deref() {
-                    if explicit != metadata_etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with source if_match",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    if_match = Some(metadata_etag.to_string());
-                }
-            } else if !self.capability.compose_with_source_version
-                && !self.capability.compose_with_source_if_match
-            {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support compose with source if_not_changed",
-                        self.scheme
-                    ),
-                )
-                .with_operation(Operation::Compose.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata has no identity supported by compose",
-                )
-                .with_operation(Operation::Compose.into_static()));
-            }
-        }
-
-        if version.is_some() && !self.capability.compose_with_source_version {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                format!(
-                    "The service {} does not support compose with source version",
-                    self.scheme
-                ),
-            )
-            .with_operation(Operation::Compose.into_static()));
-        }
-        if if_match.is_some() && !self.capability.compose_with_source_if_match {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                format!(
-                    "The service {} does not support compose with source if_match",
-                    self.scheme
-                ),
-            )
-            .with_operation(Operation::Compose.into_static()));
-        }
-
         let mut args = OpRead::new();
-        if let Some(version) = version {
+        if let Some(version) = input.version {
             args = args.with_version(&version);
         }
-        if let Some(etag) = if_match {
+        if let Some(etag) = input.if_match {
             args = args.with_if_match(&etag);
+        }
+        if let Some(metadata) = input.if_not_changed {
+            args = args.with_if_not_changed(metadata);
         }
 
         if let Err(err) = self.composer.compose(&path, args).await {

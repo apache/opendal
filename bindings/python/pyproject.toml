@@ -48,7 +48,16 @@ benchmark = [
   "pydantic>=2.10.6",
 ]
 dev = ["maturin>=1.8.2"]
-docs = ["zensical>=0.0.11", "mkdocstrings-python", "nbconvert"]
+docs = [
+  "myst-parser>=4.0.1",
+  "nbconvert",
+  "numpydoc>=1.9.0",
+  "pydata-sphinx-theme>=0.16.1,<0.21",
+  "sphinx>=8.1,<9",
+  "sphinx-autobuild>=2024.10.3",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx-design>=0.6.1",
+]
 lint = ["ruff>=0.9.10", "ty>=0.0.51"]
 test = [
   "pytest>=8.3.5",

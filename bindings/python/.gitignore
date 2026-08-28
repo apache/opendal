@@ -59,7 +59,7 @@ coverage.xml
 .DS_Store
 
 # Sphinx documentation
-build/docs
+docs/_build/
 
 # PyCharm
 .idea/
@@ -71,7 +71,6 @@ build/docs
 .python-version
 
 # Generated docs
-site/
 docs/examples/*.md
 docs/examples/*_files/
 Cargo.lock

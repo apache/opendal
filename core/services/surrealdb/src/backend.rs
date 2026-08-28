@@ -241,6 +241,7 @@ impl Service for SurrealdbBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SurrealdbDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

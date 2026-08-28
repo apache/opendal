@@ -102,6 +102,18 @@ fn opwrite_with_mime(path: &str, op: OpWrite) -> OpWrite {
     op
 }
 
+fn opcompose_with_mime(path: &str, op: OpCompose) -> OpCompose {
+    if op.content_type().is_some() {
+        return op;
+    }
+
+    if let Some(mime) = mime_from_path(path) {
+        return op.with_content_type(mime);
+    }
+
+    op
+}
+
 fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     rp.map_metadata(|metadata| {
         if metadata.content_type().is_some() {
@@ -122,6 +134,7 @@ impl Service for MimeGuessAccessor {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.0.info()
@@ -156,6 +169,10 @@ impl Service for MimeGuessAccessor {
         args: OpCopy,
     ) -> Result<Self::Copier> {
         self.0.copy(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.0.compose(ctx, to, opcompose_with_mime(to, args))
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {

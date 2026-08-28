@@ -278,6 +278,7 @@ impl Service for AzfileBackend {
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

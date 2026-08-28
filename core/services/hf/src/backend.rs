@@ -286,6 +286,7 @@ impl Service for HfBackend {
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

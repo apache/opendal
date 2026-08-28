@@ -270,6 +270,7 @@ impl Service for TosBackend {
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = TosCopiers;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

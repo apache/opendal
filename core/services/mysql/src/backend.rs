@@ -195,6 +195,7 @@ impl Service for MysqlBackend {
     type Lister = oio::HierarchyLister<MysqlLazyLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

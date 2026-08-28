@@ -1521,6 +1521,165 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     }
 }
 
+/// [`Operator::compose_with`] returns this future.
+///
+/// Use its methods to configure the destination before awaiting it.
+pub type FutureCompose<F> =
+    OperatorFuture<(options::ComposeOptions, Vec<ComposeInput>), Metadata, F>;
+
+impl<F: Future<Output = Result<Metadata>>> FutureCompose<F> {
+    /// Set destination Cache-Control metadata.
+    pub fn cache_control(mut self, value: &str) -> Self {
+        self.args.0.cache_control = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Type metadata.
+    pub fn content_type(mut self, value: &str) -> Self {
+        self.args.0.content_type = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Disposition metadata.
+    pub fn content_disposition(mut self, value: &str) -> Self {
+        self.args.0.content_disposition = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Encoding metadata.
+    pub fn content_encoding(mut self, value: &str) -> Self {
+        self.args.0.content_encoding = Some(value.to_string());
+        self
+    }
+
+    /// Set destination user metadata.
+    pub fn user_metadata(mut self, value: HashMap<String, String>) -> Self {
+        self.args.0.user_metadata = Some(value);
+        self
+    }
+
+    /// Require a missing destination object.
+    pub fn if_not_exists(mut self, value: bool) -> Self {
+        self.args.0.if_not_exists = value;
+        self
+    }
+
+    /// Require this destination ETag.
+    pub fn if_match(mut self, value: &str) -> Self {
+        self.args.0.if_match = Some(value.to_string());
+        self
+    }
+
+    /// Require a different destination ETag.
+    pub fn if_none_match(mut self, value: &str) -> Self {
+        self.args.0.if_none_match = Some(value.to_string());
+        self
+    }
+
+    /// Require this destination version.
+    pub fn if_version_match(mut self, value: &str) -> Self {
+        self.args.0.if_version_match = Some(value.to_string());
+        self
+    }
+
+    /// Require a different destination version.
+    pub fn if_version_not_match(mut self, value: &str) -> Self {
+        self.args.0.if_version_not_match = Some(value.to_string());
+        self
+    }
+
+    /// Require the destination to retain the identity in `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.0.if_not_changed = Some(metadata.clone());
+        self
+    }
+
+    /// Set the maximum number of independent backend tasks.
+    pub fn concurrent(mut self, value: usize) -> Self {
+        self.args.0.concurrent = value.max(1);
+        self
+    }
+}
+
+/// [`Operator::composer_with`] returns this future.
+///
+/// Use its methods to configure the destination before awaiting it.
+pub type FutureComposer<F> = OperatorFuture<options::ComposeOptions, Composer, F>;
+
+impl<F: Future<Output = Result<Composer>>> FutureComposer<F> {
+    /// Set destination Cache-Control metadata.
+    pub fn cache_control(mut self, value: &str) -> Self {
+        self.args.cache_control = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Type metadata.
+    pub fn content_type(mut self, value: &str) -> Self {
+        self.args.content_type = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Disposition metadata.
+    pub fn content_disposition(mut self, value: &str) -> Self {
+        self.args.content_disposition = Some(value.to_string());
+        self
+    }
+
+    /// Set destination Content-Encoding metadata.
+    pub fn content_encoding(mut self, value: &str) -> Self {
+        self.args.content_encoding = Some(value.to_string());
+        self
+    }
+
+    /// Set destination user metadata.
+    pub fn user_metadata(mut self, value: HashMap<String, String>) -> Self {
+        self.args.user_metadata = Some(value);
+        self
+    }
+
+    /// Require a missing destination object.
+    pub fn if_not_exists(mut self, value: bool) -> Self {
+        self.args.if_not_exists = value;
+        self
+    }
+
+    /// Require this destination ETag.
+    pub fn if_match(mut self, value: &str) -> Self {
+        self.args.if_match = Some(value.to_string());
+        self
+    }
+
+    /// Require a different destination ETag.
+    pub fn if_none_match(mut self, value: &str) -> Self {
+        self.args.if_none_match = Some(value.to_string());
+        self
+    }
+
+    /// Require this destination version.
+    pub fn if_version_match(mut self, value: &str) -> Self {
+        self.args.if_version_match = Some(value.to_string());
+        self
+    }
+
+    /// Require a different destination version.
+    pub fn if_version_not_match(mut self, value: &str) -> Self {
+        self.args.if_version_not_match = Some(value.to_string());
+        self
+    }
+
+    /// Require the destination to retain the identity in `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.args.if_not_changed = Some(metadata.clone());
+        self
+    }
+
+    /// Set the maximum number of independent backend tasks.
+    pub fn concurrent(mut self, value: usize) -> Self {
+        self.args.concurrent = value.max(1);
+        self
+    }
+}
+
 /// [`Operator::copy_with`] returns this future.
 ///
 /// Use its methods to configure the operation before awaiting it.

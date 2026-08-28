@@ -828,6 +828,41 @@ pub struct WriteOptions {
     pub chunk: Option<usize>,
 }
 
+/// Options for composing complete source objects into one destination object.
+///
+/// Metadata fields apply only to the destination. Conditions check the
+/// destination object and follow the matching [`WriteOptions`] contracts.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct ComposeOptions {
+    /// Sets Cache-Control metadata on the destination object.
+    pub cache_control: Option<String>,
+    /// Sets Content-Type metadata on the destination object.
+    pub content_type: Option<String>,
+    /// Sets Content-Disposition metadata on the destination object.
+    pub content_disposition: Option<String>,
+    /// Sets Content-Encoding metadata on the destination object.
+    pub content_encoding: Option<String>,
+    /// Sets user metadata on the destination object.
+    pub user_metadata: Option<HashMap<String, String>>,
+    /// Compose only when the destination has this exact ETag.
+    pub if_match: Option<String>,
+    /// Compose only when the destination does not have this ETag.
+    pub if_none_match: Option<String>,
+    /// Compose only when the destination has this exact version.
+    pub if_version_match: Option<String>,
+    /// Compose only when the destination does not have this version.
+    pub if_version_not_match: Option<String>,
+    /// Compose only when no destination object exists.
+    pub if_not_exists: bool,
+    /// Compose only when the destination still has this metadata identity.
+    pub if_not_changed: Option<Metadata>,
+    /// Maximum number of independent backend composition tasks.
+    ///
+    /// The default value is `1`. Services that use one atomic request may
+    /// ignore values greater than `1`.
+    pub concurrent: usize,
+}
+
 /// Options for copy operations.
 ///
 /// Each condition checks the destination file, never the source, and every

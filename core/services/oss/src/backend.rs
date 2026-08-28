@@ -643,6 +643,7 @@ impl Service for OssBackend {
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

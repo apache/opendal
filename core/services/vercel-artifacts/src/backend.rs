@@ -151,6 +151,7 @@ impl Service for VercelArtifactsBackend {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

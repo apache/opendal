@@ -122,6 +122,7 @@ impl Service for RocksdbBackend {
     type Lister = oio::HierarchyLister<RocksdbLister>;
     type Deleter = oio::OneShotDeleter<RocksdbDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

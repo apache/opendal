@@ -84,6 +84,7 @@ impl Service for CorrectnessService {
     type Lister = oio::Lister;
     type Deleter = CheckWrapper<oio::Deleter>;
     type Copier = oio::Copier;
+    type Composer = CheckWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -290,6 +291,88 @@ impl Service for CorrectnessService {
         self.inner.copy(ctx, from, to, args)
     }
 
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
+        if !capability.compose {
+            return Err(new_unsupported_error(scheme, Operation::Compose, ""));
+        }
+        if args.if_not_exists() && !capability.compose_with_if_not_exists {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "if_not_exists",
+            ));
+        }
+        if args.if_match().is_some() && !capability.compose_with_if_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "if_match",
+            ));
+        }
+        if args.if_none_match().is_some() && !capability.compose_with_if_none_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "if_none_match",
+            ));
+        }
+        if args.if_version_match().is_some() && !capability.compose_with_if_version_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "if_version_match",
+            ));
+        }
+        if args.if_version_not_match().is_some() && !capability.compose_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "if_version_not_match",
+            ));
+        }
+        if args.content_type().is_some() && !capability.compose_with_content_type {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "content_type",
+            ));
+        }
+        if args.content_disposition().is_some() && !capability.compose_with_content_disposition {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "content_disposition",
+            ));
+        }
+        if args.content_encoding().is_some() && !capability.compose_with_content_encoding {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "content_encoding",
+            ));
+        }
+        if args.cache_control().is_some() && !capability.compose_with_cache_control {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "cache_control",
+            ));
+        }
+        if args.user_metadata().is_some() && !capability.compose_with_user_metadata {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Compose,
+                "user_metadata",
+            ));
+        }
+
+        self.inner
+            .compose(ctx, to, args)
+            .map(|composer| CheckWrapper::new(composer, scheme, capability))
+    }
+
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner.list(ctx, path, args)
     }
@@ -433,6 +516,34 @@ impl<T> CheckWrapper<T> {
 
         Ok(())
     }
+
+    fn check_compose_source(&self, args: &OpRead) -> Result<()> {
+        if args.version().is_some() && !self.capability.compose_with_source_version {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Compose,
+                "source_version",
+            ));
+        }
+
+        if args.if_match().is_some() && !self.capability.compose_with_source_if_match {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Compose,
+                "source_if_match",
+            ));
+        }
+
+        if args.if_none_match().is_some() || args.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(
+                self.scheme,
+                Operation::Compose,
+                "source_identity",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
@@ -446,10 +557,22 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
     }
 }
 
+impl<T: oio::Compose> oio::Compose for CheckWrapper<T> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.check_compose_source(&args)?;
+        self.inner.compose(path, args).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Capability;
+    use crate::ComposeInput;
     use crate::EntryMode;
     use crate::Metadata;
     use crate::Operator;
@@ -466,6 +589,7 @@ mod tests {
         type Lister = ();
         type Deleter = MockDeleter;
         type Copier = ();
+        type Composer = MockComposer;
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("memory")
@@ -509,6 +633,10 @@ mod tests {
 
         fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Ok(())
+        }
+
+        fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<Self::Composer> {
+            Ok(MockComposer)
         }
 
         async fn rename(
@@ -572,6 +700,18 @@ mod tests {
 
         async fn close(&mut self) -> Result<()> {
             Ok(())
+        }
+    }
+
+    struct MockComposer;
+
+    impl oio::Compose for MockComposer {
+        async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(Metadata::new(EntryMode::FILE).with_content_length(0))
         }
     }
 
@@ -686,6 +826,50 @@ mod tests {
         });
         let res = op.delete_with("path").version("version").await;
         assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_compose() {
+        let op = new_test_operator(Capability {
+            compose: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .compose([ComposeInput::new("from").with_version("version")], "to")
+            .await
+            .expect_err("source version must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .compose_with(["from"], "to")
+            .content_type("text/plain")
+            .await
+            .expect_err("destination content type must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .compose(Vec::<String>::new(), "to")
+            .await
+            .expect_err("empty composition must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = op
+            .compose(["same"], "same")
+            .await
+            .expect_err("a destination cannot be its own source");
+        assert_eq!(err.kind(), ErrorKind::IsSameFile);
+
+        let op = new_test_operator(Capability {
+            compose: true,
+            compose_with_source_version: true,
+            compose_with_content_type: true,
+            ..Default::default()
+        });
+        op.compose_with([ComposeInput::new("from").with_version("version")], "to")
+            .content_type("text/plain")
+            .await
+            .expect("supported compose options must be forwarded");
     }
 
     #[tokio::test]

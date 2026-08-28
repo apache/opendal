@@ -209,6 +209,7 @@ impl Service for EtcdBackend {
     type Lister = oio::HierarchyLister<EtcdLazyLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

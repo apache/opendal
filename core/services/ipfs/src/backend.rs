@@ -148,6 +148,7 @@ impl Service for IpfsBackend {
     type Lister = oio::PageLister<DirStream>;
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

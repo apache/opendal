@@ -242,6 +242,7 @@ impl Service for MemcachedBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

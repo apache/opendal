@@ -39,6 +39,8 @@ pub enum Operation {
     Write,
     /// Operation to copy a file.
     Copy,
+    /// Operation to compose multiple files into one file.
+    Compose,
     /// Operation to rename a file.
     Rename,
     /// Operation to restore a file.
@@ -74,6 +76,7 @@ impl From<Operation> for &'static str {
             Operation::Read => "read",
             Operation::Write => "write",
             Operation::Copy => "copy",
+            Operation::Compose => "compose",
             Operation::Rename => "rename",
             Operation::Restore => "restore",
             Operation::Stat => "stat",

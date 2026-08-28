@@ -226,6 +226,7 @@ impl Service for MokaBackend {
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

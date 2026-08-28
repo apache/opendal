@@ -307,6 +307,7 @@ impl Service for CosBackend {
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

@@ -222,6 +222,7 @@ impl Service for D1Backend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<D1Deleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

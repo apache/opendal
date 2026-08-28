@@ -394,6 +394,7 @@ impl Service for AzdlsBackend {
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

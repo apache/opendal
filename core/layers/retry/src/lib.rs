@@ -298,6 +298,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
     type Lister = RetryWrapper<oio::Lister, I>;
     type Deleter = RetryWrapper<oio::Deleter, I>;
     type Copier = RetryWrapper<oio::Copier, I>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -305,6 +306,10 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -1144,6 +1149,7 @@ mod tests {
         type Lister = MockLister;
         type Deleter = MockDeleter;
         type Copier = MockCopier;
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")

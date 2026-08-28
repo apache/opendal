@@ -149,6 +149,7 @@ impl Service for TikvBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

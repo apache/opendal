@@ -97,6 +97,7 @@ impl Service for MonoiofsBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

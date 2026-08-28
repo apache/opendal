@@ -255,6 +255,7 @@ where
     type Lister = ConcurrentLimitWrapper<oio::Lister, S>;
     type Deleter = ConcurrentLimitWrapper<oio::Deleter, S>;
     type Copier = ConcurrentLimitWrapper<oio::Copier, S>;
+    type Composer = ConcurrentLimitWrapper<oio::Composer, S>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -295,6 +296,12 @@ where
     ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args)
+            .map(|c| ConcurrentLimitWrapper::new(c, self.semaphore.clone()))
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner
+            .compose(ctx, to, args)
             .map(|c| ConcurrentLimitWrapper::new(c, self.semaphore.clone()))
     }
 
@@ -508,6 +515,21 @@ where
     }
 }
 
+impl<C: oio::Compose, S: ConcurrentLimitSemaphore> oio::Compose for ConcurrentLimitWrapper<C, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.acquire().await;
+        self.inner.compose(path, args).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.acquire().await;
+        self.inner.close().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -561,6 +583,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = ();
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -720,6 +743,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = PendingCopier;
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -913,6 +937,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = ();
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()

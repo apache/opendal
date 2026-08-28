@@ -73,6 +73,7 @@ impl Service for OpfsBackend {
     type Lister = OpfsLister;
     type Deleter = oio::OneShotDeleter<OpfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

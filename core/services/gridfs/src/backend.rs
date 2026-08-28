@@ -199,6 +199,7 @@ impl Service for GridfsBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<GridfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

@@ -161,6 +161,7 @@ impl Service for GithubBackend {
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

@@ -208,6 +208,7 @@ impl Service for SftpBackend {
     type Lister = SftpLazyLister;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

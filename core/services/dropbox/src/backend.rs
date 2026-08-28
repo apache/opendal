@@ -200,6 +200,7 @@ impl Service for DropboxBackend {
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

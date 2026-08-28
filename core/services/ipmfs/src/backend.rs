@@ -166,6 +166,7 @@ impl Service for IpmfsBackend {
     type Lister = oio::PageLister<IpmfsLister>;
     type Deleter = oio::OneShotDeleter<IpmfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

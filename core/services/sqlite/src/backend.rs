@@ -212,6 +212,7 @@ impl Service for SqliteBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

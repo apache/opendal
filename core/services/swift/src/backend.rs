@@ -239,6 +239,7 @@ impl Service for SwiftBackend {
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

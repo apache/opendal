@@ -116,6 +116,7 @@ impl Service for DashmapBackend {
     type Lister = oio::HierarchyLister<DashmapLister>;
     type Deleter = oio::OneShotDeleter<DashmapDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

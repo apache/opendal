@@ -1018,6 +1018,168 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
     }
 }
 
+/// Arguments for `compose` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCompose {
+    concurrent: usize,
+    content_type: Option<String>,
+    content_disposition: Option<String>,
+    content_encoding: Option<String>,
+    cache_control: Option<String>,
+    if_match: Option<String>,
+    if_none_match: Option<String>,
+    if_version_match: Option<String>,
+    if_version_not_match: Option<String>,
+    if_not_exists: bool,
+    user_metadata: Option<HashMap<String, String>>,
+}
+
+impl OpCompose {
+    /// Create a new `OpCompose`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the maximum concurrent composition task count.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent.max(1);
+        self
+    }
+
+    /// Get the maximum concurrent composition task count.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent.max(1)
+    }
+
+    /// Set destination Content-Type metadata.
+    pub fn with_content_type(mut self, content_type: impl Into<String>) -> Self {
+        self.content_type = Some(content_type.into());
+        self
+    }
+
+    /// Get destination Content-Type metadata.
+    pub fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
+    }
+
+    /// Set destination Content-Disposition metadata.
+    pub fn with_content_disposition(mut self, content_disposition: impl Into<String>) -> Self {
+        self.content_disposition = Some(content_disposition.into());
+        self
+    }
+
+    /// Get destination Content-Disposition metadata.
+    pub fn content_disposition(&self) -> Option<&str> {
+        self.content_disposition.as_deref()
+    }
+
+    /// Set destination Content-Encoding metadata.
+    pub fn with_content_encoding(mut self, content_encoding: impl Into<String>) -> Self {
+        self.content_encoding = Some(content_encoding.into());
+        self
+    }
+
+    /// Get destination Content-Encoding metadata.
+    pub fn content_encoding(&self) -> Option<&str> {
+        self.content_encoding.as_deref()
+    }
+
+    /// Set destination Cache-Control metadata.
+    pub fn with_cache_control(mut self, cache_control: impl Into<String>) -> Self {
+        self.cache_control = Some(cache_control.into());
+        self
+    }
+
+    /// Get destination Cache-Control metadata.
+    pub fn cache_control(&self) -> Option<&str> {
+        self.cache_control.as_deref()
+    }
+
+    /// Set destination user metadata.
+    pub fn with_user_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.user_metadata = Some(metadata);
+        self
+    }
+
+    /// Get destination user metadata.
+    pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
+        self.user_metadata.as_ref()
+    }
+
+    /// Set the destination ETag match condition.
+    pub fn with_if_match(mut self, etag: impl Into<String>) -> Self {
+        self.if_match = Some(etag.into());
+        self
+    }
+
+    /// Get the destination ETag match condition.
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
+
+    /// Set the destination ETag non-match condition.
+    pub fn with_if_none_match(mut self, etag: impl Into<String>) -> Self {
+        self.if_none_match = Some(etag.into());
+        self
+    }
+
+    /// Get the destination ETag non-match condition.
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
+
+    /// Set the destination version match condition.
+    pub fn with_if_version_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_match = Some(version.into());
+        self
+    }
+
+    /// Get the destination version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        self.if_version_match.as_deref()
+    }
+
+    /// Set the destination version non-match condition.
+    pub fn with_if_version_not_match(mut self, version: impl Into<String>) -> Self {
+        self.if_version_not_match = Some(version.into());
+        self
+    }
+
+    /// Get the destination version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        self.if_version_not_match.as_deref()
+    }
+
+    /// Set whether composition requires a missing destination.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Get whether composition requires a missing destination.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
+    }
+}
+
+impl From<options::ComposeOptions> for OpCompose {
+    fn from(value: options::ComposeOptions) -> Self {
+        Self {
+            concurrent: value.concurrent.max(1),
+            content_type: value.content_type,
+            content_disposition: value.content_disposition,
+            content_encoding: value.content_encoding,
+            cache_control: value.cache_control,
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_version_match: value.if_version_match,
+            if_version_not_match: value.if_version_not_match,
+            if_not_exists: value.if_not_exists,
+            user_metadata: value.user_metadata,
+        }
+    }
+}
+
 /// Arguments for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {

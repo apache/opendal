@@ -15,32 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! `oio` provides OpenDAL's raw traits and types that opendal returns as
-//! output.
-//!
-//! Those types should only be used internally and we don't want users to
-//! depend on them.
+mod composer;
+pub use composer::Composer;
 
-mod compose;
-pub use compose::*;
-
-mod delete;
-pub use delete::*;
-
-mod copy;
-pub use copy::*;
-
-mod read;
-pub use read::*;
-
-mod write;
-pub use write::*;
-
-mod list;
-pub use list::*;
-
-mod entry;
-pub use entry::Entry;
-
-mod buf;
-pub use buf::*;
+mod input;
+pub use input::ComposeInput;
+pub use input::IntoComposeInput;

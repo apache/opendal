@@ -121,6 +121,7 @@ impl Service for CompfsBackend {
     type Lister = CompfsLazyLister;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

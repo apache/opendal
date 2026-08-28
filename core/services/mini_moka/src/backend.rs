@@ -153,6 +153,7 @@ impl Service for MiniMokaBackend {
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::new(MINI_MOKA_SCHEME, &self.root, "")

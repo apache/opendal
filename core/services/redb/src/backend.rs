@@ -172,6 +172,7 @@ impl Service for RedbBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

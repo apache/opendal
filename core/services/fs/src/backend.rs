@@ -180,6 +180,7 @@ impl Service for FsBackend {
     type Lister = FsLazyLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

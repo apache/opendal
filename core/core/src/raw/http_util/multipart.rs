@@ -164,6 +164,19 @@ pub trait Part: Sized + 'static {
     fn parse(s: &str) -> Result<Self>;
 }
 
+/// Escape a value for the quoted-string form of a multipart
+/// `Content-Disposition` parameter such as `filename`.
+///
+/// The quoted-string grammar only gives special meaning to `\` (the escape
+/// character) and `"` (the closing delimiter), so both are backslash-escaped
+/// and every other byte is left untouched. Services that build the header from
+/// an untrusted object key must run the value through this first: a key
+/// containing `"` otherwise closes the quoted string early and injects extra
+/// parameters into the part header.
+pub fn escape_multipart_filename(filename: &str) -> String {
+    filename.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// FormDataPart is a builder for multipart/form-data part.
 pub struct FormDataPart {
     headers: HeaderMap,
@@ -634,6 +647,18 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_escape_multipart_filename() {
+        assert_eq!(escape_multipart_filename("plain.txt"), "plain.txt");
+        // A bare quote must not close the quoted string early.
+        assert_eq!(
+            escape_multipart_filename("evil\"; name=\"replace"),
+            "evil\\\"; name=\\\"replace"
+        );
+        // Backslash is escaped before quotes so it round-trips.
+        assert_eq!(escape_multipart_filename("a\\b\"c"), "a\\\\b\\\"c");
+    }
 
     #[test]
     fn test_multipart_formdata_basic() -> Result<()> {

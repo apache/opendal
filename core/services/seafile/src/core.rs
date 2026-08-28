@@ -220,9 +220,12 @@ impl SeafileCore {
         let file_part = FormDataPart::new("file")
             .header(
                 header::CONTENT_DISPOSITION,
-                format!("form-data; name=\"file\"; filename=\"{filename}\"")
-                    .parse()
-                    .unwrap(),
+                format!(
+                    "form-data; name=\"file\"; filename=\"{}\"",
+                    escape_multipart_filename(filename)
+                )
+                .parse()
+                .unwrap(),
             )
             .content(body);
 

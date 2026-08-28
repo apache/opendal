@@ -18,6 +18,7 @@
 mod capability;
 mod docs;
 mod dotnet;
+mod gcs_grpc;
 mod java;
 mod options;
 mod parser;
@@ -28,6 +29,11 @@ use anyhow::Result;
 
 pub fn run(language: &str) -> Result<()> {
     let workspace_dir = workspace_dir();
+
+    if language == "gcs-grpc" {
+        return gcs_grpc::generate(workspace_dir);
+    }
+
     let mut services = parser::Services::new();
 
     // Old layout: core/core/src/services/<name>/config.rs (e.g. memory)

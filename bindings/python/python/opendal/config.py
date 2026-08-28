@@ -310,6 +310,35 @@ class GcsConfig(TypedDict):
     """A Google Cloud OAuth2 token.  Takes precedence over `credential` and `credential_path`."""
 
 
+class GcsGrpcConfig(TypedDict):
+    """Configuration for the `gcs-grpc` service."""
+
+    scheme: Required[Literal["gcs-grpc"]]
+    """The service scheme; fixed to `"gcs-grpc"`."""
+    bucket: Required[str]
+    """Bucket name."""
+    credential: NotRequired[str]
+    """Base64-encoded service account credential."""
+    credential_path: NotRequired[str]
+    """Path to a service account credential file."""
+    disable_config_load: NotRequired[bool]
+    """Disable environment and well-known credential loading."""
+    disable_vm_metadata: NotRequired[bool]
+    """Disable the GCE metadata credential provider."""
+    endpoint: NotRequired[str]
+    """gRPC endpoint."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root path for all operations."""
+    scope: NotRequired[str]
+    """OAuth 2.0 scope."""
+    service_account: NotRequired[str]
+    """Service account used by the GCE metadata server."""
+    skip_signature: NotRequired[bool]
+    """Send requests without authentication."""
+    token: NotRequired[str]
+    """OAuth 2.0 access token."""
+
+
 class GdriveConfig(TypedDict):
     """Configuration for the `gdrive` service."""
 
@@ -1000,6 +1029,7 @@ ServiceConfig = (
     | FsConfig
     | FtpConfig
     | GcsConfig
+    | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
     | GridfsConfig
@@ -1054,6 +1084,7 @@ __all__ = [
     "FsConfig",
     "FtpConfig",
     "GcsConfig",
+    "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
     "GridfsConfig",

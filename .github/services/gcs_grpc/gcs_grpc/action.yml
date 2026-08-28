@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Generate code for language
-#
-# Available targets: python, java, docs, gcs-grpc
-generate language:
-    cargo run --quiet --manifest-path=dev/Cargo.toml -- generate -l {{language}}
+name: gcs_grpc
+description: 'Behavior test for GCS gRPC'
 
-update-version:
-    cargo run --quiet --manifest-path=dev/Cargo.toml -- update-version
-
-release:
-    cargo run --quiet --manifest-path=dev/Cargo.toml -- release
+runs:
+  using: "composite"
+  steps:
+    - name: Setup
+      uses: 1Password/load-secrets-action@92467eb28f72e8255933372f1e0707c567ce2259 # v4.0.0
+      with:
+        export-env: true
+      env:
+        OPENDAL_GCS_GRPC_ROOT: op://services/gcs/root
+        OPENDAL_GCS_GRPC_BUCKET: op://services/gcs/bucket
+        OPENDAL_GCS_GRPC_CREDENTIAL: op://services/gcs/credential

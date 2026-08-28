@@ -168,6 +168,7 @@ services-foyer = ["dep:opendal-service-foyer"]
 services-fs = ["dep:opendal-service-fs"]
 services-ftp = ["dep:opendal-service-ftp"]
 services-gcs = ["dep:opendal-service-gcs"]
+services-gcs-grpc = ["dep:opendal-service-gcs-grpc"]
 services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
@@ -287,6 +288,7 @@ opendal-service-foyer = { path = "services/foyer", version = "0.58.2", optional 
 opendal-service-fs = { path = "services/fs", version = "0.58.2", optional = true, default-features = false }
 opendal-service-ftp = { path = "services/ftp", version = "0.58.2", optional = true, default-features = false }
 opendal-service-gcs = { path = "services/gcs", version = "0.58.2", optional = true, default-features = false }
+opendal-service-gcs-grpc = { path = "services/gcs-grpc", version = "0.58.2", optional = true, default-features = false }
 opendal-service-gdrive = { path = "services/gdrive", version = "0.58.2", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.58.2", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.58.2", optional = true, default-features = false }

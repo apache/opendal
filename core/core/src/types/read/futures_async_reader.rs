@@ -74,6 +74,69 @@ impl FuturesAsyncReader {
             pos: 0,
         }
     }
+
+    /// Read at most `size` bytes and return them as an OpenDAL [`Buffer`].
+    ///
+    /// This method preserves the underlying buffer storage and does not copy
+    /// the payload. It can return fewer bytes than requested, including an
+    /// empty buffer at EOF.
+    pub async fn read_buffer(&mut self, size: usize) -> io::Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
+        }
+
+        while self.buf.is_empty() {
+            self.buf = match self.stream.next().await {
+                Some(Ok(buf)) => buf,
+                Some(Err(err)) => return Err(format_std_io_error(err)),
+                None => return Ok(Buffer::new()),
+            };
+        }
+
+        let size = self.buf.len().min(size);
+        let buffer = self.buf.split_to(size);
+        if self.buf.is_empty() {
+            self.buf = Buffer::new();
+        }
+        self.pos += size as u64;
+        Ok(buffer)
+    }
+
+    /// Read all remaining bytes and return them as an OpenDAL [`Buffer`].
+    ///
+    /// This method preserves the underlying buffer storage and only allocates
+    /// metadata when multiple buffers must be combined.
+    pub async fn read_to_end_buffer(&mut self) -> io::Result<Buffer> {
+        let mut buffer = std::mem::take(&mut self.buf);
+        let current_size = buffer.len();
+        self.pos += current_size as u64;
+        let mut parts = None;
+
+        while let Some(result) = self.stream.next().await {
+            let next = result.map_err(format_std_io_error)?;
+            self.pos += next.len() as u64;
+            if next.is_empty() {
+                continue;
+            }
+
+            if buffer.is_empty() && parts.is_none() {
+                buffer = next;
+                continue;
+            }
+
+            if parts.is_none() {
+                let mut combined = Vec::new();
+                combined.extend(std::mem::take(&mut buffer));
+                parts = Some(combined);
+            }
+            parts
+                .as_mut()
+                .expect("buffer parts must exist")
+                .extend(next);
+        }
+
+        Ok(parts.map(Buffer::from).unwrap_or(buffer))
+    }
 }
 
 impl AsyncBufRead for FuturesAsyncReader {
@@ -244,6 +307,59 @@ mod tests {
         let mut bs = vec![];
         fr.read_to_end(&mut bs).await.unwrap();
         assert_eq!(&bs, "or".as_bytes());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_buffer() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let content = Bytes::from_static(b"HelloWorld");
+        op.write("test", Buffer::from(content.clone())).await?;
+
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
+
+        let mut fr = FuturesAsyncReader::new(ctx, 0..10);
+        let buffer = fr.read_buffer(0).await.unwrap();
+        assert!(buffer.is_empty());
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+
+        let buffer = fr.read_buffer(5).await.unwrap();
+        assert_eq!(buffer.to_vec(), b"Hello");
+        assert_eq!(buffer.current().as_ptr(), content.as_ptr());
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 5);
+
+        let buffer = fr.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"World");
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 10);
+        assert!(fr.read_buffer(1).await.unwrap().is_empty());
+
+        fr.seek(SeekFrom::Start(2)).await.unwrap();
+        assert_eq!(fr.read_to_end_buffer().await.unwrap().to_vec(), b"lloWorld");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_with_concurrent() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_concurrent(3).with_chunk(1),
+        )?);
+
+        let mut fr = FuturesAsyncReader::new(ctx, 0..10);
+        let buffer = fr.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"HelloWorld");
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 10);
 
         Ok(())
     }

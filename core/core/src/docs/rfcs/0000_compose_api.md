@@ -1,6 +1,6 @@
 - Proposal Name: `compose_api`
 - Start Date: 2026-08-28
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#8188](https://github.com/apache/opendal/pull/8188)
 - Tracking Issue: [apache/opendal#8167](https://github.com/apache/opendal/issues/8167)
 
 # Summary

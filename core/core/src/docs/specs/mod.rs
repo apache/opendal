@@ -15,20 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL Performance Guide
-//!
-//! OpenDAL keeps the storage abstraction lightweight, but applications still
-//! need to configure buffering, concurrency, and HTTP transport for their
-//! workload. This guide gives concrete Rust configuration examples and explains
-//! the trade-offs behind them.
-//!
-//! - [Concurrent writes][concurrent_write] explains how OpenDAL schedules write
-//!   parts and how to tune `concurrent` and `chunk`.
-//! - [HTTP optimization][http_optimization] explains when to try HTTP/1.1 and
-//!   how to configure DNS, timeouts, and connection pools.
+#![doc = include_str!("README.md")]
 
-#[doc = include_str!("concurrent_write.md")]
-pub mod concurrent_write {}
-
-#[doc = include_str!("http_optimization.md")]
-pub mod http_optimization {}
+/// The portable contract for conditional operations.
+#[doc = include_str!("conditional-operations.md")]
+pub mod conditional_operations {}

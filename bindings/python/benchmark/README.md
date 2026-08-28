@@ -1,6 +1,8 @@
 # OpenDAL Python Bindings Benchmark
 
-This benchmark is test against the opendal and aws python sdk.
+This benchmark compares OpenDAL with the AWS SDK for Python (Boto3). The Boto3
+benchmark runs its synchronous client in a bounded thread pool to issue the
+same concurrent workload without an alternative I/O runtime.
 
 To run the benchmark, please make sure the following env have been set correctly.
 
@@ -22,7 +24,7 @@ export AWS_SECRET_ACCESS_KEY=minioadmin
 export AWS_S3_BUCKET=opendal
 
 uv run async_opendal_benchmark.py
-uv run async_origin_s3_benchmark_with_gevent.py
+uv run async_origin_s3_benchmark_with_threads.py
 ```
 
 ## Blocking Operator GIL benchmark

@@ -400,10 +400,9 @@ impl Service for TosBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: TosCopiers = {
-            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args)?;
             Ok(copier)
         }?;
 

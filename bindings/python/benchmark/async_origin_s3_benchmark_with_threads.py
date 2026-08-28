@@ -15,21 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ruff: noqa: E402
-
+import asyncio
 import timeit
+from concurrent.futures import ThreadPoolExecutor
 
-from gevent import monkey
-
-monkey.patch_all()
-
-import gevent
-import greenify
 from boto3 import client as boto3_client
 from mypy_boto3_s3 import S3Client
 from pydantic_settings import BaseSettings
-
-greenify.greenify()
 
 
 class Config(BaseSettings):
@@ -62,39 +54,59 @@ TEST_CASE = [
 ]
 
 
-def async_origin_s3_write():
-    tasks = [
-        gevent.spawn(
-            S3_CLIENT.put_object,
-            Bucket=SETTINGS.aws_s3_bucket,
-            Key=f"benchmark/async_write/{case['name']}",
-            Body=case["data"],
+def write_object(name: str, data: bytes) -> None:
+    S3_CLIENT.put_object(
+        Bucket=SETTINGS.aws_s3_bucket,
+        Key=f"benchmark/async_write/{name}",
+        Body=data,
+    )
+
+
+def read_object(name: str) -> bytes:
+    response = S3_CLIENT.get_object(
+        Bucket=SETTINGS.aws_s3_bucket,
+        Key=f"benchmark/async_write/{name}",
+    )
+    return response["Body"].read()
+
+
+async def write_objects() -> None:
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=len(TEST_CASE)) as executor:
+        await asyncio.gather(
+            *(
+                loop.run_in_executor(executor, write_object, case["name"], case["data"])
+                for case in TEST_CASE
+            )
         )
-        for case in TEST_CASE
-    ]
-    gevent.joinall(tasks)
 
 
-def async_origin_s3_read():
-    tasks = [
-        gevent.spawn(
-            S3_CLIENT.get_object,
-            Bucket=SETTINGS.aws_s3_bucket,
-            Key=f"benchmark/async_write/{case['name']}",
+async def read_objects() -> None:
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=len(TEST_CASE)) as executor:
+        await asyncio.gather(
+            *(
+                loop.run_in_executor(executor, read_object, case["name"])
+                for case in TEST_CASE
+            )
         )
-        for case in TEST_CASE
-    ]
-    gevent.joinall(tasks)
-
-    read_tasks = [gevent.spawn(task.value["Body"].read) for task in tasks]
-    gevent.joinall(read_tasks)
 
 
-def async_s3_benchmark():
-    for func in (async_origin_s3_write, async_origin_s3_read):
+def threaded_origin_s3_write() -> None:
+    asyncio.run(write_objects())
+
+
+def threaded_origin_s3_read() -> None:
+    asyncio.run(read_objects())
+
+
+def threaded_s3_benchmark() -> None:
+    for func in (threaded_origin_s3_write, threaded_origin_s3_read):
         fn_name = func.__name__
-        print(f"async_origin_s3_benchmark::{fn_name}: {timeit.timeit(func, number=3)}")
+        print(
+            f"threaded_origin_s3_benchmark::{fn_name}: {timeit.timeit(func, number=3)}"
+        )
 
 
 if __name__ == "__main__":
-    async_s3_benchmark()
+    threaded_s3_benchmark()

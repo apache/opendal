@@ -162,6 +162,7 @@ impl Builder for FtpBuilder {
 
         let manager = Manager {
             endpoint: endpoint.clone(),
+            host: host.to_string(),
             root: root.clone(),
             user: user.clone(),
             password: password.clone(),
@@ -279,7 +280,6 @@ impl Service for FtpBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

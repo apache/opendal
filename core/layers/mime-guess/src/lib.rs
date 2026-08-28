@@ -154,9 +154,8 @@ impl Service for MimeGuessAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.0.copy(ctx, from, to, args, opts)
+        self.0.copy(ctx, from, to, args)
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {

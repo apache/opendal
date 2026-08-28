@@ -1027,6 +1027,9 @@ pub struct OpCopy {
     if_version_match: Option<String>,
     if_version_not_match: Option<String>,
     source_version: Option<String>,
+    concurrent: usize,
+    chunk: Option<usize>,
+    source_content_length_hint: Option<u64>,
 }
 
 impl OpCopy {
@@ -1108,73 +1111,54 @@ impl OpCopy {
     pub fn source_version(&self) -> Option<&str> {
         self.source_version.as_deref()
     }
-}
 
-/// Arguments for `copier` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpCopier {
-    concurrent: usize,
-    chunk: Option<usize>,
-    source_content_length_hint: Option<u64>,
-}
-
-impl OpCopier {
-    /// Create a new `OpCopier`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set the concurrent tasks for the copier.
+    /// Set the concurrent tasks for the copy operation.
     pub fn with_concurrent(mut self, concurrent: usize) -> Self {
         self.concurrent = concurrent.max(1);
         self
     }
 
-    /// Get the concurrent tasks for the copier.
+    /// Get the concurrent tasks for the copy operation.
     pub fn concurrent(&self) -> usize {
         self.concurrent.max(1)
     }
 
-    /// Set the chunk size for the copier.
+    /// Set the chunk size for the copy operation.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
         self.chunk = Some(chunk);
         self
     }
 
-    /// Get the chunk size for the copier.
+    /// Get the chunk size for the copy operation.
     pub fn chunk(&self) -> Option<usize> {
         self.chunk
     }
 
-    /// Set source content length hint for the copier.
+    /// Set source content length hint for the copy operation.
     pub fn with_source_content_length_hint(mut self, content_length: u64) -> Self {
         self.source_content_length_hint = Some(content_length);
         self
     }
 
-    /// Get source content length hint from the copier.
+    /// Get source content length hint from the copy operation.
     pub fn source_content_length_hint(&self) -> Option<u64> {
         self.source_content_length_hint
     }
 }
 
-impl From<options::CopyOptions> for (OpCopy, OpCopier) {
+impl From<options::CopyOptions> for OpCopy {
     fn from(value: options::CopyOptions) -> Self {
-        (
-            OpCopy {
-                if_not_exists: value.if_not_exists,
-                if_match: value.if_match,
-                if_none_match: value.if_none_match,
-                if_version_match: value.if_version_match,
-                if_version_not_match: value.if_version_not_match,
-                source_version: value.source_version,
-            },
-            OpCopier {
-                concurrent: value.concurrent.max(1),
-                chunk: value.chunk,
-                source_content_length_hint: value.source_content_length_hint,
-            },
-        )
+        OpCopy {
+            if_not_exists: value.if_not_exists,
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_version_match: value.if_version_match,
+            if_version_not_match: value.if_version_not_match,
+            source_version: value.source_version,
+            concurrent: value.concurrent.max(1),
+            chunk: value.chunk,
+            source_content_length_hint: value.source_content_length_hint,
+        }
     }
 }
 

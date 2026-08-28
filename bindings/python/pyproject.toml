@@ -42,9 +42,6 @@ Repository = "https://github.com/apache/opendal"
 benchmark = [
   "boto3>=1.37.9",
   "boto3-stubs[essential]>=1.37.9",
-  "gevent>=24.11.1",
-  "greenify>=0.4.3",
-  "greenlet>=3.1.1",
   "pydantic>=2.10.6",
 ]
 dev = ["maturin>=1.8.2"]

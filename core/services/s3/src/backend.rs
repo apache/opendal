@@ -1296,10 +1296,9 @@ impl Service for S3Backend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: S3Copiers = {
-            let copier = new_s3_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            let copier = new_s3_copier(self.core.clone(), ctx, from, to, args)?;
             Ok(copier)
         }?;
 
@@ -1329,14 +1328,7 @@ impl Service for S3Backend {
             let copy_args = OpCopy::new()
                 .with_source_version(version)
                 .with_if_not_exists(args.if_not_exists());
-            let mut copier = new_s3_copier(
-                self.core.clone(),
-                ctx,
-                path,
-                path,
-                copy_args,
-                OpCopier::default(),
-            )?;
+            let mut copier = new_s3_copier(self.core.clone(), ctx, path, path, copy_args)?;
 
             return match copier.close().await {
                 Ok(_) => Ok(RpRestore::new()),

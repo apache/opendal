@@ -549,10 +549,9 @@ impl Service for GcsBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: GcsCopier = {
-            let copier = GcsCopier::new(self.core.clone(), ctx.clone(), from, to, args, opts);
+            let copier = GcsCopier::new(self.core.clone(), ctx.clone(), from, to, args);
             Ok(copier)
         }?;
 

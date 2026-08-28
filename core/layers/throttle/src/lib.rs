@@ -162,9 +162,8 @@ impl Service for ThrottleAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {

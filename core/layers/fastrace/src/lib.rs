@@ -186,10 +186,9 @@ impl Service for FastraceAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let _guard = Span::enter_with_local_parent(Operation::Copy.into_static());
-        self.inner.copy(ctx, from, to, args, opts).map(|c| {
+        self.inner.copy(ctx, from, to, args).map(|c| {
             FastraceWrapper::new(
                 Span::enter_with_local_parent(Operation::Copy.into_static()),
                 c,

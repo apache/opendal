@@ -370,11 +370,10 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.log_start(Operation::Copy, &[("from", from), ("to", to)]);
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| {
                 self.logger.log(
                     &self.info,

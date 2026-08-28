@@ -59,6 +59,41 @@ The human contributor remains responsible for every submitted claim and change.
 - Keep terminology consistent with the codebase, especially `service`, `layer`, `operator`, `storage` and `operation`.
 - Use parallel structure in lists and punctuate complete sentences consistently.
 
+## Documentation Architecture
+
+OpenDAL splits documentation by audience. The website carries only content
+that holds for OpenDAL across languages; Rust-specific documentation lives in
+rustdoc.
+
+- `core/core/src/docs/specs/` contains the living portable contracts, the one
+  set of documents published to both destinations. Rustdoc publishes them
+  under `opendal::docs::specs`; the website reads the same Markdown at
+  `/docs/specifications/`.
+- `core/core/src/docs/concepts.rs`, `core/core/src/docs/internals/`, and
+  `core/core/src/docs/performance/` contain the Rust core guides: Rust types,
+  traits, implementation architecture, runtime resources, and transport
+  tuning. They are rustdoc-only; do not publish them on the website.
+- `website/docs/` contains cross-language concepts and non-normative guidance,
+  plus the per-language guides. Content there must hold for OpenDAL as a
+  whole. Do not present Rust implementation detail as cross-language behavior,
+  and do not claim every binding exposes a feature (layers, builders,
+  concurrency controls) unless the bindings demonstrate it.
+- `core/core/src/docs/rfcs/` contains immutable accepted design history. An
+  accepted RFC records the proposal that reached consensus; update a
+  specification, not the accepted RFC, when the current contract changes.
+- `core/core/src/docs/upgrade.md` contains upgrade procedures, and
+  `CHANGELOG.md` contains the release changelog. Rustdoc exposes them through
+  `opendal::docs`.
+- `website/docusaurus.config.js` and `website/specifications.sidebars.js`
+  define website publication and navigation for the specifications. Do not add
+  a website section that republishes rustdoc content, and do not copy
+  specifications into `website/docs/`.
+
+Public API documentation under `core/core/src/types/` must explain the
+observable behavior, capability requirements, and relevant errors at the API
+site. Link to a specification only after the local API contract is
+self-contained.
+
 ## Rust Workspace Commands
 
 The Rust workspace for OpenDAL core lives under `core/`. There is no root `Cargo.toml`; run core cargo commands from `core/`.

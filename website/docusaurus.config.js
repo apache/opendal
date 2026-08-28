@@ -115,6 +115,19 @@ const config = {
     [
       "@docusaurus/plugin-content-docs",
       {
+        id: "specifications",
+        path: "../core/core/src/docs/specs",
+        routeBasePath: "docs/specifications",
+        sidebarPath: require.resolve("./specifications.sidebars.js"),
+        editUrl: ({ docPath }) =>
+          `${repoAddress}/edit/main/core/core/src/docs/specs/${docPath}`,
+        showLastUpdateAuthor: true,
+        showLastUpdateTime: true,
+      },
+    ],
+    [
+      "@docusaurus/plugin-content-docs",
+      {
         id: "community",
         path: "community",
         routeBasePath: "community",

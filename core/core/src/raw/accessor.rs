@@ -212,7 +212,6 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier>;
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
@@ -321,7 +320,6 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier>;
 
     /// Dyn version of [`Service::rename`].
@@ -417,9 +415,8 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
-        Ok(Box::new(self.copy(ctx, from, to, args, opts)?) as oio::Copier)
+        Ok(Box::new(self.copy(ctx, from, to, args)?) as oio::Copier)
     }
 
     fn rename_dyn<'a>(
@@ -502,9 +499,8 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
-        self.as_ref().copy_dyn(ctx, from, to, args, opts)
+        self.as_ref().copy_dyn(ctx, from, to, args)
     }
 
     async fn rename(
@@ -599,14 +595,7 @@ impl Service for () {
         ))
     }
 
-    fn copy(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: &str,
-        _: OpCopy,
-        _: OpCopier,
-    ) -> Result<Self::Copier> {
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

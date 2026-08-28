@@ -80,7 +80,7 @@ install-release *args: stub-gen
 bench: install-release
     @echo "{{ BOLD }}--- Bench release ---{{ NORMAL }}"
     @uv run async_opendal_benchmark.py
-    @uv run async_origin_s3_benchmark_with_gevent.py
+    @uv run async_origin_s3_benchmark_with_threads.py
 
 # Build only a source distribution (sdist) without compiling
 [group('release')]

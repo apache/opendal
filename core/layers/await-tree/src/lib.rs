@@ -117,10 +117,9 @@ impl Service for AwaitTreeAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(AwaitTreeWrapper::new)
     }
 

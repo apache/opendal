@@ -418,10 +418,9 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let mut attempt: u32 = 0;
-        let copier = { || self.inner.copy(ctx, from, to, args.clone(), opts.clone()) }
+        let copier = { || self.inner.copy(ctx, from, to, args.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -1207,14 +1206,7 @@ mod tests {
             Ok(lister)
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Ok(MockCopier {
                 attempt: self.attempt.clone(),
             })

@@ -390,7 +390,6 @@ impl Service for GcsGrpcBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Ok(Box::new(new_gcs_grpc_copier(
             self.core.clone(),

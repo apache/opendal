@@ -432,7 +432,6 @@ impl Service for CosBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();

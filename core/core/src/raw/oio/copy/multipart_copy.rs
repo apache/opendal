@@ -226,7 +226,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         if part_count > max_parts {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "multipart copy part count exceeds service limit, please increase `OpCopier::chunk`"
+                "multipart copy part count exceeds service limit, please increase `OpCopy::chunk`",
             )
             .with_context("source_size", source_size)
             .with_context("part_size", self.part_size)

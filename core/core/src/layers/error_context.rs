@@ -126,10 +126,9 @@ impl Service for ErrorContextService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|p| ErrorContextWrapper::new(self.info().scheme(), to, p))
             .map_err(|err| {
                 err.with_operation(Operation::Copy)

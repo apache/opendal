@@ -1166,9 +1166,8 @@ mod tests {
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpCopy,
-                opts: opendal::raw::OpCopier,
             ) -> opendal::Result<Self::Copier> {
-                self.srv.copy(ctx, from, to, args, opts)
+                self.srv.copy(ctx, from, to, args)
             }
 
             async fn rename(

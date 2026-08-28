@@ -266,11 +266,10 @@ impl Service for TracingService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        let span = span!(Level::DEBUG, "copy", from, to, ?args, ?opts);
+        let span = span!(Level::DEBUG, "copy", from, to, ?args);
         let _guard = span.enter();
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     async fn rename(

@@ -412,10 +412,9 @@ impl Service for TailCutService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
     }
 

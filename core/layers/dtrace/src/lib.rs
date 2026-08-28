@@ -210,11 +210,10 @@ impl Service for DTraceService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let c_from = CString::new(from).unwrap();
         probe_lazy!(opendal, copy_start, c_from.as_ptr());
-        let result = self.inner.copy(ctx, from, to, args, opts);
+        let result = self.inner.copy(ctx, from, to, args);
         probe_lazy!(opendal, copy_end, c_from.as_ptr());
         result
     }

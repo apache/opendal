@@ -818,7 +818,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Extra Options
@@ -860,7 +860,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -916,7 +916,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -1044,7 +1044,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1099,7 +1099,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1732,8 +1732,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors unless a condition requires a
-    ///   live target.
+    /// - Deleting a file that does not exist is a successful no-op.
     ///
     /// # Examples
     ///
@@ -1754,12 +1753,13 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors unless a condition requires a
-    ///   live target.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
     ///
     /// # Options
     ///
-    /// Visit [`options::DeleteOptions`] for all available options.
+    /// Visit [`options::DeleteOptions`] for all available options and the
+    /// conditional delete contract.
     ///
     /// # Examples
     ///
@@ -1790,8 +1790,9 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors unless a condition requires a
-    ///   live target.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first. Visit
+    ///   [`options::DeleteOptions`] for the conditional delete contract.
     ///
     /// # Examples
     ///

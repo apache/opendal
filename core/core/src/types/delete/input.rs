@@ -20,40 +20,40 @@ use crate::{Entry, Metadata};
 
 /// Per-entry input for delete operations.
 ///
-/// Conditional fields follow the current-target predicate contract documented
-/// by [`crate::options::DeleteOptions`]. A missing target fails positive match
-/// conditions with [`crate::ErrorKind::ConditionNotMatch`] and satisfies negative
-/// match conditions as a successful no-op.
+/// Each conditional field checks the file at this entry's path and follows
+/// the same contract as the matching [`crate::options::DeleteOptions`] field;
+/// refer there for the full behavior and error semantics.
 #[non_exhaustive]
 #[derive(Default, Debug)]
 pub struct DeleteInput {
-    /// The path of the path to delete.
+    /// The path of the file to delete.
     pub path: String,
-    /// The version of the path to delete.
+    /// The version of the file to delete.
+    ///
+    /// Refer to [`crate::options::DeleteOptions::version`] for the full contract.
     pub version: Option<String>,
     /// Whether to perform recursive deletion.
     pub recursive: bool,
-    /// Delete only when the current ETag matches this value.
+    /// Delete only when the file at this path has this exact ETag.
     ///
-    /// A different or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
+    /// Refer to [`crate::options::DeleteOptions::if_match`] for the full contract.
     pub if_match: Option<String>,
-    /// Delete only when the current ETag does not match this value.
+    /// Delete only when the file at this path does not have this ETag.
     ///
-    /// An equal ETag returns [`crate::ErrorKind::ConditionNotMatch`]. A different
-    /// or missing object satisfies the condition.
+    /// Refer to [`crate::options::DeleteOptions::if_none_match`] for the full contract.
     pub if_none_match: Option<String>,
-    /// Delete only when the current version matches this value.
+    /// Delete only when the file at this path has this exact version.
     ///
-    /// A different or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
+    /// Refer to [`crate::options::DeleteOptions::if_version_match`] for the full contract.
     pub if_version_match: Option<String>,
-    /// Delete only when the current version does not match this value.
+    /// Delete only when the file at this path does not have this version.
     ///
-    /// An equal version returns [`crate::ErrorKind::ConditionNotMatch`]. A
-    /// different or missing object satisfies the condition.
+    /// Refer to [`crate::options::DeleteOptions::if_version_not_match`] for the
+    /// full contract.
     pub if_version_not_match: Option<String>,
-    /// Delete only when the object still matches this metadata.
+    /// Delete only when the file still has the identity recorded in this metadata.
     ///
-    /// A changed or missing object returns [`crate::ErrorKind::ConditionNotMatch`].
+    /// Refer to [`crate::options::DeleteOptions::if_not_changed`] for the full contract.
     pub if_not_changed: Option<Metadata>,
 }
 
@@ -66,7 +66,7 @@ impl DeleteInput {
         }
     }
 
-    /// Select the object version to delete.
+    /// Select the file version to delete.
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         self.version = Some(version.into());
         self
@@ -78,31 +78,31 @@ impl DeleteInput {
         self
     }
 
-    /// Delete only when the current ETag matches `etag`.
+    /// Delete only when the file has this exact `etag`.
     pub fn with_if_match(mut self, etag: impl Into<String>) -> Self {
         self.if_match = Some(etag.into());
         self
     }
 
-    /// Delete only when the current ETag does not match `etag`.
+    /// Delete only when the file does not have this `etag`.
     pub fn with_if_none_match(mut self, etag: impl Into<String>) -> Self {
         self.if_none_match = Some(etag.into());
         self
     }
 
-    /// Delete only when the current version matches `version`.
+    /// Delete only when the file has this exact `version`.
     pub fn with_if_version_match(mut self, version: impl Into<String>) -> Self {
         self.if_version_match = Some(version.into());
         self
     }
 
-    /// Delete only when the current version does not match `version`.
+    /// Delete only when the file does not have this `version`.
     pub fn with_if_version_not_match(mut self, version: impl Into<String>) -> Self {
         self.if_version_not_match = Some(version.into());
         self
     }
 
-    /// Delete only when the object still matches `metadata`.
+    /// Delete only when the file still has the identity recorded in `metadata`.
     pub fn with_if_not_changed(mut self, metadata: &Metadata) -> Self {
         self.if_not_changed = Some(metadata.clone());
         self

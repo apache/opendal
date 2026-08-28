@@ -290,7 +290,6 @@ impl Service for SftpBackend {
         from: &str,
         to: &str,
         _: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let backend = self.clone();
         let ctx = ctx.clone();

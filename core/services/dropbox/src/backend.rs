@@ -333,7 +333,6 @@ impl Service for DropboxBackend {
         from: &str,
         to: &str,
         _: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();

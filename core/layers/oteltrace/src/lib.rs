@@ -149,7 +149,6 @@ impl Service for OtelTraceService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
@@ -158,7 +157,7 @@ impl Service for OtelTraceService {
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         let _guard = cx.attach();
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     async fn rename(

@@ -39,8 +39,10 @@ pub fn new_azblob_copier(
     from: &str,
     to: &str,
     args: OpCopy,
-    opts: OpCopier,
 ) -> Result<AzblobCopiers> {
+    let chunk = args.chunk();
+    let source_content_length_hint = args.source_content_length_hint();
+    let concurrent = args.concurrent();
     let copier = AzblobCopier {
         core,
         ctx: ctx.clone(),
@@ -49,7 +51,7 @@ pub fn new_azblob_copier(
         args,
     };
 
-    let Some(chunk) = opts.chunk() else {
+    let Some(chunk) = chunk else {
         return Ok(TwoWays::One(oio::OneShotCopier::new(async move {
             copier.copy_once().await
         })));
@@ -60,10 +62,10 @@ pub fn new_azblob_copier(
     Ok(TwoWays::Two(oio::BlockCopier::new(
         ctx.executor().clone(),
         copier,
-        opts.source_content_length_hint(),
+        source_content_length_hint,
         block_size.saturating_sub(1),
         block_size,
-        opts.concurrent(),
+        concurrent,
     )))
 }
 

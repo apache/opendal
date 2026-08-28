@@ -1492,8 +1492,8 @@ impl Operator {
                 .with_operation(Operation::Copy.into_static()));
             }
         }
-        let (args, opts) = opts.into();
-        std::future::ready(Copier::create(ctx, srv, &from, &to, args, opts)).await
+        let args = opts.into();
+        std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
     }
 
     /// Rename a file from `from` to `to`.

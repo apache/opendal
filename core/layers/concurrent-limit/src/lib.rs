@@ -292,10 +292,9 @@ where
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| ConcurrentLimitWrapper::new(c, self.semaphore.clone()))
     }
 
@@ -624,7 +623,6 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Ok(())
             }
@@ -777,7 +775,6 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Ok(PendingCopier)
             }
@@ -984,7 +981,6 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Err(Error::new(
                     ErrorKind::Unsupported,

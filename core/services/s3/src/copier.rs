@@ -34,7 +34,6 @@ pub fn new_s3_copier(
     from: &str,
     to: &str,
     args: OpCopy,
-    opts: OpCopier,
 ) -> Result<S3Copiers> {
     let capability = core.capability;
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
@@ -44,7 +43,7 @@ pub fn new_s3_copier(
         )
     })?;
 
-    let (copy_once_threshold, part_size) = match opts.chunk() {
+    let (copy_once_threshold, part_size) = match args.chunk() {
         Some(chunk) => {
             let min_part_size = capability.copy_multi_min_size.ok_or_else(|| {
                 Error::new(
@@ -60,6 +59,8 @@ pub fn new_s3_copier(
             (part_size, part_size)
         }
     };
+    let source_content_length_hint = args.source_content_length_hint();
+    let concurrent = args.concurrent();
 
     Ok(oio::MultipartCopier::new(
         (ctx.executor().clone(), capability),
@@ -70,10 +71,10 @@ pub fn new_s3_copier(
             to: to.to_string(),
             args,
         },
-        opts.source_content_length_hint(),
+        source_content_length_hint,
         copy_once_threshold,
         part_size,
-        opts.concurrent(),
+        concurrent,
     ))
 }
 

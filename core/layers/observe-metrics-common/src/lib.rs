@@ -842,7 +842,6 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
@@ -853,7 +852,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.copy(ctx, from, to, args, opts.clone()) {
+        match self.inner.copy(ctx, from, to, args) {
             Ok(copier) => {
                 guard.defuse();
                 Ok(MetricsWrapper::new(

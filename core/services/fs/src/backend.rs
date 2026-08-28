@@ -234,7 +234,6 @@ impl Service for FsBackend {
         from: &str,
         to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let from = from.to_string();

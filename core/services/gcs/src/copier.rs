@@ -49,9 +49,8 @@ impl GcsCopier {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Self {
-        let chunk = opts.chunk().map(|v| {
+        let chunk = args.chunk().map(|v| {
             let v = v.clamp(GCS_REWRITE_MIN_CHUNK_SIZE, GCS_REWRITE_MAX_CHUNK_SIZE);
             v / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE
         });

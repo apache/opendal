@@ -243,10 +243,9 @@ impl Service for TimeoutService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| TimeoutWrapper::new(c, self.io_timeout))
     }
 
@@ -509,14 +508,7 @@ mod tests {
             Ok(MockLister)
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Ok(MockCopier)
         }
 
@@ -666,9 +658,7 @@ mod tests {
             .with_io_timeout(Duration::from_millis(100))
             .apply_service(Arc::new(MockService));
         let ctx = OperationContext::new();
-        let mut copier = service
-            .copy(&ctx, "f", "t", OpCopy::default(), OpCopier::default())
-            .unwrap();
+        let mut copier = service.copy(&ctx, "f", "t", OpCopy::default()).unwrap();
 
         let err = copier.next().await.unwrap_err();
         assert!(err.to_string().contains("timeout"));

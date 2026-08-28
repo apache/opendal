@@ -239,11 +239,10 @@ impl Service for RouteAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
         match self.select(from) {
-            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args, opts),
-            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args, opts),
+            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args),
+            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args),
         }
     }
 
@@ -550,7 +549,6 @@ mod tests {
             from: &str,
             to: &str,
             _: OpCopy,
-            _: OpCopier,
         ) -> Result<Self::Copier> {
             if !self.paths.lock().unwrap().contains(from) {
                 return Err(Error::new(ErrorKind::NotFound, "source not found"));

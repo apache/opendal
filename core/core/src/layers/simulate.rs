@@ -330,9 +330,8 @@ impl Service for SimulateService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.srv.copy(ctx, from, to, args, opts)
+        self.srv.copy(ctx, from, to, args)
     }
 
     async fn rename(
@@ -713,14 +712,7 @@ mod tests {
             Err(Error::new(ErrorKind::Unsupported, "list is not supported"))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",

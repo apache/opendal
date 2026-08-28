@@ -61,9 +61,8 @@ impl Copier {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self> {
-        let copier = srv.copy(&ctx, from, to, args, opts)?;
+        let copier = srv.copy(&ctx, from, to, args)?;
 
         Ok(Self {
             copier: Some(copier),

@@ -1094,6 +1094,7 @@ mod tests {
             type Lister = opendal::raw::oio::Lister;
             type Deleter = opendal::raw::oio::Deleter;
             type Copier = opendal::raw::oio::Copier;
+            type Composer = opendal::raw::oio::Composer;
 
             fn info(&self) -> opendal::raw::ServiceInfo {
                 self.srv.info()

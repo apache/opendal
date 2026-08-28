@@ -74,6 +74,7 @@ impl Service for HangingService {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::with_scheme("mock-hanging")
@@ -179,6 +180,7 @@ impl Service for RetryableService {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::with_scheme("mock-retryable")

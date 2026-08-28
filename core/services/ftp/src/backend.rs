@@ -162,6 +162,7 @@ impl Builder for FtpBuilder {
 
         let manager = Manager {
             endpoint: endpoint.clone(),
+            host: host.to_string(),
             root: root.clone(),
             user: user.clone(),
             password: password.clone(),

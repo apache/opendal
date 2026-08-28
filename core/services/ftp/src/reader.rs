@@ -23,14 +23,14 @@ use super::lister::FtpLister;
 use super::writer::FtpWriter;
 use bytes::BytesMut;
 use fastpool::bounded;
-use futures::AsyncRead;
-use futures::AsyncReadExt;
 use opendal_core::raw::*;
 use opendal_core::*;
 use std::sync::Arc;
 use suppaftp::FtpError;
 use suppaftp::Status;
 use suppaftp::types::Response;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 
 pub struct FtpReadStream {
     /// Keep the connection alive while data stream is alive.

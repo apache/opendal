@@ -148,16 +148,10 @@ impl EtcdCore {
     }
 }
 
-mod error {
-    use etcd_client::Error as EtcdError;
+use etcd_client::Error as EtcdError;
 
-    use opendal_core::{Error, ErrorKind};
-
-    pub fn format_etcd_error(e: EtcdError) -> Error {
-        Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-            .set_source(e)
-            .set_temporary()
-    }
+pub fn format_etcd_error(e: EtcdError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+        .set_source(e)
+        .set_temporary()
 }
-
-pub(super) use error::*;

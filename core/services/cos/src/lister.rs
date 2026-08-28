@@ -73,7 +73,10 @@ impl oio::PageList for CosLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -174,7 +177,10 @@ impl oio::PageList for CosObjectVersionsLister {
             )
             .await?;
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();

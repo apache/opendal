@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::core::DbfsCore;
 use super::core::parse_error;
+use super::core::{DbfsCore, ErrorContext};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -48,7 +48,7 @@ impl oio::PageList for DbfsLister {
                 ctx.done = true;
                 return Ok(());
             }
-            let error = parse_error(response);
+            let error = parse_error(ErrorContext::new(ServiceOperation("List")), response);
             return Err(error);
         }
 

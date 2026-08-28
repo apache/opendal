@@ -21,9 +21,9 @@ use bytes::Buf;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::LakefsCore;
 use super::core::LakefsListResponse;
 use super::core::parse_error;
+use super::core::{ErrorContext, LakefsCore};
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,
@@ -76,7 +76,7 @@ impl oio::PageList for LakefsLister {
 
         let status_code = response.status();
         if !status_code.is_success() {
-            let error = parse_error(response);
+            let error = parse_error(ErrorContext::new(ServiceOperation("ListObjects")), response);
             return Err(error);
         }
 

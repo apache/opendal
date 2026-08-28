@@ -86,7 +86,10 @@ impl oio::MultipartWrite for CosWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                resp,
+            )),
         }
     }
 
@@ -108,7 +111,10 @@ impl oio::MultipartWrite for CosWriter {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -147,7 +153,10 @@ impl oio::MultipartWrite for CosWriter {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -180,7 +189,10 @@ impl oio::MultipartWrite for CosWriter {
 
         match status {
             StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -193,7 +205,10 @@ impl oio::MultipartWrite for CosWriter {
             // cos returns code 204 if abort succeeds.
             // Reference: https://www.tencentcloud.com/document/product/436/7740
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }
@@ -217,7 +232,10 @@ impl oio::AppendWrite for CosWriter {
                 Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
@@ -236,7 +254,10 @@ impl oio::AppendWrite for CosWriter {
 
         match status {
             StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AppendObject")),
+                resp,
+            )),
         }
     }
 }

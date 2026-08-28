@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::core::IpmfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, IpmfsCore};
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
@@ -53,7 +53,7 @@ impl oio::PageList for IpmfsLister {
         let resp = self.core.ipmfs_ls(&self.ctx, &self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            let err = parse_error(resp);
+            let err = parse_error(ErrorContext::new(ServiceOperation("FilesLs")), resp);
             if matches!(err.kind(), ErrorKind::NotFound) {
                 // treat as empty listing
                 ctx.done = true;

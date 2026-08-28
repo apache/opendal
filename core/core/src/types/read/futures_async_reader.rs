@@ -177,6 +177,78 @@ impl FuturesAsyncReader {
             Err(err) => Poll::Ready(Err(format_std_io_error(err))),
         }
     }
+
+    /// Read at most `size` bytes and return them as an OpenDAL [`Buffer`].
+    ///
+    /// This method preserves the underlying buffer storage and does not copy
+    /// the payload. It can return fewer bytes than requested, including an
+    /// empty buffer at EOF.
+    pub async fn read_buffer(&mut self, size: usize) -> io::Result<Buffer> {
+        if size == 0 {
+            return Ok(Buffer::new());
+        }
+
+        while self.buf.is_empty() {
+            self.buf = match self.stream.next().await {
+                Some(Ok(buf)) => {
+                    self.observe_read_metadata();
+                    buf
+                }
+                Some(Err(err)) => return Err(format_std_io_error(err)),
+                None => {
+                    self.observe_eof()?;
+                    return Ok(Buffer::new());
+                }
+            };
+        }
+
+        let size = self.buf.len().min(size);
+        let buffer = self.buf.split_to(size);
+        if self.buf.is_empty() {
+            self.buf = Buffer::new();
+        }
+        self.pos += size as u64;
+        Ok(buffer)
+    }
+
+    /// Read all remaining bytes and return them as an OpenDAL [`Buffer`].
+    ///
+    /// This method preserves the underlying buffer storage and only allocates
+    /// metadata when multiple buffers must be combined.
+    pub async fn read_to_end_buffer(&mut self) -> io::Result<Buffer> {
+        let mut buffer = std::mem::take(&mut self.buf);
+        let current_size = buffer.len();
+        self.pos += current_size as u64;
+        let mut parts = None;
+
+        while let Some(result) = self.stream.next().await {
+            let next = result.map_err(format_std_io_error)?;
+            self.observe_read_metadata();
+            self.pos += next.len() as u64;
+            if next.is_empty() {
+                continue;
+            }
+
+            if buffer.is_empty() && parts.is_none() {
+                buffer = next;
+                continue;
+            }
+
+            if parts.is_none() {
+                let mut combined = Vec::new();
+                combined.extend(std::mem::take(&mut buffer));
+                parts = Some(combined);
+            }
+            parts
+                .as_mut()
+                .expect("buffer parts must exist")
+                .extend(next);
+        }
+
+        self.observe_eof()?;
+
+        Ok(parts.map(Buffer::from).unwrap_or(buffer))
+    }
 }
 
 impl AsyncBufRead for FuturesAsyncReader {
@@ -543,6 +615,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_buffer() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let content = Bytes::from_static(b"HelloWorld");
+        op.write("test", Buffer::from(content.clone())).await?;
+
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
+
+        let mut fr = FuturesAsyncReader::new(ctx, 0..10).await?;
+        let buffer = fr.read_buffer(0).await.unwrap();
+        assert!(buffer.is_empty());
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+
+        let buffer = fr.read_buffer(5).await.unwrap();
+        assert_eq!(buffer.to_vec(), b"Hello");
+        assert_eq!(buffer.current().as_ptr(), content.as_ptr());
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 5);
+
+        let buffer = fr.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"World");
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 10);
+        assert!(fr.read_buffer(1).await.unwrap().is_empty());
+
+        fr.seek(SeekFrom::Start(2)).await.unwrap();
+        assert_eq!(fr.read_to_end_buffer().await.unwrap().to_vec(), b"lloWorld");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_with_concurrent() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from("HelloWorld")).await?;
+
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        let ctx = Arc::new(new_read_context(
+            ctx,
+            srv,
+            "test",
+            OpReader::new().with_concurrent(3).with_chunk(1),
+        )?);
+
+        let mut fr = FuturesAsyncReader::new(ctx, 0..10).await?;
+        let buffer = fr.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"HelloWorld");
+        assert_eq!(fr.seek(SeekFrom::Current(0)).await.unwrap(), 10);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_futures_async_read_with_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
@@ -650,6 +775,29 @@ mod tests {
         let mut byte = [0];
         assert_eq!(reader.read(&mut byte).await.unwrap(), 0);
         assert_eq!(opened_ranges(&counts).len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_unbounded_buffer_reads_use_read_metadata() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let mut reader = op.reader("test").await?.into_futures_async_read(..).await?;
+
+        let prefix = reader.read_buffer(2).await.unwrap();
+        assert_eq!(prefix.to_vec(), b"He");
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert_eq!(opened_ranges(&counts), vec![BytesRange::new(0, None)]);
+
+        assert_eq!(reader.seek(SeekFrom::Start(0)).await.unwrap(), 0);
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+
+        let content = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(content.to_vec(), b"HelloWorld");
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            opened_ranges(&counts),
+            vec![BytesRange::new(0, None), BytesRange::new(0, Some(10))]
+        );
         Ok(())
     }
 

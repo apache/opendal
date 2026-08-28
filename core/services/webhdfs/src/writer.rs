@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 use uuid::Uuid;
 
-use super::core::WebhdfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, WebhdfsCore};
 use crate::message::FileStatusWrapper;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -60,7 +60,10 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Create")),
+                resp,
+            )),
         }
     }
 
@@ -85,7 +88,10 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Create")),
+                resp,
+            )),
         }
     }
 
@@ -110,7 +116,10 @@ impl oio::BlockWrite for WebhdfsWriter {
 
             let status = resp.status();
             if status != StatusCode::OK {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("Concat")),
+                    resp,
+                ));
             }
         }
         // delete the path file
@@ -118,7 +127,10 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("Delete")),
+                resp,
+            ));
         }
 
         // rename concat file to path
@@ -130,7 +142,10 @@ impl oio::BlockWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                resp,
+            )),
         }
     }
 
@@ -148,7 +163,12 @@ impl oio::BlockWrite for WebhdfsWriter {
                 .await?;
             match resp.status() {
                 StatusCode::OK => {}
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Delete")),
+                        resp,
+                    ));
+                }
             }
         }
         Ok(())
@@ -181,10 +201,16 @@ impl oio::AppendWrite for WebhdfsWriter {
                 let status = resp.status();
                 match status {
                     StatusCode::CREATED | StatusCode::OK => Ok(0),
-                    _ => Err(parse_error(resp)),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Create")),
+                        resp,
+                    )),
                 }
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileStatus")),
+                resp,
+            )),
         }
     }
 
@@ -197,7 +223,10 @@ impl oio::AppendWrite for WebhdfsWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Append")),
+                resp,
+            )),
         }
     }
 }

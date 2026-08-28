@@ -24,8 +24,8 @@ use serde::Deserialize;
 
 use super::DBFS_SCHEME;
 use super::config::DbfsConfig;
-use super::core::DbfsCore;
 use super::core::parse_error;
+use super::core::{DbfsCore, ErrorContext};
 use super::deleter::DbfsDeleter;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
@@ -165,7 +165,10 @@ impl Service for DbfsBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Mkdirs")),
+                resp,
+            )),
         }
     }
 
@@ -200,7 +203,10 @@ impl Service for DbfsBackend {
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetStatus")),
+                resp,
+            )),
         }
     }
 
@@ -260,7 +266,10 @@ impl Service for DbfsBackend {
 
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Move")),
+                resp,
+            )),
         }
     }
 

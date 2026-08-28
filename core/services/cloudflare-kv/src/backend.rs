@@ -25,8 +25,8 @@ use opendal_core::*;
 
 use super::CLOUDFLARE_KV_SCHEME;
 use super::config::CloudflareKvConfig;
-use super::core::CloudflareKvCore;
 use super::core::parse_error;
+use super::core::{CloudflareKvCore, ErrorContext};
 use super::deleter::CloudflareKvDeleter;
 use super::lister::CloudflareKvLister;
 use super::model::*;
@@ -287,7 +287,10 @@ impl Service for CloudflareKvBackend {
             }
 
             // For all other error cases, parse the error response
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetMetadata")),
+                resp,
+            ));
         }
 
         let resp_body = resp.into_body();

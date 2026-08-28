@@ -223,7 +223,10 @@ impl Service for PcloudBackend {
 
                 Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Stat")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -309,7 +312,14 @@ impl Service for PcloudBackend {
                         Ok(Metadata::default())
                     }
                 }
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(if from.ends_with('/') {
+                        ServiceOperation("CopyFolder")
+                    } else {
+                        ServiceOperation("CopyFile")
+                    }),
+                    resp,
+                )),
             }
         }))
     }
@@ -346,7 +356,14 @@ impl Service for PcloudBackend {
 
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(if from.ends_with('/') {
+                    ServiceOperation("RenameFolder")
+                } else {
+                    ServiceOperation("RenameFile")
+                }),
+                resp,
+            )),
         }
     }
 

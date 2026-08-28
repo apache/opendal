@@ -158,7 +158,10 @@ impl FsCore {
             open_options.truncate(true);
         }
 
-        let f = open_options.open(path).await.map_err(parse_error)?;
+        let f = open_options
+            .open(path)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("OpenForWrite")), err))?;
 
         Ok(f)
     }
@@ -188,7 +191,12 @@ impl FsCore {
         open_options.write(true);
         open_options.truncate(true);
 
-        let f = open_options.open(&tmp_path).await.map_err(parse_error)?;
+        let f = open_options.open(&tmp_path).await.map_err(|err| {
+            parse_error(
+                ErrorContext::new(ServiceOperation("OpenTemporaryFile")),
+                err,
+            )
+        })?;
 
         Ok((f, Some(tmp_path)))
     }
@@ -315,24 +323,31 @@ impl FsCore {
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
 
-mod error {
-    use opendal_core::raw::*;
-    use opendal_core::*;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(e: std::io::Error) -> Error {
-        match e.kind() {
-            std::io::ErrorKind::AlreadyExists => Error::new(
-                ErrorKind::ConditionNotMatch,
-                "The file already exists in the filesystem",
-            )
-            .set_source(e),
-            _ => new_std_io_error(e),
-        }
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
 }
 
-pub(super) use error::*;
+/// Parse an error using its service operation context.
+pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
+    let err = match err.kind() {
+        std::io::ErrorKind::AlreadyExists => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The file already exists in the filesystem",
+        )
+        .set_source(err),
+        _ => new_std_io_error(err),
+    };
+
+    err.with_context("service_operation", ctx.service_operation.0)
+}
 
 #[cfg(test)]
 mod tests {

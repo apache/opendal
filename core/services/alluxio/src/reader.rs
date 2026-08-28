@@ -16,7 +16,7 @@
 // under the License.
 
 use super::backend::*;
-use super::core::parse_error;
+use super::core::{ErrorContext, parse_error};
 use http::Response;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -53,7 +53,10 @@ impl oio::StreamRead for AlluxioReader {
         if !resp.status().is_success() {
             let (part, mut body) = resp.into_parts();
             let buf = body.to_buffer().await?;
-            return Err(parse_error(Response::from_parts(part, buf)));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ReadStream")),
+                Response::from_parts(part, buf),
+            ));
         }
 
         let rp = RpRead::new(parse_into_metadata(path, resp.headers())?);

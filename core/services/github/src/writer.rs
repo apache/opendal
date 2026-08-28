@@ -20,8 +20,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::GithubCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, GithubCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -69,7 +69,10 @@ impl oio::OneShotWrite for GithubWriter {
                 let metadata = GithubWriter::parse_metadata(&content_resp.content)?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateOrUpdateFileContents")),
+                resp,
+            )),
         }
     }
 }

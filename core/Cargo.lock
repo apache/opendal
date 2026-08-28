@@ -6377,6 +6377,7 @@ dependencies = [
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
+ "opendal-service-gcs-grpc",
  "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
@@ -7085,6 +7086,27 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-gcs-grpc"
+version = "0.58.2"
+dependencies = [
+ "bytes",
+ "futures",
+ "http 1.4.2",
+ "log",
+ "opendal-core",
+ "percent-encoding",
+ "prost 0.14.3",
+ "prost-types",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-google",
+ "serde",
+ "serde_json",
+ "tonic 0.14.5",
+ "tonic-prost",
 ]
 
 [[package]]
@@ -11686,6 +11708,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]

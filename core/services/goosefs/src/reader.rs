@@ -17,7 +17,7 @@
 
 use super::backend::*;
 use super::core::GoosefsCore;
-use super::core::parse_error;
+use super::core::{ErrorContext, parse_error};
 use goosefs_sdk::io::GoosefsFileReader as SdkReader;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -103,7 +103,11 @@ impl oio::ReadStream for GoosefsReadStream {
         }
         let reader = self.inner.as_mut().expect("inner was just set");
 
-        match reader.read_next_block().await.map_err(parse_error)? {
+        match reader
+            .read_next_block()
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("ReadNextBlock")), err))?
+        {
             Some(block) => Ok(Buffer::from(block)),
             None => {
                 self.done = true;

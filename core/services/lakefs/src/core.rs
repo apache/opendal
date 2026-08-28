@@ -322,81 +322,83 @@ pub(super) struct Pagination {
     pub results: u64,
 }
 
-mod error {
-    use std::fmt::Debug;
+use http::StatusCode;
 
-    use http::Response;
-    use http::StatusCode;
-    use opendal_core::raw::*;
-    use opendal_core::*;
-    use serde::Deserialize;
+/// LakefsError is the error returned by Lakefs File System.
+#[derive(Default, Deserialize)]
+struct LakefsError {
+    error: String,
+}
 
-    /// LakefsError is the error returned by Lakefs File System.
-    #[derive(Default, Deserialize)]
-    struct LakefsError {
-        error: String,
+impl Debug for LakefsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LakefsError")
+            .field("message", &self.error.replace('\n', " "))
+            .finish()
+    }
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = match serde_json::from_slice::<LakefsError>(&bs) {
+        Ok(hf_error) => format!("{:?}", hf_error.error),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
     }
 
-    impl Debug for LakefsError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("LakefsError")
-                .field("message", &self.error.replace('\n', " "))
-                .finish()
-        }
-    }
+    err
+}
 
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                (ErrorKind::PermissionDenied, false)
-            }
-            StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match serde_json::from_slice::<LakefsError>(&bs) {
-            Ok(hf_error) => format!("{:?}", hf_error.error),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod test {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() -> Result<()> {
-            let resp = r#"
+    #[test]
+    fn test_parse_error() -> Result<()> {
+        let resp = r#"
             {
                 "error": "Invalid username or password."
             }
             "#;
-            let decoded_response = serde_json::from_slice::<LakefsError>(resp.as_bytes())
-                .map_err(new_json_deserialize_error)?;
+        let decoded_response = serde_json::from_slice::<LakefsError>(resp.as_bytes())
+            .map_err(new_json_deserialize_error)?;
 
-            assert_eq!(decoded_response.error, "Invalid username or password.");
+        assert_eq!(decoded_response.error, "Invalid username or password.");
 
-            Ok(())
-        }
+        Ok(())
     }
 }
-
-pub(super) use error::*;

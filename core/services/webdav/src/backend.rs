@@ -371,7 +371,10 @@ impl Service for WebdavBackend {
 
                 match status {
                     StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
-                    _ => Err(parse_error(resp)),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Copy")),
+                        resp,
+                    )),
                 }
             }
         }))
@@ -391,7 +394,10 @@ impl Service for WebdavBackend {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Move")),
+                resp,
+            )),
         }
     }
 

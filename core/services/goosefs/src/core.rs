@@ -173,7 +173,7 @@ impl GoosefsCore {
         // `FileSystemContext::connect` already returns `Arc<FileSystemContext>`.
         let ctx = FileSystemContext::connect(self.config.clone())
             .await
-            .map_err(parse_error)?;
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Connect")), err))?;
         *guard = Some(Arc::clone(&ctx));
         self.ctx_pid.store(current_pid, Ordering::Relaxed);
 
@@ -214,19 +214,25 @@ impl GoosefsCore {
         master
             .create_directory(&full, true)
             .await
-            .map_err(parse_error)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateDirectory")), err))
     }
 
     pub async fn get_status(&self, path: &str) -> Result<FileInfo> {
         let full = self.full_path(path);
         let master = self.master().await?;
-        master.get_status(&full).await.map_err(parse_error)
+        master
+            .get_status(&full)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("GetStatus")), err))
     }
 
     pub async fn list_status(&self, path: &str) -> Result<Vec<FileInfo>> {
         let full = self.full_path(path);
         let master = self.master().await?;
-        master.list_status(&full, false).await.map_err(parse_error)
+        master
+            .list_status(&full, false)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("ListStatus")), err))
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
@@ -241,7 +247,10 @@ impl GoosefsCore {
                 if matches!(e, goosefs_sdk::error::Error::NotFound { .. }) {
                     Ok(())
                 } else {
-                    Err(parse_error(e))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Delete")),
+                        e,
+                    ))
                 }
             }
         }
@@ -307,12 +316,19 @@ impl GoosefsCore {
                 }
                 // Overwrite path ONLY. Master rename rejects existing dst;
                 // delete first so overwrite can proceed.
-                master.delete(&dst, false).await.map_err(parse_error)?;
+                master.delete(&dst, false).await.map_err(|err| {
+                    parse_error(ErrorContext::new(ServiceOperation("Delete")), err)
+                })?;
             }
             // Parent may already exist (write-via-temp always does). Create it
             // only if the subsequent rename reports it missing.
             Err(goosefs_sdk::error::Error::NotFound { .. }) => {}
-            Err(e) => return Err(parse_error(e)),
+            Err(e) => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetStatus")),
+                    e,
+                ));
+            }
         }
 
         match rename_creating_parent_if_missing(&master, &src, &dst).await {
@@ -336,7 +352,10 @@ impl GoosefsCore {
                 .with_context("from", from)
                 .with_context("to", to))
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                e,
+            )),
         }
     }
 
@@ -405,14 +424,25 @@ impl GoosefsCore {
                     (Some(off), Some(len)) => {
                         GoosefsFileReader::read_range_with_context(fresh_ctx, &full, off, len)
                             .await
-                            .map_err(parse_error)
+                            .map_err(|err| {
+                                parse_error(ErrorContext::new(ServiceOperation("ReadRange")), err)
+                            })
                     }
                     _ => GoosefsFileReader::read_file_with_context(fresh_ctx, &full)
                         .await
-                        .map_err(parse_error),
+                        .map_err(|err| {
+                            parse_error(ErrorContext::new(ServiceOperation("ReadFile")), err)
+                        }),
                 }
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(if offset.is_some() && length.is_some() {
+                    ServiceOperation("ReadRange")
+                } else {
+                    ServiceOperation("ReadFile")
+                }),
+                e,
+            )),
         }
     }
 
@@ -423,9 +453,15 @@ impl GoosefsCore {
         let ctx = self.ctx().await?;
         let mut writer = GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
-            .map_err(parse_error)?;
-        writer.write(data).await.map_err(parse_error)?;
-        writer.close().await.map_err(parse_error)?;
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateFile")), err))?;
+        writer
+            .write(data)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Write")), err))?;
+        writer
+            .close()
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Close")), err))?;
         Ok(())
     }
 
@@ -435,7 +471,7 @@ impl GoosefsCore {
         let ctx = self.ctx().await?;
         GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
-            .map_err(parse_error)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateFile")), err))
     }
 
     /// Create a streaming file reader (full-file) via the shared context.
@@ -460,9 +496,14 @@ impl GoosefsCore {
                 let fresh_ctx = self.ctx().await?;
                 GoosefsFileReader::open_with_context(fresh_ctx, &full)
                     .await
-                    .map_err(parse_error)
+                    .map_err(|err| {
+                        parse_error(ErrorContext::new(ServiceOperation("OpenFile")), err)
+                    })
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("OpenFile")),
+                e,
+            )),
         }
     }
 
@@ -491,9 +532,14 @@ impl GoosefsCore {
                 let fresh_ctx = self.ctx().await?;
                 GoosefsFileReader::open_range_with_context(fresh_ctx, &full, offset, length)
                     .await
-                    .map_err(parse_error)
+                    .map_err(|err| {
+                        parse_error(ErrorContext::new(ServiceOperation("OpenRange")), err)
+                    })
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("OpenRange")),
+                e,
+            )),
         }
     }
 
@@ -598,7 +644,15 @@ fn parent_of(path: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::parent_of;
+    use goosefs_sdk::error::Error as GfsError;
+
+    use super::*;
+
+    /// Build SDK errors whose variants expose public fields. The remaining variants require
+    /// integration tests against GooseFS because their inner fields are private.
+    fn run(err: GfsError) -> Error {
+        parse_error(ErrorContext::new(ServiceOperation("Test")), err)
+    }
 
     #[test]
     fn parent_of_root_returns_none() {
@@ -634,187 +688,175 @@ mod tests {
         assert_eq!(parent_of("foo"), None);
         assert_eq!(parent_of(""), None);
     }
-}
 
-mod error {
-    use opendal_core::*;
-
-    /// Map goosefs-sdk Error to OpenDAL Error.
-    ///
-    /// This is the bridge between Layer 3 (goosefs-sdk) error types
-    /// and Layer 2 (OpenDAL) error types.
-    pub(crate) fn parse_error(err: goosefs_sdk::error::Error) -> Error {
-        use goosefs_sdk::error::Error as GfsError;
-
-        let (kind, message, temporary) = match &err {
-            GfsError::NotFound { path } => {
-                (ErrorKind::NotFound, format!("not found: {}", path), false)
-            }
-
-            GfsError::AlreadyExists { path } => (
-                ErrorKind::AlreadyExists,
-                format!("already exists: {}", path),
-                false,
-            ),
-
-            GfsError::PermissionDenied { message } => {
-                (ErrorKind::PermissionDenied, message.clone(), false)
-            }
-
-            GfsError::InvalidArgument { message } => {
-                (ErrorKind::ConfigInvalid, message.clone(), false)
-            }
-
-            GfsError::ConfigError { message } => (ErrorKind::ConfigInvalid, message.clone(), false),
-
-            GfsError::NoWorkerAvailable { message } => {
-                // No worker available is a transient error
-                (
-                    ErrorKind::Unexpected,
-                    format!("no worker available: {}", message),
-                    true,
-                )
-            }
-
-            GfsError::MasterUnavailable { message } => (
-                ErrorKind::Unexpected,
-                format!("master unavailable: {}", message),
-                true,
-            ),
-
-            // Authentication failures are transient — the SASL stream expired
-            // (e.g. after process fork or long idle). The goosefs-sdk layer
-            // should have already attempted reconnection, but if the error
-            // propagates up to OpenDAL, mark it as temporary so upper layers
-            // (e.g. RetryLayer) can retry the entire operation.
-            GfsError::AuthenticationFailed { message } => (
-                ErrorKind::Unexpected,
-                format!("authentication failed (retriable): {}", message),
-                true,
-            ),
-
-            // For GrpcError, the goosefs_sdk::error::Error::From<tonic::Status>
-            // already maps NotFound/AlreadyExists/PermissionDenied/InvalidArgument
-            // to specific error variants above. GrpcError only contains codes that
-            // were NOT mapped (Unavailable, DeadlineExceeded, Internal, etc.)
-            GfsError::GrpcError { message, .. } => (ErrorKind::Unexpected, message.clone(), false),
-
-            GfsError::TransportError { message, .. } => {
-                (ErrorKind::Unexpected, message.clone(), true)
-            }
-
-            _ => (ErrorKind::Unexpected, format!("{}", err), false),
-        };
-
-        let mut error = Error::new(kind, message).set_source(err);
-        if temporary {
-            error = error.set_temporary();
-        }
-        error
+    #[test]
+    fn not_found_maps_to_not_found_and_is_permanent() {
+        let e = run(GfsError::NotFound {
+            path: "/missing".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::NotFound);
+        assert!(
+            !e.is_temporary(),
+            "NotFound must not be flagged temporary (callers rely on fast-fail)"
+        );
+        assert!(
+            e.to_string().contains("/missing"),
+            "error message should include the offending path, got: {e}"
+        );
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use goosefs_sdk::error::Error as GfsError;
+    #[test]
+    fn already_exists_maps_to_already_exists() {
+        let e = run(GfsError::AlreadyExists {
+            path: "/dup".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::AlreadyExists);
+        assert!(!e.is_temporary());
+        assert!(e.to_string().contains("/dup"));
+    }
 
-        /// Helper: build a fresh SDK error of each "leaf" variant. We
-        /// deliberately skip `GrpcError` / `TransportError` here — they carry
-        /// non-public inner fields that cannot be constructed from a unit test
-        /// without touching the SDK's internals; their handling is covered by
-        /// integration tests against a real GooseFS cluster.
-        fn run(err: GfsError) -> Error {
-            parse_error(err)
-        }
+    #[test]
+    fn permission_denied_maps_and_is_permanent() {
+        let e = run(GfsError::PermissionDenied {
+            message: "nope".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::PermissionDenied);
+        assert!(!e.is_temporary());
+    }
 
-        #[test]
-        fn not_found_maps_to_not_found_and_is_permanent() {
-            let e = run(GfsError::NotFound {
-                path: "/missing".into(),
-            });
-            assert_eq!(e.kind(), ErrorKind::NotFound);
-            assert!(
-                !e.is_temporary(),
-                "NotFound must not be flagged temporary (callers rely on fast-fail)"
+    #[test]
+    fn invalid_argument_and_config_error_both_map_to_config_invalid() {
+        let ia = run(GfsError::InvalidArgument {
+            message: "bad arg".into(),
+        });
+        assert_eq!(ia.kind(), ErrorKind::ConfigInvalid);
+        assert!(!ia.is_temporary());
+
+        let ce = run(GfsError::ConfigError {
+            message: "bad cfg".into(),
+        });
+        assert_eq!(ce.kind(), ErrorKind::ConfigInvalid);
+        assert!(!ce.is_temporary());
+    }
+
+    /// Transient server-side errors must be temporary so `RetryLayer` retries the operation.
+    #[test]
+    fn transient_errors_are_marked_temporary() {
+        for (err, label) in [
+            (
+                GfsError::NoWorkerAvailable {
+                    message: "no worker".into(),
+                },
+                "NoWorkerAvailable",
+            ),
+            (
+                GfsError::MasterUnavailable {
+                    message: "master down".into(),
+                },
+                "MasterUnavailable",
+            ),
+            (
+                GfsError::AuthenticationFailed {
+                    message: "sasl expired".into(),
+                },
+                "AuthenticationFailed",
+            ),
+        ] {
+            let e = run(err);
+            assert_eq!(
+                e.kind(),
+                ErrorKind::Unexpected,
+                "{label} should map to Unexpected (transient), got {:?}",
+                e.kind()
             );
             assert!(
-                e.to_string().contains("/missing"),
-                "error message should include the offending path, got: {e}"
+                e.is_temporary(),
+                "{label} must be flagged temporary so RetryLayer retries"
             );
-        }
-
-        #[test]
-        fn already_exists_maps_to_already_exists() {
-            let e = run(GfsError::AlreadyExists {
-                path: "/dup".into(),
-            });
-            assert_eq!(e.kind(), ErrorKind::AlreadyExists);
-            assert!(!e.is_temporary());
-            assert!(e.to_string().contains("/dup"));
-        }
-
-        #[test]
-        fn permission_denied_maps_and_is_permanent() {
-            let e = run(GfsError::PermissionDenied {
-                message: "nope".into(),
-            });
-            assert_eq!(e.kind(), ErrorKind::PermissionDenied);
-            assert!(!e.is_temporary());
-        }
-
-        #[test]
-        fn invalid_argument_and_config_error_both_map_to_config_invalid() {
-            let ia = run(GfsError::InvalidArgument {
-                message: "bad arg".into(),
-            });
-            assert_eq!(ia.kind(), ErrorKind::ConfigInvalid);
-            assert!(!ia.is_temporary());
-
-            let ce = run(GfsError::ConfigError {
-                message: "bad cfg".into(),
-            });
-            assert_eq!(ce.kind(), ErrorKind::ConfigInvalid);
-            assert!(!ce.is_temporary());
-        }
-
-        /// Transient server-side errors must be flagged `temporary` so OpenDAL's
-        /// `RetryLayer` actually retries the whole operation.
-        #[test]
-        fn transient_errors_are_marked_temporary() {
-            for (err, label) in [
-                (
-                    GfsError::NoWorkerAvailable {
-                        message: "no worker".into(),
-                    },
-                    "NoWorkerAvailable",
-                ),
-                (
-                    GfsError::MasterUnavailable {
-                        message: "master down".into(),
-                    },
-                    "MasterUnavailable",
-                ),
-                (
-                    GfsError::AuthenticationFailed {
-                        message: "sasl expired".into(),
-                    },
-                    "AuthenticationFailed",
-                ),
-            ] {
-                let e = run(err);
-                assert_eq!(
-                    e.kind(),
-                    ErrorKind::Unexpected,
-                    "{label} should map to Unexpected (transient), got {:?}",
-                    e.kind()
-                );
-                assert!(
-                    e.is_temporary(),
-                    "{label} must be flagged temporary so RetryLayer retries"
-                );
-            }
         }
     }
 }
 
-pub(super) use error::*;
+use opendal_core::raw::ServiceOperation;
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Map goosefs-sdk Error to OpenDAL Error.
+///
+/// This is the bridge between Layer 3 (goosefs-sdk) error types
+/// and Layer 2 (OpenDAL) error types.
+pub(crate) fn parse_error(ctx: ErrorContext, err: goosefs_sdk::error::Error) -> Error {
+    use goosefs_sdk::error::Error as GfsError;
+
+    let (kind, message, temporary) = match &err {
+        GfsError::NotFound { path } => (ErrorKind::NotFound, format!("not found: {}", path), false),
+
+        GfsError::AlreadyExists { path } => (
+            ErrorKind::AlreadyExists,
+            format!("already exists: {}", path),
+            false,
+        ),
+
+        GfsError::PermissionDenied { message } => {
+            (ErrorKind::PermissionDenied, message.clone(), false)
+        }
+
+        GfsError::InvalidArgument { message } => (ErrorKind::ConfigInvalid, message.clone(), false),
+
+        GfsError::ConfigError { message } => (ErrorKind::ConfigInvalid, message.clone(), false),
+
+        GfsError::NoWorkerAvailable { message } => {
+            // No worker available is a transient error
+            (
+                ErrorKind::Unexpected,
+                format!("no worker available: {}", message),
+                true,
+            )
+        }
+
+        GfsError::MasterUnavailable { message } => (
+            ErrorKind::Unexpected,
+            format!("master unavailable: {}", message),
+            true,
+        ),
+
+        // Authentication failures are transient — the SASL stream expired
+        // (e.g. after process fork or long idle). The goosefs-sdk layer
+        // should have already attempted reconnection, but if the error
+        // propagates up to OpenDAL, mark it as temporary so upper layers
+        // (e.g. RetryLayer) can retry the entire operation.
+        GfsError::AuthenticationFailed { message } => (
+            ErrorKind::Unexpected,
+            format!("authentication failed (retriable): {}", message),
+            true,
+        ),
+
+        // For GrpcError, the goosefs_sdk::error::Error::From<tonic::Status>
+        // already maps NotFound/AlreadyExists/PermissionDenied/InvalidArgument
+        // to specific error variants above. GrpcError only contains codes that
+        // were NOT mapped (Unavailable, DeadlineExceeded, Internal, etc.)
+        GfsError::GrpcError { message, .. } => (ErrorKind::Unexpected, message.clone(), false),
+
+        GfsError::TransportError { message, .. } => (ErrorKind::Unexpected, message.clone(), true),
+
+        _ => (ErrorKind::Unexpected, format!("{}", err), false),
+    };
+
+    let mut error = Error::new(kind, message)
+        .with_context("service_operation", ctx.service_operation.0)
+        .set_source(err);
+    if temporary {
+        error = error.set_temporary();
+    }
+    error
+}

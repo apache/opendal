@@ -338,6 +338,7 @@ impl Operator {
     #[pyo3(signature = (path, mode, *, **kwargs: "Unpack[OpenKwargs]"))]
     pub fn open(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         mode: String,
         kwargs: Option<&Bound<PyDict>>,
@@ -357,17 +358,16 @@ impl Operator {
 
         if mode == "rb" {
             let range = reader_opts.make_range();
-            let reader = this
-                .reader_options(&path, reader_opts.into())
-                .map_err(format_pyerr)?;
-
-            let r = reader
-                .into_std_read(range.to_range())
+            let r = py
+                .detach(move || {
+                    let reader = this.reader_options(&path, reader_opts.into())?;
+                    reader.into_std_read(range.to_range())
+                })
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
-            let writer = this
-                .writer_options(&path, writer_opts.into())
+            let writer = py
+                .detach(move || this.writer_options(&path, writer_opts.into()))
                 .map_err(format_pyerr)?;
             Ok(File::new_writer(writer))
         } else {
@@ -468,9 +468,9 @@ impl Operator {
             cache_control,
             content_disposition,
         };
-        let buffer = self
-            .core
-            .read_options(&path, opts.into())
+        let this = self.core.clone();
+        let buffer = py
+            .detach(move || this.read_options(&path, opts.into()))
             .map_err(format_pyerr)?;
 
         Ok(buffer_into_py_bytes(py, buffer)?.into_any())
@@ -524,6 +524,7 @@ impl Operator {
         user_metadata = None))]
     pub fn write(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         bs: &Bound<PyAny>,
         append: Option<bool>,
@@ -554,8 +555,8 @@ impl Operator {
             user_metadata,
         };
 
-        self.core
-            .write_options(&path, bs, opts.into())
+        let this = self.core.clone();
+        py.detach(move || this.write_options(&path, bs, opts.into()))
             .map(|_| ())
             .map_err(format_pyerr)
     }
@@ -599,6 +600,7 @@ impl Operator {
         content_disposition=None))]
     pub fn stat(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         version: Option<String>,
         if_match: Option<String>,
@@ -620,8 +622,8 @@ impl Operator {
             cache_control,
             content_disposition,
         };
-        self.core
-            .stat_options(&path, opts.into())
+        let this = self.core.clone();
+        py.detach(move || this.stat_options(&path, opts.into()))
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
@@ -634,11 +636,11 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    pub fn copy(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
-        self.core
-            .copy(&source, &target)
+        let this = self.core.clone();
+        py.detach(move || this.copy(&source, &target))
             .map(|_| ())
             .map_err(format_pyerr)
     }
@@ -651,10 +653,12 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn rename(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    pub fn rename(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
-        self.core.rename(&source, &target).map_err(format_pyerr)
+        let this = self.core.clone();
+        py.detach(move || this.rename(&source, &target))
+            .map_err(format_pyerr)
     }
 
     /// Recursively remove all files and directories at the given path.
@@ -663,18 +667,20 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to remove.
-    pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
+    pub fn remove_all(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         use ocore::options::DeleteOptions;
         let path = path.to_string_lossy().to_string();
-        self.core
-            .delete_options(
+        let this = self.core.clone();
+        py.detach(move || {
+            this.delete_options(
                 &path,
                 DeleteOptions {
                     recursive: true,
                     ..Default::default()
                 },
             )
-            .map_err(format_pyerr)
+        })
+        .map_err(format_pyerr)
     }
 
     /// Create a directory at the given path.
@@ -688,9 +694,11 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the directory.
-    pub fn create_dir(&self, path: PathBuf) -> PyResult<()> {
+    pub fn create_dir(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        self.core.create_dir(&path).map_err(format_pyerr)
+        let this = self.core.clone();
+        py.detach(move || this.create_dir(&path))
+            .map_err(format_pyerr)
     }
 
     /// Delete a file at the given path.
@@ -713,12 +721,14 @@ impl Operator {
     #[pyo3(signature = (path, *, version=None, recursive=None, if_match=None))]
     pub fn delete(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         version: Option<String>,
         recursive: Option<bool>,
         if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        let this = self.core.clone();
         if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
                 version,
@@ -726,9 +736,10 @@ impl Operator {
                 if_match,
                 ..Default::default()
             };
-            self.core.delete_options(&path, opts).map_err(format_pyerr)
+            py.detach(move || this.delete_options(&path, opts))
+                .map_err(format_pyerr)
         } else {
-            self.core.delete(&path).map_err(format_pyerr)
+            py.detach(move || this.delete(&path)).map_err(format_pyerr)
         }
     }
 
@@ -743,9 +754,10 @@ impl Operator {
     /// -------
     /// bool
     ///     True if the path exists, False otherwise.
-    pub fn exists(&self, path: PathBuf) -> PyResult<bool> {
+    pub fn exists(&self, py: Python<'_>, path: PathBuf) -> PyResult<bool> {
         let path = path.to_string_lossy().to_string();
-        self.core.exists(&path).map_err(format_pyerr)
+        let this = self.core.clone();
+        py.detach(move || this.exists(&path)).map_err(format_pyerr)
     }
 
     /// List entries in the given directory.
@@ -769,6 +781,7 @@ impl Operator {
     /// -------
     /// BlockingLister
     ///     An iterator over the entries in the directory.
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (path, *,
         limit=None,
         start_after=None,
@@ -777,6 +790,7 @@ impl Operator {
         deleted=None) -> "collections.abc.Iterable[Entry]")]
     pub fn list(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         limit: Option<usize>,
         start_after: Option<String>,
@@ -794,9 +808,9 @@ impl Operator {
             deleted,
         };
 
-        let l = self
-            .core
-            .lister_options(&path, opts.into())
+        let this = self.core.clone();
+        let l = py
+            .detach(move || this.lister_options(&path, opts.into()))
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
@@ -831,13 +845,14 @@ impl Operator {
         deleted=None) -> "collections.abc.Iterable[Entry]")]
     pub fn scan(
         &self,
+        py: Python<'_>,
         path: PathBuf,
         limit: Option<usize>,
         start_after: Option<String>,
         versions: Option<bool>,
         deleted: Option<bool>,
     ) -> PyResult<BlockingLister> {
-        self.list(path, limit, start_after, Some(true), versions, deleted)
+        self.list(py, path, limit, start_after, Some(true), versions, deleted)
     }
 
     /// Get all capabilities of this operator.
@@ -856,8 +871,9 @@ impl Operator {
     /// ------
     /// Exception
     ///     If the operator is not able to work correctly.
-    pub fn check(&self) -> PyResult<()> {
-        self.core.check().map_err(format_pyerr)
+    pub fn check(&self, py: Python<'_>) -> PyResult<()> {
+        let this = self.core.clone();
+        py.detach(move || this.check()).map_err(format_pyerr)
     }
 
     /// Create a new `AsyncOperator` from this blocking operator.

@@ -25,6 +25,25 @@ uv run async_opendal_benchmark.py
 uv run async_origin_s3_benchmark_with_gevent.py
 ```
 
+## Blocking Operator GIL benchmark
+
+`blocking_gil_benchmark.py` uses a local HTTP subprocess with a configurable
+response delay, so it does not require service credentials. It reports the
+median and p95 latency for one blocking read, two sequential reads, and two
+reads started from independent Python threads.
+
+From `bindings/python`, build the binding from the revision to measure, then
+run:
+
+```shell
+uv run maturin develop --release
+uv run benchmark/blocking_gil_benchmark.py \
+  --delay-ms 50 --iterations 30 --warmups 3
+```
+
+Run the same command from an unchanged baseline checkout to compare
+single-thread overhead and concurrency speedup with identical local I/O.
+
 ## File Open and Read over HTTP
 
 The repository's nginx fixture provides a reproducible benchmark for opening a

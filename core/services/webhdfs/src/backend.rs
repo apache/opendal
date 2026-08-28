@@ -25,8 +25,8 @@ use log::debug;
 
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;
-use super::core::WebhdfsCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, WebhdfsCore};
 use super::deleter::WebhdfsDeleter;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
@@ -229,7 +229,12 @@ impl WebhdfsBackend {
             StatusCode::NOT_FOUND => {
                 self.create_dir(ctx, "/", OpCreateDir::new()).await?;
             }
-            _ => return Err(parse_error(resp)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetFileStatus")),
+                    resp,
+                ));
+            }
         }
         Ok(())
     }
@@ -280,7 +285,10 @@ impl Service for WebhdfsBackend {
                     ))
                 }
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Mkdirs")),
+                resp,
+            )),
         }
     }
 
@@ -313,7 +321,10 @@ impl Service for WebhdfsBackend {
                 Ok(RpStat::new(meta))
             }
 
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileStatus")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {

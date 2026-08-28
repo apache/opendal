@@ -97,7 +97,10 @@ impl oio::MultipartCopy for TosCopier {
                 let headers = resp.headers();
                 tos_parse_into_metadata(&self.from, headers)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
@@ -123,7 +126,10 @@ impl oio::MultipartCopy for TosCopier {
                 meta.set_etag(result.etag.trim_matches('"'));
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CopyObject")),
+                resp,
+            )),
         }
     }
 
@@ -141,7 +147,10 @@ impl oio::MultipartCopy for TosCopier {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -185,7 +194,10 @@ impl oio::MultipartCopy for TosCopier {
                     size: Some(size),
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPartCopy")),
+                resp,
+            )),
         }
     }
 
@@ -226,7 +238,10 @@ impl oio::MultipartCopy for TosCopier {
 
                 Ok(meta)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -237,7 +252,10 @@ impl oio::MultipartCopy for TosCopier {
             .await?;
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }

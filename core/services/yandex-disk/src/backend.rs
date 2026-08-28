@@ -172,7 +172,10 @@ impl Service for YandexDiskBackend {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("MoveResource")),
+                resp,
+            )),
         }
     }
 
@@ -198,7 +201,10 @@ impl Service for YandexDiskBackend {
 
             match status {
                 StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
-                _ => Err(parse_error(resp)),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyResource")),
+                    resp,
+                )),
             }
         }))
     }
@@ -229,7 +235,10 @@ impl Service for YandexDiskBackend {
 
                 parse_info(mf).map(RpStat::new)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetMetainformation")),
+                resp,
+            )),
         }
     }
 

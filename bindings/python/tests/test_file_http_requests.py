@@ -65,15 +65,21 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
             if range_header is not None:
                 start, end = range_header.removeprefix("bytes=").split("-", 1)
                 start = int(start)
-                end = int(end) if end else len(CONTENT) - 1
-                body = CONTENT[start : end + 1]
-                status = 206
+                if start >= len(CONTENT):
+                    body = b""
+                    status = 416
+                else:
+                    end = int(end) if end else len(CONTENT) - 1
+                    body = CONTENT[start : end + 1]
+                    status = 206
 
             self.send_response(status)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(body)))
             if status == 206:
                 self.send_header("Content-Range", f"bytes {start}-{end}/{len(CONTENT)}")
+            elif status == 416:
+                self.send_header("Content-Range", f"bytes */{len(CONTENT)}")
             self.end_headers()
 
             if self.path == "/slow":
@@ -147,15 +153,21 @@ def test_sync_file_sequential_read_uses_one_request(request_server):
         file.read(1)
 
 
-def test_sync_file_seek_fetches_length_only_when_needed(request_server):
+def test_sync_file_start_and_current_seek_do_not_fetch_length(request_server):
     endpoint, state = request_server
     state._reset()
     op = opendal.Operator("http", endpoint=endpoint, root="/")
 
     with op.open("file", "rb") as file:
         assert file.seek(5) == 5
-        assert state._methods() == ["HEAD"]
+        assert state._methods() == []
         assert file.seek(-1, 1) == 4
+        assert state._methods() == []
+        assert file.read() == b"oWorld"
+        assert state._methods() == ["GET"]
+
+    state._reset()
+    with op.open("file", "rb") as file:
         assert file.seek(-2, 2) == 8
         assert state._methods() == ["HEAD"]
         assert file.read() == b"ld"
@@ -168,6 +180,25 @@ def test_sync_file_seek_fetches_length_only_when_needed(request_server):
         assert file.seek(0) == 0
         assert state._methods() == ["GET"]
         assert file.read(2) == b"He"
+        assert state._methods() == ["GET", "GET"]
+
+
+def test_sync_file_seek_past_end_reads_eof(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.Operator("http", endpoint=endpoint, root="/")
+
+    with op.open("file", "rb") as file:
+        assert file.seek(20) == 20
+        assert state._methods() == []
+        assert file.read() == b""
+        assert file.tell() == 20
+        assert state._methods() == ["GET"]
+        assert file.read() == b""
+        assert state._methods() == ["GET"]
+
+        assert file.seek(-15, 1) == 5
+        assert file.read() == b"World"
         assert state._methods() == ["GET", "GET"]
 
 
@@ -208,15 +239,21 @@ async def test_async_file_sequential_read_uses_one_request(request_server):
 
 
 @pytest.mark.asyncio
-async def test_async_file_seek_fetches_length_only_when_needed(request_server):
+async def test_async_file_start_and_current_seek_do_not_fetch_length(request_server):
     endpoint, state = request_server
     state._reset()
     op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
 
     async with await op.open("file", "rb") as file:
         assert await file.seek(5) == 5
-        assert state._methods() == ["HEAD"]
+        assert state._methods() == []
         assert await file.seek(-1, 1) == 4
+        assert state._methods() == []
+        assert await file.read() == b"oWorld"
+        assert state._methods() == ["GET"]
+
+    state._reset()
+    async with await op.open("file", "rb") as file:
         assert await file.seek(-2, 2) == 8
         assert state._methods() == ["HEAD"]
         assert await file.read() == b"ld"
@@ -229,6 +266,26 @@ async def test_async_file_seek_fetches_length_only_when_needed(request_server):
         assert state._methods() == []
         assert await file.read() == b"Wo"
         assert state._methods() == ["GET"]
+
+
+@pytest.mark.asyncio
+async def test_async_file_seek_past_end_reads_eof(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    async with await op.open("file", "rb") as file:
+        assert await file.seek(20) == 20
+        assert state._methods() == []
+        assert await file.read() == b""
+        assert await file.tell() == 20
+        assert state._methods() == ["GET"]
+        assert await file.read() == b""
+        assert state._methods() == ["GET"]
+
+        assert await file.seek(-15, 1) == 5
+        assert await file.read() == b"World"
+        assert state._methods() == ["GET", "GET"]
 
 
 @pytest.mark.asyncio

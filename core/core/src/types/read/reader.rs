@@ -413,8 +413,10 @@ impl Reader {
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     ///
-    /// Unbounded ranges fetch the object length only when an operation, such as
-    /// seeking relative to the end, requires it.
+    /// Unbounded ranges resolve the object length only for operations that require it, such as
+    /// seeking relative to the end. Seeking from the start or current position can move beyond
+    /// the end without resolving the length, and subsequent reads return EOF. Explicit bounded
+    /// ranges continue to reject seeks beyond their logical end.
     ///
     /// # Notes
     ///

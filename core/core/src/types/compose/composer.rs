@@ -92,15 +92,48 @@ impl Composer {
             .with_context("path", path));
         }
 
+        let mut version = input.version;
+        let mut if_match = input.if_match;
+        if let Some(metadata) = input.if_not_changed {
+            if let Some(metadata_version) = metadata.version() {
+                if let Some(explicit) = version.as_deref() {
+                    if explicit != metadata_version {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "if_not_changed conflicts with source version",
+                        )
+                        .with_operation(Operation::Compose.into_static()));
+                    }
+                } else {
+                    version = Some(metadata_version.to_string());
+                }
+            } else if let Some(metadata_etag) = metadata.etag() {
+                if let Some(explicit) = if_match.as_deref() {
+                    if explicit != metadata_etag {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "if_not_changed conflicts with source if_match",
+                        )
+                        .with_operation(Operation::Compose.into_static()));
+                    }
+                } else {
+                    if_match = Some(metadata_etag.to_string());
+                }
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata contains neither version nor ETag",
+                )
+                .with_operation(Operation::Compose.into_static()));
+            }
+        }
+
         let mut args = OpRead::new();
-        if let Some(version) = input.version {
+        if let Some(version) = version {
             args = args.with_version(&version);
         }
-        if let Some(etag) = input.if_match {
+        if let Some(etag) = if_match {
             args = args.with_if_match(&etag);
-        }
-        if let Some(metadata) = input.if_not_changed {
-            args = args.with_if_not_changed(metadata);
         }
 
         if let Err(err) = self.composer.compose(&path, args).await {

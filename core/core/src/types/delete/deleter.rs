@@ -95,7 +95,7 @@ impl Deleter {
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let input = input.into_delete_input();
-        let opts = options::DeleteOptions {
+        let mut opts = options::DeleteOptions {
             version: input.version,
             recursive: input.recursive,
             if_match: input.if_match,
@@ -104,6 +104,14 @@ impl Deleter {
             if_version_not_match: input.if_version_not_match,
             if_not_changed: input.if_not_changed,
         };
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Delete,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
+        }
         let op = opts.into();
 
         self.deleter.delete(&input.path, op).await?;

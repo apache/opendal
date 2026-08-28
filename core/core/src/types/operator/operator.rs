@@ -1150,6 +1150,15 @@ impl Operator {
             );
         }
 
+        let mut opts = opts;
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Write,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
+        }
         let (args, opts) = opts.into();
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context).await?;
@@ -1287,7 +1296,7 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         to: String,
-        opts: options::ComposeOptions,
+        mut opts: options::ComposeOptions,
     ) -> Result<Composer> {
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
@@ -1296,6 +1305,15 @@ impl Operator {
                     .with_context("service", srv.info().scheme())
                     .with_context("to", to),
             );
+        }
+
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Compose,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
         }
 
         std::future::ready(Composer::create(ctx, srv, to, opts.into())).await
@@ -1541,6 +1559,15 @@ impl Operator {
             );
         }
 
+        let mut opts = opts;
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Copy,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
+        }
         let args = opts.into();
         std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
     }
@@ -2703,6 +2730,15 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
+        let mut opts = opts;
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Write,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
+        }
         let (op_write, _) = opts.into();
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2816,6 +2852,15 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
+        let mut opts = opts;
+        if let Some(metadata) = opts.if_not_changed.take() {
+            options::lower_if_not_changed(
+                Operation::Delete,
+                &metadata,
+                &mut opts.if_version_match,
+                &mut opts.if_match,
+            )?;
+        }
         let op = OpPresign::new(OpDelete::from(opts), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())

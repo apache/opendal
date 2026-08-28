@@ -31,6 +31,12 @@ pub struct ComposeInput {
     /// Compose only when the selected source has this exact ETag.
     pub if_match: Option<String>,
     /// Compose only when the selected source still has this metadata identity.
+    ///
+    /// OpenDAL selects the metadata version when present and otherwise selects
+    /// its ETag. The operation returns [`crate::ErrorKind::Unsupported`] when
+    /// the service does not support the derived source condition, and
+    /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
+    /// identity.
     pub if_not_changed: Option<Metadata>,
 }
 

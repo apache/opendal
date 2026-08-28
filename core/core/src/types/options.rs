@@ -17,10 +17,51 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::Metadata;
-use crate::raw::Timestamp;
+use crate::raw::{Operation, Timestamp};
 use crate::types::BytesRange;
+use crate::{Error, ErrorKind, Metadata, Result};
 use std::collections::HashMap;
+
+pub(crate) fn lower_if_not_changed(
+    operation: Operation,
+    metadata: &Metadata,
+    if_version_match: &mut Option<String>,
+    if_match: &mut Option<String>,
+) -> Result<()> {
+    if let Some(version) = metadata.version() {
+        if let Some(explicit) = if_version_match.as_deref()
+            && explicit != version
+        {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "if_not_changed conflicts with if_version_match",
+            )
+            .with_operation(operation.into_static()));
+        }
+        *if_version_match = Some(version.to_string());
+        return Ok(());
+    }
+
+    if let Some(etag) = metadata.etag() {
+        if let Some(explicit) = if_match.as_deref()
+            && explicit != etag
+        {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "if_not_changed conflicts with if_match",
+            )
+            .with_operation(operation.into_static()));
+        }
+        *if_match = Some(etag.to_string());
+        return Ok(());
+    }
+
+    Err(Error::new(
+        ErrorKind::ConfigInvalid,
+        "if_not_changed metadata contains neither version nor ETag",
+    )
+    .with_operation(operation.into_static()))
+}
 
 /// Options for delete operations.
 ///
@@ -107,16 +148,16 @@ pub struct DeleteOptions {
     /// recorded in this metadata.
     ///
     /// Pass metadata previously returned by OpenDAL for the same path.
-    /// OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version, and otherwise derives
-    /// an ETag match. A changed or missing file fails the delete with
-    /// [`crate::ErrorKind::ConditionNotMatch`], as does combining this option
-    /// with a conflicting `if_match` or `if_version_match` value.
+    /// OpenDAL derives a version match when the metadata contains a version,
+    /// and otherwise derives an ETag match. A changed or missing file fails
+    /// the delete with [`crate::ErrorKind::ConditionNotMatch`], as does
+    /// combining this option with a conflicting `if_match` or
+    /// `if_version_match` value.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
-    /// service supports neither version nor ETag conditions, and
-    /// [`crate::ErrorKind::ConfigInvalid`] when a condition is supported but
-    /// the metadata contains no usable version or ETag.
+    /// service does not support the derived primitive condition, and
+    /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
+    /// a version nor an ETag.
     pub if_not_changed: Option<Metadata>,
 }
 
@@ -763,16 +804,16 @@ pub struct WriteOptions {
     /// recorded in this metadata.
     ///
     /// Pass metadata previously returned by OpenDAL for the same path.
-    /// OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version, and otherwise derives
-    /// an ETag match. A changed or missing file fails the write with
-    /// [`crate::ErrorKind::ConditionNotMatch`], as does combining this option
-    /// with a conflicting `if_match` or `if_version_match` value.
+    /// OpenDAL derives a version match when the metadata contains a version,
+    /// and otherwise derives an ETag match. A changed or missing file fails
+    /// the write with [`crate::ErrorKind::ConditionNotMatch`], as does
+    /// combining this option with a conflicting `if_match` or
+    /// `if_version_match` value.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
-    /// service supports neither version nor ETag conditions, and
-    /// [`crate::ErrorKind::ConfigInvalid`] when a condition is supported but
-    /// the metadata contains no usable version or ETag.
+    /// service does not support the derived primitive condition, and
+    /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
+    /// a version nor an ETag.
     pub if_not_changed: Option<Metadata>,
 
     /// Sets concurrent write operations for this writer.
@@ -855,6 +896,12 @@ pub struct ComposeOptions {
     /// Compose only when no destination object exists.
     pub if_not_exists: bool,
     /// Compose only when the destination still has this metadata identity.
+    ///
+    /// OpenDAL derives a version match when the metadata contains a version,
+    /// and otherwise derives an ETag match. The operation returns
+    /// [`crate::ErrorKind::Unsupported`] when the service does not support the
+    /// derived primitive condition, and [`crate::ErrorKind::ConfigInvalid`]
+    /// when the metadata contains neither a version nor an ETag.
     pub if_not_changed: Option<Metadata>,
     /// Maximum number of independent backend composition tasks.
     ///
@@ -944,17 +991,16 @@ pub struct CopyOptions {
     /// in this metadata.
     ///
     /// Pass metadata previously returned by OpenDAL for the destination
-    /// path. OpenDAL derives a version match when the service supports
-    /// version conditions and the metadata contains a version, and otherwise
-    /// derives an ETag match. A changed or missing destination file fails
-    /// the copy with [`crate::ErrorKind::ConditionNotMatch`], as does
-    /// combining this option with a conflicting `if_match` or
-    /// `if_version_match` value.
+    /// path. OpenDAL derives a version match when the metadata contains a
+    /// version, and otherwise derives an ETag match. A changed or missing
+    /// destination file fails the copy with
+    /// [`crate::ErrorKind::ConditionNotMatch`], as does combining this option
+    /// with a conflicting `if_match` or `if_version_match` value.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
-    /// service supports neither version nor ETag conditions, and
-    /// [`crate::ErrorKind::ConfigInvalid`] when a condition is supported but
-    /// the metadata contains no usable version or ETag.
+    /// service does not support the derived primitive condition, and
+    /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
+    /// a version nor an ETag.
     pub if_not_changed: Option<Metadata>,
 
     /// Copy from a specific source file version.

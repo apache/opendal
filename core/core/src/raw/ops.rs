@@ -20,36 +20,10 @@
 //! By using ops, users can add more context for operation.
 
 use crate::BytesRange;
-use crate::Metadata;
 use crate::options;
 use crate::raw::*;
 
 use std::collections::HashMap;
-
-#[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
-pub(crate) struct IfNotChanged {
-    version: Option<String>,
-    etag: Option<String>,
-}
-
-impl IfNotChanged {
-    pub(crate) fn version(&self) -> Option<&str> {
-        self.version.as_deref()
-    }
-
-    pub(crate) fn etag(&self) -> Option<&str> {
-        self.etag.as_deref()
-    }
-}
-
-impl From<Metadata> for IfNotChanged {
-    fn from(metadata: Metadata) -> Self {
-        Self {
-            version: metadata.version().map(ToOwned::to_owned),
-            etag: metadata.etag().map(ToOwned::to_owned),
-        }
-    }
-}
 
 /// Arguments for `create` operation.
 ///
@@ -86,8 +60,6 @@ pub struct OpDelete {
 
     /// The version that the current object must not match before deletion.
     if_version_not_match: Option<String>,
-
-    if_not_changed: Option<Box<IfNotChanged>>,
 }
 
 impl OpDelete {
@@ -165,10 +137,6 @@ impl OpDelete {
     pub fn if_version_not_match(&self) -> Option<&str> {
         self.if_version_not_match.as_deref()
     }
-
-    pub(crate) fn take_if_not_changed(&mut self) -> Option<IfNotChanged> {
-        self.if_not_changed.take().map(|identity| *identity)
-    }
 }
 
 impl From<options::DeleteOptions> for OpDelete {
@@ -180,7 +148,6 @@ impl From<options::DeleteOptions> for OpDelete {
             if_none_match: value.if_none_match,
             if_version_match: value.if_version_match,
             if_version_not_match: value.if_version_not_match,
-            if_not_changed: value.if_not_changed.map(IfNotChanged::from).map(Box::new),
         }
     }
 }
@@ -421,7 +388,6 @@ pub struct OpRead {
     override_content_disposition: Option<String>,
     version: Option<String>,
     content_length_hint: Option<u64>,
-    if_not_changed: Option<Box<IfNotChanged>>,
 }
 
 impl OpRead {
@@ -468,10 +434,6 @@ impl OpRead {
     pub fn with_if_match(mut self, if_match: &str) -> Self {
         self.if_match = Some(if_match.to_string());
         self
-    }
-
-    pub(crate) fn set_if_match(&mut self, if_match: &str) {
-        self.if_match = Some(if_match.to_string());
     }
 
     /// Get If-Match from option
@@ -540,22 +502,9 @@ impl OpRead {
         self
     }
 
-    pub(crate) fn set_version(&mut self, version: &str) {
-        self.version = Some(version.to_string());
-    }
-
     /// Get version from option
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
-    }
-
-    pub(crate) fn with_if_not_changed(mut self, metadata: Metadata) -> Self {
-        self.if_not_changed = Some(Box::new(metadata.into()));
-        self
-    }
-
-    pub(crate) fn take_if_not_changed(&mut self) -> Option<IfNotChanged> {
-        self.if_not_changed.take().map(|identity| *identity)
     }
 
     pub(crate) fn content_length_hint(&self) -> Option<u64> {
@@ -657,7 +606,6 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
                 override_content_disposition: value.override_content_disposition,
                 version: value.version,
                 content_length_hint: value.content_length_hint,
-                if_not_changed: None,
             },
             OpReader {
                 // Ensure concurrent is at least 1
@@ -685,7 +633,6 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 override_content_disposition: None,
                 version: value.version,
                 content_length_hint: value.content_length_hint,
-                if_not_changed: None,
             },
             OpReader {
                 // Ensure concurrent is at least 1
@@ -862,7 +809,6 @@ pub struct OpWrite {
     if_version_match: Option<String>,
     if_version_not_match: Option<String>,
     if_not_exists: bool,
-    if_not_changed: Option<Box<IfNotChanged>>,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -1003,10 +949,6 @@ impl OpWrite {
         self.if_not_exists
     }
 
-    pub(crate) fn take_if_not_changed(&mut self) -> Option<IfNotChanged> {
-        self.if_not_changed.take().map(|identity| *identity)
-    }
-
     /// Set the user defined metadata of the op
     pub fn with_user_metadata(mut self, metadata: HashMap<String, String>) -> Self {
         self.user_metadata = Some(metadata);
@@ -1069,7 +1011,6 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 if_version_match: value.if_version_match,
                 if_version_not_match: value.if_version_not_match,
                 if_not_exists: value.if_not_exists,
-                if_not_changed: value.if_not_changed.map(IfNotChanged::from).map(Box::new),
                 user_metadata: value.user_metadata,
             },
             OpWriter { chunk: value.chunk },
@@ -1090,7 +1031,6 @@ pub struct OpCompose {
     if_version_match: Option<String>,
     if_version_not_match: Option<String>,
     if_not_exists: bool,
-    if_not_changed: Option<Box<IfNotChanged>>,
     user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -1220,10 +1160,6 @@ impl OpCompose {
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
     }
-
-    pub(crate) fn take_if_not_changed(&mut self) -> Option<IfNotChanged> {
-        self.if_not_changed.take().map(|identity| *identity)
-    }
 }
 
 impl From<options::ComposeOptions> for OpCompose {
@@ -1239,7 +1175,6 @@ impl From<options::ComposeOptions> for OpCompose {
             if_version_match: value.if_version_match,
             if_version_not_match: value.if_version_not_match,
             if_not_exists: value.if_not_exists,
-            if_not_changed: value.if_not_changed.map(IfNotChanged::from).map(Box::new),
             user_metadata: value.user_metadata,
         }
     }
@@ -1257,7 +1192,6 @@ pub struct OpCopy {
     concurrent: usize,
     chunk: Option<usize>,
     source_content_length_hint: Option<u64>,
-    if_not_changed: Option<Box<IfNotChanged>>,
 }
 
 impl OpCopy {
@@ -1372,10 +1306,6 @@ impl OpCopy {
     pub fn source_content_length_hint(&self) -> Option<u64> {
         self.source_content_length_hint
     }
-
-    pub(crate) fn take_if_not_changed(&mut self) -> Option<IfNotChanged> {
-        self.if_not_changed.take().map(|identity| *identity)
-    }
 }
 
 impl From<options::CopyOptions> for OpCopy {
@@ -1390,7 +1320,6 @@ impl From<options::CopyOptions> for OpCopy {
             concurrent: value.concurrent.max(1),
             chunk: value.chunk,
             source_content_length_hint: value.source_content_length_hint,
-            if_not_changed: value.if_not_changed.map(IfNotChanged::from).map(Box::new),
         }
     }
 }

@@ -27,6 +27,7 @@ import pytest
 import opendal
 
 CONTENT = b"HelloWorld"
+TRUNCATED_CONTENT = b"Hell"
 
 
 class RequestState:
@@ -59,27 +60,28 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
 
         def do_GET(self) -> None:
             requests.append("GET")
-            body = CONTENT
+            content = TRUNCATED_CONTENT if self.path == "/truncated" else CONTENT
+            body = content
             status = 200
             range_header = self.headers.get("Range")
             if range_header is not None:
                 start, end = range_header.removeprefix("bytes=").split("-", 1)
                 start = int(start)
-                if start >= len(CONTENT):
+                if start >= len(content):
                     body = b""
                     status = 416
                 else:
-                    end = int(end) if end else len(CONTENT) - 1
-                    body = CONTENT[start : end + 1]
+                    end = int(end) if end else len(content) - 1
+                    body = content[start : end + 1]
                     status = 206
 
             self.send_response(status)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(body)))
             if status == 206:
-                self.send_header("Content-Range", f"bytes {start}-{end}/{len(CONTENT)}")
+                self.send_header("Content-Range", f"bytes {start}-{end}/{len(content)}")
             elif status == 416:
-                self.send_header("Content-Range", f"bytes */{len(CONTENT)}")
+                self.send_header("Content-Range", f"bytes */{len(content)}")
             self.end_headers()
 
             if self.path == "/slow":
@@ -202,6 +204,31 @@ def test_sync_file_seek_past_end_reads_eof(request_server):
         assert state._methods() == ["GET", "GET"]
 
 
+def test_sync_file_offset_past_end_has_empty_logical_length(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.Operator("http", endpoint=endpoint, root="/")
+
+    with op.open("file", "rb", offset=20) as file:
+        assert state._methods() == []
+        assert file.read() == b""
+        assert state._methods() == ["GET"]
+        assert file.seek(0, 2) == 0
+        assert state._methods() == ["GET", "HEAD"]
+
+
+def test_sync_chunked_file_propagates_truncation_error(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.Operator("http", endpoint=endpoint, root="/")
+
+    with op.open("truncated", "rb", chunk=4) as file:
+        assert state._methods() == ["HEAD"]
+        with pytest.raises(OSError, match="RangeNotSatisfied"):
+            file.read()
+        assert state._methods() == ["HEAD", "GET", "GET"]
+
+
 def test_sync_file_bounded_range_does_not_stat(request_server):
     endpoint, state = request_server
     state._reset()
@@ -286,6 +313,33 @@ async def test_async_file_seek_past_end_reads_eof(request_server):
         assert await file.seek(-15, 1) == 5
         assert await file.read() == b"World"
         assert state._methods() == ["GET", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_async_file_offset_past_end_has_empty_logical_length(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    async with await op.open("file", "rb", offset=20) as file:
+        assert state._methods() == []
+        assert await file.read() == b""
+        assert state._methods() == ["GET"]
+        assert await file.seek(0, 2) == 0
+        assert state._methods() == ["GET", "HEAD"]
+
+
+@pytest.mark.asyncio
+async def test_async_chunked_file_propagates_truncation_error(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    async with await op.open("truncated", "rb", chunk=4) as file:
+        assert state._methods() == ["HEAD"]
+        with pytest.raises(OSError, match="RangeNotSatisfied"):
+            await file.read()
+        assert state._methods() == ["HEAD", "GET", "GET"]
 
 
 @pytest.mark.asyncio

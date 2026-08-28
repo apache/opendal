@@ -113,14 +113,12 @@ impl ReadContext {
         }
     }
 
-    pub(crate) fn known_content_length(&self) -> Option<u64> {
-        self.args()
+    pub(crate) async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self
+            .args()
             .content_length_hint()
             .or_else(|| self.metadata().map(|v| v.content_length()))
-    }
-
-    pub(crate) async fn content_length(&self) -> Result<u64> {
-        if let Some(v) = self.known_content_length() {
+        {
             return Ok(v);
         }
 

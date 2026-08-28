@@ -257,8 +257,9 @@ impl File {
     /// Notes
     /// -----
     /// Unbounded readable files allow non-negative positions beyond EOF. Reads
-    /// from those positions return empty bytes. Explicit bounded views reject
-    /// positions beyond their range.
+    /// from those positions return empty bytes when the backing service reports
+    /// an unsatisfied unbounded range. Other service errors propagate. Explicit
+    /// bounded views reject positions beyond their range.
     ///
     /// Returns
     /// -------
@@ -552,8 +553,9 @@ impl AsyncFile {
     /// Notes
     /// -----
     /// Unbounded readable files allow non-negative positions beyond EOF. Reads
-    /// from those positions return empty bytes. Explicit bounded views reject
-    /// positions beyond their range.
+    /// from those positions return empty bytes when the backing service reports
+    /// an unsatisfied unbounded range. Other service errors propagate. Explicit
+    /// bounded views reject positions beyond their range.
     ///
     /// Returns
     /// -------

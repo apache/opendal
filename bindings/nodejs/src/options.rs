@@ -412,6 +412,7 @@ impl From<ListOptions> for opendal::options::ListOptions {
             recursive: value.recursive.unwrap_or_default(),
             versions: value.versions.unwrap_or_default(),
             deleted: value.deleted.unwrap_or_default(),
+            ..Default::default()
         }
     }
 }

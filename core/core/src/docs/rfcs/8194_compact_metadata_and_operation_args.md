@@ -1,6 +1,6 @@
 - Proposal Name: `compact_metadata_and_operation_args`
 - Start Date: 2026-08-29
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#8194](https://github.com/apache/opendal/pull/8194)
 - Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
 
 # Summary

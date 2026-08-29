@@ -113,6 +113,17 @@ impl EtcdBuilder {
         }
         self
     }
+
+    /// Set the maximum size (in bytes) of a decoded gRPC response accepted from etcd.
+    ///
+    /// This bounds the size of KV values that can be read back. Raise it if you
+    /// expect to read values larger than etcd-client's default of 4 MiB.
+    ///
+    /// default is etcd-client's own default, currently `4 MiB`
+    pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        self.config.max_decoding_message_size = Some(limit);
+        self
+    }
 }
 
 impl Builder for EtcdBuilder {
@@ -158,7 +169,7 @@ impl Builder for EtcdBuilder {
                 .as_str(),
         );
 
-        let core = EtcdCore::new(endpoints, options);
+        let core = EtcdCore::new(endpoints, options, self.config.max_decoding_message_size);
         Ok(EtcdBackend::new(core, &root))
     }
 }

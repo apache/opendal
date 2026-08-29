@@ -57,6 +57,15 @@ pub struct EtcdConfig {
     ///
     /// default is None
     pub key_path: Option<String>,
+    /// the maximum size (in bytes) of a decoded gRPC response accepted from etcd.
+    ///
+    /// This bounds the size of KV values that can be read back. It does not limit
+    /// how much data can be written; a value larger than this limit can still be
+    /// written successfully but will fail to be read until the limit is raised to
+    /// accommodate it.
+    ///
+    /// default is etcd-client's own default, currently `4 MiB`
+    pub max_decoding_message_size: Option<usize>,
 }
 
 impl Debug for EtcdConfig {
@@ -68,6 +77,7 @@ impl Debug for EtcdConfig {
             .field("ca_path", &self.ca_path)
             .field("cert_path", &self.cert_path)
             .field("key_path", &self.key_path)
+            .field("max_decoding_message_size", &self.max_decoding_message_size)
             .finish_non_exhaustive()
     }
 }
@@ -114,5 +124,16 @@ mod tests {
         let cfg = EtcdConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoints.as_deref(), Some("http://127.0.0.1:2379"));
         assert_eq!(cfg.root.as_deref(), Some("app/config"));
+    }
+
+    #[test]
+    fn from_iter_parses_max_decoding_message_size() {
+        let cfg = EtcdConfig::from_iter([(
+            "max_decoding_message_size".to_string(),
+            "10485760".to_string(),
+        )])
+        .unwrap();
+
+        assert_eq!(cfg.max_decoding_message_size, Some(10485760));
     }
 }

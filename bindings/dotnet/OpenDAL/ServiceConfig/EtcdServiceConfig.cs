@@ -45,6 +45,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? KeyPath { get; init; }
         /// <summary>
+        /// the maximum size (in bytes) of a decoded gRPC response accepted from etcd. This bounds the size of KV values that can be read back. It does not limit how much data can be written; a value larger than this limit can still be written successfully but will fail to be read until the limit is raised to accommodate it. default is etcd-client's own default, currently `4 MiB`
+        /// </summary>
+        public long? MaxDecodingMessageSize { get; init; }
+        /// <summary>
         /// the password for authentication default is None
         /// </summary>
         public string? Password { get; init; }
@@ -77,6 +81,10 @@ namespace OpenDAL.ServiceConfig
             if (KeyPath is not null)
             {
                 map["key_path"] = Utilities.ToOptionString(KeyPath);
+            }
+            if (MaxDecodingMessageSize is not null)
+            {
+                map["max_decoding_message_size"] = Utilities.ToOptionString(MaxDecodingMessageSize);
             }
             if (Password is not null)
             {

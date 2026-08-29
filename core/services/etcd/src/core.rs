@@ -63,6 +63,10 @@ pub struct EtcdCore {
     endpoints: Vec<String>,
     options: ConnectOptions,
     client: Arc<bounded::Pool<Manager>>,
+    /// The maximum size (in bytes) of a decoded gRPC response accepted from etcd.
+    ///
+    /// `None` keeps etcd-client's own default (currently 4 MiB).
+    max_decoding_message_size: Option<usize>,
 }
 
 impl Debug for EtcdCore {
@@ -75,7 +79,11 @@ impl Debug for EtcdCore {
 }
 
 impl EtcdCore {
-    pub fn new(endpoints: Vec<String>, options: ConnectOptions) -> Self {
+    pub fn new(
+        endpoints: Vec<String>,
+        options: ConnectOptions,
+        max_decoding_message_size: Option<usize>,
+    ) -> Self {
         let client = bounded::Pool::new(
             bounded::PoolConfig::new(64),
             Manager {
@@ -88,6 +96,7 @@ impl EtcdCore {
             endpoints,
             options,
             client,
+            max_decoding_message_size,
         }
     }
 
@@ -123,8 +132,12 @@ impl EtcdCore {
 
 impl EtcdCore {
     pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
-        let mut client = self.conn().await?;
-        let resp = client.get(key, None).await.map_err(format_etcd_error)?;
+        let client = self.conn().await?;
+        let mut kv_client = client.kv_client();
+        if let Some(limit) = self.max_decoding_message_size {
+            kv_client = kv_client.max_decoding_message_size(limit);
+        }
+        let resp = kv_client.get(key, None).await.map_err(format_etcd_error)?;
         if let Some(kv) = resp.kvs().first() {
             Ok(Some(Buffer::from(kv.value().to_vec())))
         } else {

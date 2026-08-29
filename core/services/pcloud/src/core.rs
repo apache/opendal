@@ -462,34 +462,34 @@ impl PcloudCore {
 
 pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::new(EntryMode::DIR)
+        Metadata::builder(EntryMode::DIR)
     } else {
-        Metadata::new(EntryMode::FILE)
+        Metadata::builder(EntryMode::FILE)
     };
 
     if let Some(size) = content.size {
-        md.set_content_length(size);
+        md.content_length(size);
     }
 
-    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
+    md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
-    Ok(md)
+    Ok(md.build())
 }
 
 pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::new(EntryMode::DIR)
+        Metadata::builder(EntryMode::DIR)
     } else {
-        Metadata::new(EntryMode::FILE)
+        Metadata::builder(EntryMode::FILE)
     };
 
     if let Some(size) = content.size {
-        md.set_content_length(size);
+        md.content_length(size);
     }
 
-    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
+    md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
-    Ok(md)
+    Ok(md.build())
 }
 
 #[derive(Debug, Deserialize)]

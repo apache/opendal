@@ -67,8 +67,10 @@ impl oio::PageList for IpmfsLister {
             let path = build_abs_path(&self.root, self.path.as_str());
             let path = build_rel_path(&self.root, &path);
 
-            ctx.entries
-                .push_back(oio::Entry::new(&path, Metadata::new(EntryMode::DIR)));
+            ctx.entries.push_back(oio::Entry::new(
+                &path,
+                Metadata::builder(EntryMode::DIR).build(),
+            ));
         }
 
         let bs = resp.into_body();
@@ -90,10 +92,11 @@ impl oio::PageList for IpmfsLister {
                 EntryMode::Unknown => unreachable!(),
             };
 
-            ctx.entries.push_back(oio::Entry::new(
-                &path,
-                Metadata::new(object.mode()).with_content_length(object.size),
-            ));
+            ctx.entries.push_back(oio::Entry::new(&path, {
+                let mut metadata = Metadata::builder(object.mode());
+                metadata.content_length(object.size);
+                metadata.build()
+            }));
         }
 
         Ok(())

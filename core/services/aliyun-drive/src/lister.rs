@@ -96,14 +96,13 @@ impl oio::PageList for AliyunDriveLister {
 
         let offset = if ctx.token.is_empty() {
             // Push self into the list result.
-            ctx.entries.push_back(Entry::new(
-                &parent.path,
-                Metadata::new(EntryMode::DIR).with_last_modified(
-                    parent.updated_at.parse::<Timestamp>().map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                    })?,
-                ),
-            ));
+            ctx.entries.push_back(Entry::new(&parent.path, {
+                let mut metadata = Metadata::builder(EntryMode::DIR);
+                metadata.last_modified(parent.updated_at.parse::<Timestamp>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                })?);
+                metadata.build()
+            }));
             None
         } else {
             Some(ctx.token.clone())
@@ -132,23 +131,23 @@ impl oio::PageList for AliyunDriveLister {
         for item in result.items {
             let (path, mut md) = if item.path_type == "folder" {
                 let path = format!("{}{}/", parent.path.trim_start_matches('/'), item.name);
-                (path, Metadata::new(EntryMode::DIR))
+                (path, Metadata::builder(EntryMode::DIR))
             } else {
                 let path = format!("{}{}", parent.path.trim_start_matches('/'), item.name);
-                (path, Metadata::new(EntryMode::FILE))
+                (path, Metadata::builder(EntryMode::FILE))
             };
 
-            md = md.with_last_modified(item.updated_at.parse::<Timestamp>().map_err(|e| {
+            md.last_modified(item.updated_at.parse::<Timestamp>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
             })?);
             if let Some(v) = item.size {
-                md = md.with_content_length(v);
+                md.content_length(v);
             }
             if let Some(v) = item.content_type {
-                md = md.with_content_type(v);
+                md.content_type(v);
             }
 
-            ctx.entries.push_back(Entry::new(&path, md));
+            ctx.entries.push_back(Entry::new(&path, md.build()));
         }
 
         let next_marker = result.next_marker.unwrap_or_default();

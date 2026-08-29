@@ -299,15 +299,15 @@ impl Service for TosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = tos_parse_into_metadata(path, headers)?;
+                let mut meta = tos_parse_into_metadata(path, headers)?.into_builder();
 
                 let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
                 if let Some(is_dir) = parse_header_to_str(headers, X_TOS_DIRECTORY)?
@@ -319,14 +319,14 @@ impl Service for TosBackend {
                     })
                     .transpose()?
                 {
-                    meta = meta.with_mode(if is_dir {
+                    meta.mode(if is_dir {
                         EntryMode::DIR
                     } else {
                         EntryMode::FILE
                     });
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),

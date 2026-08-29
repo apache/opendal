@@ -95,7 +95,7 @@ impl oio::PageList for ObsLister {
         for prefix in common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::new(EntryMode::DIR),
+                Metadata::builder(EntryMode::DIR).build(),
             );
 
             ctx.entries.push_back(de);
@@ -107,7 +107,11 @@ impl oio::PageList for ObsLister {
                 path = "/".to_string();
             }
 
-            let meta = Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);
+            let meta = {
+                let mut metadata = Metadata::builder(EntryMode::from_path(&path));
+                metadata.content_length(object.size);
+                metadata.build()
+            };
 
             let de = oio::Entry::with(path, meta);
 

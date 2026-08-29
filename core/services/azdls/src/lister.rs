@@ -72,7 +72,7 @@ impl oio::PageList for AzdlsLister {
 
         // Return self at the first page.
         if ctx.token.is_empty() && !ctx.done {
-            let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
+            let e = oio::Entry::new(&self.path, Metadata::builder(EntryMode::DIR).build());
             ctx.entries.push_back(e);
         }
 
@@ -100,21 +100,20 @@ impl oio::PageList for AzdlsLister {
                 EntryMode::FILE
             };
 
-            let meta = Metadata::new(mode)
-                // Keep fit with ETag header.
-                .with_etag(format!("\"{}\"", object.etag))
-                .with_content_length(object.content_length.parse().map_err(|err| {
+            let mut meta = Metadata::builder(mode);
+            meta.etag(format!("\"{}\"", object.etag))
+                .content_length(object.content_length.parse().map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "content length is not valid integer")
                         .set_source(err)
                 })?)
-                .with_last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
+                .last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
 
             let mut path = build_rel_path(&self.core.root, &object.name);
             if mode.is_dir() {
                 path += "/"
             };
 
-            let de = oio::Entry::new(&path, meta);
+            let de = oio::Entry::new(&path, meta.build());
 
             ctx.entries.push_back(de);
         }

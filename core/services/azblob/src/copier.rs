@@ -79,10 +79,11 @@ pub struct AzblobCopier {
 
 impl oio::BlockCopy for AzblobCopier {
     async fn source_metadata(&self) -> Result<Metadata> {
-        let mut args = OpStat::default();
-        if let Some(version) = self.args.source_version() {
-            args = args.with_version(version);
+        let args = options::StatOptions {
+            version: self.args.source_version().map(str::to_owned),
+            ..Default::default()
         }
+        .into();
 
         let resp = self
             .core
@@ -92,11 +93,11 @@ impl oio::BlockCopy for AzblobCopier {
         match resp.status() {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(&self.from, headers)?;
+                let mut meta = parse_into_metadata(&self.from, headers)?.into_builder();
                 if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-                    meta.set_version(version_id);
+                    meta.version(version_id);
                 }
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetBlobProperties")),

@@ -265,7 +265,7 @@ impl ImmutableDir {
             } else {
                 EntryMode::FILE
             };
-            let meta = Metadata::new(mode);
+            let meta = Metadata::builder(mode).build();
             oio::Entry::with(v, meta)
         })
     }

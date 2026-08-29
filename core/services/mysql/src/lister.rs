@@ -47,7 +47,7 @@ impl List for MysqlLister {
         if path.is_empty() {
             path = "/".to_string();
         }
-        let meta = Metadata::new(EntryMode::from_path(&path));
+        let meta = Metadata::builder(EntryMode::from_path(&path)).build();
         Ok(Some(Entry::new(&path, meta)))
     }
 }

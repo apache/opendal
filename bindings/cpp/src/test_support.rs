@@ -100,9 +100,9 @@ impl Service for HangingService {
     }
 
     async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-        Ok(RpStat::new(
-            Metadata::new(EntryMode::FILE).with_content_length(13),
-        ))
+        let mut metadata = Metadata::builder(EntryMode::FILE);
+        metadata.content_length(13);
+        Ok(RpStat::new(metadata.build()))
     }
 
     fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -205,9 +205,9 @@ impl Service for RetryableService {
     }
 
     async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-        Ok(RpStat::new(
-            Metadata::new(EntryMode::FILE).with_content_length(13),
-        ))
+        let mut metadata = Metadata::builder(EntryMode::FILE);
+        metadata.content_length(13);
+        Ok(RpStat::new(metadata.build()))
     }
 
     fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -272,7 +272,9 @@ struct RetryableReader {
 
 impl oio::StreamRead for RetryableReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+        let mut metadata = Metadata::builder(EntryMode::FILE);
+        metadata.content_length(0);
+        let rp = RpRead::new(metadata.build());
         Ok((
             rp,
             Box::new(RetryableReadStream {

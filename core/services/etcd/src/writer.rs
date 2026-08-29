@@ -48,10 +48,10 @@ impl oio::Write for EtcdWriter {
 
         self.core.set(&self.path, buf.clone()).await?;
 
-        let mut metadata = Metadata::new(EntryMode::from_path(&self.path));
-        metadata.set_content_length(buf.len() as u64);
+        let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
+        metadata.content_length(buf.len() as u64);
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

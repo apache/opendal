@@ -29,6 +29,14 @@ Operator runtime resources now live in `OperationContext`, which is exported fro
 
 `BytesRange` is now part of the public type layer. Reader APIs accept values convertible into `BytesRange`, and suffix reads can be requested with `BytesRange::suffix(size)`. Code that imported raw HTTP range helpers should use `opendal::BytesRange` instead.
 
+### `Metadata` uses immutable builder-based construction
+
+`Metadata::new`, `Default`, `set_*`, and `with_*` have been removed. Construct metadata with `Metadata::builder(mode)` and call `build()` after setting fields. Consume existing metadata with `into_builder()` when creating a modified value.
+
+`Metadata::user_metadata()` now returns a borrowed `UserMetadata` view instead of `&HashMap<String, String>`. The view supports `get`, `len`, `is_empty`, and `IntoIterator`; collect owned string pairs at boundaries that require a map.
+
+Every file `Metadata` returned through an `Operator` must contain an explicit full-object content length. Raw services that omit it now return `Unexpected` at the completion boundary.
+
 ## Raw API
 
 ### Services and layers use the new composition boundary
@@ -44,6 +52,10 @@ Out-of-tree layers must implement `Layer::apply_service` and, when they replace 
 ### Removed raw helpers
 
 The unused `raw::AtomicContentLength`, `raw::PathCacher`, and `raw::PathQuery` helpers have been removed. The `internal-path-cache` feature has also been removed.
+
+### Raw operation arguments are frozen from public options
+
+Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, `OpList`, and `OpRestore`. Construct non-empty raw arguments by converting the corresponding public `*Options`; `new` and `Default` remain available for empty arguments. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
 
 # Upgrade to v0.57
 

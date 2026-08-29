@@ -240,7 +240,7 @@ impl Service for FsBackend {
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
             core.fs_copy(&from, &to).await?;
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }))
     }
 

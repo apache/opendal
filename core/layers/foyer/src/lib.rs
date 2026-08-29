@@ -431,7 +431,11 @@ mod tests {
         }
 
         fn metadata(&self) -> Metadata {
-            Metadata::new(EntryMode::FILE).with_content_length(self.data.len() as _)
+            {
+                let mut metadata = Metadata::builder(EntryMode::FILE);
+                metadata.content_length(self.data.len() as _);
+                metadata.build()
+            }
         }
 
         fn rp_read(&self) -> RpRead {
@@ -662,7 +666,12 @@ mod tests {
             .apply_service(source);
         let ctx = service_context(&service);
 
-        let args = OpRead::default().with_version("v1").with_if_match("etag-1");
+        let (_, args, _) = options::ReadOptions {
+            version: Some("v1".to_owned()),
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
         let reader = service.read(&ctx, "test", args).unwrap();
         let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
         stream.read_all().await.unwrap();

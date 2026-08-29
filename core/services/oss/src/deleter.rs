@@ -94,10 +94,11 @@ impl oio::BatchDelete for OssDeleter {
 
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::default();
-            if let Some(version) = &i.version_id {
-                op = op.with_version(version);
+            let op = options::DeleteOptions {
+                version: i.version_id,
+                ..Default::default()
             }
+            .into();
             let object = (path, op);
             keys.remove(&object);
             batched_result.succeeded.push(object);

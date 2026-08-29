@@ -310,12 +310,14 @@ impl Service for WebhdfsBackend {
                     .file_status;
 
                 let meta = match file_status.ty {
-                    FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-                    FileStatusType::File => Metadata::new(EntryMode::FILE)
-                        .with_content_length(file_status.length)
-                        .with_last_modified(Timestamp::from_millisecond(
-                            file_status.modification_time,
-                        )?),
+                    FileStatusType::Directory => Metadata::builder(EntryMode::DIR).build(),
+                    FileStatusType::File => {
+                        let mut metadata = Metadata::builder(EntryMode::FILE);
+                        metadata.content_length(file_status.length).last_modified(
+                            Timestamp::from_millisecond(file_status.modification_time)?,
+                        );
+                        metadata.build()
+                    }
                 };
 
                 Ok(RpStat::new(meta))

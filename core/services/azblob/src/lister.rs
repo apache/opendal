@@ -94,7 +94,7 @@ impl oio::PageList for AzblobLister {
         for prefix in prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.name),
-                Metadata::new(EntryMode::DIR),
+                Metadata::builder(EntryMode::DIR).build(),
             );
 
             ctx.entries.push_back(de)
@@ -106,17 +106,16 @@ impl oio::PageList for AzblobLister {
                 path = "/".to_string();
             }
 
-            let meta = Metadata::new(EntryMode::from_path(&path))
-                // Keep fit with ETag header.
-                .with_etag(format!("\"{}\"", object.properties.etag.as_str()))
-                .with_content_length(object.properties.content_length)
-                .with_content_md5(object.properties.content_md5)
-                .with_content_type(object.properties.content_type)
-                .with_last_modified(Timestamp::parse_rfc2822(
+            let mut meta = Metadata::builder(EntryMode::from_path(&path));
+            meta.etag(format!("\"{}\"", object.properties.etag.as_str()))
+                .content_length(object.properties.content_length)
+                .content_md5(object.properties.content_md5)
+                .content_type(object.properties.content_type)
+                .last_modified(Timestamp::parse_rfc2822(
                     object.properties.last_modified.as_str(),
                 )?);
 
-            let de = oio::Entry::with(path, meta);
+            let de = oio::Entry::with(path, meta.build());
             ctx.entries.push_back(de);
         }
 

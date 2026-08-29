@@ -101,7 +101,7 @@ impl oio::PageList for SwiftLister {
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let meta = Metadata::new(EntryMode::DIR);
+                    let meta = Metadata::builder(EntryMode::DIR).build();
                     oio::Entry::with(path, meta)
                 }
                 ListOpResponse::FileInfo {
@@ -115,9 +115,9 @@ impl oio::PageList for SwiftLister {
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let mut meta = Metadata::new(EntryMode::from_path(path.as_str()));
-                    meta.set_content_length(bytes);
-                    meta.set_content_md5(hash.as_str());
+                    let mut meta = Metadata::builder(EntryMode::from_path(path.as_str()));
+                    meta.content_length(bytes);
+                    meta.content_md5(hash.as_str());
 
                     // OpenStack Swift returns time without 'Z' at the end,
                     // which causes an error in parse_datetime_from_rfc3339.
@@ -125,13 +125,13 @@ impl oio::PageList for SwiftLister {
                     if !last_modified.ends_with('Z') {
                         last_modified.push('Z');
                     }
-                    meta.set_last_modified(last_modified.parse::<Timestamp>()?);
+                    meta.last_modified(last_modified.parse::<Timestamp>()?);
 
                     if let Some(content_type) = content_type {
-                        meta.set_content_type(content_type.as_str());
+                        meta.content_type(content_type.as_str());
                     }
 
-                    oio::Entry::with(path, meta)
+                    oio::Entry::with(path, meta.build())
                 }
             };
             ctx.entries.push_back(entry);

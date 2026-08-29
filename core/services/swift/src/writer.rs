@@ -43,17 +43,17 @@ impl SwiftWriter {
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::default();
+        let mut metadata = Metadata::builder(EntryMode::Unknown);
 
         if let Some(etag) = parse_etag(headers)? {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
 
         if let Some(last_modified) = parse_last_modified(headers)? {
-            metadata.set_last_modified(last_modified);
+            metadata.last_modified(last_modified);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 }
 

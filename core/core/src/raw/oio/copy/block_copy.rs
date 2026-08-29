@@ -280,7 +280,10 @@ where
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        Ok(self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build()))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -323,11 +326,15 @@ mod tests {
 
     impl BlockCopy for TestCopy {
         async fn source_metadata(&self) -> Result<Metadata> {
-            Ok(Metadata::default().with_content_length(4))
+            Ok({
+                let mut metadata = Metadata::builder(EntryMode::Unknown);
+                metadata.content_length(4);
+                metadata.build()
+            })
         }
 
         async fn copy_once(&self) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
@@ -350,7 +357,7 @@ mod tests {
                 .into_iter()
                 .map(|block_id| state.ranges[&block_id])
                 .collect();
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {

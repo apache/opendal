@@ -267,13 +267,15 @@ impl Service for MemcachedBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
         } else {
             let bs = self.core.get(&p).await?;
             match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
-                )),
+                Some(bs) => Ok(RpStat::new({
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(bs.len() as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
             }
         }

@@ -353,7 +353,10 @@ where
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        Ok(self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build()))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -398,12 +401,16 @@ mod tests {
     impl MultipartCopy for Arc<TestCopy> {
         async fn source_metadata(&self) -> Result<Metadata> {
             self.source_metadata_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(Metadata::default().with_content_length(self.source_size))
+            Ok({
+                let mut metadata = Metadata::builder(EntryMode::Unknown);
+                metadata.content_length(self.source_size);
+                metadata.build()
+            })
         }
 
         async fn copy_once(&self) -> Result<Metadata> {
             self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn initiate_copy(&self) -> Result<String> {
@@ -426,7 +433,7 @@ mod tests {
         }
 
         async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {

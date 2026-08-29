@@ -158,15 +158,15 @@ impl WebdavCore {
             )
         })?;
 
-        let mut metadata = parse_propstats(&propfind_resp.propstat)?;
+        let mut metadata = parse_propstats(&propfind_resp.propstat)?.into_builder();
 
         // Parse user metadata from the raw XML response using configured namespace
         let user_metadata = parse_user_metadata_from_xml(&xml_str, &self.user_metadata_uri);
         if !user_metadata.is_empty() {
-            metadata = metadata.with_user_metadata(user_metadata);
+            metadata.user_metadata(user_metadata);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
     pub async fn webdav_get(
@@ -829,21 +829,21 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     } else {
         EntryMode::FILE
     };
-    let mut m = Metadata::new(mode);
+    let mut m = Metadata::builder(mode);
 
     if let Some(v) = getcontentlength {
         let content_length = v.parse::<u64>().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
         })?;
-        m.set_content_length(content_length);
+        m.content_length(content_length);
     }
 
     if let Some(v) = getcontenttype {
-        m.set_content_type(v);
+        m.content_type(v);
     }
 
     if let Some(v) = getetag {
-        m.set_etag(v);
+        m.etag(v);
     }
 
     // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
@@ -853,10 +853,10 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
             "propfind response missing getlastmodified",
         ));
     };
-    m.set_last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
+    m.last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
-    Ok(m)
+    Ok(m.build())
 }
 
 pub fn parse_propstats(propstats: &[Propstat]) -> Result<Metadata> {

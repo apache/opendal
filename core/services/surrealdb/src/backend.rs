@@ -266,12 +266,14 @@ impl Service for SurrealdbBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(length) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(length as u64),
-                )),
+                Some(length) => Ok(RpStat::new({
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(length as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in surrealdb")),
             }
         }

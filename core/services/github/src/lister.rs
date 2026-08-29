@@ -56,22 +56,21 @@ impl oio::PageList for GithubLister {
                 let path = build_rel_path(&self.core.root, &entry.path);
                 let entry = if entry.type_field == "dir" {
                     let path = format!("{path}/");
-                    Entry::new(&path, Metadata::new(EntryMode::DIR))
+                    Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
                 } else {
                     if path.ends_with(".gitkeep") {
                         continue;
                     }
-                    let m = Metadata::new(EntryMode::FILE)
-                        .with_content_length(entry.size)
-                        .with_etag(entry.sha);
-                    Entry::new(&path, m)
+                    let mut m = Metadata::builder(EntryMode::FILE);
+                    m.content_length(entry.size).etag(entry.sha);
+                    Entry::new(&path, m.build())
                 };
                 ctx.entries.push_back(entry);
             }
             if !self.path.ends_with('/') {
                 ctx.entries.push_back(Entry::new(
                     &format!("{}/", self.path),
-                    Metadata::new(EntryMode::DIR),
+                    Metadata::builder(EntryMode::DIR).build(),
                 ));
             }
             return Ok(());
@@ -91,24 +90,25 @@ impl oio::PageList for GithubLister {
             };
             let entry = if t.type_field == "tree" {
                 let path = format!("{path}/");
-                Entry::new(&path, Metadata::new(EntryMode::DIR))
+                Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
             } else {
                 if path.ends_with(".gitkeep") {
                     continue;
                 }
-                let mut m = Metadata::new(EntryMode::FILE).with_etag(t.sha);
+                let mut m = Metadata::builder(EntryMode::FILE);
+                m.etag(t.sha);
 
                 if let Some(size) = t.size {
-                    m = m.with_content_length(size);
+                    m.content_length(size);
                 }
-                Entry::new(&path, m)
+                Entry::new(&path, m.build())
             };
             ctx.entries.push_back(entry);
         }
         if !self.path.ends_with('/') {
             ctx.entries.push_back(Entry::new(
                 &format!("{}/", self.path),
-                Metadata::new(EntryMode::DIR),
+                Metadata::builder(EntryMode::DIR).build(),
             ));
         }
 

@@ -241,11 +241,11 @@ impl Service for FtpBackend {
             EntryMode::Unknown
         };
 
-        let mut meta = Metadata::new(mode);
-        meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(Timestamp::try_from(file.modified())?);
+        let mut meta = Metadata::builder(mode);
+        meta.content_length(file.size() as u64);
+        meta.last_modified(Timestamp::try_from(file.modified())?);
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<FtpReader> = {

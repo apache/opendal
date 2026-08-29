@@ -429,7 +429,11 @@ mod tests {
             let mut this = self.lock().await;
             this.length = size;
             this.content = Some(body);
-            Ok(Metadata::default().with_content_length(size))
+            Ok({
+                let mut metadata = Metadata::builder(EntryMode::Unknown);
+                metadata.content_length(size);
+                metadata.build()
+            })
         }
 
         async fn initiate_part(&self) -> Result<String> {
@@ -503,7 +507,11 @@ mod tests {
             assert_eq!(upload_id, test.upload_id);
             assert_eq!(parts.len(), test.part_numbers.len());
 
-            Ok(Metadata::default().with_content_length(test.length))
+            Ok({
+                let mut metadata = Metadata::builder(EntryMode::Unknown);
+                metadata.content_length(test.length);
+                metadata.build()
+            })
         }
 
         async fn abort_part(&self, upload_id: &str) -> Result<()> {

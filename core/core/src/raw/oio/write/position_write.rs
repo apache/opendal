@@ -227,7 +227,7 @@ mod tests {
         }
 
         async fn close(&self, _size: u64) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn abort(&self) -> Result<()> {

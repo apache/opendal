@@ -196,35 +196,35 @@ pub(crate) fn parse_object(object: &Object) -> Metadata {
     } else {
         EntryMode::FILE
     };
-    let mut metadata = Metadata::new(mode);
-    metadata.set_content_length(object.size.max(0) as u64);
+    let mut metadata = Metadata::builder(mode);
+    metadata.content_length(object.size.max(0) as u64);
     if !object.cache_control.is_empty() {
-        metadata.set_cache_control(&object.cache_control);
+        metadata.cache_control(&object.cache_control);
     }
     if !object.content_type.is_empty() {
-        metadata.set_content_type(&object.content_type);
+        metadata.content_type(&object.content_type);
     }
     if !object.content_encoding.is_empty() {
-        metadata.set_content_encoding(&object.content_encoding);
+        metadata.content_encoding(&object.content_encoding);
     }
     if !object.content_disposition.is_empty() {
-        metadata.set_content_disposition(&object.content_disposition);
+        metadata.content_disposition(&object.content_disposition);
     }
     if !object.etag.is_empty() {
-        metadata.set_etag(&object.etag);
+        metadata.etag(&object.etag);
     }
     if object.generation != 0 {
-        metadata.set_version(&object.generation.to_string());
+        metadata.version(object.generation.to_string());
     }
     if !object.metadata.is_empty() {
-        metadata = metadata.with_user_metadata(object.metadata.clone());
+        metadata.user_metadata(object.metadata.clone());
     }
     if let Some(ts) = object.update_time.as_ref().or(object.create_time.as_ref())
         && let Ok(ts) = Timestamp::new(ts.seconds, ts.nanos)
     {
-        metadata.set_last_modified(ts);
+        metadata.last_modified(ts);
     }
-    metadata
+    metadata.build()
 }
 
 #[cfg(test)]

@@ -87,7 +87,7 @@ impl Service for OpfsBackend {
 
         if p.ends_with('/') {
             get_directory_handle(&p, false).await?;
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         // File: get metadata via getFile().
@@ -97,10 +97,10 @@ impl Service for OpfsBackend {
             .and_then(JsCast::dyn_into)
             .map_err(parse_js_error)?;
 
-        let mut meta = Metadata::new(EntryMode::FILE);
-        meta.set_content_length(file.size() as u64);
+        let mut meta = Metadata::builder(EntryMode::FILE);
+        meta.content_length(file.size() as u64);
         if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
-            meta.set_last_modified(t);
+            meta.last_modified(t);
         }
 
         Ok(RpStat::new(meta))

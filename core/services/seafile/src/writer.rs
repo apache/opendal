@@ -50,7 +50,7 @@ impl oio::OneShotWrite for SeafileWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("UploadFile")),
                 resp,

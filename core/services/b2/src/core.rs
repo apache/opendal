@@ -340,7 +340,7 @@ impl B2Core {
         // B2 uses fileInfo field for custom file info in start_large_file API.
         if let Some(user_metadata) = args.user_metadata() {
             let file_info: HashMap<String, String> = user_metadata
-                .iter()
+                .into_iter()
                 .map(|(k, v)| (k.to_string(), percent_encode_path(v)))
                 .collect();
             start_large_file_request.file_info = Some(file_info);
@@ -798,19 +798,19 @@ pub struct File {
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {
     if file.file_name.ends_with('/') {
-        return Metadata::new(EntryMode::DIR);
+        return Metadata::builder(EntryMode::DIR).build();
     }
 
-    let mut metadata = Metadata::new(EntryMode::FILE);
+    let mut metadata = Metadata::builder(EntryMode::FILE);
 
-    metadata.set_content_length(file.content_length);
+    metadata.content_length(file.content_length);
 
     if let Some(content_md5) = &file.content_md5 {
-        metadata.set_content_md5(content_md5);
+        metadata.content_md5(content_md5);
     }
 
     if let Some(content_type) = &file.content_type {
-        metadata.set_content_type(content_type);
+        metadata.content_type(content_type);
     }
 
     // Parse user metadata from file_info
@@ -823,11 +823,11 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
             .map(|(k, v)| (k.to_lowercase(), percent_decode_path(v)))
             .collect();
         if !user_metadata.is_empty() {
-            metadata = metadata.with_user_metadata(user_metadata);
+            metadata.user_metadata(user_metadata);
         }
     }
 
-    metadata
+    metadata.build()
 }
 
 #[derive(Debug, Serialize)]

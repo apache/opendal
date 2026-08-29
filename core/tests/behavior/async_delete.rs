@@ -18,7 +18,6 @@
 use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
-use opendal::raw::OpDelete;
 
 use crate::*;
 
@@ -424,7 +423,11 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
             .expect("write must succeed");
         let meta = op.stat(path.as_str()).await.expect("stat must succeed");
         let version = meta.version().expect("must have version");
-        let op_args = OpDelete::new().with_version(version);
+        let op_args = options::DeleteOptions {
+            version: Some(version.to_owned()),
+            ..Default::default()
+        }
+        .into();
         files.push((path, op_args));
     }
 
@@ -540,11 +543,19 @@ pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
         .delete_iter([
             (
                 matching_path.clone(),
-                OpDelete::new().with_if_match(&matching_etag),
+                options::DeleteOptions {
+                    if_match: Some(matching_etag.clone()),
+                    ..Default::default()
+                }
+                .into(),
             ),
             (
                 stale_path.clone(),
-                OpDelete::new().with_if_match(&stale_etag),
+                options::DeleteOptions {
+                    if_match: Some(stale_etag.clone()),
+                    ..Default::default()
+                }
+                .into(),
             ),
         ])
         .await
@@ -617,11 +628,19 @@ pub async fn test_batch_delete_with_if_none_match(op: Operator) -> Result<()> {
     op.delete_iter([
         (
             path.clone(),
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            }
+            .into(),
         ),
         (
             missing_path,
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            }
+            .into(),
         ),
     ])
     .await?;

@@ -46,7 +46,12 @@ impl FsWriter {
 
         // Store user metadata for later use on Unix systems.
         #[cfg(unix)]
-        let user_metadata = op.user_metadata().cloned();
+        let user_metadata = op.user_metadata().map(|metadata| {
+            metadata
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                .collect()
+        });
 
         // Quick path while atomic_write_dir is not set.
         if core.atomic_write_dir.is_none() {
@@ -123,12 +128,12 @@ impl oio::Write for FsWriter {
         }
 
         let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
-        let meta = Metadata::new(EntryMode::FILE)
-            .with_content_length(file_meta.len())
-            .with_last_modified(Timestamp::try_from(
+        let mut meta = Metadata::builder(EntryMode::FILE);
+        meta.content_length(file_meta.len())
+            .last_modified(Timestamp::try_from(
                 file_meta.modified().map_err(new_std_io_error)?,
             )?);
-        Ok(meta)
+        Ok(meta.build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -205,12 +210,12 @@ impl oio::PositionWrite for FsWriter {
         } else {
             EntryMode::Unknown
         };
-        let meta = Metadata::new(mode)
-            .with_content_length(file_meta.len())
-            .with_last_modified(Timestamp::try_from(
+        let mut meta = Metadata::builder(mode);
+        meta.content_length(file_meta.len())
+            .last_modified(Timestamp::try_from(
                 file_meta.modified().map_err(new_std_io_error)?,
             )?);
-        Ok(meta)
+        Ok(meta.build())
     }
 
     async fn abort(&self) -> Result<()> {

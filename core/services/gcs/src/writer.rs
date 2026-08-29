@@ -163,14 +163,14 @@ impl oio::MultipartWrite for GcsWriter {
                 resp,
             ));
         }
-        let mut metadata = Metadata::new(EntryMode::from_path(&self.path));
+        let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
         if let Some(etag) = parse_etag(resp.headers())? {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
         if let Some(generation) = parse_header_to_str(resp.headers(), X_GOOG_GENERATION)? {
-            metadata.set_version(generation);
+            metadata.version(generation);
         }
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {

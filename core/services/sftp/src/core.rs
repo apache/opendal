@@ -226,19 +226,19 @@ mod utils {
             })
             .unwrap_or(EntryMode::Unknown);
 
-        let mut metadata = Metadata::new(mode);
+        let mut metadata = Metadata::builder(mode);
 
         if let Some(size) = meta.len() {
-            metadata.set_content_length(size);
+            metadata.content_length(size);
         }
 
         if let Some(modified) = meta.modified()
             && let Ok(m) = Timestamp::try_from(modified.as_system_time())
         {
-            metadata.set_last_modified(m);
+            metadata.last_modified(m);
         }
 
-        metadata
+        metadata.build()
     }
 }
 

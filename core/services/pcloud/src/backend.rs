@@ -308,7 +308,7 @@ impl Service for PcloudBackend {
                     } else if result != 0 {
                         Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
                     } else {
-                        Ok(Metadata::default())
+                        Ok(Metadata::builder(EntryMode::Unknown).build())
                     }
                 }
                 _ => Err(parse_error(

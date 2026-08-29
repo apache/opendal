@@ -122,23 +122,7 @@ impl ReadContext {
             return Ok(v);
         }
 
-        let mut op_stat = OpStat::new();
-
-        if let Some(v) = self.args().version() {
-            op_stat = op_stat.with_version(v);
-        }
-        if let Some(v) = self.args().if_match() {
-            op_stat = op_stat.with_if_match(v);
-        }
-        if let Some(v) = self.args().if_none_match() {
-            op_stat = op_stat.with_if_none_match(v);
-        }
-        if let Some(v) = self.args().if_modified_since() {
-            op_stat = op_stat.with_if_modified_since(v);
-        }
-        if let Some(v) = self.args().if_unmodified_since() {
-            op_stat = op_stat.with_if_unmodified_since(v);
-        }
+        let op_stat = OpStat::from_read(self.args());
 
         Ok(self
             .srv

@@ -101,8 +101,10 @@ impl GcsGrpcLister {
                 continue;
             }
             let path = build_rel_path(&self.core.root, &prefix);
-            self.entries
-                .push_back(oio::Entry::with(path, Metadata::new(EntryMode::DIR)));
+            self.entries.push_back(oio::Entry::with(
+                path,
+                Metadata::builder(EntryMode::DIR).build(),
+            ));
         }
         Ok(())
     }

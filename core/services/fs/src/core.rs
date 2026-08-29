@@ -110,9 +110,9 @@ impl FsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(Timestamp::try_from(
+        let mut m = Metadata::builder(mode);
+        m.content_length(meta.len())
+            .last_modified(Timestamp::try_from(
                 meta.modified().map_err(new_std_io_error)?,
             )?);
 
@@ -121,11 +121,11 @@ impl FsCore {
         {
             let user_metadata = Self::get_user_metadata(&p)?;
             if !user_metadata.is_empty() {
-                m = m.with_user_metadata(user_metadata);
+                m.user_metadata(user_metadata);
             }
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 
     pub async fn fs_open(&self, path: &str) -> Result<File> {

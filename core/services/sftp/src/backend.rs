@@ -317,7 +317,7 @@ impl Service for SftpBackend {
                 .await
                 .map_err(parse_sftp_error)?;
 
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }))
     }
 

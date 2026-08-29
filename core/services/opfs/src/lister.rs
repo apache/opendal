@@ -94,6 +94,9 @@ impl oio::List for OpfsLister {
             (format!("{}{}", self.path, name), EntryMode::FILE)
         };
 
-        Ok(Some(oio::Entry::new(&entry_path, Metadata::new(mode))))
+        Ok(Some(oio::Entry::new(
+            &entry_path,
+            Metadata::builder(mode).build(),
+        )))
     }
 }

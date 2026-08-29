@@ -96,7 +96,29 @@ fn opwrite_with_mime(path: &str, op: OpWrite) -> OpWrite {
     }
 
     if let Some(mime) = mime_from_path(path) {
-        return op.with_content_type(mime);
+        let (op, _) = options::WriteOptions {
+            append: op.append(),
+            concurrent: op.concurrent(),
+            content_type: Some(mime.to_owned()),
+            content_disposition: op.content_disposition().map(str::to_owned),
+            content_encoding: op.content_encoding().map(str::to_owned),
+            cache_control: op.cache_control().map(str::to_owned),
+            if_match: op.if_match().map(str::to_owned),
+            if_none_match: op.if_none_match().map(str::to_owned),
+            if_version_match: op.if_version_match().map(str::to_owned),
+            if_version_not_match: op.if_version_not_match().map(str::to_owned),
+            if_not_exists: op.if_not_exists(),
+            if_not_changed: op.if_not_changed(),
+            user_metadata: op.user_metadata().map(|metadata| {
+                metadata
+                    .into_iter()
+                    .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                    .collect()
+            }),
+            ..Default::default()
+        }
+        .into();
+        return op;
     }
 
     op
@@ -109,7 +131,9 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
         }
 
         if let Some(mime) = mime_from_path(path) {
-            return metadata.with_content_type(mime.into());
+            let mut metadata = metadata.into_builder();
+            metadata.content_type(mime);
+            return metadata.build();
         }
 
         metadata

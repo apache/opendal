@@ -49,19 +49,19 @@ impl B2Writer {
     }
 
     pub fn parse_body_into_meta(path: &str, resp: UploadResponse) -> Metadata {
-        let mut meta = Metadata::new(EntryMode::from_path(path));
+        let mut meta = Metadata::builder(EntryMode::from_path(path));
 
         if let Some(md5) = resp.content_md5 {
-            meta.set_content_md5(&md5);
+            meta.content_md5(&md5);
         }
 
         if let Some(content_type) = resp.content_type {
-            meta.set_content_type(&content_type);
+            meta.content_type(&content_type);
         }
 
-        meta.set_content_length(resp.content_length);
+        meta.content_length(resp.content_length);
 
-        meta
+        meta.build()
     }
 }
 

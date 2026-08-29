@@ -48,7 +48,10 @@ impl oio::List for MemoryLister {
                 if path.is_empty() {
                     path = "/".to_string();
                 }
-                Ok(Some(oio::Entry::new(&path, Metadata::new(mode))))
+                Ok(Some(oio::Entry::new(
+                    &path,
+                    Metadata::builder(mode).build(),
+                )))
             }
             None => Ok(None),
         }

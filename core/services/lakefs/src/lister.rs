@@ -96,16 +96,16 @@ impl oio::PageList for LakefsLister {
                 _ => EntryMode::Unknown,
             };
 
-            let mut meta = Metadata::new(entry_type);
+            let mut meta = Metadata::builder(entry_type);
 
             if status.mtime != 0 {
-                meta.set_last_modified(Timestamp::from_second(status.mtime).unwrap());
+                meta.last_modified(Timestamp::from_second(status.mtime).unwrap());
             }
 
             if entry_type == EntryMode::FILE
                 && let Some(size_bytes) = status.size_bytes
             {
-                meta.set_content_length(size_bytes);
+                meta.content_length(size_bytes);
             }
 
             let path = if entry_type == EntryMode::DIR {
@@ -116,7 +116,7 @@ impl oio::PageList for LakefsLister {
 
             ctx.entries.push_back(oio::Entry::new(
                 &build_rel_path(&self.core.root, &path),
-                meta,
+                meta.build(),
             ));
         }
 

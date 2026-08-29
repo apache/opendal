@@ -141,11 +141,12 @@ impl oio::PageList for OneDriveLister {
                 continue;
             }
 
-            let mut meta = Metadata::new(entry_mode)
-                .with_etag(drive_item.e_tag)
-                .with_content_length(drive_item.size.max(0) as u64);
+            let mut meta = Metadata::builder(entry_mode);
+            meta.etag(drive_item.e_tag)
+                .content_length(drive_item.size.max(0) as u64);
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
-            meta.set_last_modified(last_modified);
+            meta.last_modified(last_modified);
+            let meta = meta.build();
 
             // OneDrive doesn't support expanding versions while listing a directory.
             // Query each file separately when callers request versions.
@@ -162,20 +163,20 @@ impl oio::PageList for OneDriveLister {
                 }
 
                 for (index, version) in versions.into_iter().enumerate() {
-                    let mut version_meta =
-                        Metadata::new(entry_mode).with_content_length(version.size.max(0) as u64);
+                    let mut version_meta = Metadata::builder(entry_mode);
+                    version_meta.content_length(version.size.max(0) as u64);
                     version_meta
-                        .set_last_modified(version.last_modified_date_time.parse::<Timestamp>()?);
-                    version_meta.set_version(&version.id);
-                    version_meta.set_is_current(index == 0);
+                        .last_modified(version.last_modified_date_time.parse::<Timestamp>()?);
+                    version_meta.version(&version.id);
+                    version_meta.is_current(Some(index == 0));
 
                     // OneDrive exposes the ETag only for the current item.
                     if index == 0 {
-                        version_meta.set_etag(meta.etag().unwrap_or_default());
+                        version_meta.etag(meta.etag().unwrap_or_default());
                     }
 
                     ctx.entries
-                        .push_back(oio::Entry::new(&normalized_path, version_meta));
+                        .push_back(oio::Entry::new(&normalized_path, version_meta.build()));
                 }
             } else {
                 ctx.entries

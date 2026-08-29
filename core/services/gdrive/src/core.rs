@@ -649,7 +649,7 @@ fn revive_recent_parent_dirs(entries: &mut GdriveRecentState, path: &str, expire
                 &parent,
                 EntryMode::DIR,
                 GdriveRecentEntry {
-                    metadata: Some(Metadata::new(EntryMode::DIR)),
+                    metadata: Some(Metadata::builder(EntryMode::DIR).build()),
                     expires_at,
                 },
             );
@@ -954,15 +954,19 @@ mod tests {
     async fn test_recent_entries_for_direct_list() {
         let core = mock_gdrive_core();
 
+        core.record_recent_upsert("parent/file.txt", {
+            let mut metadata = Metadata::builder(EntryMode::FILE);
+            metadata.content_length(5);
+            metadata.build()
+        })
+        .await;
+        core.record_recent_upsert("parent/dir/", Metadata::builder(EntryMode::DIR).build())
+            .await;
         core.record_recent_upsert(
-            "parent/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(5),
+            "parent/nested/file.txt",
+            Metadata::builder(EntryMode::FILE).build(),
         )
         .await;
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
-            .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
-            .await;
         core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
             .await;
 
@@ -982,13 +986,19 @@ mod tests {
     async fn test_recent_entries_for_recursive_prefix_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert(
+            "parent/file.txt",
+            Metadata::builder(EntryMode::FILE).build(),
+        )
+        .await;
+        core.record_recent_upsert(
+            "parent/nested/file.txt",
+            Metadata::builder(EntryMode::FILE).build(),
+        )
+        .await;
+        core.record_recent_upsert("prefix", Metadata::builder(EntryMode::FILE).build())
             .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_upsert("prefix", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_upsert("prefix-child", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("prefix-child", Metadata::builder(EntryMode::FILE).build())
             .await;
 
         let parent_entries = core.recent_entries_for_list("parent/", true).await;
@@ -1019,7 +1029,7 @@ mod tests {
     async fn test_recent_entry_for_dir_alias() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+        core.record_recent_upsert("parent/dir/", Metadata::builder(EntryMode::DIR).build())
             .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1032,10 +1042,11 @@ mod tests {
     async fn test_recent_tombstone_hides_descendants_until_recreated() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/dir/stale.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/stale.txt", {
+            let mut metadata = Metadata::builder(EntryMode::FILE);
+            metadata.content_length(1);
+            metadata.build()
+        })
         .await;
         core.record_recent_delete("parent/dir/", EntryMode::DIR)
             .await;
@@ -1055,10 +1066,11 @@ mod tests {
             other => panic!("unexpected state for stale child: {other:?}"),
         }
 
-        core.record_recent_upsert(
-            "parent/dir/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/file.txt", {
+            let mut metadata = Metadata::builder(EntryMode::FILE);
+            metadata.content_length(1);
+            metadata.build()
+        })
         .await;
 
         match core.recent_entry_for_path("parent/dir").await {

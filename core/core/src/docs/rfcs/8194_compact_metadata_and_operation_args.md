@@ -1,7 +1,7 @@
 - Proposal Name: `compact_metadata_and_operation_args`
 - Start Date: 2026-08-29
 - RFC PR: [apache/opendal#8194](https://github.com/apache/opendal/pull/8194)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#8195](https://github.com/apache/opendal/issues/8195)
 
 # Summary
 
@@ -262,10 +262,10 @@ struct MetadataHeader {
 struct MetadataFlags(u16);
 ```
 
-`MetadataFlags` encodes mode, scalar presence, deletion state, the three states
-of `is_current`, and whether user metadata was supplied. Separate seconds and
-nanoseconds preserve the range and precision of the existing `last_modified`
-field.
+`MetadataFlags` encodes mode, scalar presence, deletion state, and the three
+states of `is_current`. The value-block bitmap distinguishes absent user
+metadata from an explicitly empty map. Separate seconds and nanoseconds preserve
+the range and precision of the existing `last_modified` field.
 
 On 64-bit targets, `MetadataHeader` is 24 bytes. `Arc<[u8]>` is a 16-byte fat
 pointer, and `Option<Arc<[u8]>>` has the same size because `None` uses the null
@@ -440,5 +440,6 @@ empty-versus-absent user metadata, field-for-field options conversion,
 dispatch-time conditional lowering, and required file content length. Boundary
 tests prove that a `u16::MAX`-byte block succeeds and the next byte panics before
 encoding. Prototype benchmarks cover construction, retained heap, lookup, clone,
-builder transformation, raw operations, and scalar placement. The implementation
-must check in equivalent benchmarks with the optimized types.
+builder transformation, raw operations, and scalar placement. Their results stay
+in this RFC; the long-term test suite keeps the layout and behavioral invariants
+without carrying the prototype benchmark harness or rejected representations.

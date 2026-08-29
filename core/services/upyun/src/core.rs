@@ -517,7 +517,7 @@ pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
         EntryMode::DIR
     };
 
-    let mut m = Metadata::new(mode);
+    let mut m = Metadata::builder(mode);
 
     if let Some(v) = parse_header_to_str(headers, X_UPYUN_FILE_SIZE)? {
         let size = v.parse::<u64>().map_err(|e| {
@@ -525,26 +525,26 @@ pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
                 .with_operation("parse_info")
                 .set_source(e)
         })?;
-        m.set_content_length(size);
+        m.content_length(size);
     }
 
     if let Some(v) = parse_content_type(headers)? {
-        m.set_content_type(v);
+        m.content_type(v);
     }
 
     if let Some(v) = parse_content_md5(headers)? {
-        m.set_content_md5(v);
+        m.content_md5(v);
     }
 
     if let Some(v) = parse_header_to_str(headers, X_UPYUN_CACHE_CONTROL)? {
-        m.set_cache_control(v);
+        m.cache_control(v);
     }
 
     if let Some(v) = parse_header_to_str(headers, X_UPYUN_CONTENT_DISPOSITION)? {
-        m.set_content_disposition(v);
+        m.content_disposition(v);
     }
 
-    Ok(m)
+    Ok(m.build())
 }
 
 pub fn format_md5(bs: &[u8]) -> String {

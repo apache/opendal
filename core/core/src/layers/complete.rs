@@ -120,7 +120,9 @@ impl Service for CompleteService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(ctx, path, args).await
+        let metadata = self.inner.stat(ctx, path, args).await?.into_metadata();
+        ensure_file_content_length(&metadata, "CompleteService::stat")?;
+        Ok(RpStat::new(metadata))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -153,13 +155,14 @@ impl CompleteLister {
         Self { inner, ctx, srv }
     }
 
-    async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
+    async fn ensure_file_content_length(&self, entry: oio::Entry) -> Result<oio::Entry> {
         let path = entry.path().to_string();
         let version = entry.metadata().version().map(str::to_owned);
-        let mut op = OpStat::new();
-        if let Some(version) = version.as_deref() {
-            op = op.with_version(version);
+        let op = options::StatOptions {
+            version,
+            ..Default::default()
         }
+        .into();
 
         let stat_metadata = self.srv.stat(&self.ctx, &path, op).await?.into_metadata();
         if !stat_metadata.has_content_length() {
@@ -172,17 +175,17 @@ impl CompleteLister {
             .with_context("path", path));
         }
 
-        entry
-            .metadata_mut()
-            .set_content_length(stat_metadata.content_length());
-        Ok(())
+        let (path, metadata) = entry.into_parts();
+        let mut builder = metadata.into_builder();
+        builder.content_length(stat_metadata.content_length());
+        Ok(oio::Entry::with(path, builder.build()))
     }
 }
 
 impl oio::List for CompleteLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            let Some(mut entry) = self.inner.next().await? else {
+            let Some(entry) = self.inner.next().await? else {
                 return Ok(None);
             };
 
@@ -193,8 +196,8 @@ impl oio::List for CompleteLister {
                 return Ok(Some(entry));
             }
 
-            match self.ensure_file_content_length(&mut entry).await {
-                Ok(()) => return Ok(Some(entry)),
+            match self.ensure_file_content_length(entry).await {
+                Ok(entry) => return Ok(Some(entry)),
                 Err(err) if err.kind() == ErrorKind::NotFound => continue,
                 Err(err) => return Err(err),
             }
@@ -219,12 +222,14 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
         } else {
             range.size()
         };
-        self.inner.open(range).await.map(|(rp, stream)| {
-            (
-                rp,
-                Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
-            )
-        })
+        let (rp, stream) = self.inner.open(range).await?;
+        if let Some(metadata) = rp.metadata() {
+            ensure_file_content_length(metadata, "CompleteReader::open")?;
+        }
+        Ok((
+            rp,
+            Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
@@ -234,9 +239,23 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
             range.size()
         };
         let (rp, buffer) = self.inner.read(range).await?;
+        if let Some(metadata) = rp.metadata() {
+            ensure_file_content_length(metadata, "CompleteReader::read")?;
+        }
         check_complete(size, buffer.len() as u64)?;
         Ok((rp, buffer))
     }
+}
+
+fn ensure_file_content_length(metadata: &Metadata, operation: &'static str) -> Result<()> {
+    if metadata.is_file() && !metadata.has_content_length() {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "file metadata does not contain a content length",
+        )
+        .with_operation(operation));
+    }
+    Ok(())
 }
 
 pub struct CompleteReadStream<R> {
@@ -420,15 +439,19 @@ where
 
         // we must return `Err` before setting inner to None; otherwise,
         // we won't be able to retry `close` in `RetryLayer`.
-        let mut ret = w
+        let ret = w
             .close()
             .await
             .inspect_err(|_| self.state.transition(CompleteState::Error))?;
         self.check(ret.content_length())
             .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        if ret.content_length() == 0 {
-            ret = ret.with_content_length(self.size);
-        }
+        let ret = if ret.content_length() == 0 {
+            let mut builder = ret.into_builder();
+            builder.content_length(self.size);
+            builder.build()
+        } else {
+            ret
+        };
         self.inner = None;
         self.state.transition(CompleteState::Closed);
 
@@ -467,7 +490,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(Metadata::builder(EntryMode::Unknown).build())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -486,9 +509,11 @@ mod tests {
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
             Ok((
-                RpRead::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(self.buffer.len() as u64),
-                ),
+                RpRead::new({
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(self.buffer.len() as u64);
+                    metadata.build()
+                }),
                 self.buffer.clone(),
             ))
         }
@@ -520,6 +545,25 @@ mod tests {
             .expect_err("read should reject extra buffer");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[test]
+    fn test_file_metadata_requires_content_length() {
+        let metadata = Metadata::builder(EntryMode::FILE).build();
+        let err = ensure_file_content_length(&metadata, "test")
+            .expect_err("file metadata without content length should fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut metadata = Metadata::builder(EntryMode::FILE);
+        metadata.content_length(0);
+        ensure_file_content_length(&metadata.build(), "test").unwrap();
+    }
+
+    #[test]
+    fn test_directory_metadata_reports_zero_without_file_validation() {
+        let metadata = Metadata::builder(EntryMode::DIR).build();
+        ensure_file_content_length(&metadata, "test").unwrap();
+        assert_eq!(metadata.content_length(), 0);
     }
 
     #[tokio::test]

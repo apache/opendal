@@ -25,6 +25,7 @@ use http::StatusCode;
 use super::core::parse_error;
 use super::core::*;
 use opendal_core::Buffer;
+use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
@@ -53,20 +54,20 @@ impl CosWriter {
     }
 
     fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::default();
+        let mut meta = Metadata::builder(EntryMode::Unknown);
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            meta.etag(etag);
         }
         if let Some(md5) = parse_content_md5(headers)? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
             && version != "null"
         {
-            meta.set_version(version);
+            meta.version(version);
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 
@@ -178,17 +179,17 @@ impl oio::MultipartWrite for CosWriter {
             .cos_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
             .await?;
 
-        let mut meta = Self::parse_metadata(resp.headers())?;
+        let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 
         let result: CompleteMultipartUploadResult =
             quick_xml::de::from_reader(resp.body_mut().reader())
                 .map_err(new_xml_deserialize_error)?;
-        meta.set_etag(&result.etag);
+        meta.etag(&result.etag);
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(meta),
+            StatusCode::OK => Ok(meta.build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,

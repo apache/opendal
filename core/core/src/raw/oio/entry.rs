@@ -25,11 +25,18 @@ use crate::*;
 ///
 /// - `crate::Entry` is the user's public API and have less public methods.
 /// - `oio::Entry` is the raw API and doesn't expose to users.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Entry {
-    path: String,
     meta: Metadata,
 }
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool {
+        self.path() == other.path() && self.meta == other.meta
+    }
+}
+
+impl Eq for Entry {}
 
 impl Entry {
     /// Create a new entry by its corresponding underlying storage.
@@ -51,18 +58,26 @@ impl Entry {
             path
         );
 
-        Entry { path, meta }
+        let mut builder = meta.into_builder();
+        builder.path(path);
+        Entry {
+            meta: builder.build(),
+        }
     }
 
     /// Set path for entry.
     pub fn set_path(&mut self, path: &str) -> &mut Self {
-        self.path = path.to_string();
+        let mut builder = self.meta.clone().into_builder();
+        builder.path(path);
+        self.meta = builder.build();
         self
     }
 
     /// Get the path of entry.
     pub fn path(&self) -> &str {
-        &self.path
+        self.meta
+            .path()
+            .expect("listed entry metadata contains its path")
     }
 
     /// Set mode for entry.
@@ -71,7 +86,9 @@ impl Entry {
     ///
     /// Please use this function carefully.
     pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
-        self.meta.set_mode(mode);
+        let mut builder = self.meta.clone().into_builder();
+        builder.mode(mode);
+        self.meta = builder.build();
         self
     }
 
@@ -84,7 +101,7 @@ impl Entry {
     ///
     /// NOTE: implement this by hand to avoid leaking raw entry to end-users.
     pub(crate) fn into_entry(self) -> crate::Entry {
-        crate::Entry::new(self.path, self.meta)
+        crate::Entry::from_metadata(self.meta)
     }
 
     /// Get metadata of entry.
@@ -92,13 +109,22 @@ impl Entry {
         &self.meta
     }
 
-    /// Get mutable metadata of entry.
-    pub fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.meta
-    }
-
     /// Consume this entry to get its path and metadata.
     pub fn into_parts(self) -> (String, Metadata) {
-        (self.path, self.meta)
+        (self.path().to_string(), self.meta)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entry_equality_includes_path() {
+        let metadata = Metadata::builder(EntryMode::FILE).build();
+        assert_ne!(
+            Entry::new("first", metadata.clone()),
+            Entry::new("second", metadata)
+        );
     }
 }

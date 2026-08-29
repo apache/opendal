@@ -44,8 +44,11 @@ impl oio::StreamRead for RedisReader {
             // Full read - use GET
             match backend.core.get(&p).await? {
                 Some(bs) => {
-                    let metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+                    let metadata = {
+                        let mut metadata = Metadata::builder(EntryMode::FILE);
+                        metadata.content_length(bs.len() as u64);
+                        metadata.build()
+                    };
                     (bs, Some(metadata))
                 }
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
@@ -76,8 +79,11 @@ impl oio::StreamRead for RedisReader {
                     }
                 }
             };
-            let metadata =
-                Metadata::new(EntryMode::FILE).with_content_length(content_length as u64);
+            let metadata = {
+                let mut metadata = Metadata::builder(EntryMode::FILE);
+                metadata.content_length(content_length as u64);
+                metadata.build()
+            };
             (buffer, Some(metadata))
         };
 

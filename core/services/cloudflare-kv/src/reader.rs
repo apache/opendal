@@ -139,7 +139,11 @@ impl oio::StreamRead for CloudflareKvReader {
 
         let total_size = resp_body.len() as u64;
         let buffer = resp_body.slice(range.to_content_range(resp_body.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        let metadata = {
+            let mut metadata = Metadata::builder(EntryMode::FILE);
+            metadata.content_length(total_size);
+            metadata.build()
+        };
         Ok((
             RpRead::new(metadata),
             Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,

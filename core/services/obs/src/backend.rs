@@ -301,7 +301,7 @@ impl Service for ObsBackend {
         // The response is very similar to azblob.
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, headers)?;
+                let meta = parse_into_metadata(path, headers)?;
                 let user_meta = headers
                     .iter()
                     .filter_map(|(name, _)| {
@@ -315,18 +315,19 @@ impl Service for ObsBackend {
                     })
                     .collect::<HashMap<_, _>>();
 
+                let mut meta = meta.into_builder();
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
@@ -410,7 +411,7 @@ impl Service for ObsBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

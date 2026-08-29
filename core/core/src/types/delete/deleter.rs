@@ -103,7 +103,7 @@ impl Deleter {
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let input = input.into_delete_input();
-        let mut opts = options::DeleteOptions {
+        let opts = options::DeleteOptions {
             version: input.version,
             recursive: input.recursive,
             if_match: input.if_match,
@@ -112,11 +112,12 @@ impl Deleter {
             if_version_not_match: input.if_version_not_match,
             if_not_changed: input.if_not_changed,
         };
-        if let Some(metadata) = opts.if_not_changed.take() {
+        let mut op: OpDelete = opts.into();
+        if op.has_if_not_changed() {
             if self.capability.delete_with_if_version_match
-                && let Some(version) = metadata.version()
+                && let Some(version) = op.if_not_changed_version()
             {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
+                if let Some(explicit) = op.if_version_match() {
                     if explicit != version {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -125,12 +126,12 @@ impl Deleter {
                         .with_operation(Operation::Delete.into_static()));
                     }
                 } else {
-                    opts.if_version_match = Some(version.to_string());
+                    op.set_if_version_match_from_if_not_changed();
                 }
             } else if self.capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
+                && let Some(etag) = op.if_not_changed_etag()
             {
-                if let Some(explicit) = opts.if_match.as_deref() {
+                if let Some(explicit) = op.if_match() {
                     if explicit != etag {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -139,7 +140,7 @@ impl Deleter {
                         .with_operation(Operation::Delete.into_static()));
                     }
                 } else {
-                    opts.if_match = Some(etag.to_string());
+                    op.set_if_match_from_if_not_changed();
                 }
             } else if !self.capability.delete_with_if_version_match
                 && !self.capability.delete_with_if_match
@@ -160,8 +161,6 @@ impl Deleter {
                 .with_operation(Operation::Delete.into_static()));
             }
         }
-        let op = opts.into();
-
         self.deleter.delete(&input.path, op).await?;
         Ok(())
     }

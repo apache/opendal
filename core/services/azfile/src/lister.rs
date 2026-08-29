@@ -72,7 +72,7 @@ impl oio::PageList for AzfileLister {
 
         // Return self at the first page.
         if ctx.token.is_empty() && !ctx.done {
-            let e = oio::Entry::new(&self.path, Metadata::new(EntryMode::DIR));
+            let e = oio::Entry::new(&self.path, Metadata::builder(EntryMode::DIR).build());
             ctx.entries.push_back(e);
         }
 
@@ -88,22 +88,22 @@ impl oio::PageList for AzfileLister {
         }
 
         for file in results.entries.file {
-            let mut meta = Metadata::new(EntryMode::FILE)
-                .with_etag(file.properties.etag)
-                .with_last_modified(Timestamp::parse_rfc2822(&file.properties.last_modified)?);
+            let mut meta = Metadata::builder(EntryMode::FILE);
+            meta.etag(file.properties.etag)
+                .last_modified(Timestamp::parse_rfc2822(&file.properties.last_modified)?);
             if let Some(size) = file.properties.content_length {
-                meta.set_content_length(size);
+                meta.content_length(size);
             }
             let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
-            ctx.entries.push_back(oio::Entry::new(&path, meta));
+            ctx.entries.push_back(oio::Entry::new(&path, meta.build()));
         }
 
         for dir in results.entries.directory {
-            let meta = Metadata::new(EntryMode::DIR)
-                .with_etag(dir.properties.etag)
-                .with_last_modified(Timestamp::parse_rfc2822(&dir.properties.last_modified)?);
+            let mut meta = Metadata::builder(EntryMode::DIR);
+            meta.etag(dir.properties.etag)
+                .last_modified(Timestamp::parse_rfc2822(&dir.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &dir.name + "/";
-            ctx.entries.push_back(oio::Entry::new(&path, meta));
+            ctx.entries.push_back(oio::Entry::new(&path, meta.build()));
         }
 
         Ok(())

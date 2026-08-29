@@ -68,14 +68,14 @@ impl HdfsNativeCore {
             EntryMode::FILE
         };
 
-        let mut metadata = Metadata::new(mode);
+        let mut metadata = Metadata::builder(mode);
         metadata
-            .set_last_modified(Timestamp::from_millisecond(
+            .last_modified(Timestamp::from_millisecond(
                 status.modification_time as i64,
             )?)
-            .set_content_length(status.length as u64);
+            .content_length(status.length as u64);
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
     pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {

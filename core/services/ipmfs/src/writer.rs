@@ -43,7 +43,9 @@ impl oio::OneShotWrite for IpmfsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => {
+                Ok(Metadata::builder(EntryMode::Unknown).build())
+            }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Add")),
                 resp,

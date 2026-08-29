@@ -64,8 +64,10 @@ impl oio::PageList for GoosefsLister {
                 // no "self" entry in OpenDAL semantics, so we skip the
                 // synthesis for it.
                 if !self.path.is_empty() && self.path.ends_with('/') {
-                    ctx.entries
-                        .push_back(Entry::new(&self.path, Metadata::new(EntryMode::DIR)));
+                    ctx.entries.push_back(Entry::new(
+                        &self.path,
+                        Metadata::builder(EntryMode::DIR).build(),
+                    ));
                 }
 
                 for file_info in file_infos {

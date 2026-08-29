@@ -369,7 +369,9 @@ impl Service for WebdavBackend {
                 let status = resp.status();
 
                 match status {
-                    StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
+                    StatusCode::CREATED | StatusCode::NO_CONTENT => {
+                        Ok(Metadata::builder(EntryMode::Unknown).build())
+                    }
                     _ => Err(parse_error(
                         ErrorContext::new(ServiceOperation("Copy")),
                         resp,

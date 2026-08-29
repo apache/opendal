@@ -87,18 +87,20 @@ impl oio::OneShotWrite for GdriveWriter {
 
             match resp.status() {
                 StatusCode::OK | StatusCode::CREATED => {
-                    let mut metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(size as u64);
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(size as u64);
 
                     if current_file_id.is_none() {
                         let bs = resp.into_body();
                         let file: GdriveFile = serde_json::from_reader(bs.reader())
                             .map_err(new_json_deserialize_error)?;
-                        metadata = metadata.with_content_type(file.mime_type);
+                        metadata.content_type(file.mime_type);
                         self.core.cache_file_id(&self.path, &file.id).await;
                     }
-                    self.core.record_recent_upsert(&self.path, metadata).await;
-                    return Ok(Metadata::default());
+                    self.core
+                        .record_recent_upsert(&self.path, metadata.build())
+                        .await;
+                    return Ok(Metadata::builder(EntryMode::Unknown).build());
                 }
                 StatusCode::NOT_FOUND if !retried && current_file_id.is_some() => {
                     retried = true;

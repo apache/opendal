@@ -84,14 +84,16 @@ impl CloudflareKvLister {
         }
 
         let entry_metadata = if name.ends_with('/') {
-            Metadata::new(EntryMode::DIR)
-                .with_etag(build_tmp_path_of(&name))
-                .with_content_length(0)
+            let mut metadata = Metadata::builder(EntryMode::DIR);
+            metadata.etag(build_tmp_path_of(&name)).content_length(0);
+            metadata.build()
         } else {
-            Metadata::new(EntryMode::FILE)
-                .with_etag(metadata.etag)
-                .with_content_length(metadata.content_length as u64)
-                .with_last_modified(metadata.last_modified.parse::<Timestamp>()?)
+            let mut result = Metadata::builder(EntryMode::FILE);
+            result
+                .etag(&metadata.etag)
+                .content_length(metadata.content_length as u64)
+                .last_modified(metadata.last_modified.parse::<Timestamp>()?);
+            result.build()
         };
 
         Ok(oio::Entry::new(&name, entry_metadata))
@@ -108,12 +110,13 @@ impl CloudflareKvLister {
             ctx.entries.push_back(entry);
         } else if !result.is_empty() {
             let path_name = relative_to_root(root, &self.path);
-            let entry = oio::Entry::new(
-                &format!("{path_name}/"),
-                Metadata::new(EntryMode::DIR)
-                    .with_etag(build_tmp_path_of(&path_name))
-                    .with_content_length(0),
-            );
+            let entry = oio::Entry::new(&format!("{path_name}/"), {
+                let mut metadata = Metadata::builder(EntryMode::DIR);
+                metadata
+                    .etag(build_tmp_path_of(&path_name))
+                    .content_length(0);
+                metadata.build()
+            });
             ctx.entries.push_back(entry);
         }
         ctx.done = true;

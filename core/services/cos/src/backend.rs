@@ -336,20 +336,20 @@ impl Service for CosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?.into_builder();
 
                 let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
                     && v != "null"
                 {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
@@ -443,7 +443,7 @@ impl Service for CosBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

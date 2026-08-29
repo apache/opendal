@@ -164,7 +164,7 @@ impl oio::Write for FtpLazyWriter {
     async fn close(&mut self) -> Result<Metadata> {
         match &mut self.inner {
             Some(w) => w.close().await,
-            None => Ok(Metadata::default()),
+            None => Ok(Metadata::builder(EntryMode::Unknown).build()),
         }
     }
 

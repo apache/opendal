@@ -100,7 +100,7 @@ impl oio::PageList for GcsLister {
         for prefix in output.prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix),
-                Metadata::new(EntryMode::DIR),
+                Metadata::builder(EntryMode::DIR).build(),
             );
 
             ctx.entries.push_back(de);
@@ -116,26 +116,26 @@ impl oio::PageList for GcsLister {
                 continue;
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            let mut meta = Metadata::builder(EntryMode::from_path(&path));
 
             // set metadata fields
-            meta.set_content_md5(object.md5_hash.as_str());
-            meta.set_etag(object.etag.as_str());
+            meta.content_md5(object.md5_hash.as_str());
+            meta.etag(object.etag.as_str());
             if !object.generation.is_empty() {
-                meta.set_version(&object.generation);
+                meta.version(&object.generation);
             }
 
             let size = object.size.parse().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
             })?;
-            meta.set_content_length(size);
+            meta.content_length(size);
             if !object.content_type.is_empty() {
-                meta.set_content_type(&object.content_type);
+                meta.content_type(&object.content_type);
             }
 
-            meta.set_last_modified(object.updated.parse::<Timestamp>()?);
+            meta.last_modified(object.updated.parse::<Timestamp>()?);
 
-            let de = oio::Entry::with(path, meta);
+            let de = oio::Entry::with(path, meta.build());
 
             ctx.entries.push_back(de);
         }

@@ -49,7 +49,11 @@ impl oio::Write for RedisWriter {
         let length = buf.len() as u64;
         self.core.set(&self.path, buf).await?;
 
-        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        let meta = {
+            let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
+            metadata.content_length(length);
+            metadata.build()
+        };
         Ok(meta)
     }
 

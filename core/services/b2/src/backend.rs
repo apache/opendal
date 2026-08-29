@@ -250,7 +250,7 @@ impl Service for B2Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
@@ -336,7 +336,7 @@ impl Service for B2Backend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyFile")),
                     resp,

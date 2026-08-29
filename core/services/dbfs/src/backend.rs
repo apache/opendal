@@ -175,7 +175,7 @@ impl Service for DbfsBackend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         let resp = self.core.dbfs_get_status(ctx, path).await?;
@@ -184,24 +184,24 @@ impl Service for DbfsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
+                let mut meta = parse_into_metadata(path, resp.headers())?.into_builder();
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(Timestamp::from_millisecond(
+                meta.last_modified(Timestamp::from_millisecond(
                     decoded_response.modification_time,
                 )?);
                 match decoded_response.is_dir {
-                    true => meta.set_mode(EntryMode::DIR),
+                    true => meta.mode(EntryMode::DIR),
                     false => {
-                        meta.set_mode(EntryMode::FILE);
-                        meta.set_content_length(decoded_response.file_size as u64)
+                        meta.mode(EntryMode::FILE);
+                        meta.content_length(decoded_response.file_size as u64)
                     }
                 };
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetStatus")),

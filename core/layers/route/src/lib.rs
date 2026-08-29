@@ -509,7 +509,7 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
             if self.paths.lock().unwrap().contains(path) {
-                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+                Ok(RpStat::new(Metadata::builder(EntryMode::FILE).build()))
             } else {
                 Err(Error::new(ErrorKind::NotFound, "path not found"))
             }
@@ -592,7 +592,7 @@ mod tests {
 
         async fn close(&mut self) -> Result<Metadata> {
             self.paths.lock().unwrap().insert(self.path.clone());
-            Ok(Metadata::new(EntryMode::FILE))
+            Ok(Metadata::builder(EntryMode::FILE).build())
         }
 
         async fn abort(&mut self) -> Result<()> {

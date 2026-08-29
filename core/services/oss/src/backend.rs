@@ -672,13 +672,16 @@ impl Service for OssBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = self.core.parse_metadata(path, resp.headers())?;
+                let mut meta = self
+                    .core
+                    .parse_metadata(path, resp.headers())?
+                    .into_builder();
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
@@ -772,7 +775,7 @@ impl Service for OssBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

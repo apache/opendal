@@ -43,7 +43,10 @@ impl HdfsLister {
 impl oio::List for HdfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if let Some(path) = self.current_path.take() {
-            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
+            return Ok(Some(oio::Entry::new(
+                &path,
+                Metadata::builder(EntryMode::DIR).build(),
+            )));
         }
 
         let de = match self.rd.next() {
@@ -54,15 +57,18 @@ impl oio::List for HdfsLister {
         let path = build_rel_path(&self.root, de.path());
 
         let entry = if de.is_file() {
-            let meta = Metadata::new(EntryMode::FILE)
-                .with_content_length(de.len())
-                .with_last_modified(Timestamp::try_from(de.modified())?);
-            oio::Entry::new(&path, meta)
+            let mut meta = Metadata::builder(EntryMode::FILE);
+            meta.content_length(de.len())
+                .last_modified(Timestamp::try_from(de.modified())?);
+            oio::Entry::new(&path, meta.build())
         } else if de.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
+            oio::Entry::new(
+                &format!("{path}/"),
+                Metadata::builder(EntryMode::DIR).build(),
+            )
         } else {
-            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
+            oio::Entry::new(&path, Metadata::builder(EntryMode::Unknown).build())
         };
 
         Ok(Some(entry))

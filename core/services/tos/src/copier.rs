@@ -123,9 +123,9 @@ impl oio::MultipartCopy for TosCopier {
                     .set_temporary());
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
-                meta.set_etag(result.etag.trim_matches('"'));
-                Ok(meta)
+                let mut meta = Metadata::builder(EntryMode::from_path(&self.to));
+                meta.etag(result.etag.trim_matches('"'));
+                Ok(meta.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CopyObject")),
@@ -229,15 +229,15 @@ impl oio::MultipartCopy for TosCopier {
                     return Err(Error::new(ErrorKind::Unexpected, ret.message));
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                let mut meta = Metadata::builder(EntryMode::from_path(&self.to));
                 if !ret.etag.is_empty() {
-                    meta.set_etag(ret.etag.trim_matches('"'));
+                    meta.etag(ret.etag.trim_matches('"'));
                 }
                 if !ret.version_id.is_empty() {
-                    meta.set_version(&ret.version_id);
+                    meta.version(&ret.version_id);
                 }
 
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),

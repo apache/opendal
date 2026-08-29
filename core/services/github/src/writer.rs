@@ -45,13 +45,13 @@ impl GithubWriter {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::new(mode);
+        let mut meta = Metadata::builder(mode);
         if mode == EntryMode::FILE {
-            meta.set_content_length(content.size);
-            meta.set_etag(&content.sha);
+            meta.content_length(content.size);
+            meta.etag(&content.sha);
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 

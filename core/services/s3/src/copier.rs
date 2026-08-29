@@ -97,10 +97,11 @@ impl S3Copier {
 
 impl oio::MultipartCopy for S3Copier {
     async fn source_metadata(&self) -> Result<Metadata> {
-        let mut args = OpStat::default();
-        if let Some(version) = self.args.source_version() {
-            args = args.with_version(version);
+        let args = options::StatOptions {
+            version: self.args.source_version().map(str::to_owned),
+            ..Default::default()
         }
+        .into();
 
         let resp = self
             .core
@@ -151,16 +152,16 @@ impl oio::MultipartCopy for S3Copier {
                     };
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
-                meta.set_etag(&result.etag);
+                let mut meta = Metadata::builder(EntryMode::from_path(&self.to));
+                meta.etag(&result.etag);
                 if !result.last_modified.is_empty() {
-                    meta.set_last_modified(result.last_modified.parse()?);
+                    meta.last_modified(result.last_modified.parse()?);
                 }
                 if let Some(version) = version {
-                    meta.set_version(&version);
+                    meta.version(&version);
                 }
 
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => {
                 let err = parse_error(self.error_context(ServiceOperation("CopyObject")), resp);
@@ -303,13 +304,13 @@ impl oio::MultipartCopy for S3Copier {
                     };
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
-                meta.set_etag(&ret.etag);
+                let mut meta = Metadata::builder(EntryMode::from_path(&self.to));
+                meta.etag(&ret.etag);
                 if let Some(version) = version {
-                    meta.set_version(&version);
+                    meta.version(&version);
                 }
 
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => {
                 let err = parse_error(

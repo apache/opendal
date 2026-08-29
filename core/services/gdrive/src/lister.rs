@@ -99,28 +99,27 @@ impl GdriveLister {
 }
 
 fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
-    let mut metadata = Metadata::new(
+    let mut metadata = Metadata::builder(
         if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
             EntryMode::DIR
         } else {
             EntryMode::FILE
         },
-    )
-    .with_content_type(file.mime_type.clone());
+    );
+    metadata.content_type(file.mime_type.clone());
 
     if let Some(size) = &file.size {
-        metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
+        metadata.content_length(size.parse::<u64>().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
         })?);
     }
     if let Some(modified_time) = &file.modified_time {
-        metadata =
-            metadata.with_last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?);
+        metadata.last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?);
     }
 
-    Ok(metadata)
+    Ok(metadata.build())
 }
 
 impl oio::PageList for GdriveLister {
@@ -235,7 +234,7 @@ impl oio::PageList for GdriveLister {
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
             let path = build_rel_path(&self.core.root, &self.path);
-            self.push_entry(ctx, path, Metadata::new(EntryMode::DIR))
+            self.push_entry(ctx, path, Metadata::builder(EntryMode::DIR).build())
                 .await?;
             self.inject_recent_entries(ctx).await?;
         }
@@ -555,7 +554,7 @@ impl GdriveFlatLister {
             if !rel_path.is_empty() && !rel_path.ends_with('/') {
                 rel_path.push('/');
             }
-            self.push_entry(rel_path, Metadata::new(EntryMode::DIR));
+            self.push_entry(rel_path, Metadata::builder(EntryMode::DIR).build());
 
             // Queue the root directory for listing.
             self.pending_dirs.push_back(PendingDir {

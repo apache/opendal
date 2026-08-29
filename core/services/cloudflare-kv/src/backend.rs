@@ -275,7 +275,7 @@ impl Service for CloudflareKvBackend {
                     if let Some(entries) = list_result.result
                         && !entries.is_empty()
                     {
-                        return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+                        return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
                     }
 
                     // Empty or no results means not found
@@ -366,16 +366,16 @@ impl Service for CloudflareKvBackend {
             ));
         }
 
-        let meta = Metadata::new(if metadata.is_dir {
+        let mut meta = Metadata::builder(if metadata.is_dir {
             EntryMode::DIR
         } else {
             EntryMode::FILE
-        })
-        .with_etag(metadata.etag)
-        .with_content_length(metadata.content_length as u64)
-        .with_last_modified(metadata.last_modified.parse::<Timestamp>()?);
+        });
+        meta.etag(metadata.etag)
+            .content_length(metadata.content_length as u64)
+            .last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<CloudflareKvReader> = {

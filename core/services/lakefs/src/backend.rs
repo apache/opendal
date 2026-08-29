@@ -215,7 +215,7 @@ impl Service for LakefsBackend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         let resp = self.core.get_object_metadata(ctx, path).await?;
@@ -311,7 +311,7 @@ impl Service for LakefsBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED => Ok(Metadata::default()),
+                StatusCode::CREATED => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

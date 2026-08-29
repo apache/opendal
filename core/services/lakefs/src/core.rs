@@ -271,29 +271,29 @@ impl LakefsCore {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::new(mode);
+        let mut meta = Metadata::builder(mode);
 
         // Set checksum as etag
         if !status.checksum.is_empty() {
-            meta.set_etag(&status.checksum);
+            meta.etag(&status.checksum);
         }
 
         // Set content length
         if let Some(size) = status.size_bytes {
-            meta.set_content_length(size);
+            meta.content_length(size);
         }
 
         // Set content type
         if let Some(ref content_type) = status.content_type {
-            meta.set_content_type(content_type);
+            meta.content_type(content_type);
         }
 
         // Set last modified time
         if let Ok(timestamp) = Timestamp::from_second(status.mtime) {
-            meta.set_last_modified(timestamp);
+            meta.last_modified(timestamp);
         }
 
-        meta
+        meta.build()
     }
 }
 

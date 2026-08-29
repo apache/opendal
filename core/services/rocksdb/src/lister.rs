@@ -50,11 +50,11 @@ impl oio::List for RocksdbLister {
             } else {
                 EntryMode::FILE
             };
-            let mut metadata = Metadata::new(mode);
-            if metadata.mode().is_file() {
-                metadata.set_content_length(value_len);
+            let mut metadata = Metadata::builder(mode);
+            if mode.is_file() {
+                metadata.content_length(value_len);
             }
-            let entry = oio::Entry::new(&path, metadata);
+            let entry = oio::Entry::new(&path, metadata.build());
             return Ok(Some(entry));
         }
 

@@ -262,7 +262,7 @@ impl Service for AliyunDriveBackend {
 
         Ok(oio::OneShotCopier::new(async move {
             if from == to {
-                Ok(Metadata::default())
+                Ok(Metadata::builder(EntryMode::Unknown).build())
             } else {
                 let res = core.get_by_path(&ctx, &from).await?;
                 let file: AliyunDriveFile =
@@ -300,7 +300,7 @@ impl Service for AliyunDriveBackend {
                     core.update_path(&ctx, &file_id, to_name).await?;
                 }
 
-                Ok(Metadata::default())
+                Ok(Metadata::builder(EntryMode::Unknown).build())
             }
         }))
     }
@@ -311,28 +311,26 @@ impl Service for AliyunDriveBackend {
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
         if file.path_type == "folder" {
-            let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                file.updated_at.parse::<Timestamp>().map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
-            );
+            let mut meta = Metadata::builder(EntryMode::DIR);
+            meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?);
 
-            return Ok(RpStat::new(meta));
+            return Ok(RpStat::new(meta.build()));
         }
 
-        let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-            file.updated_at.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?,
-        );
+        let mut meta = Metadata::builder(EntryMode::FILE);
+        meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?);
         if let Some(v) = file.size {
-            meta = meta.with_content_length(v);
+            meta.content_length(v);
         }
         if let Some(v) = file.content_type {
-            meta = meta.with_content_type(v);
+            meta.content_type(v);
         }
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<AliyunDriveReader> = {

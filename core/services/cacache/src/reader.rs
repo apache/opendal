@@ -44,7 +44,11 @@ impl oio::StreamRead for CacacheReader {
             Some(bytes) => {
                 let content_length = bytes.len() as u64;
                 let buffer = Buffer::from(bytes.slice(range.to_content_range(bytes.len())?));
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+                let metadata = {
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(content_length);
+                    metadata.build()
+                };
                 Ok((
                     RpRead::new(metadata),
                     Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,

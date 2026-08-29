@@ -548,25 +548,25 @@ impl GoosefsCore {
     /// Convert goosefs FileInfo to OpenDAL Metadata.
     pub fn file_info_to_metadata(&self, info: &FileInfo) -> Metadata {
         let mut metadata = if info.folder.unwrap_or(false) {
-            Metadata::new(EntryMode::DIR)
+            Metadata::builder(EntryMode::DIR)
         } else {
-            Metadata::new(EntryMode::FILE)
+            Metadata::builder(EntryMode::FILE)
         };
 
         if let Some(length) = info.length {
-            metadata.set_content_length(length as u64);
+            metadata.content_length(length as u64);
         }
         if let Some(mtime) = info.last_modification_time_ms
             && let Ok(ts) = Timestamp::from_millisecond(mtime)
         {
-            metadata.set_last_modified(ts);
+            metadata.last_modified(ts);
         }
         // GooseFS Master rename preserves the same inode id; use it as etag
         // for cache keys / checkout short-circuit (not commit conflict detection).
         if let Some(fid) = info.file_id {
-            metadata.set_etag(&fid.to_string());
+            metadata.etag(fid.to_string());
         }
-        metadata
+        metadata.build()
     }
 
     /// Convert goosefs FileInfo to OpenDAL Metadata (for list results),

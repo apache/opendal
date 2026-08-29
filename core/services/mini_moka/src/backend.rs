@@ -180,13 +180,13 @@ impl Service for MiniMokaBackend {
         // Check if path exists directly in cache
         match self.core.get(&p) {
             Some(value) => {
-                let mut metadata = value.metadata.clone();
+                let mut metadata = value.metadata.clone().into_builder();
                 if p.ends_with('/') {
-                    metadata.set_mode(EntryMode::DIR);
+                    metadata.mode(EntryMode::DIR);
                 } else {
-                    metadata.set_mode(EntryMode::FILE);
+                    metadata.mode(EntryMode::FILE);
                 }
-                Ok(RpStat::new(metadata))
+                Ok(RpStat::new(metadata.build()))
             }
             None => {
                 if p.ends_with('/') {
@@ -197,9 +197,9 @@ impl Service for MiniMokaBackend {
                         .any(|entry| entry.key().starts_with(&p) && entry.key() != &p);
 
                     if is_prefix {
-                        let mut metadata = Metadata::default();
-                        metadata.set_mode(EntryMode::DIR);
-                        return Ok(RpStat::new(metadata));
+                        let mut metadata = Metadata::builder(EntryMode::Unknown);
+                        metadata.mode(EntryMode::DIR);
+                        return Ok(RpStat::new(metadata.build()));
                     }
                 }
 

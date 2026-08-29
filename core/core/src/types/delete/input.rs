@@ -188,12 +188,17 @@ impl IntoDeleteInput for Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options;
 
     #[test]
     fn test_op_delete_input_preserves_if_match() {
         let input = (
             "path".to_string(),
-            OpDelete::new().with_if_match("\"etag\""),
+            options::DeleteOptions {
+                if_match: Some("\"etag\"".to_owned()),
+                ..Default::default()
+            }
+            .into(),
         )
             .into_delete_input();
 

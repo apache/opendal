@@ -1150,13 +1150,13 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
+        let (mut args, opts) = opts.into();
+        if args.has_if_not_changed() {
             let capability = srv.capability();
             if capability.write_with_if_version_match
-                && let Some(version) = metadata.version()
+                && let Some(version) = args.if_not_changed_version()
             {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
+                if let Some(explicit) = args.if_version_match() {
                     if explicit != version {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -1165,12 +1165,12 @@ impl Operator {
                         .with_operation(Operation::Write.into_static()));
                     }
                 } else {
-                    opts.if_version_match = Some(version.to_string());
+                    args.set_if_version_match_from_if_not_changed();
                 }
             } else if capability.write_with_if_match
-                && let Some(etag) = metadata.etag()
+                && let Some(etag) = args.if_not_changed_etag()
             {
-                if let Some(explicit) = opts.if_match.as_deref() {
+                if let Some(explicit) = args.if_match() {
                     if explicit != etag {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -1179,7 +1179,7 @@ impl Operator {
                         .with_operation(Operation::Write.into_static()));
                     }
                 } else {
-                    opts.if_match = Some(etag.to_string());
+                    args.set_if_match_from_if_not_changed();
                 }
             } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
                 return Err(Error::new(
@@ -1198,7 +1198,6 @@ impl Operator {
                 .with_operation(Operation::Write.into_static()));
             }
         }
-        let (args, opts) = opts.into();
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context).await?;
         Ok(w)
@@ -1444,13 +1443,13 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
+        let mut args: OpCopy = opts.into();
+        if args.has_if_not_changed() {
             let capability = srv.capability();
             if capability.copy_with_if_version_match
-                && let Some(version) = metadata.version()
+                && let Some(version) = args.if_not_changed_version()
             {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
+                if let Some(explicit) = args.if_version_match() {
                     if explicit != version {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -1459,12 +1458,12 @@ impl Operator {
                         .with_operation(Operation::Copy.into_static()));
                     }
                 } else {
-                    opts.if_version_match = Some(version.to_string());
+                    args.set_if_version_match_from_if_not_changed();
                 }
             } else if capability.copy_with_if_match
-                && let Some(etag) = metadata.etag()
+                && let Some(etag) = args.if_not_changed_etag()
             {
-                if let Some(explicit) = opts.if_match.as_deref() {
+                if let Some(explicit) = args.if_match() {
                     if explicit != etag {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -1473,7 +1472,7 @@ impl Operator {
                         .with_operation(Operation::Copy.into_static()));
                     }
                 } else {
-                    opts.if_match = Some(etag.to_string());
+                    args.set_if_match_from_if_not_changed();
                 }
             } else if !capability.copy_with_if_version_match && !capability.copy_with_if_match {
                 return Err(Error::new(
@@ -1492,7 +1491,6 @@ impl Operator {
                 .with_operation(Operation::Copy.into_static()));
             }
         }
-        let args = opts.into();
         std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
     }
 
@@ -2654,13 +2652,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
+        let (mut op_write, _) = opts.into();
+        if op_write.has_if_not_changed() {
             let capability = srv.capability();
             if capability.write_with_if_version_match
-                && let Some(version) = metadata.version()
+                && let Some(version) = op_write.if_not_changed_version()
             {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
+                if let Some(explicit) = op_write.if_version_match() {
                     if explicit != version {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -2669,12 +2667,12 @@ impl Operator {
                         .with_operation(Operation::Write.into_static()));
                     }
                 } else {
-                    opts.if_version_match = Some(version.to_string());
+                    op_write.set_if_version_match_from_if_not_changed();
                 }
             } else if capability.write_with_if_match
-                && let Some(etag) = metadata.etag()
+                && let Some(etag) = op_write.if_not_changed_etag()
             {
-                if let Some(explicit) = opts.if_match.as_deref() {
+                if let Some(explicit) = op_write.if_match() {
                     if explicit != etag {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -2683,7 +2681,7 @@ impl Operator {
                         .with_operation(Operation::Write.into_static()));
                     }
                 } else {
-                    opts.if_match = Some(etag.to_string());
+                    op_write.set_if_match_from_if_not_changed();
                 }
             } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
                 return Err(Error::new(
@@ -2702,7 +2700,6 @@ impl Operator {
                 .with_operation(Operation::Write.into_static()));
             }
         }
-        let (op_write, _) = opts.into();
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2815,13 +2812,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
+        let mut op_delete = OpDelete::from(opts);
+        if op_delete.has_if_not_changed() {
             let capability = srv.capability();
             if capability.delete_with_if_version_match
-                && let Some(version) = metadata.version()
+                && let Some(version) = op_delete.if_not_changed_version()
             {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
+                if let Some(explicit) = op_delete.if_version_match() {
                     if explicit != version {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -2830,12 +2827,12 @@ impl Operator {
                         .with_operation(Operation::Delete.into_static()));
                     }
                 } else {
-                    opts.if_version_match = Some(version.to_string());
+                    op_delete.set_if_version_match_from_if_not_changed();
                 }
             } else if capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
+                && let Some(etag) = op_delete.if_not_changed_etag()
             {
-                if let Some(explicit) = opts.if_match.as_deref() {
+                if let Some(explicit) = op_delete.if_match() {
                     if explicit != etag {
                         return Err(Error::new(
                             ErrorKind::ConditionNotMatch,
@@ -2844,7 +2841,7 @@ impl Operator {
                         .with_operation(Operation::Delete.into_static()));
                     }
                 } else {
-                    opts.if_match = Some(etag.to_string());
+                    op_delete.set_if_match_from_if_not_changed();
                 }
             } else if !capability.delete_with_if_version_match && !capability.delete_with_if_match {
                 return Err(Error::new(
@@ -2863,7 +2860,7 @@ impl Operator {
                 .with_operation(Operation::Delete.into_static()));
             }
         }
-        let op = OpPresign::new(OpDelete::from(opts), expire);
+        let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }

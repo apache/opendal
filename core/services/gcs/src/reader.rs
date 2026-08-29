@@ -69,11 +69,11 @@ impl oio::StreamRead for GcsReader {
 
         let (rp, stream) = match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let mut metadata = parse_into_metadata(path, resp.headers())?;
+                let mut metadata = parse_into_metadata(path, resp.headers())?.into_builder();
                 if let Some(generation) = parse_header_to_str(resp.headers(), X_GOOG_GENERATION)? {
-                    metadata.set_version(generation);
+                    metadata.version(generation);
                 }
-                (RpRead::new(metadata), resp.into_body())
+                (RpRead::new(metadata.build()), resp.into_body())
             }
             _ => {
                 let (part, mut body) = resp.into_parts();

@@ -199,7 +199,9 @@ impl Service for YandexDiskBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
+                StatusCode::OK | StatusCode::CREATED => {
+                    Ok(Metadata::builder(EntryMode::Unknown).build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyResource")),
                     resp,

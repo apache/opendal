@@ -310,12 +310,12 @@ impl Service for HfBackend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         // Buckets have no git directory entries; treat any trailing-slash path as a virtual dir.
         if self.core.repo.is_bucket() && path.ends_with('/') {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
         }
 
         let info = self.core.path_info(ctx, path).await?;

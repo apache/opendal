@@ -250,17 +250,17 @@ impl Service for DropboxBackend {
                     _ => EntryMode::Unknown,
                 };
 
-                let mut metadata = Metadata::new(entry_mode);
+                let mut metadata = Metadata::builder(entry_mode);
                 // Only set last_modified and size if entry_mode is FILE, because Dropbox API
                 // returns last_modified and size only for files.
                 // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
                 if entry_mode == EntryMode::FILE {
                     let date_utc_last_modified =
                         decoded_response.client_modified.parse::<Timestamp>()?;
-                    metadata.set_last_modified(date_utc_last_modified);
+                    metadata.last_modified(date_utc_last_modified);
 
                     if let Some(size) = decoded_response.size {
-                        metadata.set_content_length(size);
+                        metadata.content_length(size);
                     } else {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
@@ -268,7 +268,7 @@ impl Service for DropboxBackend {
                         ));
                     }
                 }
-                Ok(RpStat::new(metadata))
+                Ok(RpStat::new(metadata.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetMetadata")),
@@ -344,11 +344,11 @@ impl Service for DropboxBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
                 _ => {
                     let err = parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp);
                     match err.kind() {
-                        ErrorKind::NotFound => Ok(Metadata::default()),
+                        ErrorKind::NotFound => Ok(Metadata::builder(EntryMode::Unknown).build()),
                         _ => Err(err),
                     }
                 }

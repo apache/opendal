@@ -427,14 +427,14 @@ pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
     } else {
         EntryMode::FILE
     };
-    let mut md = Metadata::new(mode);
+    let mut md = Metadata::builder(mode);
     if let Some(content_type) = blob.content_type.clone() {
-        md.set_content_type(&content_type);
+        md.content_type(&content_type);
     }
-    md.set_content_length(blob.size);
-    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
-    md.set_content_disposition(&blob.content_disposition);
-    Ok(md)
+    md.content_length(blob.size);
+    md.last_modified(blob.uploaded_at.parse::<Timestamp>()?);
+    md.content_disposition(&blob.content_disposition);
+    Ok(md.build())
 }
 
 fn resolve_blob(blobs: Vec<Blob>, path: String) -> String {

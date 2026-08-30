@@ -1020,45 +1020,47 @@ impl GcsCore {
 
 impl GetObjectJsonResponse {
     fn into_metadata(self, path: &str) -> Result<Metadata> {
-        let mut m = Metadata::new(EntryMode::from_path(path));
-
-        m.set_etag(&self.etag);
-        m.set_content_md5(&self.md5_hash);
-
         let size = self
             .size
             .parse::<u64>()
             .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        m.set_content_length(size);
+        let mut m = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(size)
+        };
+
+        m.etag(&self.etag);
+        m.content_md5(&self.md5_hash);
         if !self.content_type.is_empty() {
-            m.set_content_type(&self.content_type);
+            m.content_type(&self.content_type);
         }
 
         if !self.content_encoding.is_empty() {
-            m.set_content_encoding(&self.content_encoding);
+            m.content_encoding(&self.content_encoding);
         }
 
         if !self.cache_control.is_empty() {
-            m.set_cache_control(&self.cache_control);
+            m.cache_control(&self.cache_control);
         }
 
         if !self.content_disposition.is_empty() {
-            m.set_content_disposition(&self.content_disposition);
+            m.content_disposition(&self.content_disposition);
         }
 
         if !self.generation.is_empty() {
-            m.set_version(&self.generation);
+            m.version(&self.generation);
         }
 
         if !self.updated.is_empty() {
-            m.set_last_modified(self.updated.parse::<Timestamp>()?);
+            m.last_modified(self.updated.parse::<Timestamp>()?);
         }
 
         if !self.metadata.is_empty() {
-            m = m.with_user_metadata(self.metadata);
+            m.user_metadata(self.metadata);
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 }
 
@@ -1087,7 +1089,7 @@ pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     cache_control: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<&'a HashMap<String, String>>,
+    metadata: Option<UserMetadata<'a>>,
 }
 
 impl InsertRequestMetadata<'_> {
@@ -1214,7 +1216,7 @@ impl RewriteResponse {
     pub fn into_metadata(self, path: &str) -> Result<Metadata> {
         match self.resource {
             Some(resource) => resource.into_metadata(path),
-            None => Ok(Metadata::default()),
+            None => Ok(MetadataBuilder::unknown().build()),
         }
     }
 }
@@ -1288,6 +1290,20 @@ mod tests {
         }
     }
 
+    fn read_args(options: options::ReadOptions) -> OpRead {
+        let (_, args, _) = options.into();
+        args
+    }
+
+    fn write_args(options: options::WriteOptions) -> OpWrite {
+        let (args, _) = OpWrite::from_options(&Capability::default(), options).unwrap();
+        args
+    }
+
+    fn copy_args(options: options::CopyOptions) -> OpCopy {
+        OpCopy::from_options(&Capability::default(), options).unwrap()
+    }
+
     #[tokio::test]
     async fn test_insert_object_signing_preserves_wire_uri() {
         let core = test_core();
@@ -1324,7 +1340,10 @@ mod tests {
             .gcs_get_object_request(
                 "object",
                 BytesRange::default(),
-                &OpRead::default().with_if_version_match("123"),
+                &read_args(options::ReadOptions {
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
             )
             .expect("read request must build");
         assert!(
@@ -1338,7 +1357,10 @@ mod tests {
             .gcs_get_object_request(
                 "object",
                 BytesRange::default(),
-                &OpRead::default().with_if_version_match("0"),
+                &read_args(options::ReadOptions {
+                    if_version_match: Some("0".to_owned()),
+                    ..Default::default()
+                }),
             )
             .expect("generation zero must be forwarded");
         assert!(
@@ -1352,7 +1374,11 @@ mod tests {
         let stat = core
             .gcs_head_object_request(
                 "object",
-                &OpStat::default().with_if_version_not_match("456"),
+                &options::StatOptions {
+                    if_version_not_match: Some("456".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
             )
             .expect("stat request must build");
         assert!(
@@ -1366,9 +1392,11 @@ mod tests {
             .gcs_insert_object_request(
                 "object",
                 Some(0),
-                &OpWrite::default()
-                    .with_if_not_exists(true)
-                    .with_if_version_match("123"),
+                &write_args(options::WriteOptions {
+                    if_not_exists: true,
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
                 Buffer::new(),
             )
             .expect("write request must build");
@@ -1379,7 +1407,14 @@ mod tests {
         let delete = core
             .gcs_delete_object_request(
                 "object",
-                &OpDelete::default().with_if_version_not_match("456"),
+                &OpDelete::from_options(
+                    &Capability::default(),
+                    options::DeleteOptions {
+                        if_version_not_match: Some("456".to_owned()),
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
             )
             .expect("delete request must build");
         assert!(
@@ -1393,9 +1428,11 @@ mod tests {
         let resumable = core
             .gcs_initiate_resumable_upload_request(
                 "object",
-                &OpWrite::default()
-                    .with_if_not_exists(true)
-                    .with_if_version_match("123"),
+                &write_args(options::WriteOptions {
+                    if_not_exists: true,
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
             )
             .expect("resumable request must build");
         let query = resumable.uri().query().unwrap();
@@ -1406,7 +1443,10 @@ mod tests {
             .gcs_rewrite_object_request(
                 "source",
                 "target",
-                &OpCopy::default().with_if_version_not_match("456"),
+                &copy_args(options::CopyOptions {
+                    if_version_not_match: Some("456".to_owned()),
+                    ..Default::default()
+                }),
                 Some(GCS_REWRITE_MIN_CHUNK_SIZE),
                 Some("token"),
             )
@@ -1419,9 +1459,11 @@ mod tests {
             .gcs_rewrite_object_request(
                 "source",
                 "target",
-                &OpCopy::default()
-                    .with_if_not_exists(true)
-                    .with_if_version_match("123"),
+                &copy_args(options::CopyOptions {
+                    if_not_exists: true,
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
                 None,
                 None,
             )
@@ -1447,13 +1489,19 @@ mod tests {
                 if_version_match: Some("22".to_string()),
             },
         ];
-        let args = OpCompose::new()
-            .with_if_version_match("33")
-            .with_cache_control("no-cache")
-            .with_content_type("text/plain")
-            .with_content_disposition("attachment")
-            .with_content_encoding("gzip")
-            .with_user_metadata(HashMap::from([("key".to_string(), "value".to_string())]));
+        let args = OpCompose::from_options(
+            &Capability::default(),
+            options::ComposeOptions {
+                if_version_match: Some("33".to_string()),
+                cache_control: Some("no-cache".to_string()),
+                content_type: Some("text/plain".to_string()),
+                content_disposition: Some("attachment".to_string()),
+                content_encoding: Some("gzip".to_string()),
+                user_metadata: Some(HashMap::from([("key".to_string(), "value".to_string())])),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let req = core
             .gcs_compose_object_request(&sources, "target/object #1", &args)
@@ -1501,22 +1549,34 @@ mod tests {
             .gcs_get_object_xml_request(
                 "object",
                 BytesRange::default(),
-                &OpRead::default().with_if_version_match("123"),
+                &read_args(options::ReadOptions {
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
             )
             .expect("read request must build");
         assert_eq!(read.headers()["x-goog-if-generation-match"], "123");
 
         let stat = core
-            .gcs_head_object_xml_request("object", &OpStat::default().with_if_version_match("123"))
+            .gcs_head_object_xml_request(
+                "object",
+                &options::StatOptions {
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
+            )
             .expect("stat request must build");
         assert_eq!(stat.headers()["x-goog-if-generation-match"], "123");
 
         let write = core
             .gcs_insert_object_xml_request(
                 "object",
-                &OpWrite::default()
-                    .with_if_not_exists(true)
-                    .with_if_version_match("123"),
+                &write_args(options::WriteOptions {
+                    if_not_exists: true,
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                }),
                 Buffer::new(),
             )
             .expect("write request must build");
@@ -1533,7 +1593,10 @@ mod tests {
         let create = core
             .gcs_insert_object_xml_request(
                 "object",
-                &OpWrite::default().with_if_not_exists(true),
+                &write_args(options::WriteOptions {
+                    if_not_exists: true,
+                    ..Default::default()
+                }),
                 Buffer::new(),
             )
             .expect("create request must build");
@@ -1612,7 +1675,14 @@ mod tests {
         assert_eq!(meta.version(), Some("1660563214863653"));
 
         let metadata = HashMap::from_iter([("location".to_string(), "everywhere".to_string())]);
-        assert_eq!(meta.user_metadata(), Some(&metadata));
+        assert_eq!(
+            meta.user_metadata()
+                .expect("user metadata must be present")
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                .collect::<HashMap<_, _>>(),
+            metadata
+        );
     }
 
     #[test]

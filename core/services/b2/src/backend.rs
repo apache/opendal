@@ -251,7 +251,7 @@ impl Service for B2Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
@@ -327,6 +327,7 @@ impl Service for B2Backend {
         Ok(oio::OneShotCopier::new(async move {
             let file_info = core.get_file_info(&ctx, &from, None).await?;
             let source_file_id = file_info.file_id;
+            let source_content_length = file_info.content_length;
 
             let Some(source_file_id) = source_file_id else {
                 return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
@@ -337,7 +338,10 @@ impl Service for B2Backend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => {
+                    let metadata = MetadataBuilder::file(source_content_length);
+                    Ok(metadata.build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyFile")),
                     resp,

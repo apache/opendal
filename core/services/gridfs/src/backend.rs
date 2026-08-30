@@ -225,12 +225,13 @@ impl Service for GridfsBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(len) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(len as u64),
-                )),
+                Some(len) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(len as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs")),
             }
         }

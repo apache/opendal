@@ -267,23 +267,26 @@ impl PathInfo {
 
     pub fn metadata(&self) -> Result<Metadata> {
         let mode = self.entry_mode();
-        let mut meta = Metadata::new(mode);
+        let mut meta = match mode {
+            EntryMode::FILE => MetadataBuilder::file(self.size),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
 
         if let Some(commit_info) = self.last_commit.as_ref() {
-            meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
+            meta.last_modified(commit_info.date.parse::<Timestamp>()?);
         }
 
         if mode == EntryMode::FILE {
-            meta.set_content_length(self.size);
             // For buckets, oid may be None; for regular repos, prefer lfs.oid then oid
             if let Some(lfs) = &self.lfs {
-                meta.set_etag(&lfs.oid);
+                meta.etag(&lfs.oid);
             } else if let Some(oid) = &self.oid {
-                meta.set_etag(oid);
+                meta.etag(oid);
             }
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 

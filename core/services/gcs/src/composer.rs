@@ -60,24 +60,29 @@ impl GcsComposer {
         }
     }
 
-    fn new_intermediate_task(&self, sources: Vec<GcsComposeSource>) -> GcsComposeTask {
+    fn new_intermediate_task(&self, sources: Vec<GcsComposeSource>) -> Result<GcsComposeTask> {
         let token = uuid::Uuid::new_v4().to_string();
         let to = format!("__opendal/compose/{token}");
         let mut metadata = HashMap::new();
         metadata.insert(COMPOSE_TOKEN_KEY.to_string(), token.clone());
-        let args = OpCompose::new()
-            .with_if_not_exists(true)
-            .with_content_type("application/octet-stream")
-            .with_user_metadata(metadata);
+        let args = OpCompose::from_options(
+            &self.core.capability,
+            options::ComposeOptions {
+                if_not_exists: true,
+                content_type: Some("application/octet-stream".to_string()),
+                user_metadata: Some(metadata),
+                ..Default::default()
+            },
+        )?;
 
-        GcsComposeTask {
+        Ok(GcsComposeTask {
             core: self.core.clone(),
             ctx: self.ctx.clone(),
             sources,
             to,
             args,
             token: Some(token),
-        }
+        })
     }
 
     async fn collect_tasks(
@@ -119,7 +124,7 @@ impl GcsComposer {
                 carried = Some(chunk[0].clone());
                 continue;
             }
-            Self::execute_task(&mut tasks, self.new_intermediate_task(chunk.to_vec())).await?;
+            Self::execute_task(&mut tasks, self.new_intermediate_task(chunk.to_vec())?).await?;
         }
 
         let mut outputs = Self::collect_tasks(&mut tasks).await?;
@@ -158,9 +163,14 @@ impl GcsComposer {
             let Some(version) = source.version.as_deref() else {
                 continue;
             };
-            deleter
-                .delete(&source.path, OpDelete::new().with_if_version_match(version))
-                .await?;
+            let args = OpDelete::from_options(
+                &self.core.capability,
+                options::DeleteOptions {
+                    if_version_match: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )?;
+            deleter.delete(&source.path, args).await?;
         }
         deleter.close().await
     }
@@ -229,7 +239,13 @@ impl oio::Compose for GcsComposer {
         if self.buffered.len() > GCS_COMPOSE_MAX_SOURCES {
             let remaining = self.buffered.split_off(GCS_COMPOSE_MAX_SOURCES);
             let sources = std::mem::replace(&mut self.buffered, remaining);
-            let task = self.new_intermediate_task(sources);
+            let task = match self.new_intermediate_task(sources) {
+                Ok(task) => task,
+                Err(err) => {
+                    self.errored = true;
+                    return Err(err);
+                }
+            };
             if let Err(err) = Self::execute_task(&mut self.tasks, task).await {
                 self.errored = true;
                 return Err(err);
@@ -547,7 +563,14 @@ mod tests {
             test_core(),
             ctx,
             "target",
-            OpCompose::new().with_concurrent(2),
+            OpCompose::from_options(
+                &Capability::default(),
+                options::ComposeOptions {
+                    concurrent: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
         );
 
         for index in 0..65 {
@@ -630,7 +653,14 @@ mod tests {
             test_core(),
             ctx,
             "target",
-            OpCompose::new().with_concurrent(4),
+            OpCompose::from_options(
+                &Capability::default(),
+                options::ComposeOptions {
+                    concurrent: 4,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
         );
 
         for index in 0..1025 {

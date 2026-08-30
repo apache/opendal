@@ -311,7 +311,7 @@ impl Service for OnedriveBackend {
         Ok(oio::OneShotCopier::new(async move {
             let monitor_url = core.initialize_copy(&ctx, &from, &to).await?;
             core.wait_until_complete(&ctx, monitor_url).await?;
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }))
     }
 

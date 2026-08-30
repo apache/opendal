@@ -251,7 +251,7 @@ impl Service for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?);
+        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?)?;
 
         Ok(RpStat::new(meta))
     }
@@ -290,7 +290,7 @@ impl Service for SftpBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let backend = self.clone();
         let ctx = ctx.clone();
@@ -313,12 +313,27 @@ impl Service for SftpBackend {
             let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
             let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
 
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => src_file
+                    .metadata()
+                    .await
+                    .map_err(parse_sftp_error)?
+                    .len()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "sftp source metadata does not contain file length",
+                        )
+                    })?,
+            };
+
             src_file
                 .copy_all_to(&mut dst_file)
                 .await
                 .map_err(parse_sftp_error)?;
 
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::file(source_size).build())
         }))
     }
 

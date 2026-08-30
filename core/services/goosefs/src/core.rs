@@ -546,27 +546,31 @@ impl GoosefsCore {
     // ── Metadata Conversion ──────────────────────────────────
 
     /// Convert goosefs FileInfo to OpenDAL Metadata.
-    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Metadata {
+    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Result<Metadata> {
         let mut metadata = if info.folder.unwrap_or(false) {
-            Metadata::new(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::new(EntryMode::FILE)
+            let length = info.length.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "goosefs response does not contain file length",
+                )
+            })?;
+            MetadataBuilder::file(u64::try_from(length).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "goosefs file length is negative").set_source(err)
+            })?)
         };
-
-        if let Some(length) = info.length {
-            metadata.set_content_length(length as u64);
-        }
         if let Some(mtime) = info.last_modification_time_ms
             && let Ok(ts) = Timestamp::from_millisecond(mtime)
         {
-            metadata.set_last_modified(ts);
+            metadata.last_modified(ts);
         }
         // GooseFS Master rename preserves the same inode id; use it as etag
         // for cache keys / checkout short-circuit (not commit conflict detection).
         if let Some(fid) = info.file_id {
-            metadata.set_etag(&fid.to_string());
+            metadata.etag(fid.to_string());
         }
-        metadata
+        Ok(metadata.build())
     }
 
     /// Convert goosefs FileInfo to OpenDAL Metadata (for list results),
@@ -579,7 +583,7 @@ impl GoosefsCore {
             path
         };
         let rel = build_rel_path(&self.root, &rel_path);
-        Ok((rel, self.file_info_to_metadata(info)))
+        Ok((rel, self.file_info_to_metadata(info)?))
     }
 }
 

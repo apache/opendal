@@ -1246,13 +1246,13 @@ mod utils {
         path: &str,
         headers: &HeaderMap,
     ) -> opendal_core::Result<Metadata> {
-        let mut metadata = parse_into_metadata(path, headers)?;
+        let mut metadata = parse_into_metadata(path, headers)?.into_builder();
 
         if let Some(etag) = tos_parse_etag(headers)? {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 }
 

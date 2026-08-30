@@ -24,7 +24,7 @@ use futures::TryStreamExt;
 
 use crate::operator_futures::*;
 use crate::raw::*;
-use crate::types::delete::{DeleteInput, Deleter};
+use crate::types::delete::Deleter;
 use crate::*;
 
 /// The `Operator` serves as the entry point for all public asynchronous APIs.
@@ -1134,6 +1134,8 @@ impl Operator {
         Self::writer_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn writer_inner(
         ctx: OperationContext,
@@ -1150,20 +1152,10 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let prefer_version = srv.capability().write_with_if_version_match;
-            options::lower_if_not_changed(
-                Operation::Write,
-                &metadata,
-                prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-        let (args, opts) = opts.into();
+        let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let w = Writer::new(write_context).await?;
+        let w = Writer::new(write_context)?;
         Ok(w)
     }
 
@@ -1297,11 +1289,13 @@ impl Operator {
         Self::composer_inner(self.context().clone(), self.service().clone(), to, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     async fn composer_inner(
         ctx: OperationContext,
         srv: Servicer,
         to: String,
-        mut opts: options::ComposeOptions,
+        opts: options::ComposeOptions,
     ) -> Result<Composer> {
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
@@ -1312,18 +1306,9 @@ impl Operator {
             );
         }
 
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let prefer_version = srv.capability().compose_with_if_version_match;
-            options::lower_if_not_changed(
-                Operation::Compose,
-                &metadata,
-                prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-
-        std::future::ready(Composer::create(ctx, srv, to, opts.into())).await
+        let args = OpCompose::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Composer::create(ctx, srv, to, args)
     }
 
     /// Copy a file from `from` to `to`.
@@ -1532,6 +1517,8 @@ impl Operator {
         }
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     async fn copier_inner(
         ctx: OperationContext,
         srv: Servicer,
@@ -1566,19 +1553,9 @@ impl Operator {
             );
         }
 
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let prefer_version = srv.capability().copy_with_if_version_match;
-            options::lower_if_not_changed(
-                Operation::Copy,
-                &metadata,
-                prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-        let args = opts.into();
-        std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
+        let args = OpCopy::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Copier::create(ctx, srv, &from, &to, args)
     }
 
     /// Rename a file from `from` to `to`.
@@ -1909,18 +1886,7 @@ impl Operator {
         opts: options::DeleteOptions,
     ) -> Result<()> {
         let mut deleter = Deleter::create(ctx, srv)?;
-        deleter
-            .delete(DeleteInput {
-                path,
-                version: opts.version,
-                recursive: opts.recursive,
-                if_match: opts.if_match,
-                if_none_match: opts.if_none_match,
-                if_version_match: opts.if_version_match,
-                if_version_not_match: opts.if_version_not_match,
-                if_not_changed: opts.if_not_changed,
-            })
-            .await?;
+        deleter.delete((path, opts)).await?;
         deleter.close().await?;
         Ok(())
     }
@@ -2002,12 +1968,10 @@ impl Operator {
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
+    // Keep this async to preserve the public API.
+    #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        std::future::ready(Deleter::create(
-            self.context().clone(),
-            self.service().clone(),
-        ))
-        .await
+        Deleter::create(self.context().clone(), self.service().clone())
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -2337,6 +2301,8 @@ impl Operator {
         Self::lister_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn lister_inner(
         ctx: OperationContext,
@@ -2345,7 +2311,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        std::future::ready(Lister::create(ctx, srv, &path, args)).await
+        Lister::create(ctx, srv, &path, args)
     }
 }
 
@@ -2739,18 +2705,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let prefer_version = srv.capability().write_with_if_version_match;
-            options::lower_if_not_changed(
-                Operation::Write,
-                &metadata,
-                prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-        let (op_write, _) = opts.into();
+        let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2863,18 +2819,9 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let mut opts = opts;
-        if let Some(metadata) = opts.if_not_changed.take() {
-            let prefer_version = srv.capability().delete_with_if_version_match;
-            options::lower_if_not_changed(
-                Operation::Delete,
-                &metadata,
-                prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-        let op = OpPresign::new(OpDelete::from(opts), expire);
+        let op_delete = OpDelete::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }

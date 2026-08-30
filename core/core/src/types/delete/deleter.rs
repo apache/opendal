@@ -83,44 +83,33 @@ use crate::*;
 /// ```
 pub struct Deleter {
     deleter: oio::Deleter,
-    prefer_version: bool,
+    scheme: &'static str,
+    capability: Capability,
 }
 
 impl Deleter {
     pub(crate) fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
-        let prefer_version = srv.capability().delete_with_if_version_match;
+        let scheme = srv.info().scheme();
+        let capability = srv.capability();
         let deleter = srv.delete(&ctx)?;
 
         Ok(Self {
             deleter,
-            prefer_version,
+            scheme,
+            capability,
         })
     }
 
-    /// Delete a path.
+    /// Delete a path with default or per-entry options.
+    ///
+    /// Pass a path directly to use [`options::DeleteOptions::default`]. Pass
+    /// `(String, DeleteOptions)` when this entry needs version or condition
+    /// options.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
-        let input = input.into_delete_input();
-        let mut opts = options::DeleteOptions {
-            version: input.version,
-            recursive: input.recursive,
-            if_match: input.if_match,
-            if_none_match: input.if_none_match,
-            if_version_match: input.if_version_match,
-            if_version_not_match: input.if_version_not_match,
-            if_not_changed: input.if_not_changed,
-        };
-        if let Some(metadata) = opts.if_not_changed.take() {
-            options::lower_if_not_changed(
-                Operation::Delete,
-                &metadata,
-                self.prefer_version,
-                &mut opts.if_version_match,
-                &mut opts.if_match,
-            )?;
-        }
-        let op = opts.into();
-
-        self.deleter.delete(&input.path, op).await?;
+        let (path, options) = input.into_delete_input();
+        let op = OpDelete::from_options(&self.capability, options)
+            .map_err(|err| err.with_context("service", self.scheme))?;
+        self.deleter.delete(&path, op).await?;
         Ok(())
     }
 
@@ -252,7 +241,8 @@ mod tests {
 
         let deleter = Deleter {
             deleter: Box::new(mock),
-            prefer_version: false,
+            scheme: "memory",
+            capability: Capability::default(),
         };
         let mut sink = deleter.into_sink::<String>();
 

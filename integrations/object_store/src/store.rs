@@ -65,8 +65,8 @@ fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
     if let Some(user_meta) = meta.user_metadata() {
         for (key, value) in user_meta {
             attributes.insert(
-                object_store::Attribute::Metadata(key.clone().into()),
-                value.clone().into(),
+                object_store::Attribute::Metadata(key.to_string().into()),
+                value.to_string().into(),
             );
         }
     }

@@ -173,13 +173,12 @@ impl Composer {
             }
         }
 
-        let mut args = OpRead::new();
-        if let Some(version) = version {
-            args = args.with_version(&version);
+        let (_, args, _) = crate::options::ReadOptions {
+            version,
+            if_match,
+            ..Default::default()
         }
-        if let Some(etag) = if_match {
-            args = args.with_if_match(&etag);
-        }
+        .into();
 
         if let Err(err) = self.composer.compose(&path, args).await {
             self.errored = true;

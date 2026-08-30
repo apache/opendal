@@ -309,7 +309,7 @@ impl Service for PcloudBackend {
                     } else if result != 0 {
                         Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
                     } else {
-                        Ok(Metadata::default())
+                        Ok(MetadataBuilder::unknown().build())
                     }
                 }
                 _ => Err(parse_error(

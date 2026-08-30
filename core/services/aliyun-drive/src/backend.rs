@@ -263,11 +263,12 @@ impl Service for AliyunDriveBackend {
 
         Ok(oio::OneShotCopier::new(async move {
             if from == to {
-                Ok(Metadata::default())
+                Ok(MetadataBuilder::unknown().build())
             } else {
                 let res = core.get_by_path(&ctx, &from).await?;
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                let source_content_length = file.size;
                 // copy can overwrite.
                 match core.get_by_path(&ctx, &to).await {
                     Err(err) if err.kind() == ErrorKind::NotFound => {}
@@ -301,7 +302,9 @@ impl Service for AliyunDriveBackend {
                     core.update_path(&ctx, &file_id, to_name).await?;
                 }
 
-                Ok(Metadata::default())
+                let metadata = source_content_length
+                    .map_or_else(MetadataBuilder::unknown, MetadataBuilder::file);
+                Ok(metadata.build())
             }
         }))
     }
@@ -312,28 +315,29 @@ impl Service for AliyunDriveBackend {
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
         if file.path_type == "folder" {
-            let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                file.updated_at.parse::<Timestamp>().map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
-            );
-
-            return Ok(RpStat::new(meta));
-        }
-
-        let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-            file.updated_at.parse::<Timestamp>().map_err(|e| {
+            let mut meta = MetadataBuilder::dir();
+            meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?,
-        );
-        if let Some(v) = file.size {
-            meta = meta.with_content_length(v);
-        }
-        if let Some(v) = file.content_type {
-            meta = meta.with_content_type(v);
+            })?);
+
+            return Ok(RpStat::new(meta.build()));
         }
 
-        Ok(RpStat::new(meta))
+        let size = file.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "aliyun drive stat response does not contain file size",
+            )
+        })?;
+        let mut meta = MetadataBuilder::file(size);
+        meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?);
+        if let Some(v) = file.content_type {
+            meta.content_type(v);
+        }
+
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<AliyunDriveReader> = {

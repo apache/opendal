@@ -114,14 +114,13 @@ impl Service for CacacheBackend {
 
         match metadata {
             Some(meta) => {
-                let mut md = Metadata::new(EntryMode::FILE);
-                md.set_content_length(meta.size as u64);
+                let mut md = MetadataBuilder::file(meta.size as u64);
                 // Convert u128 milliseconds to Timestamp
                 let millis = meta.time as i64;
                 if let Ok(dt) = Timestamp::from_millisecond(millis) {
-                    md.set_last_modified(dt);
+                    md.last_modified(dt);
                 }
-                Ok(RpStat::new(md))
+                Ok(RpStat::new(md.build()))
             }
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }

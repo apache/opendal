@@ -330,7 +330,7 @@ impl Service for GcsGrpcBackend {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
         let object = self.core.object_name(path);
         let request = GetObjectRequest {

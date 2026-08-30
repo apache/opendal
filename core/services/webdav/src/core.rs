@@ -158,15 +158,15 @@ impl WebdavCore {
             )
         })?;
 
-        let mut metadata = parse_propstats(&propfind_resp.propstat)?;
+        let mut metadata = parse_propstats(&propfind_resp.propstat)?.into_builder();
 
         // Parse user metadata from the raw XML response using configured namespace
         let user_metadata = parse_user_metadata_from_xml(&xml_str, &self.user_metadata_uri);
         if !user_metadata.is_empty() {
-            metadata = metadata.with_user_metadata(user_metadata);
+            metadata.user_metadata(user_metadata);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
     pub async fn webdav_get(
@@ -326,9 +326,9 @@ impl WebdavCore {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<(Response<Buffer>, Metadata)> {
         // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
+        let source_metadata = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
@@ -353,7 +353,8 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        ctx.http_transport().send(req).await
+        let resp = ctx.http_transport().send(req).await?;
+        Ok((resp, source_metadata))
     }
 
     pub async fn webdav_move(
@@ -829,21 +830,26 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     } else {
         EntryMode::FILE
     };
-    let mut m = Metadata::new(mode);
-
-    if let Some(v) = getcontentlength {
-        let content_length = v.parse::<u64>().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
+    let mut m = if mode == EntryMode::FILE {
+        let content_length = getcontentlength.as_ref().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "webdav response does not contain file content length",
+            )
         })?;
-        m.set_content_length(content_length);
-    }
+        MetadataBuilder::file(content_length.parse::<u64>().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     if let Some(v) = getcontenttype {
-        m.set_content_type(v);
+        m.content_type(v);
     }
 
     if let Some(v) = getetag {
-        m.set_etag(v);
+        m.etag(v);
     }
 
     // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
@@ -853,10 +859,10 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
             "propfind response missing getlastmodified",
         ));
     };
-    m.set_last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
+    m.last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
-    Ok(m)
+    Ok(m.build())
 }
 
 pub fn parse_propstats(propstats: &[Propstat]) -> Result<Metadata> {
@@ -1106,11 +1112,12 @@ mod tests {
                     resourcetype: ResourceTypeContainer::default(),
                 },
             },
-            new_propstat("HTTP/1.1 200 OK", None),
+            new_propstat("HTTP/1.1 200 OK", Some("0")),
         ];
 
         let meta = parse_propstats(&propstats).unwrap();
         assert!(meta.is_file());
+        assert_eq!(meta.content_length(), 0);
     }
 
     #[test]

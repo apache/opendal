@@ -61,9 +61,9 @@ Callers may also construct expected metadata from identities obtained through
 another trusted channel:
 
 ```rust,ignore
-let expected = Metadata::default()
-    .with_etag(saved_etag)
-    .with_version(saved_version);
+let mut expected = Metadata::builder(EntryMode::Unknown);
+expected.etag(saved_etag).version(saved_version);
+let expected = expected.build();
 ```
 
 Preserving both fields keeps externally stored metadata portable across
@@ -89,8 +89,9 @@ as `"*"` are outside the portable delete contract. Multiple supplied conditions
 are combined with logical AND.
 
 `if_not_changed` is a derived condition. At the shared write, delete, or copy
-entry point, OpenDAL uses the effective capabilities after all layers and
-lowers it before raw service dispatch:
+entry point, OpenDAL first freezes the public options into raw arguments. It
+then uses the effective capabilities after all layers and selects the primitive
+condition before raw service dispatch:
 
 1. If the operation supports `if_version_match` and `meta.version()` exists,
    use `if_version_match(version)`.
@@ -100,14 +101,16 @@ lowers it before raw service dispatch:
 4. If a primitive is supported but metadata contains no usable identity for
    any supported primitive, return `ConfigInvalid`.
 
-Raw operations and services never receive `if_not_changed`; they only receive
-the selected primitive. Version match takes precedence because a version is
-intended to identify an object revision and avoids ETag ABA where the service
-can enforce it. Adding version-match support may therefore make a call carrying
-both fields stricter, but never weaker. Other metadata fields do not
-participate. OpenDAL does not validate provenance, path, or storage namespace,
-so the caller must associate externally constructed metadata with the correct
-target.
+Raw arguments preserve the complete owned `if_not_changed` metadata together
+with the selected primitive. Services enforce the selected primitive; retaining
+the logical condition lets future shared dispatch logic use another identity
+without changing the public option or losing caller intent during structural
+conversion. Version match takes precedence because a version is intended to
+identify an object revision and avoids ETag ABA where the service can enforce
+it. Adding version-match support may therefore make a call carrying both fields
+stricter, but never weaker. Other metadata fields do not participate today.
+OpenDAL does not validate provenance, path, or storage namespace, so the caller
+must associate externally constructed metadata with the correct target.
 
 OpenDAL preserves explicit target conditions and version selectors while
 lowering `if_not_changed`. If the selected primitive match field already

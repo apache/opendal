@@ -61,10 +61,7 @@ impl oio::OneShotWrite for LakefsWriter {
                 // Try to parse metadata from upload response body
                 match serde_json::from_slice::<LakefsStatus>(&body_bytes) {
                     Ok(lakefs_status) => {
-                        // Successfully parsed ObjectStats from upload response
-                        Ok(LakefsCore::parse_lakefs_status_into_metadata(
-                            &lakefs_status,
-                        ))
+                        LakefsCore::parse_lakefs_status_into_metadata(&lakefs_status)
                     }
                     Err(_) => {
                         // Upload response doesn't contain ObjectStats, fetch via stat API
@@ -77,9 +74,7 @@ impl oio::OneShotWrite for LakefsWriter {
                                     serde_json::from_reader(stat_resp.into_body().reader())
                                         .map_err(new_json_deserialize_error)?;
 
-                                Ok(LakefsCore::parse_lakefs_status_into_metadata(
-                                    &lakefs_status,
-                                ))
+                                LakefsCore::parse_lakefs_status_into_metadata(&lakefs_status)
                             }
                             _ => Err(parse_error(
                                 ErrorContext::new(ServiceOperation("StatObject")),

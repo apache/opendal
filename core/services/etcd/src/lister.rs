@@ -69,7 +69,12 @@ impl oio::List for EtcdLister {
             if key.starts_with(&self.path) {
                 let path = build_rel_path(&self.root, &key);
 
-                let entry = Entry::new(&path, Metadata::new(EntryMode::from_path(&key)));
+                let metadata = if key.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
+                let entry = Entry::new(&path, metadata.build());
                 return Ok(Some(entry));
             }
         }

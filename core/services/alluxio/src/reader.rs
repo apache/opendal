@@ -47,6 +47,7 @@ impl oio::StreamRead for AlluxioReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
+        let metadata = backend.core.get_status(&self.ctx, path).await?.try_into()?;
         let stream_id = backend.core.open_file(&self.ctx, path).await?;
 
         let resp = backend.core.read(&self.ctx, stream_id, range).await?;
@@ -59,7 +60,7 @@ impl oio::StreamRead for AlluxioReader {
             ));
         }
 
-        let rp = RpRead::new(parse_into_metadata(path, resp.headers())?);
+        let rp = RpRead::new(metadata);
         let stream = resp.into_body();
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))

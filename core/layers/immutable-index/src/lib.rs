@@ -265,13 +265,12 @@ impl ImmutableDir {
 
     fn inner_next(&mut self) -> Option<oio::Entry> {
         self.idx.next().map(|v| {
-            let mode = if v.ends_with('/') {
-                EntryMode::DIR
+            let metadata = if v.ends_with('/') {
+                MetadataBuilder::dir()
             } else {
-                EntryMode::FILE
+                MetadataBuilder::unknown()
             };
-            let meta = Metadata::new(mode);
-            oio::Entry::with(v, meta)
+            oio::Entry::with(v, metadata.build())
         })
     }
 }
@@ -429,7 +428,7 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
         assert_eq!(map["dir_without_prefix/"], EntryMode::DIR);
         Ok(())
@@ -461,9 +460,9 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
-        assert_eq!(map["dir_without_prefix/file"], EntryMode::FILE);
+        assert_eq!(map["dir_without_prefix/file"], EntryMode::Unknown);
         Ok(())
     }
 
@@ -511,9 +510,18 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
         Ok(())
     }
 
@@ -547,9 +555,18 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
         Ok(())
     }
 }

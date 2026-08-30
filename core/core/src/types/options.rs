@@ -17,66 +17,10 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::raw::{Operation, Timestamp};
+use crate::Metadata;
+use crate::raw::Timestamp;
 use crate::types::BytesRange;
-use crate::{Error, ErrorKind, Metadata, Result};
 use std::collections::HashMap;
-
-pub(crate) fn lower_if_not_changed(
-    operation: Operation,
-    metadata: &Metadata,
-    prefer_version: bool,
-    if_version_match: &mut Option<String>,
-    if_match: &mut Option<String>,
-) -> Result<()> {
-    if prefer_version && let Some(version) = metadata.version() {
-        if let Some(explicit) = if_version_match.as_deref()
-            && explicit != version
-        {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "if_not_changed conflicts with if_version_match",
-            )
-            .with_operation(operation.into_static()));
-        }
-        *if_version_match = Some(version.to_string());
-        return Ok(());
-    }
-
-    if let Some(etag) = metadata.etag() {
-        if let Some(explicit) = if_match.as_deref()
-            && explicit != etag
-        {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "if_not_changed conflicts with if_match",
-            )
-            .with_operation(operation.into_static()));
-        }
-        *if_match = Some(etag.to_string());
-        return Ok(());
-    }
-
-    if let Some(version) = metadata.version() {
-        if let Some(explicit) = if_version_match.as_deref()
-            && explicit != version
-        {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "if_not_changed conflicts with if_version_match",
-            )
-            .with_operation(operation.into_static()));
-        }
-        *if_version_match = Some(version.to_string());
-        return Ok(());
-    }
-
-    Err(Error::new(
-        ErrorKind::ConfigInvalid,
-        "if_not_changed metadata contains neither version nor ETag",
-    )
-    .with_operation(operation.into_static()))
-}
 
 /// Options for delete operations.
 ///

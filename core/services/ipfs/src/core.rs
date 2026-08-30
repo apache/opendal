@@ -207,7 +207,7 @@ impl IpfsCore {
     pub async fn ipfs_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(Metadata::new(EntryMode::DIR));
+            return Ok(MetadataBuilder::dir().build());
         }
 
         let resp = self.ipfs_head(ctx, path).await?;
@@ -215,37 +215,40 @@ impl IpfsCore {
 
         match status {
             StatusCode::OK => {
-                let mut m = Metadata::new(EntryMode::Unknown);
+                let mut m = MetadataBuilder::unknown();
 
-                if let Some(v) = parse_content_length(resp.headers())? {
-                    m.set_content_length(v);
-                }
+                let content_length = parse_content_length(resp.headers())?;
 
                 if let Some(v) = parse_content_type(resp.headers())? {
-                    m.set_content_type(v);
+                    m.content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())? {
-                    m.set_etag(v);
+                    m.etag(v);
 
                     if v.starts_with("\"DirIndex") {
-                        m.set_mode(EntryMode::DIR);
+                        m.set_dir();
                     } else {
-                        m.set_mode(EntryMode::FILE);
+                        m.set_file(content_length.ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "IPFS response does not contain file content length",
+                            )
+                        })?);
                     }
                 } else {
                     // Some service will stream the output of DirIndex.
                     // If we don't have an etag, it's highly to be a dir.
-                    m.set_mode(EntryMode::DIR);
+                    m.set_dir();
                 }
 
                 if let Some(v) = parse_content_disposition(resp.headers())? {
-                    m.set_content_disposition(v);
+                    m.content_disposition(v);
                 }
 
-                Ok(m)
+                Ok(m.build())
             }
-            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => Ok(Metadata::new(EntryMode::DIR)),
+            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => Ok(MetadataBuilder::dir().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Resolve")),
                 resp,

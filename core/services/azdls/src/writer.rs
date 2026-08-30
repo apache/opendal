@@ -91,21 +91,21 @@ impl AzdlsWriter {
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::default();
+        let mut metadata = MetadataBuilder::unknown();
 
         if let Some(last_modified) = parse_last_modified(headers)? {
-            metadata.set_last_modified(last_modified);
+            metadata.last_modified(last_modified);
         }
         let etag = parse_etag(headers)?;
         if let Some(etag) = etag {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
         let version_id = parse_header_to_str(headers, X_MS_VERSION_ID)?;
         if let Some(version_id) = version_id {
-            metadata.set_version(version_id);
+            metadata.version(version_id);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 }
 
@@ -133,11 +133,11 @@ impl oio::PositionWrite for AzdlsWriter {
             .azdls_flush(&self.ctx, &self.path, size, true)
             .await?;
 
-        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
-        meta.set_content_length(size);
+        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?.into_builder();
+        meta.set_file(size);
 
         match resp.status() {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta.build()),
             _ => Err(
                 parse_error(ErrorContext::new(ServiceOperation("FlushData")), resp)
                     .with_operation("Backend::azdls_flush_request"),
@@ -201,15 +201,15 @@ impl oio::AppendWrite for AzdlsWriter {
             .azdls_append(&self.ctx, &self.path, Some(size), offset, true, false, body)
             .await?;
 
-        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
+        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?.into_builder();
         let md5 = parse_content_md5(resp.headers())?;
         if let Some(md5) = md5 {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
-        meta.set_content_length(offset + size);
+        meta.set_file(offset + size);
 
         match resp.status() {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta.build()),
             _ => Err(
                 parse_error(ErrorContext::new(ServiceOperation("AppendData")), resp)
                     .with_operation("Backend::azdls_append_request"),

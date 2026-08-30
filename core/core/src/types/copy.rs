@@ -126,7 +126,10 @@ impl Copier {
             }
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        Ok(self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build()))
     }
 }
 

@@ -780,7 +780,7 @@ mod tests {
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+                Ok(RpStat::new(MetadataBuilder::file(0).build()))
             }
 
             async fn rename(
@@ -900,7 +900,10 @@ mod tests {
                 };
                 let req = http::Request::get("http://fake").body(data).unwrap();
                 let resp = self.ctx.http_transport().fetch(req).await?;
-                let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+                let rp = RpRead::new({
+                    let metadata = MetadataBuilder::file(backend.content.len() as u64);
+                    metadata.build()
+                });
                 let stream = resp.into_body();
 
                 Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
@@ -949,9 +952,10 @@ mod tests {
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-                Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
-                ))
+                Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(self.content.len() as u64);
+                    metadata.build()
+                }))
             }
 
             fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {

@@ -1325,9 +1325,14 @@ impl Service for S3Backend {
         args: OpRestore,
     ) -> Result<RpRestore> {
         if let Some(version) = args.version() {
-            let copy_args = OpCopy::new()
-                .with_source_version(version)
-                .with_if_not_exists(args.if_not_exists());
+            let copy_args = OpCopy::from_options(
+                &self.capability(),
+                options::CopyOptions {
+                    source_version: Some(version.to_owned()),
+                    if_not_exists: args.if_not_exists(),
+                    ..Default::default()
+                },
+            )?;
             let mut copier = new_s3_copier(self.core.clone(), ctx, path, path, copy_args)?;
 
             return match copier.close().await {
@@ -1382,7 +1387,13 @@ impl Service for S3Backend {
             ));
         };
 
-        let delete_args = OpDelete::new().with_version(&marker.version_id);
+        let delete_args = OpDelete::from_options(
+            &self.capability(),
+            options::DeleteOptions {
+                version: Some(marker.version_id.clone()),
+                ..Default::default()
+            },
+        )?;
         let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
         match resp.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpRestore::new()),
@@ -2101,7 +2112,14 @@ mod tests {
             .build()
             .expect("build");
 
-        let op = OpWrite::default().with_content_type("application/json");
+        let (op, _) = OpWrite::from_options(
+            &backend.capability(),
+            options::WriteOptions {
+                content_type: Some("application/json".to_owned()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let args = OpPresign::new(op, Duration::from_secs(3600));
         let ctx = OperationContext::new();
         let presigned = backend
@@ -2127,7 +2145,11 @@ mod tests {
             .build()
             .expect("build");
 
-        let op = OpStat::default().with_version("a+b/c=d%25&e");
+        let op: OpStat = options::StatOptions {
+            version: Some("a+b/c=d%25&e".to_owned()),
+            ..Default::default()
+        }
+        .into();
         let args = OpPresign::new(op, Duration::from_secs(3600));
         let ctx = OperationContext::new();
         let presigned = backend
@@ -2153,7 +2175,11 @@ mod tests {
             .build()
             .expect("build");
 
-        let op = OpRead::default().with_version("a+b/c=d%25&e");
+        let (_, op, _) = options::ReadOptions {
+            version: Some("a+b/c=d%25&e".to_owned()),
+            ..Default::default()
+        }
+        .into();
         let args = OpPresign::new(
             PresignOperation::Read(BytesRange::default(), op),
             Duration::from_secs(3600),

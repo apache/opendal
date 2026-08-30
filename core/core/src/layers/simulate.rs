@@ -150,7 +150,7 @@ impl SimulateService {
         let capability = self.srv.capability();
 
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         if path.ends_with('/') {
@@ -175,13 +175,16 @@ impl SimulateService {
                 let mut l = self.srv.list(
                     ctx,
                     path,
-                    OpList::default()
-                        .with_recursive(capability.list_with_recursive)
-                        .with_limit(1),
+                    options::ListOptions {
+                        recursive: capability.list_with_recursive,
+                        limit: Some(1),
+                        ..Default::default()
+                    }
+                    .into(),
                 )?;
 
                 return if l.next().await?.is_some() {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    Ok(RpStat::new(MetadataBuilder::dir().build()))
                 } else {
                     Err(Error::new(
                         ErrorKind::NotFound,
@@ -263,15 +266,24 @@ impl SimulateService {
             ));
         }
 
-        let non_recursive = args.clone().with_recursive(false);
+        let mut non_recursive = args;
+        non_recursive.set_recursive(false);
 
-        let mut lister = self.simulate_list(ctx, path, OpList::new().with_recursive(true))?;
+        let mut lister = self.simulate_list(
+            ctx,
+            path,
+            options::ListOptions {
+                recursive: true,
+                ..Default::default()
+            }
+            .into(),
+        )?;
 
         while let Some(entry) = lister.next().await? {
             let entry = entry.into_entry();
             let mut entry_args = non_recursive.clone();
             if let Some(version) = entry.metadata().version() {
-                entry_args = entry_args.with_version(version);
+                entry_args = entry_args.into_version(version);
             }
             deleter.delete(entry.path(), entry_args).await?;
         }
@@ -421,10 +433,11 @@ impl SimulateReader {
             return Ok(v);
         }
 
-        let mut op = OpStat::new();
-        if let Some(version) = self.args.version() {
-            op = op.with_version(version);
+        let op = options::StatOptions {
+            version: self.args.version().map(str::to_owned),
+            ..Default::default()
         }
+        .into();
 
         Ok(self
             .srv
@@ -473,7 +486,7 @@ impl ServicerFlatLister {
         Self {
             ctx,
             srv,
-            next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
+            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }
@@ -645,7 +658,7 @@ mod tests {
             self.0 = true;
             Ok(Some(oio::Entry::new(
                 "parent/file",
-                Metadata::new(EntryMode::FILE),
+                MetadataBuilder::file(0).build(),
             )))
         }
     }
@@ -748,7 +761,10 @@ mod tests {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Box::new(Buffer::new()),
             ))
         }
@@ -756,7 +772,10 @@ mod tests {
         async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Buffer::new(),
             ))
         }

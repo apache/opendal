@@ -471,16 +471,14 @@ impl TryFrom<FileInfo> for Metadata {
 
     fn try_from(file_info: FileInfo) -> Result<Metadata> {
         let mut metadata = if file_info.folder {
-            Metadata::new(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::new(EntryMode::FILE)
+            MetadataBuilder::file(file_info.length)
         };
-        metadata
-            .set_content_length(file_info.length)
-            .set_last_modified(Timestamp::from_millisecond(
-                file_info.last_modification_time_ms,
-            )?);
-        Ok(metadata)
+        metadata.last_modified(Timestamp::from_millisecond(
+            file_info.last_modification_time_ms,
+        )?);
+        Ok(metadata.build())
     }
 }
 

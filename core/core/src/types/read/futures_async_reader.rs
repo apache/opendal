@@ -409,9 +409,8 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
             self.counts.stats.fetch_add(1, Ordering::SeqCst);
-            Ok(RpStat::new(
-                Metadata::new(EntryMode::FILE).with_content_length(self.content_length),
-            ))
+            let metadata = MetadataBuilder::file(self.content_length);
+            Ok(RpStat::new(metadata.build()))
         }
 
         fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -490,9 +489,8 @@ mod tests {
             let content = self
                 .content
                 .slice(range.to_content_range(self.content.len())?);
-            let metadata =
-                Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64);
-            Ok((RpRead::new(metadata), Box::new(content)))
+            let metadata = MetadataBuilder::file(self.content.len() as u64);
+            Ok((RpRead::new(metadata.build()), Box::new(content)))
         }
 
         async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {

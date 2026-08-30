@@ -450,7 +450,7 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
 mod tests {
     use super::*;
     use crate::Capability;
-    use crate::EntryMode;
+
     use crate::Metadata;
     use crate::Operator;
     use crate::raw::oio;
@@ -488,7 +488,7 @@ mod tests {
         }
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+            Ok(RpStat::new(MetadataBuilder::unknown().build()))
         }
 
         fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -534,14 +534,20 @@ mod tests {
     impl oio::Read for MockReader {
         async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Box::new(Buffer::new()) as Box<dyn oio::ReadStreamDyn>,
             ))
         }
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Buffer::new(),
             ))
         }
@@ -555,7 +561,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -747,9 +753,11 @@ mod tests {
             copy_with_if_match: true,
             ..Default::default()
         });
-        let metadata = Metadata::default()
-            .with_etag("etag".to_string())
-            .with_version("version".to_string());
+        let metadata = {
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.etag("etag").version("version");
+            metadata.build()
+        };
 
         op.write_with("path", "")
             .if_match("other-etag")
@@ -832,7 +840,11 @@ mod tests {
                 "path",
                 std::time::Duration::from_secs(60),
                 options::WriteOptions {
-                    if_not_changed: Some(Metadata::default().with_etag("etag".to_string())),
+                    if_not_changed: Some({
+                        let mut metadata = MetadataBuilder::unknown();
+                        metadata.etag("etag");
+                        metadata.build()
+                    }),
                     ..Default::default()
                 },
             )

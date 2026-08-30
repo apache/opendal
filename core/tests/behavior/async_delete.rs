@@ -18,7 +18,6 @@
 use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
-use opendal::raw::OpDelete;
 
 use crate::*;
 
@@ -424,7 +423,10 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
             .expect("write must succeed");
         let meta = op.stat(path.as_str()).await.expect("stat must succeed");
         let version = meta.version().expect("must have version");
-        let op_args = OpDelete::new().with_version(version);
+        let op_args = options::DeleteOptions {
+            version: Some(version.to_owned()),
+            ..Default::default()
+        };
         files.push((path, op_args));
     }
 
@@ -435,7 +437,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
     for (path, args) in files {
         let stat = op
             .stat_with(path.as_str())
-            .version(args.version().unwrap())
+            .version(args.version.as_deref().unwrap())
             .await;
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
@@ -540,11 +542,17 @@ pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
         .delete_iter([
             (
                 matching_path.clone(),
-                OpDelete::new().with_if_match(&matching_etag),
+                options::DeleteOptions {
+                    if_match: Some(matching_etag.clone()),
+                    ..Default::default()
+                },
             ),
             (
                 stale_path.clone(),
-                OpDelete::new().with_if_match(&stale_etag),
+                options::DeleteOptions {
+                    if_match: Some(stale_etag.clone()),
+                    ..Default::default()
+                },
             ),
         ])
         .await
@@ -617,11 +625,17 @@ pub async fn test_batch_delete_with_if_none_match(op: Operator) -> Result<()> {
     op.delete_iter([
         (
             path.clone(),
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            },
         ),
         (
             missing_path,
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            },
         ),
     ])
     .await?;
@@ -740,7 +754,7 @@ pub async fn test_delete_if_not_changed(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// `Deleter` should lower and preserve `if_not_changed` for queued deletes.
+/// `Deleter` should lower `if_not_changed` before passing a delete to the raw queue.
 pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&path, content).await?;
@@ -748,7 +762,13 @@ pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
 
     let mut deleter = op.deleter().await?;
     deleter
-        .delete(DeleteInput::new(path.clone()).with_if_not_changed(&expected))
+        .delete((
+            path.clone(),
+            options::DeleteOptions {
+                if_not_changed: Some(expected),
+                ..Default::default()
+            },
+        ))
         .await?;
     deleter.close().await?;
     assert!(!op.exists(&path).await?);

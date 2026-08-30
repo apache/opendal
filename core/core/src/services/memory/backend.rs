@@ -128,7 +128,7 @@ impl Service for MemoryBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p)? {
                 Some(value) => Ok(RpStat::new(value.metadata)),
@@ -232,7 +232,8 @@ impl oio::StreamRead for MemoryReader {
         let content = value
             .content
             .slice(range.to_content_range(value.content.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+        let metadata = MetadataBuilder::file(total_size);
+        let metadata = metadata.build();
         Ok((
             RpRead::new(metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,

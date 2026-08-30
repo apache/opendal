@@ -95,6 +95,10 @@ An identical explicit equality condition is redundant. A conflicting equality
 condition returns `ConditionNotMatch`. Other accepted conditions combine with
 the derived condition using AND semantics.
 
+Lowering happens while the mutable public options still own the source
+metadata and after OpenDAL knows the composed service capability. The finalized
+raw operation arguments contain only the selected primitive equality condition.
+
 ## Error contract
 
 - A false explicit condition returns `ConditionNotMatch`.

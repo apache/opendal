@@ -262,7 +262,7 @@ impl LakefsCore {
     }
 
     /// Parse LakefsStatus into Metadata
-    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Metadata {
+    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Result<Metadata> {
         // Determine entry mode based on path_type
         // "common_prefix" indicates a directory in list operations
         let mode = if status.path_type == "common_prefix" {
@@ -271,29 +271,33 @@ impl LakefsCore {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::new(mode);
+        let mut meta = if mode == EntryMode::FILE {
+            MetadataBuilder::file(status.size_bytes.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "lakefs response does not contain file size",
+                )
+            })?)
+        } else {
+            MetadataBuilder::dir()
+        };
 
         // Set checksum as etag
         if !status.checksum.is_empty() {
-            meta.set_etag(&status.checksum);
-        }
-
-        // Set content length
-        if let Some(size) = status.size_bytes {
-            meta.set_content_length(size);
+            meta.etag(&status.checksum);
         }
 
         // Set content type
         if let Some(ref content_type) = status.content_type {
-            meta.set_content_type(content_type);
+            meta.content_type(content_type);
         }
 
         // Set last modified time
         if let Ok(timestamp) = Timestamp::from_second(status.mtime) {
-            meta.set_last_modified(timestamp);
+            meta.last_modified(timestamp);
         }
 
-        meta
+        Ok(meta.build())
     }
 }
 

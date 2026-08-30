@@ -96,7 +96,7 @@ fn opwrite_with_mime(path: &str, op: OpWrite) -> OpWrite {
     }
 
     if let Some(mime) = mime_from_path(path) {
-        return op.with_content_type(mime);
+        return op.into_content_type(mime);
     }
 
     op
@@ -109,7 +109,9 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
         }
 
         if let Some(mime) = mime_from_path(path) {
-            return metadata.with_content_type(mime.into());
+            let mut metadata = metadata.into_builder();
+            metadata.content_type(mime);
+            return metadata.build();
         }
 
         metadata

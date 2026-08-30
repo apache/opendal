@@ -234,6 +234,10 @@ required-features = ["tests"]
 harness = false
 name = "types"
 
+[[bench]]
+harness = false
+name = "metadata"
+
 [[test]]
 harness = false
 name = "behavior"

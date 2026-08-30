@@ -110,22 +110,25 @@ impl FsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(Timestamp::try_from(
-                meta.modified().map_err(new_std_io_error)?,
-            )?);
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(
+            meta.modified().map_err(new_std_io_error)?,
+        )?);
 
         // Read user metadata from xattr on Unix systems
         #[cfg(unix)]
         {
             let user_metadata = Self::get_user_metadata(&p)?;
             if !user_metadata.is_empty() {
-                m = m.with_user_metadata(user_metadata);
+                m.user_metadata(user_metadata);
             }
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 
     pub async fn fs_open(&self, path: &str) -> Result<File> {
@@ -223,7 +226,7 @@ impl FsCore {
         }
     }
 
-    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<u64> {
         let from = self.root_join(from)?;
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
@@ -232,7 +235,7 @@ impl FsCore {
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
 
-        tokio::fs::copy(&from, &to)
+        let size = tokio::fs::copy(&from, &to)
             .await
             .map_err(new_std_io_error)?;
 
@@ -246,7 +249,7 @@ impl FsCore {
             }
         }
 
-        Ok(())
+        Ok(size)
     }
 
     pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {

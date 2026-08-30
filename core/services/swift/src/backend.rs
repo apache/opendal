@@ -266,13 +266,13 @@ impl Service for SwiftBackend {
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?.into_builder();
                 let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
@@ -375,7 +375,7 @@ impl Service for SwiftBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
@@ -383,6 +383,28 @@ impl Service for SwiftBackend {
         let to = to.to_string();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => {
+                    let stat_args: OpStat = options::StatOptions {
+                        version: args.source_version().map(str::to_owned),
+                        ..Default::default()
+                    }
+                    .into();
+                    let resp = core.swift_get_metadata(&ctx, &from, &stat_args).await?;
+                    match resp.status() {
+                        StatusCode::OK | StatusCode::NO_CONTENT => {
+                            parse_into_metadata(&from, resp.headers())?.content_length()
+                        }
+                        _ => {
+                            return Err(parse_error(
+                                ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
+                                resp,
+                            ));
+                        }
+                    }
+                }
+            };
             // cannot copy objects larger than 5 GB.
             // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
             let resp = core.swift_copy(&ctx, &from, &to).await?;
@@ -390,7 +412,9 @@ impl Service for SwiftBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::CREATED | StatusCode::OK => {
+                    Ok(MetadataBuilder::file(source_size).build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

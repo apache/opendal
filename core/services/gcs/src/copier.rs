@@ -161,7 +161,13 @@ impl oio::Copy for GcsCopier {
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        let metadata = self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let mut builder = metadata.into_builder();
+        builder.set_file(self.total_bytes_rewritten);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

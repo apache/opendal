@@ -428,7 +428,7 @@ impl Service for AzdlsBackend {
         // Stat root always returns a DIR.
         // TODO: include metadata for the root (#4746)
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let metadata = self.core.azdls_stat_metadata(ctx, path, &args).await?;

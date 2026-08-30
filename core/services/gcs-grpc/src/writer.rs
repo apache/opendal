@@ -87,7 +87,16 @@ impl GcsGrpcWriter {
                     .to_string(),
                 content_encoding: self.args.content_encoding().unwrap_or_default().to_string(),
                 cache_control: self.args.cache_control().unwrap_or_default().to_string(),
-                metadata: self.args.user_metadata().cloned().unwrap_or_default(),
+                metadata: self
+                    .args
+                    .user_metadata()
+                    .map(|metadata| {
+                        metadata
+                            .into_iter()
+                            .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
                 ..Default::default()
             }),
             if_generation_match: self.args.if_not_exists().then_some(0),

@@ -203,7 +203,11 @@ impl AzdlsCore {
         if let Some(user_metadata) = args.user_metadata()
             && !user_metadata.is_empty()
         {
-            req = req.header(X_MS_PROPERTIES, encode_user_metadata(user_metadata));
+            let user_metadata = user_metadata
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                .collect();
+            req = req.header(X_MS_PROPERTIES, encode_user_metadata(&user_metadata));
         }
 
         let operation = if resource == DIRECTORY {
@@ -393,16 +397,16 @@ impl AzdlsCore {
         }
 
         let headers = resp.headers();
-        let mut meta = parse_into_metadata(path, headers)?;
+        let mut meta = parse_into_metadata(path, headers)?.into_builder();
 
         if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-            meta.set_version(version_id);
+            meta.version(version_id);
         }
 
         if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
             let user_meta = decode_user_metadata(value);
             if !user_meta.is_empty() {
-                meta = meta.with_user_metadata(user_meta);
+                meta.user_metadata(user_meta);
             }
         }
 
@@ -425,8 +429,20 @@ impl AzdlsCore {
             })?;
 
         match resource {
-            FILE => Ok(meta.with_mode(EntryMode::FILE)),
-            DIRECTORY => Ok(meta.with_mode(EntryMode::DIR)),
+            FILE => {
+                let content_length = parse_content_length(headers)?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "azdls file response does not contain content length",
+                    )
+                })?;
+                meta.set_file(content_length);
+                Ok(meta.build())
+            }
+            DIRECTORY => {
+                meta.set_dir();
+                Ok(meta.build())
+            }
             v => Err(Error::new(
                 ErrorKind::Unexpected,
                 "azdls returns an unknown x-ms-resource-type",

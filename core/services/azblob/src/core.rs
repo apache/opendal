@@ -1145,9 +1145,15 @@ mod tests {
 
         let mut meta = HashMap::new();
         meta.insert("k".to_string(), "v".to_string());
-        let args = OpWrite::default()
-            .with_content_type("application/json")
-            .with_user_metadata(meta);
+        let (args, _) = OpWrite::from_options(
+            &Capability::default(),
+            options::WriteOptions {
+                content_type: Some("application/json".to_owned()),
+                user_metadata: Some(meta),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let req = core
             .azblob_complete_put_block_list_request("a.txt", vec![Uuid::nil()], &args)

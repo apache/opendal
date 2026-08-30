@@ -58,7 +58,7 @@ impl oio::OneShotWrite for DbfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Put")),
                 resp,

@@ -20,3 +20,7 @@
 /// The portable contract for conditional operations.
 #[doc = include_str!("conditional-operations.md")]
 pub mod conditional_operations {}
+
+/// The portable contract for owned metadata and result completion.
+#[doc = include_str!("metadata.md")]
+pub mod metadata {}

@@ -1127,7 +1127,10 @@ mod tests {
     impl oio::StreamRead for MockReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             let backend = &self.backend;
-            let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+            let rp = RpRead::new({
+                let metadata = MetadataBuilder::file(13);
+                metadata.build()
+            });
             let stream = MockReadStream {
                 buf: Bytes::from("Hello, World!").into(),
                 range,
@@ -1177,9 +1180,10 @@ mod tests {
         }
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(
-                Metadata::new(EntryMode::FILE).with_content_length(13),
-            ))
+            Ok(RpStat::new({
+                let metadata = MetadataBuilder::file(13);
+                metadata.build()
+            }))
         }
 
         fn read(&self, _: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -1300,11 +1304,11 @@ mod tests {
                 .set_temporary()),
                 2 => Ok(Some(oio::Entry::new(
                     "hello",
-                    Metadata::new(EntryMode::FILE),
+                    MetadataBuilder::file(0).build(),
                 ))),
                 3 => Ok(Some(oio::Entry::new(
                     "world",
-                    Metadata::new(EntryMode::FILE),
+                    MetadataBuilder::file(0).build(),
                 ))),
                 4 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable internal server error")
@@ -1312,11 +1316,11 @@ mod tests {
                 ),
                 5 => Ok(Some(oio::Entry::new(
                     "2023/",
-                    Metadata::new(EntryMode::DIR),
+                    MetadataBuilder::dir().build(),
                 ))),
                 6 => Ok(Some(oio::Entry::new(
                     "0208/",
-                    Metadata::new(EntryMode::DIR),
+                    MetadataBuilder::dir().build(),
                 ))),
                 7 => Ok(None),
                 _ => {
@@ -1401,7 +1405,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort(&mut self) -> Result<()> {

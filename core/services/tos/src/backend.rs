@@ -33,7 +33,7 @@ use crate::writer::TosWriter;
 use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
-use opendal_core::{Buffer, Builder, Capability, EntryMode, Error, ErrorKind, Result};
+use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
 use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredentialProvider};
@@ -299,18 +299,18 @@ impl Service for TosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = tos_parse_into_metadata(path, headers)?;
+                let mut meta = tos_parse_into_metadata(path, headers)?.into_builder();
 
                 let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                if let Some(is_dir) = parse_header_to_str(headers, X_TOS_DIRECTORY)?
+                if parse_header_to_str(headers, X_TOS_DIRECTORY)?
                     .map(|v| {
                         v.parse::<bool>().map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "header value is not valid integer")
@@ -318,15 +318,12 @@ impl Service for TosBackend {
                         })
                     })
                     .transpose()?
+                    == Some(true)
                 {
-                    meta = meta.with_mode(if is_dir {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    });
+                    meta.set_dir();
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),

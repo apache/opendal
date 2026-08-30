@@ -120,12 +120,15 @@ impl Service for MonoiofsBackend {
         } else {
             EntryMode::Unknown
         };
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(Timestamp::try_from(
-                meta.modified().map_err(new_std_io_error)?,
-            )?);
-        Ok(RpStat::new(m))
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(
+            meta.modified().map_err(new_std_io_error)?,
+        )?);
+        Ok(RpStat::new(m.build()))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
         let path = self.core.prepare_path(path)?;
@@ -250,12 +253,15 @@ impl Service for MonoiofsBackend {
                         buf.clear();
                     }
                     core.buf_pool.put(buf);
-                    Ok(())
+                    Ok(pos)
                 }
             })
             .await
-            .map_err(new_std_io_error)?;
-            Ok(Metadata::default())
+            .map_err(new_std_io_error)
+            .map(|size| {
+                let metadata = MetadataBuilder::file(size);
+                metadata.build()
+            })
         });
 
         Ok(copier)

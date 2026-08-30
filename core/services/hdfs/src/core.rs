@@ -72,11 +72,14 @@ impl HdfsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::new(mode);
-        m.set_content_length(meta.len());
-        m.set_last_modified(Timestamp::try_from(meta.modified())?);
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(meta.modified())?);
 
-        Ok(m)
+        Ok(m.build())
     }
 
     pub async fn hdfs_open(&self, path: &str) -> Result<hdrs::File> {

@@ -21,6 +21,8 @@ pub use mode::EntryMode;
 mod buffer;
 pub use buffer::Buffer;
 
+pub(crate) mod compact;
+
 mod http_transport;
 pub use http_transport::HttpBody;
 pub use http_transport::HttpTransport;
@@ -29,8 +31,11 @@ pub use http_transport::HttpTransporter;
 mod entry;
 pub use entry::Entry;
 
-mod metadata;
+pub(crate) mod metadata;
 pub use metadata::Metadata;
+pub use metadata::MetadataBuilder;
+pub use metadata::UserMetadata;
+pub use metadata::UserMetadataIntoIter;
 
 mod read;
 pub use read::*;

@@ -142,7 +142,7 @@ impl oio::StreamRead for GoosefsReader {
             Some(
                 backend
                     .core
-                    .file_info_to_metadata(&file_info)
+                    .file_info_to_metadata(&file_info)?
                     .content_length(),
             )
         } else {

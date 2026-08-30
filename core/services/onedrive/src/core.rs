@@ -213,15 +213,18 @@ impl OneDriveCore {
             ItemType::File { .. } => EntryMode::FILE,
         };
 
-        let mut meta = Metadata::new(entry_mode)
-            .with_etag(decoded_response.e_tag)
-            .with_content_length(decoded_response.size.max(0) as u64);
+        let mut meta = if entry_mode == EntryMode::FILE {
+            MetadataBuilder::file(decoded_response.size.max(0) as u64)
+        } else {
+            MetadataBuilder::dir()
+        };
+        meta.etag(decoded_response.e_tag);
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
-        meta.set_last_modified(date_utc_last_modified);
+        meta.last_modified(date_utc_last_modified);
 
-        Ok(meta)
+        Ok(meta.build())
     }
 
     /// Return versions of an item

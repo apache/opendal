@@ -54,7 +54,7 @@ impl oio::MultipartWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("UploadFile")),
                 resp,
@@ -129,7 +129,7 @@ impl oio::MultipartWrite for UpyunWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => Ok(Metadata::default()),
+            StatusCode::NO_CONTENT => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,

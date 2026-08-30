@@ -80,15 +80,15 @@ impl oio::StreamRead for S3Reader {
 }
 
 pub(super) fn parse_into_s3_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> {
-    let mut meta = parse_into_metadata(path, headers)?;
+    let mut meta = parse_into_metadata(path, headers)?.into_builder();
 
     let user_meta = parse_prefixed_headers(headers, X_AMZ_META_PREFIX);
     if !user_meta.is_empty() {
-        meta = meta.with_user_metadata(user_meta);
+        meta.user_metadata(user_meta);
     }
 
     if let Some(v) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
-        meta.set_version(v);
+        meta.version(v);
     }
-    Ok(meta)
+    Ok(meta.build())
 }

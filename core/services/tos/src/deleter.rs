@@ -96,7 +96,7 @@ impl oio::BatchDelete for TosDeleter {
                 let deleted = deleted.swap_remove(idx);
                 let op = if op.version().is_some() {
                     if let Some(version) = &deleted.version_id {
-                        op.with_version(version)
+                        op.into_version(version)
                     } else {
                         op
                     }

@@ -703,7 +703,6 @@ impl GcsCore {
                 }),
             })
             .collect();
-        let empty_metadata = HashMap::new();
         let request = ComposeRequest {
             source_objects,
             destination: ComposeDestination {
@@ -712,7 +711,7 @@ impl GcsCore {
                 content_type: Some(args.content_type().unwrap_or("application/octet-stream")),
                 content_disposition: args.content_disposition(),
                 content_encoding: args.content_encoding(),
-                metadata: args.user_metadata().unwrap_or(&empty_metadata),
+                metadata: args.user_metadata(),
             },
             delete_source_objects: false,
         };
@@ -1148,7 +1147,8 @@ struct ComposeDestination<'a> {
     content_disposition: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     content_encoding: Option<&'a str>,
-    metadata: &'a HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<UserMetadata<'a>>,
 }
 /// Response JSON from GCS list objects API.
 ///

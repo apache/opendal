@@ -108,7 +108,7 @@ fn opcompose_with_mime(path: &str, op: OpCompose) -> OpCompose {
     }
 
     if let Some(mime) = mime_from_path(path) {
-        return op.with_content_type(mime);
+        return op.into_content_type(mime);
     }
 
     op

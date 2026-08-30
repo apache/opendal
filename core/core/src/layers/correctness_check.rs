@@ -719,7 +719,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::new(EntryMode::FILE).with_content_length(0))
+            Ok(MetadataBuilder::file(0).build())
         }
     }
 
@@ -976,7 +976,7 @@ mod tests {
 
         let err = op
             .write_with("path", "")
-            .if_not_changed(&Metadata::default())
+            .if_not_changed(&MetadataBuilder::unknown().build())
             .await
             .expect_err("metadata without an identity must fail during lowering");
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
@@ -1069,7 +1069,7 @@ mod tests {
                 [(
                     "from",
                     options::ComposeSourceOptions {
-                        if_not_changed: Some(Metadata::default()),
+                        if_not_changed: Some(MetadataBuilder::unknown().build()),
                         ..Default::default()
                     },
                 )],
@@ -1191,9 +1191,11 @@ mod tests {
             .expect_err("mock service rejects presign");
         assert!(err.to_string().contains("operation is not supported"));
 
-        let metadata = Metadata::default()
-            .with_version("version".to_string())
-            .with_etag("etag".to_string());
+        let metadata = {
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.version("version").etag("etag");
+            metadata.build()
+        };
         let err = op
             .presign_write_options(
                 "path",

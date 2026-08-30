@@ -1131,6 +1131,14 @@ impl OpCompose {
     pub fn if_not_exists(&self) -> bool {
         self.flags & OP_COMPOSE_IF_NOT_EXISTS != 0
     }
+
+    #[doc(hidden)]
+    pub fn into_content_type(mut self, value: &str) -> Self {
+        self.values = self
+            .values
+            .replace(ComposeField::ContentType as usize, value.as_bytes());
+        self
+    }
 }
 
 /// Arguments for `copy` operation.

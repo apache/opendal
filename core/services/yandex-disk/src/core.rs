@@ -346,7 +346,16 @@ pub(super) fn parse_info(mf: MetainformationResponse) -> Result<Metadata> {
         EntryMode::DIR
     };
 
-    let mut m = Metadata::builder(mode);
+    let mut m = if mode == EntryMode::FILE {
+        MetadataBuilder::file(mf.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "yandex disk response does not contain file size",
+            )
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     m.last_modified(mf.modified.parse::<Timestamp>()?);
 
@@ -356,10 +365,6 @@ pub(super) fn parse_info(mf: MetainformationResponse) -> Result<Metadata> {
 
     if let Some(mime_type) = mf.mime_type {
         m.content_type(&mime_type);
-    }
-
-    if let Some(size) = mf.size {
-        m.content_length(size);
     }
 
     Ok(m.build())

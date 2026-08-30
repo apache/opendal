@@ -432,8 +432,7 @@ mod tests {
 
         fn metadata(&self) -> Metadata {
             {
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(self.data.len() as _);
+                let metadata = MetadataBuilder::file(self.data.len() as _);
                 metadata.build()
             }
         }

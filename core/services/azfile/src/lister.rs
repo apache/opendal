@@ -72,7 +72,7 @@ impl oio::PageList for AzfileLister {
 
         // Return self at the first page.
         if ctx.token.is_empty() && !ctx.done {
-            let e = oio::Entry::new(&self.path, Metadata::builder(EntryMode::DIR).build());
+            let e = oio::Entry::new(&self.path, MetadataBuilder::dir().build());
             ctx.entries.push_back(e);
         }
 
@@ -88,18 +88,21 @@ impl oio::PageList for AzfileLister {
         }
 
         for file in results.entries.file {
-            let mut meta = Metadata::builder(EntryMode::FILE);
+            let content_length = file.properties.content_length.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "azfile list response does not contain file content length",
+                )
+            })?;
+            let mut meta = MetadataBuilder::file(content_length);
             meta.etag(file.properties.etag)
                 .last_modified(Timestamp::parse_rfc2822(&file.properties.last_modified)?);
-            if let Some(size) = file.properties.content_length {
-                meta.content_length(size);
-            }
             let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
             ctx.entries.push_back(oio::Entry::new(&path, meta.build()));
         }
 
         for dir in results.entries.directory {
-            let mut meta = Metadata::builder(EntryMode::DIR);
+            let mut meta = MetadataBuilder::dir();
             meta.etag(dir.properties.etag)
                 .last_modified(Timestamp::parse_rfc2822(&dir.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &dir.name + "/";

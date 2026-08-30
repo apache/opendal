@@ -63,7 +63,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
+            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("PutBlob")),
                 resp,
@@ -153,7 +153,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
+            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,

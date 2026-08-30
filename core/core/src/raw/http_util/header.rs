@@ -37,6 +37,7 @@ use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
+use crate::MetadataBuilder;
 use crate::Result;
 use crate::raw::*;
 
@@ -157,14 +158,22 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let mut m = Metadata::builder(mode);
+    let content_length = parse_content_range(headers)?
+        .and_then(|value| value.size())
+        .or(parse_content_length(headers)?);
+    let mut m = if mode == EntryMode::FILE {
+        MetadataBuilder::file(content_length.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "HTTP response does not contain file content length",
+            )
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     if let Some(v) = parse_cache_control(headers)? {
         m.cache_control(v);
-    }
-
-    if let Some(v) = parse_content_length(headers)? {
-        m.content_length(v);
     }
 
     if let Some(v) = parse_content_type(headers)? {
@@ -173,10 +182,6 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_encoding(headers)? {
         m.content_encoding(v);
-    }
-
-    if let Some(v) = parse_content_range(headers)?.and_then(|v| v.size()) {
-        m.content_length(v);
     }
 
     if let Some(v) = parse_etag(headers)? {

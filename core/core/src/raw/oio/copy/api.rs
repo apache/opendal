@@ -45,7 +45,7 @@ impl Copy for () {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        Ok(Metadata::builder(EntryMode::Unknown).build())
+        Ok(MetadataBuilder::unknown().build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -106,7 +106,7 @@ impl OneShotCopier {
         Self {
             factory: None,
             fut: None,
-            meta: Some(Metadata::builder(EntryMode::Unknown).build()),
+            meta: Some(MetadataBuilder::unknown().build()),
             consumed: true,
         }
     }
@@ -238,7 +238,7 @@ mod tests {
                     );
                 }
 
-                Ok(Metadata::builder(EntryMode::FILE).build())
+                Ok(MetadataBuilder::file(0).build())
             }
         });
 

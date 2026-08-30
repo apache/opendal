@@ -517,16 +517,25 @@ pub(super) fn parse_info(headers: &HeaderMap) -> Result<Metadata> {
         EntryMode::DIR
     };
 
-    let mut m = Metadata::builder(mode);
-
-    if let Some(v) = parse_header_to_str(headers, X_UPYUN_FILE_SIZE)? {
-        let size = v.parse::<u64>().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "header value is not valid integer")
-                .with_operation("parse_info")
-                .set_source(e)
-        })?;
-        m.content_length(size);
-    }
+    let size = parse_header_to_str(headers, X_UPYUN_FILE_SIZE)?
+        .map(|value| {
+            value.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                    .with_operation("parse_info")
+                    .set_source(e)
+            })
+        })
+        .transpose()?;
+    let mut m = if mode == EntryMode::FILE {
+        MetadataBuilder::file(size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "upyun response does not contain file size",
+            )
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     if let Some(v) = parse_content_type(headers)? {
         m.content_type(v);

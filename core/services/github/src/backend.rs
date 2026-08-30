@@ -206,11 +206,11 @@ impl Service for GithubBackend {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let m = if resp.type_field == "dir" {
-                    Metadata::builder(EntryMode::DIR).build()
+                    MetadataBuilder::dir().build()
                 } else {
                     {
-                        let mut metadata = Metadata::builder(EntryMode::FILE);
-                        metadata.content_length(resp.size).etag(resp.sha);
+                        let mut metadata = MetadataBuilder::file(resp.size);
+                        metadata.etag(resp.sha);
                         metadata.build()
                     }
                 };

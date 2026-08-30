@@ -462,14 +462,15 @@ impl PcloudCore {
 
 pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::builder(EntryMode::DIR)
+        MetadataBuilder::dir()
     } else {
-        Metadata::builder(EntryMode::FILE)
+        MetadataBuilder::file(content.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "pcloud stat response does not contain file size",
+            )
+        })?)
     };
-
-    if let Some(size) = content.size {
-        md.content_length(size);
-    }
 
     md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
@@ -478,14 +479,15 @@ pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
 
 pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::builder(EntryMode::DIR)
+        MetadataBuilder::dir()
     } else {
-        Metadata::builder(EntryMode::FILE)
+        MetadataBuilder::file(content.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "pcloud list response does not contain file size",
+            )
+        })?)
     };
-
-    if let Some(size) = content.size {
-        md.content_length(size);
-    }
 
     md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 

@@ -215,7 +215,7 @@ impl Service for LakefsBackend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let resp = self.core.get_object_metadata(ctx, path).await?;
@@ -230,7 +230,7 @@ impl Service for LakefsBackend {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 // Use the helper function to parse LakefsStatus into Metadata
-                let meta = LakefsCore::parse_lakefs_status_into_metadata(&decoded_response);
+                let meta = LakefsCore::parse_lakefs_status_into_metadata(&decoded_response)?;
 
                 Ok(RpStat::new(meta))
             }
@@ -311,7 +311,7 @@ impl Service for LakefsBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED => Ok(Metadata::builder(EntryMode::Unknown).build()),
+                StatusCode::CREATED => Ok(MetadataBuilder::unknown().build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

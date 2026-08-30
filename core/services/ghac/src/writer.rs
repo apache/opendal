@@ -249,8 +249,8 @@ impl oio::Write for GhacWriterV1 {
             .ghac_finalize_upload(&self.ctx, &self.path, &self.url, self.size)
             .await?;
         Ok({
-            let mut metadata = Metadata::builder(EntryMode::Unknown);
-            metadata.content_length(self.size);
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.set_file(self.size);
             metadata.build()
         })
     }
@@ -281,8 +281,8 @@ impl oio::Write for GhacWriterV2 {
             .ghac_finalize_upload(&self.ctx, &self.path, &self.url, self.size)
             .await?;
         Ok({
-            let mut metadata = Metadata::builder(EntryMode::Unknown);
-            metadata.content_length(self.size);
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.set_file(self.size);
             metadata.build()
         })
     }

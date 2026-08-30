@@ -390,9 +390,7 @@ impl Service for SwiftBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    Ok(Metadata::builder(EntryMode::Unknown).build())
-                }
+                StatusCode::CREATED | StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

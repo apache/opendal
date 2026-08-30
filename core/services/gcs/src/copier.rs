@@ -164,10 +164,9 @@ impl oio::Copy for GcsCopier {
         let metadata = self
             .metadata
             .clone()
-            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build());
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
         let mut builder = metadata.into_builder();
-        builder.mode(EntryMode::FILE);
-        builder.content_length(self.total_bytes_rewritten);
+        builder.set_file(self.total_bytes_rewritten);
         Ok(builder.build())
     }
 

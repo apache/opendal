@@ -141,9 +141,12 @@ impl oio::PageList for OneDriveLister {
                 continue;
             }
 
-            let mut meta = Metadata::builder(entry_mode);
-            meta.etag(drive_item.e_tag)
-                .content_length(drive_item.size.max(0) as u64);
+            let mut meta = if entry_mode == EntryMode::FILE {
+                MetadataBuilder::file(drive_item.size.max(0) as u64)
+            } else {
+                MetadataBuilder::dir()
+            };
+            meta.etag(drive_item.e_tag);
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
             meta.last_modified(last_modified);
             let meta = meta.build();
@@ -163,8 +166,7 @@ impl oio::PageList for OneDriveLister {
                 }
 
                 for (index, version) in versions.into_iter().enumerate() {
-                    let mut version_meta = Metadata::builder(entry_mode);
-                    version_meta.content_length(version.size.max(0) as u64);
+                    let mut version_meta = MetadataBuilder::file(version.size.max(0) as u64);
                     version_meta
                         .last_modified(version.last_modified_date_time.parse::<Timestamp>()?);
                     version_meta.version(&version.id);

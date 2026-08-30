@@ -22,8 +22,7 @@ use quick_xml::de;
 
 use super::core::parse_error;
 use super::core::*;
-use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
@@ -95,7 +94,7 @@ impl oio::PageList for ObsLister {
         for prefix in common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::builder(EntryMode::DIR).build(),
+                MetadataBuilder::dir().build(),
             );
 
             ctx.entries.push_back(de);
@@ -108,8 +107,7 @@ impl oio::PageList for ObsLister {
             }
 
             let meta = {
-                let mut metadata = Metadata::builder(EntryMode::from_path(&path));
-                metadata.content_length(object.size);
+                let metadata = MetadataBuilder::file(object.size);
                 metadata.build()
             };
 

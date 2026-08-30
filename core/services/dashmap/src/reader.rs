@@ -47,8 +47,7 @@ impl oio::StreamRead for DashmapReader {
                     .content
                     .slice(range.to_content_range(value.content.len())?);
                 let metadata = {
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(total_size);
+                    let metadata = MetadataBuilder::file(total_size);
                     metadata.build()
                 };
                 Ok((

@@ -48,8 +48,7 @@ impl oio::Write for EtcdWriter {
 
         self.core.set(&self.path, buf.clone()).await?;
 
-        let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
-        metadata.content_length(buf.len() as u64);
+        let metadata = MetadataBuilder::file(buf.len() as u64);
 
         Ok(metadata.build())
     }

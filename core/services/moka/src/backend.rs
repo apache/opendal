@@ -251,7 +251,7 @@ impl Service for MokaBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             // Check the exact path first
             match self.core.get(&p).await? {
@@ -261,7 +261,7 @@ impl Service for MokaBackend {
                     // If path ends with '/' but we found a file, return DIR
                     // This is because CompleteLayer's create_dir creates empty files with '/' suffix
                     if p.ends_with('/') && value.metadata.mode() != EntryMode::DIR {
-                        metadata.mode(EntryMode::DIR);
+                        metadata.set_dir();
                     }
                     Ok(RpStat::new(metadata.build()))
                 }
@@ -275,7 +275,7 @@ impl Service for MokaBackend {
                             .any(|kv| kv.0.starts_with(&p) && kv.0.len() > p.len());
 
                         if has_children {
-                            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+                            Ok(RpStat::new(MetadataBuilder::dir().build()))
                         } else {
                             Err(Error::new(ErrorKind::NotFound, "key not found in moka"))
                         }

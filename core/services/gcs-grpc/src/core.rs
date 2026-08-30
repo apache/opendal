@@ -196,8 +196,11 @@ pub(crate) fn parse_object(object: &Object) -> Metadata {
     } else {
         EntryMode::FILE
     };
-    let mut metadata = Metadata::builder(mode);
-    metadata.content_length(object.size.max(0) as u64);
+    let mut metadata = if mode == EntryMode::FILE {
+        MetadataBuilder::file(object.size.max(0) as u64)
+    } else {
+        MetadataBuilder::dir()
+    };
     if !object.cache_control.is_empty() {
         metadata.cache_control(&object.cache_control);
     }

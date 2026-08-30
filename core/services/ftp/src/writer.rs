@@ -110,7 +110,7 @@ impl oio::Write for FtpWriter {
             }
         }
 
-        Ok(Metadata::builder(EntryMode::Unknown).build())
+        Ok(MetadataBuilder::unknown().build())
     }
 
     async fn abort(&mut self) -> Result<()> {

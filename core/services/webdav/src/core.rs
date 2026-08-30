@@ -829,14 +829,19 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     } else {
         EntryMode::FILE
     };
-    let mut m = Metadata::builder(mode);
-
-    if let Some(v) = getcontentlength {
-        let content_length = v.parse::<u64>().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
+    let mut m = if mode == EntryMode::FILE {
+        let content_length = getcontentlength.as_ref().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "webdav response does not contain file content length",
+            )
         })?;
-        m.content_length(content_length);
-    }
+        MetadataBuilder::file(content_length.parse::<u64>().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "parse webdav content length").set_source(err)
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     if let Some(v) = getcontenttype {
         m.content_type(v);

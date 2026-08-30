@@ -51,8 +51,7 @@ impl oio::Write for D1Writer {
         self.core.set(&self.ctx, &self.path, buf).await?;
 
         let meta = {
-            let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
-            metadata.content_length(length);
+            let metadata = MetadataBuilder::file(length);
             metadata.build()
         };
         Ok(meta)

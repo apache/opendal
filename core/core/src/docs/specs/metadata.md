@@ -8,9 +8,11 @@ change any other clone.
 
 ## Construction and access
 
-Callers construct metadata with `Metadata::builder(mode)` and finish it with
+Callers construct metadata with `MetadataBuilder::file(content_length)`,
+`MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, then finish it with
 `MetadataBuilder::build`. Existing metadata can be consumed with
-`Metadata::into_builder` to create a modified value.
+`Metadata::into_builder`; `set_file(content_length)`, `set_dir()`, and
+`set_unknown()` change its mode before rebuilding it.
 
 User metadata is exposed through a borrowed `UserMetadata` view. The view
 supports lookup, length checks, and iteration without requiring a `HashMap`
@@ -24,27 +26,26 @@ their own smaller protocol limits before reaching this representation boundary.
 
 ## Content length
 
-Every non-deleted file `Metadata` returned through an `Operator` contains an
-explicit content length for the complete object. An explicit zero represents
-an empty file. Directory metadata reports zero.
+Every file `Metadata` contains the complete object length by construction.
+`MetadataBuilder::file(0)` represents an empty file. Directory and unknown
+metadata report zero.
 
-Raw services and intermediate layers may temporarily construct metadata without
-a content length. Before exposing a result, the completion layer applies these
-rules:
+Raw services and intermediate layers use `Unknown` while either the entry mode
+or its full length is unavailable. They promote that value to `FILE` only at a
+boundary that owns an authoritative length:
 
-- `stat` and read-response metadata fail with `Unexpected` when file metadata
-  still lacks a length.
-- list entries may obtain a missing length by statting that entry; a file that
-  still lacks a length fails with `Unexpected`.
-- write completion fills a missing or zero response length from the number of
-  bytes written when that value is authoritative.
-- copy completion uses the source-length hint, the source length discovered by
-  a segmented copier, or the successful byte progress reported while copying.
-  It does not issue a target `stat`; a copy that returns file metadata without
-  enough information to determine its result length fails with `Unexpected`.
+- stat and read-response parsers construct `FILE` only after obtaining the
+  complete object length from the service response.
+- list completion stats unknown entries, resolves their mode, and promotes
+  files with the stat result's length.
+- write completion uses the number of bytes written for replacements. Append
+  adapters use the final object offset instead of the number of appended bytes.
+- copy completion uses a service result length, the source-length hint, the
+  source length discovered by a segmented copier, or successful copy progress.
+  It does not issue a target `stat` and fails when none of these sources can
+  provide an authoritative length.
 
-Delete markers are identity records rather than readable file results and do
-not require content length completion.
+Delete markers that do not carry an object length use a content length of zero.
 
 ## Operation boundary
 

@@ -370,7 +370,7 @@ impl Service for WebdavBackend {
 
                 match status {
                     StatusCode::CREATED | StatusCode::NO_CONTENT => {
-                        Ok(Metadata::builder(EntryMode::Unknown).build())
+                        Ok(MetadataBuilder::unknown().build())
                     }
                     _ => Err(parse_error(
                         ErrorContext::new(ServiceOperation("Copy")),

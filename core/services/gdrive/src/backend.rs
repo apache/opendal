@@ -232,7 +232,7 @@ impl Service for GdriveBackend {
     ) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.root, path);
         let dir_id = self.core.ensure_dir(ctx, &path).await?;
-        let metadata = Metadata::builder(EntryMode::DIR).build();
+        let metadata = MetadataBuilder::dir().build();
 
         self.core.cache_dir_id(&path, &dir_id).await;
         self.core.record_recent_upsert(&path, metadata).await;
@@ -300,13 +300,20 @@ impl Service for GdriveBackend {
         } else {
             EntryMode::FILE
         };
-        let mut meta = Metadata::builder(file_type);
-        meta.content_type(gdrive_file.mime_type);
-        if let Some(v) = gdrive_file.size {
-            meta.content_length(v.parse::<u64>().map_err(|e| {
+        let mut meta = if file_type == EntryMode::FILE {
+            let size = gdrive_file.size.as_deref().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "gdrive stat response does not contain file size",
+                )
+            })?;
+            MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-            })?);
-        }
+            })?)
+        } else {
+            MetadataBuilder::dir()
+        };
+        meta.content_type(gdrive_file.mime_type);
         if let Some(v) = gdrive_file.modified_time {
             meta.last_modified(v.parse::<Timestamp>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
@@ -396,16 +403,19 @@ impl Service for GdriveBackend {
 
                     let to_path = build_abs_path(&core.root, &to);
                     let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                    let mut metadata = if is_dir {
-                        Metadata::builder(EntryMode::DIR)
+                    let metadata = if is_dir {
+                        MetadataBuilder::dir()
                     } else {
-                        Metadata::builder(EntryMode::FILE)
-                    };
-                    if let Some(size) = meta.size {
-                        metadata.content_length(size.parse::<u64>().map_err(|e| {
+                        let size = meta.size.as_deref().ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "gdrive copy response does not contain file size",
+                            )
+                        })?;
+                        MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                        })?);
-                    }
+                        })?)
+                    };
 
                     if is_dir {
                         core.cache_dir_id(&to_path, &meta.id).await;
@@ -429,17 +439,20 @@ impl Service for GdriveBackend {
 
                             let to_path = build_abs_path(&core.root, &to);
                             let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                            let mut metadata = if is_dir {
-                                Metadata::builder(EntryMode::DIR)
+                            let metadata = if is_dir {
+                                MetadataBuilder::dir()
                             } else {
-                                Metadata::builder(EntryMode::FILE)
-                            };
-                            if let Some(size) = meta.size {
-                                metadata.content_length(size.parse::<u64>().map_err(|e| {
+                                let size = meta.size.as_deref().ok_or_else(|| {
+                                    Error::new(
+                                        ErrorKind::Unexpected,
+                                        "gdrive copy response does not contain file size",
+                                    )
+                                })?;
+                                MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
                                     Error::new(ErrorKind::Unexpected, "parse content length")
                                         .set_source(e)
-                                })?);
-                            }
+                                })?)
+                            };
 
                             if is_dir {
                                 core.cache_dir_id(&to_path, &meta.id).await;
@@ -502,16 +515,19 @@ impl Service for GdriveBackend {
                     build_abs_path(&self.core.root, to)
                 };
                 let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                let mut metadata = if is_dir {
-                    Metadata::builder(EntryMode::DIR)
+                let metadata = if is_dir {
+                    MetadataBuilder::dir()
                 } else {
-                    Metadata::builder(EntryMode::FILE)
-                };
-                if let Some(size) = meta.size {
-                    metadata.content_length(size.parse::<u64>().map_err(|e| {
+                    let size = meta.size.as_deref().ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "gdrive move response does not contain file size",
+                        )
+                    })?;
+                    MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                    })?);
-                }
+                    })?)
+                };
 
                 if is_dir {
                     self.core.invalidate_dir_id(&source_path).await;
@@ -567,16 +583,19 @@ impl Service for GdriveBackend {
                     build_abs_path(&self.core.root, to)
                 };
                 let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                let mut metadata = if is_dir {
-                    Metadata::builder(EntryMode::DIR)
+                let metadata = if is_dir {
+                    MetadataBuilder::dir()
                 } else {
-                    Metadata::builder(EntryMode::FILE)
-                };
-                if let Some(size) = meta.size {
-                    metadata.content_length(size.parse::<u64>().map_err(|e| {
+                    let size = meta.size.as_deref().ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "gdrive move response does not contain file size",
+                        )
+                    })?;
+                    MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                    })?);
-                }
+                    })?)
+                };
 
                 if is_dir {
                     self.core.invalidate_dir_id(&source_path).await;

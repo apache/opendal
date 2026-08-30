@@ -231,10 +231,13 @@ impl Service for KoofrBackend {
                     EntryMode::FILE
                 };
 
-                let mut md = Metadata::builder(mode);
+                let mut md = if mode == EntryMode::FILE {
+                    MetadataBuilder::file(file.size)
+                } else {
+                    MetadataBuilder::dir()
+                };
 
-                md.content_length(file.size)
-                    .content_type(&file.content_type)
+                md.content_type(&file.content_type)
                     .last_modified(Timestamp::from_millisecond(file.modified)?);
 
                 Ok(RpStat::new(md.build()))
@@ -305,7 +308,7 @@ impl Service for KoofrBackend {
         Ok(oio::OneShotCopier::new(async move {
             core.ensure_dir_exists(&ctx, &to).await?;
             if from == to {
-                Ok(Metadata::builder(EntryMode::Unknown).build())
+                Ok(MetadataBuilder::unknown().build())
             } else {
                 let resp = core.remove(&ctx, &to).await?;
 
@@ -322,7 +325,7 @@ impl Service for KoofrBackend {
                     let status = resp.status();
 
                     match status {
-                        StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
+                        StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
                         _ => Err(parse_error(
                             ErrorContext::new(ServiceOperation("FilesCopy")),
                             resp,

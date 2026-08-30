@@ -31,11 +31,11 @@ Operator runtime resources now live in `OperationContext`, which is exported fro
 
 ### `Metadata` uses immutable builder-based construction
 
-`Metadata::new`, `Default`, `set_*`, and `with_*` have been removed. Construct metadata with `Metadata::builder(mode)` and call `build()` after setting fields. Consume existing metadata with `into_builder()` when creating a modified value.
+`Metadata::new`, `Metadata::builder`, `Default`, direct metadata setters, and `with_*` have been removed. Construct metadata with `MetadataBuilder::file(content_length)`, `MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, then call `build()` after setting optional fields. Consume existing metadata with `into_builder()` when creating a modified value; use `set_file(content_length)`, `set_dir()`, or `set_unknown()` to change its mode.
 
 `Metadata::user_metadata()` now returns a borrowed `UserMetadata` view instead of `&HashMap<String, String>`. The view supports `get`, `len`, `is_empty`, and `IntoIterator`; collect owned string pairs at boundaries that require a map.
 
-Every file `Metadata` returned through an `Operator` must contain an explicit full-object content length. Raw services that omit it now return `Unexpected` at the completion boundary.
+Every file `Metadata` contains an explicit full-object content length by construction. Raw services use `Unknown` for incomplete metadata and promote it with `set_file(content_length)` only when the full length is authoritative.
 
 Compact metadata and finalized raw-operation value blocks are limited to `u16::MAX` encoded bytes, including indexes. `MetadataBuilder::build`, raw option freezing, and raw listed-entry construction panic when a block exceeds this bound.
 

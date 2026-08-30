@@ -160,8 +160,12 @@ impl Service for CompfsBackend {
             EntryMode::Unknown
         };
         let last_mod = Timestamp::try_from(meta.modified().map_err(new_std_io_error)?)?;
-        let mut ret = Metadata::builder(mode);
-        ret.last_modified(last_mod).content_length(meta.len());
+        let mut ret = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        ret.last_modified(last_mod);
         Ok(RpStat::new(ret.build()))
     }
 
@@ -202,8 +206,7 @@ impl Service for CompfsBackend {
                 let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
                 let size = compio::io::copy(&mut from, &mut to).await?;
 
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(size);
+                let metadata = MetadataBuilder::file(size);
                 Ok(metadata.build())
             })
             .await

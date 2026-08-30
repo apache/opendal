@@ -149,7 +149,7 @@ pub fn format_put_multipart_options(opts: PutOptions) -> object_store::PutMultip
 
 /// Format PutResult to OpenDAL Metadata
 pub fn format_put_result(result: PutResult) -> Metadata {
-    let mut metadata = Metadata::builder(EntryMode::FILE);
+    let mut metadata = MetadataBuilder::unknown();
     if let Some(etag) = &result.e_tag {
         metadata.etag(etag);
     }
@@ -161,8 +161,7 @@ pub fn format_put_result(result: PutResult) -> Metadata {
 
 /// Format `object_store::ObjectMeta` to `opendal::Metadata`.
 pub fn format_metadata(meta: &ObjectMeta) -> Metadata {
-    let mut metadata = Metadata::builder(EntryMode::FILE);
-    metadata.content_length(meta.size);
+    let mut metadata = MetadataBuilder::file(meta.size);
     if let Some(last_modified) = datetime_to_timestamp(meta.last_modified) {
         metadata.last_modified(last_modified);
     }

@@ -197,7 +197,7 @@ impl Service for IpmfsBackend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let resp = self.core.ipmfs_stat(ctx, path).await?;
@@ -217,8 +217,11 @@ impl Service for IpmfsBackend {
                     _ => EntryMode::Unknown,
                 };
 
-                let mut meta = Metadata::builder(mode);
-                meta.content_length(res.size);
+                let meta = match mode {
+                    EntryMode::FILE => MetadataBuilder::file(res.size),
+                    EntryMode::DIR => MetadataBuilder::dir(),
+                    EntryMode::Unknown => MetadataBuilder::unknown(),
+                };
 
                 Ok(RpStat::new(meta.build()))
             }

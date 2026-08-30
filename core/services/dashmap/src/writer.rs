@@ -50,9 +50,7 @@ impl oio::Write for DashmapWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let content = self.buf.clone().collect();
 
-        let entry_mode = EntryMode::from_path(&self.path);
-        let mut meta = Metadata::builder(entry_mode);
-        meta.content_length(content.len() as u64);
+        let mut meta = MetadataBuilder::file(content.len() as u64);
         meta.last_modified(Timestamp::now());
 
         if let Some(v) = self.op.content_type() {

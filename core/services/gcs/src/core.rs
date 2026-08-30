@@ -948,17 +948,15 @@ impl GcsCore {
 }
 
 impl GetObjectJsonResponse {
-    fn into_metadata(self, path: &str) -> Result<Metadata> {
-        let mut m = Metadata::builder(EntryMode::from_path(path));
-
-        m.etag(&self.etag);
-        m.content_md5(&self.md5_hash);
-
+    fn into_metadata(self, _path: &str) -> Result<Metadata> {
         let size = self
             .size
             .parse::<u64>()
             .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        m.content_length(size);
+        let mut m = MetadataBuilder::file(size);
+
+        m.etag(&self.etag);
+        m.content_md5(&self.md5_hash);
         if !self.content_type.is_empty() {
             m.content_type(&self.content_type);
         }
@@ -1096,7 +1094,7 @@ impl RewriteResponse {
     pub fn into_metadata(self, path: &str) -> Result<Metadata> {
         match self.resource {
             Some(resource) => resource.into_metadata(path),
-            None => Ok(Metadata::builder(EntryMode::Unknown).build()),
+            None => Ok(MetadataBuilder::unknown().build()),
         }
     }
 }

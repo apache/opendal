@@ -18,9 +18,8 @@
 use std::sync::Arc;
 
 use super::core::GoosefsCore;
-use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;
@@ -64,10 +63,8 @@ impl oio::PageList for GoosefsLister {
                 // no "self" entry in OpenDAL semantics, so we skip the
                 // synthesis for it.
                 if !self.path.is_empty() && self.path.ends_with('/') {
-                    ctx.entries.push_back(Entry::new(
-                        &self.path,
-                        Metadata::builder(EntryMode::DIR).build(),
-                    ));
+                    ctx.entries
+                        .push_back(Entry::new(&self.path, MetadataBuilder::dir().build()));
                 }
 
                 for file_info in file_infos {

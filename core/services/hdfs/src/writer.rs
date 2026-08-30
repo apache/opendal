@@ -93,8 +93,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
         }
 
         Ok({
-            let mut metadata = Metadata::builder(EntryMode::Unknown);
-            metadata.content_length(self.size);
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.set_file(self.size);
             metadata.build()
         })
     }

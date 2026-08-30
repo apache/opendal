@@ -101,7 +101,7 @@ impl oio::PageList for SwiftLister {
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let meta = Metadata::builder(EntryMode::DIR).build();
+                    let meta = MetadataBuilder::dir().build();
                     oio::Entry::with(path, meta)
                 }
                 ListOpResponse::FileInfo {
@@ -115,8 +115,7 @@ impl oio::PageList for SwiftLister {
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let mut meta = Metadata::builder(EntryMode::from_path(path.as_str()));
-                    meta.content_length(bytes);
+                    let mut meta = MetadataBuilder::file(bytes);
                     meta.content_md5(hash.as_str());
 
                     // OpenStack Swift returns time without 'Z' at the end,

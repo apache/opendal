@@ -54,8 +54,7 @@ impl HfReadStream {
         range: BytesRange,
     ) -> Result<(RpRead, Self)> {
         let metadata = {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(size);
+            let metadata = MetadataBuilder::file(size);
             metadata.build()
         };
         let xet_range = xet_range(range);

@@ -209,10 +209,14 @@ mod utils {
     use openssh_sftp_client::metadata::MetaData as SftpMeta;
 
     use opendal_core::EntryMode;
+    use opendal_core::Error;
+    use opendal_core::ErrorKind;
     use opendal_core::Metadata;
+    use opendal_core::MetadataBuilder;
+    use opendal_core::Result;
     use opendal_core::raw::Timestamp;
 
-    pub fn to_metadata(meta: SftpMeta) -> Metadata {
+    pub fn to_metadata(meta: SftpMeta) -> Result<Metadata> {
         let mode = meta
             .file_type()
             .map(|filetype| {
@@ -226,11 +230,16 @@ mod utils {
             })
             .unwrap_or(EntryMode::Unknown);
 
-        let mut metadata = Metadata::builder(mode);
-
-        if let Some(size) = meta.len() {
-            metadata.content_length(size);
-        }
+        let mut metadata = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "sftp metadata does not contain file length",
+                )
+            })?),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
 
         if let Some(modified) = meta.modified()
             && let Ok(m) = Timestamp::try_from(modified.as_system_time())
@@ -238,7 +247,7 @@ mod utils {
             metadata.last_modified(m);
         }
 
-        metadata.build()
+        Ok(metadata.build())
     }
 }
 

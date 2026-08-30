@@ -123,7 +123,6 @@ impl Service for CompleteService {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let metadata = self.inner.stat(ctx, path, args).await?.into_metadata();
-        ensure_file_content_length(&metadata, "CompleteService::stat")?;
         Ok(RpStat::new(metadata))
     }
 
@@ -162,7 +161,7 @@ impl CompleteCopier {
     }
 
     fn complete_metadata(&self, metadata: Metadata) -> Result<Metadata> {
-        if metadata.has_content_length() {
+        if metadata.is_file() {
             if let Some(copied) = self.copied
                 && metadata.content_length() != copied
             {
@@ -175,22 +174,18 @@ impl CompleteCopier {
                 .with_context("actual", metadata.content_length()));
             }
 
-            if metadata.is_file() {
-                return Ok(metadata);
-            }
-
-            let mut builder = metadata.into_builder();
-            builder.mode(EntryMode::FILE);
-            return Ok(builder.build());
+            return Ok(metadata);
         }
 
         let Some(copied) = self.copied.or(self.source_content_length_hint) else {
-            ensure_file_content_length(&metadata, "CompleteCopier::close")?;
-            return Ok(metadata);
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "copy result does not contain enough information to determine content length",
+            )
+            .with_operation("CompleteCopier::close"));
         };
         let mut builder = metadata.into_builder();
-        builder.mode(EntryMode::FILE);
-        builder.content_length(copied);
+        builder.set_file(copied);
         Ok(builder.build())
     }
 }
@@ -229,7 +224,7 @@ impl CompleteLister {
         Self { inner, ctx, srv }
     }
 
-    async fn ensure_file_content_length(&self, entry: oio::Entry) -> Result<oio::Entry> {
+    async fn complete_unknown_entry_mode(&self, entry: oio::Entry) -> Result<oio::Entry> {
         let path = entry.path().to_string();
         let version = entry.metadata().version().map(str::to_owned);
         let op = options::StatOptions {
@@ -239,19 +234,17 @@ impl CompleteLister {
         .into();
 
         let stat_metadata = self.srv.stat(&self.ctx, &path, op).await?.into_metadata();
-        if !stat_metadata.has_content_length() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "content length is required for list file entries",
-            )
-            .with_operation("CompleteLister::ensure_file_content_length")
-            .with_context("service", self.srv.info().scheme().to_string())
-            .with_context("path", path));
+        if stat_metadata.mode() == EntryMode::Unknown {
+            return Ok(entry);
         }
 
         let (path, metadata) = entry.into_parts();
         let mut builder = metadata.into_builder();
-        builder.content_length(stat_metadata.content_length());
+        if stat_metadata.is_file() {
+            builder.set_file(stat_metadata.content_length());
+        } else {
+            builder.set_dir();
+        }
         Ok(oio::Entry::with(path, builder.build()))
     }
 }
@@ -263,14 +256,11 @@ impl oio::List for CompleteLister {
                 return Ok(None);
             };
 
-            if !entry.mode().is_file()
-                || entry.metadata().is_deleted()
-                || entry.metadata().has_content_length()
-            {
+            if entry.mode() != EntryMode::Unknown || entry.metadata().is_deleted() {
                 return Ok(Some(entry));
             }
 
-            match self.ensure_file_content_length(entry).await {
+            match self.complete_unknown_entry_mode(entry).await {
                 Ok(entry) => return Ok(Some(entry)),
                 Err(err) if err.kind() == ErrorKind::NotFound => continue,
                 Err(err) => return Err(err),
@@ -297,9 +287,6 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
             range.size()
         };
         let (rp, stream) = self.inner.open(range).await?;
-        if let Some(metadata) = rp.metadata() {
-            ensure_file_content_length(metadata, "CompleteReader::open")?;
-        }
         Ok((
             rp,
             Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
@@ -313,23 +300,9 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
             range.size()
         };
         let (rp, buffer) = self.inner.read(range).await?;
-        if let Some(metadata) = rp.metadata() {
-            ensure_file_content_length(metadata, "CompleteReader::read")?;
-        }
         check_complete(size, buffer.len() as u64)?;
         Ok((rp, buffer))
     }
-}
-
-fn ensure_file_content_length(metadata: &Metadata, operation: &'static str) -> Result<()> {
-    if metadata.is_file() && !metadata.has_content_length() {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "file metadata does not contain a content length",
-        )
-        .with_operation(operation));
-    }
-    Ok(())
 }
 
 pub struct CompleteReadStream<R> {
@@ -425,7 +398,7 @@ impl<W> CompleteWriter<W> {
     }
 
     fn check(&self, content_length: u64) -> Result<()> {
-        if self.append || content_length == 0 {
+        if self.append {
             return Ok(());
         }
 
@@ -517,14 +490,22 @@ where
             .close()
             .await
             .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        self.check(ret.content_length())
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        let ret = if ret.content_length() == 0 {
-            let mut builder = ret.into_builder();
-            builder.content_length(self.size);
-            builder.build()
-        } else {
+        let ret = if ret.is_file() {
+            self.check(ret.content_length())
+                .inspect_err(|_| self.state.transition(CompleteState::Error))?;
             ret
+        } else if self.append {
+            let err = Error::new(
+                ErrorKind::Unexpected,
+                "append result does not contain the final content length",
+            )
+            .with_operation("CompleteWriter::close");
+            self.state.transition(CompleteState::Error);
+            return Err(err);
+        } else {
+            let mut builder = ret.into_builder();
+            builder.set_file(self.size);
+            builder.build()
         };
         self.inner = None;
         self.state.transition(CompleteState::Closed);
@@ -584,7 +565,7 @@ mod tests {
     }
 
     fn incomplete_copy_metadata() -> Metadata {
-        Metadata::builder(EntryMode::Unknown).build()
+        MetadataBuilder::unknown().build()
     }
 
     #[tokio::test]
@@ -614,8 +595,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_copy_uses_result_metadata_over_source_hint() -> Result<()> {
-        let mut metadata = Metadata::builder(EntryMode::FILE);
-        metadata.content_length(8);
+        let metadata = MetadataBuilder::file(8);
         let inner = Box::new(MockCopier::new([], metadata.build()));
         let mut copier = CompleteCopier::new(inner, Some(7));
 
@@ -626,17 +606,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_copy_requires_known_content_length() {
-        let inner = Box::new(MockCopier::new(
-            [],
-            Metadata::builder(EntryMode::FILE).build(),
-        ));
+    async fn test_copy_requires_authoritative_content_length() {
+        let inner = Box::new(MockCopier::new([], incomplete_copy_metadata()));
         let mut copier = CompleteCopier::new(inner, None);
 
         let err = copier
             .close()
             .await
-            .expect_err("copy without a known content length must fail");
+            .expect_err("copy without an authoritative content length must fail");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
@@ -653,7 +630,25 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct MockWriter {
+        metadata: Metadata,
+    }
+
+    impl oio::Write for MockWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(self.metadata.clone())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -672,11 +667,7 @@ mod tests {
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
             Ok((
-                RpRead::new({
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(self.buffer.len() as u64);
-                    metadata.build()
-                }),
+                RpRead::new(MetadataBuilder::file(self.buffer.len() as u64).build()),
                 self.buffer.clone(),
             ))
         }
@@ -710,25 +701,6 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 
-    #[test]
-    fn test_file_metadata_requires_content_length() {
-        let metadata = Metadata::builder(EntryMode::FILE).build();
-        let err = ensure_file_content_length(&metadata, "test")
-            .expect_err("file metadata without content length should fail");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-
-        let mut metadata = Metadata::builder(EntryMode::FILE);
-        metadata.content_length(0);
-        ensure_file_content_length(&metadata.build(), "test").unwrap();
-    }
-
-    #[test]
-    fn test_directory_metadata_reports_zero_without_file_validation() {
-        let metadata = Metadata::builder(EntryMode::DIR).build();
-        ensure_file_content_length(&metadata, "test").unwrap();
-        assert_eq!(metadata.content_length(), 0);
-    }
-
     #[tokio::test]
     async fn test_writer_copy_from_error_is_terminal() {
         let mut writer = CompleteWriter::new(UnsupportedCopyWriter, false);
@@ -742,5 +714,62 @@ mod tests {
 
         writer.abort().await.unwrap();
         assert!(writer.inner.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_writer_promotes_unknown_metadata_with_written_size() -> Result<()> {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::unknown().build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+        writer.write(Buffer::from("abc")).await?;
+
+        let metadata = writer.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 3);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_preserves_explicit_empty_file_length() -> Result<()> {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::file(0).build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+
+        let metadata = writer.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_rejects_explicit_zero_after_writing() {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::file(0).build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+        writer.write(Buffer::from("a")).await.unwrap();
+
+        let err = writer
+            .close()
+            .await
+            .expect_err("an explicit empty-file result must not mean missing length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_append_requires_final_content_length() {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::unknown().build(),
+        };
+        let mut writer = CompleteWriter::new(inner, true);
+        writer.write(Buffer::from("a")).await.unwrap();
+
+        let err = writer
+            .close()
+            .await
+            .expect_err("append without the final content length must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 }

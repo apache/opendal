@@ -1128,8 +1128,7 @@ mod tests {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             let backend = &self.backend;
             let rp = RpRead::new({
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(0);
+                let metadata = MetadataBuilder::file(13);
                 metadata.build()
             });
             let stream = MockReadStream {
@@ -1182,8 +1181,7 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
             Ok(RpStat::new({
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(13);
+                let metadata = MetadataBuilder::file(13);
                 metadata.build()
             }))
         }
@@ -1306,11 +1304,11 @@ mod tests {
                 .set_temporary()),
                 2 => Ok(Some(oio::Entry::new(
                     "hello",
-                    Metadata::builder(EntryMode::FILE).build(),
+                    MetadataBuilder::file(0).build(),
                 ))),
                 3 => Ok(Some(oio::Entry::new(
                     "world",
-                    Metadata::builder(EntryMode::FILE).build(),
+                    MetadataBuilder::file(0).build(),
                 ))),
                 4 => Err(
                     Error::new(ErrorKind::Unexpected, "retryable internal server error")
@@ -1318,11 +1316,11 @@ mod tests {
                 ),
                 5 => Ok(Some(oio::Entry::new(
                     "2023/",
-                    Metadata::builder(EntryMode::DIR).build(),
+                    MetadataBuilder::dir().build(),
                 ))),
                 6 => Ok(Some(oio::Entry::new(
                     "0208/",
-                    Metadata::builder(EntryMode::DIR).build(),
+                    MetadataBuilder::dir().build(),
                 ))),
                 7 => Ok(None),
                 _ => {
@@ -1407,7 +1405,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort(&mut self) -> Result<()> {

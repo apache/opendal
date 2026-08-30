@@ -68,12 +68,14 @@ impl HdfsNativeCore {
             EntryMode::FILE
         };
 
-        let mut metadata = Metadata::builder(mode);
-        metadata
-            .last_modified(Timestamp::from_millisecond(
-                status.modification_time as i64,
-            )?)
-            .content_length(status.length as u64);
+        let mut metadata = if mode == EntryMode::FILE {
+            MetadataBuilder::file(status.length as u64)
+        } else {
+            MetadataBuilder::dir()
+        };
+        metadata.last_modified(Timestamp::from_millisecond(
+            status.modification_time as i64,
+        )?);
 
         Ok(metadata.build())
     }

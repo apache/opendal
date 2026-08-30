@@ -19,9 +19,8 @@ use std::sync::Arc;
 
 use opendal_core::Buffer;
 use opendal_core::BytesRange;
-use opendal_core::EntryMode;
 use opendal_core::Error;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::options;
 use opendal_core::raw::OpRead;
@@ -68,8 +67,7 @@ impl FullReader {
 
     fn full_object_rp(buffer: &Buffer) -> RpRead {
         RpRead::new({
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(buffer.len() as _);
+            let metadata = MetadataBuilder::file(buffer.len() as _);
             metadata.build()
         })
     }

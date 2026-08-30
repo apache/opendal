@@ -430,8 +430,8 @@ mod tests {
             this.length = size;
             this.content = Some(body);
             Ok({
-                let mut metadata = Metadata::builder(EntryMode::Unknown);
-                metadata.content_length(size);
+                let mut metadata = MetadataBuilder::unknown();
+                metadata.set_file(size);
                 metadata.build()
             })
         }
@@ -508,8 +508,8 @@ mod tests {
             assert_eq!(parts.len(), test.part_numbers.len());
 
             Ok({
-                let mut metadata = Metadata::builder(EntryMode::Unknown);
-                metadata.content_length(test.length);
+                let mut metadata = MetadataBuilder::unknown();
+                metadata.set_file(test.length);
                 metadata.build()
             })
         }

@@ -356,11 +356,11 @@ where
         let metadata = self
             .metadata
             .clone()
-            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build());
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
         let Some(source_size) = self.source_size else {
             return Ok(metadata);
         };
-        if metadata.has_content_length() {
+        if metadata.is_file() {
             if metadata.content_length() != source_size {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
@@ -373,8 +373,7 @@ where
         }
 
         let mut builder = metadata.into_builder();
-        builder.mode(EntryMode::FILE);
-        builder.content_length(source_size);
+        builder.set_file(source_size);
         Ok(builder.build())
     }
 
@@ -421,15 +420,15 @@ mod tests {
         async fn source_metadata(&self) -> Result<Metadata> {
             self.source_metadata_calls.fetch_add(1, Ordering::Relaxed);
             Ok({
-                let mut metadata = Metadata::builder(EntryMode::Unknown);
-                metadata.content_length(self.source_size);
+                let mut metadata = MetadataBuilder::unknown();
+                metadata.set_file(self.source_size);
                 metadata.build()
             })
         }
 
         async fn copy_once(&self) -> Result<Metadata> {
             self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn initiate_copy(&self) -> Result<String> {
@@ -452,7 +451,7 @@ mod tests {
         }
 
         async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {

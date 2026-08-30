@@ -250,7 +250,7 @@ impl Service for B2Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
@@ -338,8 +338,7 @@ impl Service for B2Backend {
 
             match status {
                 StatusCode::OK => {
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(source_content_length);
+                    let metadata = MetadataBuilder::file(source_content_length);
                     Ok(metadata.build())
                 }
                 _ => Err(parse_error(

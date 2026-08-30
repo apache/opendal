@@ -99,20 +99,17 @@ impl GdriveLister {
 }
 
 fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
-    let mut metadata = Metadata::builder(
+    let mut metadata =
         if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-            EntryMode::DIR
+            MetadataBuilder::dir()
+        } else if let Some(size) = &file.size {
+            MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?)
         } else {
-            EntryMode::FILE
-        },
-    );
+            MetadataBuilder::unknown()
+        };
     metadata.content_type(file.mime_type.clone());
-
-    if let Some(size) = &file.size {
-        metadata.content_length(size.parse::<u64>().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-        })?);
-    }
     if let Some(modified_time) = &file.modified_time {
         metadata.last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
@@ -234,7 +231,7 @@ impl oio::PageList for GdriveLister {
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
             let path = build_rel_path(&self.core.root, &self.path);
-            self.push_entry(ctx, path, Metadata::builder(EntryMode::DIR).build())
+            self.push_entry(ctx, path, MetadataBuilder::dir().build())
                 .await?;
             self.inject_recent_entries(ctx).await?;
         }
@@ -554,7 +551,7 @@ impl GdriveFlatLister {
             if !rel_path.is_empty() && !rel_path.ends_with('/') {
                 rel_path.push('/');
             }
-            self.push_entry(rel_path, Metadata::builder(EntryMode::DIR).build());
+            self.push_entry(rel_path, MetadataBuilder::dir().build());
 
             // Queue the root directory for listing.
             self.pending_dirs.push_back(PendingDir {

@@ -30,8 +30,7 @@ const IS_CURRENT_MASK: u16 = 0b11 << 2;
 const IS_CURRENT_FALSE: u16 = 0b01 << 2;
 const IS_CURRENT_TRUE: u16 = 0b10 << 2;
 const IS_DELETED: u16 = 1 << 4;
-const HAS_CONTENT_LENGTH: u16 = 1 << 5;
-const HAS_LAST_MODIFIED: u16 = 1 << 6;
+const HAS_LAST_MODIFIED: u16 = 1 << 5;
 
 const STRING_FIELD_COUNT: usize = 7;
 const VALUE_FIELD_COUNT: usize = 9;
@@ -134,7 +133,7 @@ impl MetadataHeader {
 /// | `None` | `false` | A non-deleted object whose current-version status is unknown. |
 /// | `None` | `true` | A deleted object whose current-version status is unknown. |
 ///
-/// Metadata is an immutable owned value. Use [`Metadata::builder`] to create a
+/// Metadata is an immutable owned value. Use [`MetadataBuilder`] to create a
 /// value and [`Metadata::into_builder`] to create a modified value.
 #[derive(Clone)]
 pub struct Metadata {
@@ -169,7 +168,7 @@ impl fmt::Debug for Metadata {
         if let Some(value) = self.content_disposition() {
             ds.field("content_disposition", &value);
         }
-        if self.has_content_length() {
+        if self.is_file() {
             ds.field("content_length", &self.content_length());
         }
         if let Some(value) = self.content_md5() {
@@ -199,12 +198,6 @@ impl fmt::Debug for Metadata {
 }
 
 impl Metadata {
-    /// Create a builder for metadata with the given mode.
-    #[inline]
-    pub fn builder(mode: EntryMode) -> MetadataBuilder {
-        MetadataBuilder::fresh(mode)
-    }
-
     /// Consume this metadata and return a builder initialized with its values.
     #[inline]
     pub fn into_builder(self) -> MetadataBuilder {
@@ -255,15 +248,10 @@ impl Metadata {
     ///
     /// For file metadata returned by stat, list, or read operations, this value
     /// is the complete object size even when a read returns only a range.
+    /// Directory and unknown metadata return zero.
     #[inline]
     pub fn content_length(&self) -> u64 {
         self.header.content_length
-    }
-
-    /// Return whether this metadata contains an explicit content length.
-    #[inline]
-    pub(crate) fn has_content_length(&self) -> bool {
-        self.header.flags & HAS_CONTENT_LENGTH != 0
     }
 
     /// Return this entry's Content-MD5 value.
@@ -363,6 +351,26 @@ pub struct MetadataBuilder {
 }
 
 impl MetadataBuilder {
+    /// Create a builder for file metadata with its complete content length.
+    #[inline]
+    pub fn file(content_length: u64) -> Self {
+        let mut builder = Self::fresh(EntryMode::FILE);
+        builder.header.content_length = content_length;
+        builder
+    }
+
+    /// Create a builder for directory metadata.
+    #[inline]
+    pub fn dir() -> Self {
+        Self::fresh(EntryMode::DIR)
+    }
+
+    /// Create a builder for metadata whose entry mode is not known.
+    #[inline]
+    pub fn unknown() -> Self {
+        Self::fresh(EntryMode::Unknown)
+    }
+
     fn fresh(mode: EntryMode) -> Self {
         Self {
             header: MetadataHeader::new(mode),
@@ -383,9 +391,24 @@ impl MetadataBuilder {
         }
     }
 
-    /// Set the entry mode.
-    pub fn mode(&mut self, value: EntryMode) -> &mut Self {
-        self.header.set_mode(value);
+    /// Set the entry mode to file and replace its complete content length.
+    pub fn set_file(&mut self, content_length: u64) -> &mut Self {
+        self.header.set_mode(EntryMode::FILE);
+        self.header.content_length = content_length;
+        self
+    }
+
+    /// Set the entry mode to directory and discard any file content length.
+    pub fn set_dir(&mut self) -> &mut Self {
+        self.header.set_mode(EntryMode::DIR);
+        self.header.content_length = 0;
+        self
+    }
+
+    /// Set the entry mode to unknown and discard any file content length.
+    pub fn set_unknown(&mut self) -> &mut Self {
+        self.header.set_mode(EntryMode::Unknown);
+        self.header.content_length = 0;
         self
     }
 
@@ -404,13 +427,6 @@ impl MetadataBuilder {
     /// Set the Cache-Control value.
     pub fn cache_control(&mut self, value: impl Into<String>) -> &mut Self {
         self.set_string(ValueField::CacheControl, value.into())
-    }
-
-    /// Set the content length.
-    pub fn content_length(&mut self, value: u64) -> &mut Self {
-        self.header.content_length = value;
-        self.header.set_flag(HAS_CONTENT_LENGTH, true);
-        self
     }
 
     /// Set the Content-MD5 value.
@@ -735,18 +751,20 @@ mod tests {
 
     #[test]
     fn debug_metadata_omits_default_values() {
-        let metadata = Metadata::builder(EntryMode::FILE).build();
-        assert_eq!(format!("{metadata:?}"), "Metadata { mode: FILE }");
+        let metadata = MetadataBuilder::file(0).build();
+        assert_eq!(
+            format!("{metadata:?}"),
+            "Metadata { mode: FILE, content_length: 0 }"
+        );
     }
 
     #[test]
     fn metadata_roundtrip() {
         let timestamp = Timestamp::new(-1, -123_456_789).unwrap();
-        let mut builder = Metadata::builder(EntryMode::FILE);
+        let mut builder = MetadataBuilder::file(42);
         builder
             .is_current(Some(false))
             .is_deleted(true)
-            .content_length(42)
             .last_modified(timestamp)
             .version("v1")
             .user_metadata([
@@ -778,13 +796,13 @@ mod tests {
 
     #[test]
     fn into_builder_preserves_values_for_header_changes() {
-        let mut builder = Metadata::builder(EntryMode::FILE);
+        let mut builder = MetadataBuilder::file(0);
         builder.etag("etag");
         let metadata = builder.build();
         let cloned = metadata.clone();
 
         let mut builder = metadata.into_builder();
-        builder.content_length(42);
+        builder.set_file(42);
         let changed = builder.build();
 
         assert_eq!(cloned.content_length(), 0);
@@ -794,8 +812,29 @@ mod tests {
     }
 
     #[test]
+    fn mode_transitions_reset_content_length() {
+        let mut builder = MetadataBuilder::file(42);
+        builder.set_dir();
+        let directory = builder.build();
+        assert!(directory.is_dir());
+        assert_eq!(directory.content_length(), 0);
+
+        let mut builder = directory.into_builder();
+        builder.set_file(7);
+        let file = builder.build();
+        assert!(file.is_file());
+        assert_eq!(file.content_length(), 7);
+
+        let mut builder = file.into_builder();
+        builder.set_unknown();
+        let unknown = builder.build();
+        assert_eq!(unknown.mode(), EntryMode::Unknown);
+        assert_eq!(unknown.content_length(), 0);
+    }
+
+    #[test]
     fn into_builder_does_not_mutate_shared_packed_values() {
-        let mut builder = Metadata::builder(EntryMode::FILE);
+        let mut builder = MetadataBuilder::file(0);
         builder.etag("original").version("version").user_metadata([
             ("owner".to_string(), "opendal".to_string()),
             ("region".to_string(), "us-east-1".to_string()),
@@ -821,7 +860,7 @@ mod tests {
 
     #[test]
     fn empty_user_metadata_is_present() {
-        let mut builder = Metadata::builder(EntryMode::FILE);
+        let mut builder = MetadataBuilder::file(0);
         builder.user_metadata([]);
         let metadata = builder.build();
 
@@ -830,7 +869,7 @@ mod tests {
 
     #[test]
     fn internal_entry_path_does_not_change_metadata_equality() {
-        let metadata = Metadata::builder(EntryMode::FILE).build();
+        let metadata = MetadataBuilder::file(0).build();
         let mut builder = metadata.clone().into_builder();
         builder.path("path");
         let metadata_with_path = builder.build();

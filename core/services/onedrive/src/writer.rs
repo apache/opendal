@@ -82,9 +82,8 @@ impl OneDriveWriter {
                 let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
                     .map_err(new_json_deserialize_error)?;
 
-                let mut meta = Metadata::builder(EntryMode::FILE);
-                meta.etag(item.e_tag)
-                    .content_length(item.size.max(0) as u64);
+                let mut meta = MetadataBuilder::file(item.size.max(0) as u64);
+                meta.etag(item.e_tag);
 
                 let last_modified = item.last_modified_date_time;
                 let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
@@ -141,9 +140,8 @@ impl OneDriveWriter {
                     let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
                         .map_err(new_json_deserialize_error)?;
 
-                    let mut meta = Metadata::builder(EntryMode::FILE);
-                    meta.etag(item.e_tag)
-                        .content_length(item.size.max(0) as u64);
+                    let mut meta = MetadataBuilder::file(item.size.max(0) as u64);
+                    meta.etag(item.e_tag);
 
                     let last_modified = item.last_modified_date_time;
                     let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
@@ -163,7 +161,7 @@ impl OneDriveWriter {
 
         debug_assert!(false, "should have returned");
 
-        Ok(Metadata::builder(EntryMode::Unknown).build()) // should not happen, but start with handling this gracefully - do nothing, but return the default metadata
+        Ok(MetadataBuilder::unknown().build()) // should not happen, but start with handling this gracefully - do nothing, but return the default metadata
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {

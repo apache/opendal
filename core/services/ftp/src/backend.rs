@@ -241,8 +241,11 @@ impl Service for FtpBackend {
             EntryMode::Unknown
         };
 
-        let mut meta = Metadata::builder(mode);
-        meta.content_length(file.size() as u64);
+        let mut meta = match mode {
+            EntryMode::FILE => MetadataBuilder::file(file.size() as u64),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
         meta.last_modified(Timestamp::try_from(file.modified())?);
 
         Ok(RpStat::new(meta.build()))

@@ -46,7 +46,7 @@ impl oio::OneShotWrite for YandexDiskWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED => Ok(Metadata::builder(EntryMode::Unknown).build()),
+            StatusCode::CREATED => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Upload")),
                 resp,

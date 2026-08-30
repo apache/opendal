@@ -96,16 +96,16 @@ impl oio::PageList for LakefsLister {
                 _ => EntryMode::Unknown,
             };
 
-            let mut meta = Metadata::builder(entry_type);
+            let mut meta = match entry_type {
+                EntryMode::FILE => status
+                    .size_bytes
+                    .map_or_else(MetadataBuilder::unknown, MetadataBuilder::file),
+                EntryMode::DIR => MetadataBuilder::dir(),
+                EntryMode::Unknown => MetadataBuilder::unknown(),
+            };
 
             if status.mtime != 0 {
                 meta.last_modified(Timestamp::from_second(status.mtime).unwrap());
-            }
-
-            if entry_type == EntryMode::FILE
-                && let Some(size_bytes) = status.size_bytes
-            {
-                meta.content_length(size_bytes);
             }
 
             let path = if entry_type == EntryMode::DIR {

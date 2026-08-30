@@ -129,8 +129,8 @@ impl HfWriter {
             .file_size()
             .expect("file_size must be set after finish()");
         let meta = {
-            let mut metadata = Metadata::builder(EntryMode::Unknown);
-            metadata.content_length(content_length);
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.set_file(content_length);
             metadata.build()
         };
 

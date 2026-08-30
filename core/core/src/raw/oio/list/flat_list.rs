@@ -79,10 +79,7 @@ impl<S: Service> FlatLister<S> {
         FlatLister {
             service,
             ctx,
-            next_dir: Some(oio::Entry::new(
-                path,
-                Metadata::builder(EntryMode::DIR).build(),
-            )),
+            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }

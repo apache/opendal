@@ -275,7 +275,7 @@ impl Service for CloudflareKvBackend {
                     if let Some(entries) = list_result.result
                         && !entries.is_empty()
                     {
-                        return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+                        return Ok(RpStat::new(MetadataBuilder::dir().build()));
                     }
 
                     // Empty or no results means not found
@@ -366,13 +366,12 @@ impl Service for CloudflareKvBackend {
             ));
         }
 
-        let mut meta = Metadata::builder(if metadata.is_dir {
-            EntryMode::DIR
+        let mut meta = if metadata.is_dir {
+            MetadataBuilder::dir()
         } else {
-            EntryMode::FILE
-        });
+            MetadataBuilder::file(metadata.content_length as u64)
+        };
         meta.etag(metadata.etag)
-            .content_length(metadata.content_length as u64)
             .last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
         Ok(RpStat::new(meta.build()))

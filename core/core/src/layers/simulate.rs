@@ -150,7 +150,7 @@ impl SimulateService {
         let capability = self.srv.capability();
 
         if path == "/" {
-            return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         if path.ends_with('/') {
@@ -184,7 +184,7 @@ impl SimulateService {
                 )?;
 
                 return if l.next().await?.is_some() {
-                    Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+                    Ok(RpStat::new(MetadataBuilder::dir().build()))
                 } else {
                     Err(Error::new(
                         ErrorKind::NotFound,
@@ -486,10 +486,7 @@ impl ServicerFlatLister {
         Self {
             ctx,
             srv,
-            next_dir: Some(oio::Entry::new(
-                path,
-                Metadata::builder(EntryMode::DIR).build(),
-            )),
+            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }
@@ -661,7 +658,7 @@ mod tests {
             self.0 = true;
             Ok(Some(oio::Entry::new(
                 "parent/file",
-                Metadata::builder(EntryMode::FILE).build(),
+                MetadataBuilder::file(0).build(),
             )))
         }
     }
@@ -765,8 +762,7 @@ mod tests {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
                 RpRead::new({
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(0);
+                    let metadata = MetadataBuilder::file(0);
                     metadata.build()
                 }),
                 Box::new(Buffer::new()),
@@ -777,8 +773,7 @@ mod tests {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
                 RpRead::new({
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(0);
+                    let metadata = MetadataBuilder::file(0);
                     metadata.build()
                 }),
                 Buffer::new(),

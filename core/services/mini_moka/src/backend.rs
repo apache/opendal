@@ -182,9 +182,9 @@ impl Service for MiniMokaBackend {
             Some(value) => {
                 let mut metadata = value.metadata.clone().into_builder();
                 if p.ends_with('/') {
-                    metadata.mode(EntryMode::DIR);
+                    metadata.set_dir();
                 } else {
-                    metadata.mode(EntryMode::FILE);
+                    metadata.set_file(value.metadata.content_length());
                 }
                 Ok(RpStat::new(metadata.build()))
             }
@@ -197,8 +197,8 @@ impl Service for MiniMokaBackend {
                         .any(|entry| entry.key().starts_with(&p) && entry.key() != &p);
 
                     if is_prefix {
-                        let mut metadata = Metadata::builder(EntryMode::Unknown);
-                        metadata.mode(EntryMode::DIR);
+                        let mut metadata = MetadataBuilder::unknown();
+                        metadata.set_dir();
                         return Ok(RpStat::new(metadata.build()));
                     }
                 }

@@ -22,8 +22,7 @@ use bytes::Buf;
 use super::core::ListResponse;
 use super::core::parse_error;
 use super::core::{ErrorContext, KoofrCore};
-use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
@@ -75,11 +74,10 @@ impl oio::PageList for KoofrLister {
 
             let entry = if file.ty == "dir" {
                 let path = format!("{path}/");
-                Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
+                Entry::new(&path, MetadataBuilder::dir().build())
             } else {
-                let mut m = Metadata::builder(EntryMode::FILE);
-                m.content_length(file.size)
-                    .content_type(file.content_type)
+                let mut m = MetadataBuilder::file(file.size);
+                m.content_type(file.content_type)
                     .last_modified(Timestamp::from_millisecond(file.modified)?);
                 Entry::new(&path, m.build())
             };

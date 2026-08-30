@@ -649,7 +649,7 @@ fn revive_recent_parent_dirs(entries: &mut GdriveRecentState, path: &str, expire
                 &parent,
                 EntryMode::DIR,
                 GdriveRecentEntry {
-                    metadata: Some(Metadata::builder(EntryMode::DIR).build()),
+                    metadata: Some(MetadataBuilder::dir().build()),
                     expires_at,
                 },
             );
@@ -955,18 +955,14 @@ mod tests {
         let core = mock_gdrive_core();
 
         core.record_recent_upsert("parent/file.txt", {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(5);
+            let metadata = MetadataBuilder::file(5);
             metadata.build()
         })
         .await;
-        core.record_recent_upsert("parent/dir/", Metadata::builder(EntryMode::DIR).build())
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
-        core.record_recent_upsert(
-            "parent/nested/file.txt",
-            Metadata::builder(EntryMode::FILE).build(),
-        )
-        .await;
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
+            .await;
         core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
             .await;
 
@@ -986,19 +982,13 @@ mod tests {
     async fn test_recent_entries_for_recursive_prefix_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/file.txt",
-            Metadata::builder(EntryMode::FILE).build(),
-        )
-        .await;
-        core.record_recent_upsert(
-            "parent/nested/file.txt",
-            Metadata::builder(EntryMode::FILE).build(),
-        )
-        .await;
-        core.record_recent_upsert("prefix", Metadata::builder(EntryMode::FILE).build())
+        core.record_recent_upsert("parent/file.txt", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("prefix-child", Metadata::builder(EntryMode::FILE).build())
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
+            .await;
+        core.record_recent_upsert("prefix", MetadataBuilder::file(0).build())
+            .await;
+        core.record_recent_upsert("prefix-child", MetadataBuilder::file(0).build())
             .await;
 
         let parent_entries = core.recent_entries_for_list("parent/", true).await;
@@ -1029,7 +1019,7 @@ mod tests {
     async fn test_recent_entry_for_dir_alias() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/dir/", Metadata::builder(EntryMode::DIR).build())
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1043,8 +1033,7 @@ mod tests {
         let core = mock_gdrive_core();
 
         core.record_recent_upsert("parent/dir/stale.txt", {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(1);
+            let metadata = MetadataBuilder::file(1);
             metadata.build()
         })
         .await;
@@ -1067,8 +1056,7 @@ mod tests {
         }
 
         core.record_recent_upsert("parent/dir/file.txt", {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(1);
+            let metadata = MetadataBuilder::file(1);
             metadata.build()
         })
         .await;

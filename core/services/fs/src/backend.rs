@@ -240,8 +240,7 @@ impl Service for FsBackend {
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
             let size = core.fs_copy(&from, &to).await?;
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(size);
+            let metadata = MetadataBuilder::file(size);
             Ok(metadata.build())
         }))
     }

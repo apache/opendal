@@ -246,8 +246,7 @@ impl Service for EtcdBackend {
         // First check if it's a direct key
         match self.core.get(&abs_path).await? {
             Some(buffer) => {
-                let mut metadata = Metadata::builder(EntryMode::from_path(&abs_path));
-                metadata.content_length(buffer.len() as u64);
+                let metadata = MetadataBuilder::file(buffer.len() as u64);
                 Ok(RpStat::new(metadata.build()))
             }
             None => {
@@ -262,7 +261,7 @@ impl Service for EtcdBackend {
                 let has_children = self.core.has_prefix(&prefix).await?;
                 if has_children {
                     // Has children, it's a directory
-                    let metadata = Metadata::builder(EntryMode::DIR).build();
+                    let metadata = MetadataBuilder::dir().build();
                     Ok(RpStat::new(metadata))
                 } else {
                     Err(Error::new(ErrorKind::NotFound, "path not found"))

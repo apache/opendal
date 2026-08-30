@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
@@ -43,10 +42,7 @@ impl HdfsLister {
 impl oio::List for HdfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if let Some(path) = self.current_path.take() {
-            return Ok(Some(oio::Entry::new(
-                &path,
-                Metadata::builder(EntryMode::DIR).build(),
-            )));
+            return Ok(Some(oio::Entry::new(&path, MetadataBuilder::dir().build())));
         }
 
         let de = match self.rd.next() {
@@ -57,18 +53,14 @@ impl oio::List for HdfsLister {
         let path = build_rel_path(&self.root, de.path());
 
         let entry = if de.is_file() {
-            let mut meta = Metadata::builder(EntryMode::FILE);
-            meta.content_length(de.len())
-                .last_modified(Timestamp::try_from(de.modified())?);
+            let mut meta = MetadataBuilder::file(de.len());
+            meta.last_modified(Timestamp::try_from(de.modified())?);
             oio::Entry::new(&path, meta.build())
         } else if de.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(
-                &format!("{path}/"),
-                Metadata::builder(EntryMode::DIR).build(),
-            )
+            oio::Entry::new(&format!("{path}/"), MetadataBuilder::dir().build())
         } else {
-            oio::Entry::new(&path, Metadata::builder(EntryMode::Unknown).build())
+            oio::Entry::new(&path, MetadataBuilder::unknown().build())
         };
 
         Ok(Some(entry))

@@ -262,7 +262,7 @@ impl Service for AliyunDriveBackend {
 
         Ok(oio::OneShotCopier::new(async move {
             if from == to {
-                Ok(Metadata::builder(EntryMode::Unknown).build())
+                Ok(MetadataBuilder::unknown().build())
             } else {
                 let res = core.get_by_path(&ctx, &from).await?;
                 let file: AliyunDriveFile =
@@ -301,10 +301,8 @@ impl Service for AliyunDriveBackend {
                     core.update_path(&ctx, &file_id, to_name).await?;
                 }
 
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                if let Some(size) = source_content_length {
-                    metadata.content_length(size);
-                }
+                let metadata = source_content_length
+                    .map_or_else(MetadataBuilder::unknown, MetadataBuilder::file);
                 Ok(metadata.build())
             }
         }))
@@ -316,7 +314,7 @@ impl Service for AliyunDriveBackend {
             serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
 
         if file.path_type == "folder" {
-            let mut meta = Metadata::builder(EntryMode::DIR);
+            let mut meta = MetadataBuilder::dir();
             meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
             })?);
@@ -324,13 +322,16 @@ impl Service for AliyunDriveBackend {
             return Ok(RpStat::new(meta.build()));
         }
 
-        let mut meta = Metadata::builder(EntryMode::FILE);
+        let size = file.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "aliyun drive stat response does not contain file size",
+            )
+        })?;
+        let mut meta = MetadataBuilder::file(size);
         meta.last_modified(file.updated_at.parse::<Timestamp>().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
         })?);
-        if let Some(v) = file.size {
-            meta.content_length(v);
-        }
         if let Some(v) = file.content_type {
             meta.content_type(v);
         }

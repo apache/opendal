@@ -92,18 +92,6 @@ impl Entry {
             .expect("listed entry metadata contains its path")
     }
 
-    /// Set mode for entry.
-    ///
-    /// # Note
-    ///
-    /// Please use this function carefully.
-    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
-        let mut builder = self.meta.clone().into_builder();
-        builder.mode(mode);
-        self.meta = builder.build();
-        self
-    }
-
     /// Get entry's mode.
     pub fn mode(&self) -> EntryMode {
         self.meta.mode()
@@ -133,7 +121,7 @@ mod tests {
 
     #[test]
     fn entry_equality_includes_path() {
-        let metadata = Metadata::builder(EntryMode::FILE).build();
+        let metadata = MetadataBuilder::file(0).build();
         assert_ne!(
             Entry::new("first", metadata.clone()),
             Entry::new("second", metadata)

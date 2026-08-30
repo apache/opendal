@@ -46,8 +46,7 @@ impl oio::StreamRead for MysqlReader {
         };
         let content = bs.slice(range.to_content_range(bs.len())?);
         let metadata = {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(bs.len() as u64);
+            let metadata = MetadataBuilder::file(bs.len() as u64);
             metadata.build()
         };
         Ok((

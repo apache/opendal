@@ -56,13 +56,13 @@ impl oio::PageList for GithubLister {
                 let path = build_rel_path(&self.core.root, &entry.path);
                 let entry = if entry.type_field == "dir" {
                     let path = format!("{path}/");
-                    Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
+                    Entry::new(&path, MetadataBuilder::dir().build())
                 } else {
                     if path.ends_with(".gitkeep") {
                         continue;
                     }
-                    let mut m = Metadata::builder(EntryMode::FILE);
-                    m.content_length(entry.size).etag(entry.sha);
+                    let mut m = MetadataBuilder::file(entry.size);
+                    m.etag(entry.sha);
                     Entry::new(&path, m.build())
                 };
                 ctx.entries.push_back(entry);
@@ -70,7 +70,7 @@ impl oio::PageList for GithubLister {
             if !self.path.ends_with('/') {
                 ctx.entries.push_back(Entry::new(
                     &format!("{}/", self.path),
-                    Metadata::builder(EntryMode::DIR).build(),
+                    MetadataBuilder::dir().build(),
                 ));
             }
             return Ok(());
@@ -90,17 +90,19 @@ impl oio::PageList for GithubLister {
             };
             let entry = if t.type_field == "tree" {
                 let path = format!("{path}/");
-                Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
+                Entry::new(&path, MetadataBuilder::dir().build())
             } else {
                 if path.ends_with(".gitkeep") {
                     continue;
                 }
-                let mut m = Metadata::builder(EntryMode::FILE);
+                let size = t.size.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "github tree response does not contain blob size",
+                    )
+                })?;
+                let mut m = MetadataBuilder::file(size);
                 m.etag(t.sha);
-
-                if let Some(size) = t.size {
-                    m.content_length(size);
-                }
                 Entry::new(&path, m.build())
             };
             ctx.entries.push_back(entry);
@@ -108,7 +110,7 @@ impl oio::PageList for GithubLister {
         if !self.path.ends_with('/') {
             ctx.entries.push_back(Entry::new(
                 &format!("{}/", self.path),
-                Metadata::builder(EntryMode::DIR).build(),
+                MetadataBuilder::dir().build(),
             ));
         }
 

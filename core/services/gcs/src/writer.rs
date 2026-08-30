@@ -163,7 +163,7 @@ impl oio::MultipartWrite for GcsWriter {
                 resp,
             ));
         }
-        let mut metadata = Metadata::builder(EntryMode::from_path(&self.path));
+        let mut metadata = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(resp.headers())? {
             metadata.etag(etag);
         }

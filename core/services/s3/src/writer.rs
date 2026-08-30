@@ -48,8 +48,8 @@ impl S3Writer {
         }
     }
 
-    fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut meta = Metadata::builder(EntryMode::from_path(path));
+    fn parse_header_into_meta(_path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut meta = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(headers)? {
             meta.etag(etag);
         }
@@ -59,7 +59,7 @@ impl S3Writer {
         if let Some(value) =
             parse_header_to_str(headers, X_AMZ_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
         {
-            meta.content_length(value);
+            meta.set_file(value);
         }
         Ok(meta.build())
     }

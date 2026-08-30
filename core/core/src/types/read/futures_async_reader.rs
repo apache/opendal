@@ -409,8 +409,7 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
             self.counts.stats.fetch_add(1, Ordering::SeqCst);
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(self.content_length);
+            let metadata = MetadataBuilder::file(self.content_length);
             Ok(RpStat::new(metadata.build()))
         }
 
@@ -490,8 +489,7 @@ mod tests {
             let content = self
                 .content
                 .slice(range.to_content_range(self.content.len())?);
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(self.content.len() as u64);
+            let metadata = MetadataBuilder::file(self.content.len() as u64);
             Ok((RpRead::new(metadata.build()), Box::new(content)))
         }
 

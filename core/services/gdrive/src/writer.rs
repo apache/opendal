@@ -87,8 +87,7 @@ impl oio::OneShotWrite for GdriveWriter {
 
             match resp.status() {
                 StatusCode::OK | StatusCode::CREATED => {
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(size as u64);
+                    let mut metadata = MetadataBuilder::file(size as u64);
 
                     if current_file_id.is_none() {
                         let bs = resp.into_body();
@@ -100,7 +99,7 @@ impl oio::OneShotWrite for GdriveWriter {
                     self.core
                         .record_recent_upsert(&self.path, metadata.build())
                         .await;
-                    return Ok(Metadata::builder(EntryMode::Unknown).build());
+                    return Ok(MetadataBuilder::unknown().build());
                 }
                 StatusCode::NOT_FOUND if !retried && current_file_id.is_some() => {
                     retried = true;

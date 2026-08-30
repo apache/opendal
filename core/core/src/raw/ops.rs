@@ -1146,13 +1146,12 @@ impl From<options::RestoreOptions> for OpRestore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EntryMode;
     use crate::Metadata;
+    use crate::MetadataBuilder;
 
     fn condition_metadata() -> Metadata {
-        let mut metadata = Metadata::builder(EntryMode::FILE);
+        let mut metadata = MetadataBuilder::file(42);
         metadata
-            .content_length(42)
             .etag("etag")
             .version("version")
             .user_metadata([("owner".to_owned(), "opendal".to_owned())]);

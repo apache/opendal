@@ -72,7 +72,7 @@ impl oio::Write for CompfsWriter {
             })
             .await?;
 
-        Ok(Metadata::builder(EntryMode::Unknown).build())
+        Ok(MetadataBuilder::unknown().build())
     }
 
     async fn abort(&mut self) -> Result<()> {

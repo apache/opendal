@@ -798,12 +798,10 @@ pub struct File {
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {
     if file.file_name.ends_with('/') {
-        return Metadata::builder(EntryMode::DIR).build();
+        return MetadataBuilder::dir().build();
     }
 
-    let mut metadata = Metadata::builder(EntryMode::FILE);
-
-    metadata.content_length(file.content_length);
+    let mut metadata = MetadataBuilder::file(file.content_length);
 
     if let Some(content_md5) = &file.content_md5 {
         metadata.content_md5(content_md5);

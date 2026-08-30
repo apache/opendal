@@ -79,7 +79,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             .map_err(parse_error)?;
 
         // Build metadata from put result
-        let mut metadata = Metadata::builder(EntryMode::FILE);
+        let mut metadata = MetadataBuilder::unknown();
         if let Some(etag) = &result.e_tag {
             metadata.etag(etag);
         }

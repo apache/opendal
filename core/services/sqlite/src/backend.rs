@@ -225,13 +225,12 @@ impl Service for SqliteBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let length = self.core.get_length(&p).await?;
             match length {
                 Some(length) => Ok(RpStat::new({
-                    let mut metadata = Metadata::builder(EntryMode::from_path(&p));
-                    metadata.content_length(length as u64);
+                    let metadata = MetadataBuilder::file(length as u64);
                     metadata.build()
                 })),
                 None => {
@@ -245,7 +244,7 @@ impl Service for SqliteBackend {
 
                     if count > 0 {
                         // Directory exists (has children)
-                        Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+                        Ok(RpStat::new(MetadataBuilder::dir().build()))
                     } else {
                         Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"))
                     }

@@ -50,7 +50,7 @@ impl AzfileWriter {
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::builder(EntryMode::Unknown);
+        let mut metadata = MetadataBuilder::unknown();
 
         if let Some(last_modified) = parse_last_modified(headers)? {
             metadata.last_modified(last_modified);
@@ -91,7 +91,7 @@ impl oio::OneShotWrite for AzfileWriter {
             .await?;
         let status = resp.status();
         let mut meta = AzfileWriter::parse_metadata(resp.headers())?.into_builder();
-        meta.content_length(size as u64);
+        meta.set_file(size as u64);
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(meta.build()),
             _ => Err(
@@ -130,7 +130,7 @@ impl oio::AppendWrite for AzfileWriter {
 
         let status = resp.status();
         let mut meta = AzfileWriter::parse_metadata(resp.headers())?.into_builder();
-        meta.content_length(offset + size);
+        meta.set_file(offset + size);
         match status {
             StatusCode::OK | StatusCode::CREATED => Ok(meta.build()),
             _ => Err(

@@ -250,7 +250,7 @@ impl Service for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?);
+        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?)?;
 
         Ok(RpStat::new(meta))
     }
@@ -317,7 +317,7 @@ impl Service for SftpBackend {
                 .await
                 .map_err(parse_sftp_error)?;
 
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            Ok(MetadataBuilder::unknown().build())
         }))
     }
 

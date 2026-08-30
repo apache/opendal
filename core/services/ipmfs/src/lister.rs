@@ -25,7 +25,7 @@ use super::core::parse_error;
 use super::core::{ErrorContext, IpmfsCore};
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
@@ -67,10 +67,8 @@ impl oio::PageList for IpmfsLister {
             let path = build_abs_path(&self.root, self.path.as_str());
             let path = build_rel_path(&self.root, &path);
 
-            ctx.entries.push_back(oio::Entry::new(
-                &path,
-                Metadata::builder(EntryMode::DIR).build(),
-            ));
+            ctx.entries
+                .push_back(oio::Entry::new(&path, MetadataBuilder::dir().build()));
         }
 
         let bs = resp.into_body();
@@ -93,8 +91,7 @@ impl oio::PageList for IpmfsLister {
             };
 
             ctx.entries.push_back(oio::Entry::new(&path, {
-                let mut metadata = Metadata::builder(object.mode());
-                metadata.content_length(object.size);
+                let metadata = MetadataBuilder::file(object.size);
                 metadata.build()
             }));
         }

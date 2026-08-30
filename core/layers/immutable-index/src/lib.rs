@@ -260,13 +260,12 @@ impl ImmutableDir {
 
     fn inner_next(&mut self) -> Option<oio::Entry> {
         self.idx.next().map(|v| {
-            let mode = if v.ends_with('/') {
-                EntryMode::DIR
+            let metadata = if v.ends_with('/') {
+                MetadataBuilder::dir()
             } else {
-                EntryMode::FILE
+                MetadataBuilder::unknown()
             };
-            let meta = Metadata::builder(mode).build();
-            oio::Entry::with(v, meta)
+            oio::Entry::with(v, metadata.build())
         })
     }
 }

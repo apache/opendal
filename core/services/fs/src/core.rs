@@ -110,11 +110,14 @@ impl FsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::builder(mode);
-        m.content_length(meta.len())
-            .last_modified(Timestamp::try_from(
-                meta.modified().map_err(new_std_io_error)?,
-            )?);
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(
+            meta.modified().map_err(new_std_io_error)?,
+        )?);
 
         // Read user metadata from xattr on Unix systems
         #[cfg(unix)]

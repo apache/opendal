@@ -120,11 +120,14 @@ impl Service for MonoiofsBackend {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::builder(mode);
-        m.content_length(meta.len())
-            .last_modified(Timestamp::try_from(
-                meta.modified().map_err(new_std_io_error)?,
-            )?);
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(
+            meta.modified().map_err(new_std_io_error)?,
+        )?);
         Ok(RpStat::new(m.build()))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _args: OpRead) -> Result<Self::Reader> {
@@ -256,8 +259,7 @@ impl Service for MonoiofsBackend {
             .await
             .map_err(new_std_io_error)
             .map(|size| {
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(size);
+                let metadata = MetadataBuilder::file(size);
                 metadata.build()
             })
         });

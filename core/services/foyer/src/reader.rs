@@ -49,8 +49,7 @@ impl oio::StreamRead for FoyerReader {
         let buffer = buffer.slice(range.to_content_range(buffer.len())?);
 
         let metadata = {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata.content_length(content_length);
+            let metadata = MetadataBuilder::file(content_length);
             metadata.build()
         };
         Ok((

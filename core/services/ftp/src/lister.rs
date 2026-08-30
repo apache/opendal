@@ -50,13 +50,12 @@ impl oio::List for FtpLister {
         let path = self.path.to_string() + de.name();
 
         let mut meta = if de.is_file() {
-            Metadata::builder(EntryMode::FILE)
+            MetadataBuilder::file(de.size() as u64)
         } else if de.is_directory() {
-            Metadata::builder(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::builder(EntryMode::Unknown)
+            MetadataBuilder::unknown()
         };
-        meta.content_length(de.size() as u64);
         meta.last_modified(Timestamp::try_from(de.modified())?);
 
         let entry = if de.is_file() {

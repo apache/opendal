@@ -46,8 +46,11 @@ impl KoofrWriter {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::builder(mode);
-        meta.content_length(file.size);
+        let mut meta = if mode == EntryMode::FILE {
+            MetadataBuilder::file(file.size)
+        } else {
+            MetadataBuilder::dir()
+        };
         meta.content_type(&file.content_type);
         meta.last_modified(Timestamp::from_millisecond(file.modified)?);
 

@@ -251,7 +251,7 @@ impl oio::Write for GoosefsWriter {
                 return Err(e);
             }
             // Capture file_id before rename; Master rename keeps the same inode id.
-            let mut meta = Metadata::builder(EntryMode::Unknown);
+            let mut meta = MetadataBuilder::unknown();
             if let Some(fid) = writer.file_info().file_id {
                 meta.etag(fid.to_string());
             }
@@ -282,7 +282,7 @@ impl oio::Write for GoosefsWriter {
             let _ = self.core.delete(&tmp).await;
             return Err(e);
         }
-        let mut meta = Metadata::builder(EntryMode::Unknown);
+        let mut meta = MetadataBuilder::unknown();
         if let Some(fid) = w.file_info().file_id {
             meta.etag(fid.to_string());
         }

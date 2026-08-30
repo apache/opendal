@@ -72,8 +72,11 @@ impl HdfsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::builder(mode);
-        m.content_length(meta.len());
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
         m.last_modified(Timestamp::try_from(meta.modified())?);
 
         Ok(m.build())

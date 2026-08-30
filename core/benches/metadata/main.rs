@@ -25,6 +25,7 @@ use divan::black_box_drop;
 use opendal::Capability;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::MetadataBuilder;
 use opendal::options::ReadOptions;
 use opendal::options::WriteOptions;
 use opendal::raw::OpRead;
@@ -213,11 +214,8 @@ fn make_legacy(profile: Profile) -> LegacyMetadata {
 }
 
 fn make_compact(profile: Profile) -> Metadata {
-    let mut metadata = Metadata::builder(EntryMode::FILE);
-    metadata
-        .content_length(4 * 1024 * 1024)
-        .etag(ETAG)
-        .last_modified(timestamp());
+    let mut metadata = MetadataBuilder::file(4 * 1024 * 1024);
+    metadata.etag(ETAG).last_modified(timestamp());
 
     if matches!(profile, Profile::Stat | Profile::UserMetadata) {
         metadata
@@ -535,10 +533,8 @@ mod scalar_placement {
     #[divan::bench]
     fn compact(bencher: Bencher) {
         bencher.bench(|| {
-            let mut metadata = Metadata::builder(EntryMode::FILE);
-            metadata
-                .content_length(4 * 1024 * 1024)
-                .last_modified(timestamp());
+            let mut metadata = MetadataBuilder::file(4 * 1024 * 1024);
+            metadata.last_modified(timestamp());
             black_box(metadata.build())
         });
     }

@@ -149,7 +149,7 @@ impl Service for DashmapBackend {
                 if p.ends_with('/') {
                     let has_children = self.core.cache.iter().any(|kv| kv.key().starts_with(&p));
                     if has_children {
-                        return Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()));
+                        return Ok(RpStat::new(MetadataBuilder::dir().build()));
                     }
                 }
                 Err(Error::new(ErrorKind::NotFound, "key not found in dashmap"))

@@ -624,8 +624,7 @@ mod tests {
 
             Ok((
                 RpRead::new({
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(self.content.len() as u64);
+                    let metadata = MetadataBuilder::file(self.content.len() as u64);
                     metadata.build()
                 }),
                 Buffer::from(self.content.slice(start..end)),

@@ -98,7 +98,13 @@ impl oio::PageList for DropboxLister {
             };
 
             let mut name = entry.name;
-            let mut meta = Metadata::builder(entry_mode);
+            let mut meta = match entry_mode {
+                EntryMode::FILE => entry
+                    .size
+                    .map_or_else(MetadataBuilder::unknown, MetadataBuilder::file),
+                EntryMode::DIR => MetadataBuilder::dir(),
+                EntryMode::Unknown => MetadataBuilder::unknown(),
+            };
 
             // Dropbox will return folder names that do not end with '/'.
             if entry_mode == EntryMode::DIR && !name.ends_with('/') {
@@ -109,10 +115,6 @@ impl oio::PageList for DropboxLister {
             if entry_mode == EntryMode::FILE {
                 let date_utc_last_modified = entry.client_modified.parse::<Timestamp>()?;
                 meta.last_modified(date_utc_last_modified);
-
-                if let Some(size) = entry.size {
-                    meta.content_length(size);
-                }
             }
 
             ctx.entries.push_back(oio::Entry::with(name, meta.build()));

@@ -91,7 +91,7 @@ impl AzdlsWriter {
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::builder(EntryMode::Unknown);
+        let mut metadata = MetadataBuilder::unknown();
 
         if let Some(last_modified) = parse_last_modified(headers)? {
             metadata.last_modified(last_modified);
@@ -134,7 +134,7 @@ impl oio::PositionWrite for AzdlsWriter {
             .await?;
 
         let mut meta = AzdlsWriter::parse_metadata(resp.headers())?.into_builder();
-        meta.content_length(size);
+        meta.set_file(size);
 
         match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(meta.build()),
@@ -206,7 +206,7 @@ impl oio::AppendWrite for AzdlsWriter {
         if let Some(md5) = md5 {
             meta.content_md5(md5);
         }
-        meta.content_length(offset + size);
+        meta.set_file(offset + size);
 
         match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(meta.build()),

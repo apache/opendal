@@ -270,12 +270,11 @@ impl Service for FoyerBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::builder(EntryMode::DIR).build()))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p).await? {
                 Some(bs) => Ok(RpStat::new({
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata.content_length(bs.len() as u64);
+                    let metadata = MetadataBuilder::file(bs.len() as u64);
                     metadata.build()
                 })),
                 None => Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),

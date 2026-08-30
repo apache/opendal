@@ -25,10 +25,10 @@ use http::StatusCode;
 use super::core::parse_error;
 use super::core::*;
 use opendal_core::Buffer;
-use opendal_core::EntryMode;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::*;
@@ -54,7 +54,7 @@ impl CosWriter {
     }
 
     fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::builder(EntryMode::Unknown);
+        let mut meta = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(headers)? {
             meta.etag(etag);
         }

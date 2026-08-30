@@ -89,11 +89,10 @@ impl oio::PageList for UpyunLister {
 
             let entry = if file.type_field == "folder" {
                 let path = format!("{path}/");
-                oio::Entry::new(&path, Metadata::builder(EntryMode::DIR).build())
+                oio::Entry::new(&path, MetadataBuilder::dir().build())
             } else {
-                let mut m = Metadata::builder(EntryMode::FILE);
-                m.content_length(file.length)
-                    .content_type(file.type_field)
+                let mut m = MetadataBuilder::file(file.length);
+                m.content_type(file.type_field)
                     .last_modified(Timestamp::from_second(file.last_modified)?);
                 oio::Entry::new(&path, m.build())
             };

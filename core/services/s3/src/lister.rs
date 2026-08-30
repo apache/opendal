@@ -22,9 +22,8 @@ use quick_xml::de;
 
 use crate::core::parse_error;
 use crate::core::*;
-use opendal_core::EntryMode;
 use opendal_core::Error;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::PageContext;
@@ -133,7 +132,7 @@ impl oio::PageList for S3ListerV1 {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::builder(EntryMode::DIR).build(),
+                MetadataBuilder::dir().build(),
             );
 
             ctx.entries.push_back(de);
@@ -145,13 +144,11 @@ impl oio::PageList for S3ListerV1 {
                 path = "/".to_string();
             }
 
-            let mut meta = Metadata::builder(EntryMode::from_path(&path));
+            let mut meta = MetadataBuilder::file(object.size);
             meta.is_current(Some(true));
             if let Some(etag) = &object.etag {
                 meta.etag(etag);
             }
-            meta.content_length(object.size);
-
             // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
             meta.last_modified(object.last_modified.parse::<Timestamp>()?);
@@ -248,7 +245,7 @@ impl oio::PageList for S3ListerV2 {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::builder(EntryMode::DIR).build(),
+                MetadataBuilder::dir().build(),
             );
 
             ctx.entries.push_back(de);
@@ -260,13 +257,11 @@ impl oio::PageList for S3ListerV2 {
                 path = "/".to_string();
             }
 
-            let mut meta = Metadata::builder(EntryMode::from_path(&path));
+            let mut meta = MetadataBuilder::file(object.size);
             meta.is_current(Some(true));
             if let Some(etag) = &object.etag {
                 meta.etag(etag);
             }
-            meta.content_length(object.size);
-
             // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
             meta.last_modified(object.last_modified.parse::<Timestamp>()?);
@@ -362,7 +357,7 @@ impl oio::PageList for S3ObjectVersionsLister {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::builder(EntryMode::DIR).build(),
+                MetadataBuilder::dir().build(),
             );
             ctx.entries.push_back(de);
         }
@@ -381,10 +376,9 @@ impl oio::PageList for S3ObjectVersionsLister {
                 path = "/".to_owned();
             }
 
-            let mut meta = Metadata::builder(EntryMode::from_path(&path));
+            let mut meta = MetadataBuilder::file(version_object.size);
             meta.version(&version_object.version_id)
                 .is_current(Some(version_object.is_latest))
-                .content_length(version_object.size)
                 .last_modified(version_object.last_modified.parse::<Timestamp>()?);
 
             if let Some(etag) = version_object.etag {
@@ -402,7 +396,7 @@ impl oio::PageList for S3ObjectVersionsLister {
                     path = "/".to_owned();
                 }
 
-                let mut meta = Metadata::builder(EntryMode::from_path(&path));
+                let mut meta = MetadataBuilder::file(0);
                 meta.version(&delete_marker.version_id)
                     .is_deleted(true)
                     .is_current(Some(delete_marker.is_latest))

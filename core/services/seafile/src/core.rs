@@ -506,7 +506,7 @@ pub struct DirDetail {
 }
 
 pub fn parse_dir_detail(dir_detail: DirDetail) -> Result<Metadata> {
-    let mut md = Metadata::builder(EntryMode::DIR);
+    let mut md = MetadataBuilder::dir();
 
     md.last_modified(dir_detail.mtime.parse::<Timestamp>()?);
 
@@ -514,9 +514,7 @@ pub fn parse_dir_detail(dir_detail: DirDetail) -> Result<Metadata> {
 }
 
 pub fn parse_file_detail(file_detail: FileDetail) -> Result<Metadata> {
-    let mut md = Metadata::builder(EntryMode::FILE);
-
-    md.content_length(file_detail.size);
+    let mut md = MetadataBuilder::file(file_detail.size);
     md.last_modified(file_detail.last_modified.parse::<Timestamp>()?);
 
     Ok(md.build())

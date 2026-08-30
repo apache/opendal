@@ -45,8 +45,7 @@ impl oio::StreamRead for RedisReader {
             match backend.core.get(&p).await? {
                 Some(bs) => {
                     let metadata = {
-                        let mut metadata = Metadata::builder(EntryMode::FILE);
-                        metadata.content_length(bs.len() as u64);
+                        let metadata = MetadataBuilder::file(bs.len() as u64);
                         metadata.build()
                     };
                     (bs, Some(metadata))
@@ -80,8 +79,7 @@ impl oio::StreamRead for RedisReader {
                 }
             };
             let metadata = {
-                let mut metadata = Metadata::builder(EntryMode::FILE);
-                metadata.content_length(content_length as u64);
+                let metadata = MetadataBuilder::file(content_length as u64);
                 metadata.build()
             };
             (buffer, Some(metadata))

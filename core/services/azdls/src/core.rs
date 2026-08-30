@@ -429,12 +429,9 @@ impl AzdlsCore {
             })?;
 
         match resource {
-            FILE => {
-                meta.mode(EntryMode::FILE);
-                Ok(meta.build())
-            }
+            FILE => Ok(meta.build()),
             DIRECTORY => {
-                meta.mode(EntryMode::DIR);
+                meta.set_dir();
                 Ok(meta.build())
             }
             v => Err(Error::new(

@@ -129,7 +129,7 @@ impl Copier {
         Ok(self
             .metadata
             .clone()
-            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build()))
+            .unwrap_or_else(|| MetadataBuilder::unknown().build()))
     }
 }
 

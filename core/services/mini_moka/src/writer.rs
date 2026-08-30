@@ -49,8 +49,7 @@ impl oio::Write for MiniMokaWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
 
-        let mut md = Metadata::builder(EntryMode::from_path(&self.path));
-        md.content_length(buf.len() as u64);
+        let mut md = MetadataBuilder::file(buf.len() as u64);
         md.last_modified(Timestamp::now());
 
         // Set metadata from OpWrite

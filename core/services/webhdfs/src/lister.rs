@@ -52,7 +52,7 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     ctx.entries.push_back(oio::Entry::new(
                         format!("{}/", self.path).as_str(),
-                        Metadata::builder(EntryMode::DIR).build(),
+                        MetadataBuilder::dir().build(),
                     ));
 
                     let bs = resp.into_body();
@@ -88,7 +88,7 @@ impl oio::PageList for WebhdfsLister {
                     if directory_listing.remaining_entries == 0 {
                         ctx.entries.push_back(oio::Entry::new(
                             format!("{}/", self.path).as_str(),
-                            Metadata::builder(EntryMode::DIR).build(),
+                            MetadataBuilder::dir().build(),
                         ));
 
                         ctx.done = true;
@@ -120,12 +120,10 @@ impl oio::PageList for WebhdfsLister {
             };
 
             let meta = match status.ty {
-                FileStatusType::Directory => Metadata::builder(EntryMode::DIR).build(),
+                FileStatusType::Directory => MetadataBuilder::dir().build(),
                 FileStatusType::File => {
-                    let mut metadata = Metadata::builder(EntryMode::FILE);
-                    metadata
-                        .content_length(status.length)
-                        .last_modified(Timestamp::from_millisecond(status.modification_time)?);
+                    let mut metadata = MetadataBuilder::file(status.length);
+                    metadata.last_modified(Timestamp::from_millisecond(status.modification_time)?);
                     metadata.build()
                 }
             };

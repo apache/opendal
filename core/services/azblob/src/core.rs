@@ -1146,12 +1146,12 @@ mod tests {
         let mut meta = HashMap::new();
         meta.insert("k".to_string(), "v".to_string());
         let (args, _) = OpWrite::from_options(
+            &Capability::default(),
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
                 user_metadata: Some(meta),
                 ..Default::default()
             },
-            &Capability::default(),
         )
         .unwrap();
 

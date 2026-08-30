@@ -1134,6 +1134,8 @@ impl Operator {
         Self::writer_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn writer_inner(
         ctx: OperationContext,
@@ -1150,10 +1152,10 @@ impl Operator {
             );
         }
 
-        let (args, opts) = OpWrite::from_options(opts, &srv.capability())
+        let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let w = Writer::new(write_context).await?;
+        let w = Writer::new(write_context)?;
         Ok(w)
     }
 
@@ -1363,6 +1365,8 @@ impl Operator {
         }
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     async fn copier_inner(
         ctx: OperationContext,
         srv: Servicer,
@@ -1397,9 +1401,9 @@ impl Operator {
             );
         }
 
-        let args = OpCopy::from_options(opts, &srv.capability())
+        let args = OpCopy::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        std::future::ready(Copier::create(ctx, srv, &from, &to, args)).await
+        Copier::create(ctx, srv, &from, &to, args)
     }
 
     /// Rename a file from `from` to `to`.
@@ -1812,12 +1816,10 @@ impl Operator {
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
+    // Keep this async to preserve the public API.
+    #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        std::future::ready(Deleter::create(
-            self.context().clone(),
-            self.service().clone(),
-        ))
-        .await
+        Deleter::create(self.context().clone(), self.service().clone())
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -2147,6 +2149,8 @@ impl Operator {
         Self::lister_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn lister_inner(
         ctx: OperationContext,
@@ -2155,7 +2159,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        std::future::ready(Lister::create(ctx, srv, &path, args)).await
+        Lister::create(ctx, srv, &path, args)
     }
 }
 
@@ -2549,7 +2553,7 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_write, _) = OpWrite::from_options(opts, &srv.capability())
+        let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2663,7 +2667,7 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let op_delete = OpDelete::from_options(opts, &srv.capability())
+        let op_delete = OpDelete::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;

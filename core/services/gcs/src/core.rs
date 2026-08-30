@@ -1174,12 +1174,12 @@ mod tests {
     }
 
     fn write_args(options: options::WriteOptions) -> OpWrite {
-        let (args, _) = OpWrite::from_options(options, &Capability::default()).unwrap();
+        let (args, _) = OpWrite::from_options(&Capability::default(), options).unwrap();
         args
     }
 
     fn copy_args(options: options::CopyOptions) -> OpCopy {
-        OpCopy::from_options(options, &Capability::default()).unwrap()
+        OpCopy::from_options(&Capability::default(), options).unwrap()
     }
 
     #[tokio::test]
@@ -1286,11 +1286,11 @@ mod tests {
             .gcs_delete_object_request(
                 "object",
                 &OpDelete::from_options(
+                    &Capability::default(),
                     options::DeleteOptions {
                         if_version_not_match: Some("456".to_owned()),
                         ..Default::default()
                     },
-                    &Capability::default(),
                 )
                 .unwrap(),
             )

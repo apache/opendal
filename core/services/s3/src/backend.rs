@@ -1326,12 +1326,12 @@ impl Service for S3Backend {
     ) -> Result<RpRestore> {
         if let Some(version) = args.version() {
             let copy_args = OpCopy::from_options(
+                &self.capability(),
                 options::CopyOptions {
                     source_version: Some(version.to_owned()),
                     if_not_exists: args.if_not_exists(),
                     ..Default::default()
                 },
-                &self.capability(),
             )?;
             let mut copier = new_s3_copier(self.core.clone(), ctx, path, path, copy_args)?;
 
@@ -1388,11 +1388,11 @@ impl Service for S3Backend {
         };
 
         let delete_args = OpDelete::from_options(
+            &self.capability(),
             options::DeleteOptions {
                 version: Some(marker.version_id.clone()),
                 ..Default::default()
             },
-            &self.capability(),
         )?;
         let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
         match resp.status() {
@@ -2113,11 +2113,11 @@ mod tests {
             .expect("build");
 
         let (op, _) = OpWrite::from_options(
+            &backend.capability(),
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
                 ..Default::default()
             },
-            &backend.capability(),
         )
         .unwrap();
         let args = OpPresign::new(op, Duration::from_secs(3600));

@@ -273,7 +273,7 @@ fn make_op_read() -> OpRead {
 }
 
 fn make_op_write() -> OpWrite {
-    OpWrite::from_options(make_write_options(), &Capability::default())
+    OpWrite::from_options(&Capability::default(), make_write_options())
         .expect("options do not contain a logical condition")
         .0
 }
@@ -475,7 +475,7 @@ mod raw_freeze {
             .with_inputs(make_write_options)
             .bench_values(|options| {
                 black_box(
-                    OpWrite::from_options(options, &Capability::default())
+                    OpWrite::from_options(&Capability::default(), options)
                         .expect("options do not contain a logical condition")
                         .0,
                 )

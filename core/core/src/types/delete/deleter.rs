@@ -107,7 +107,7 @@ impl Deleter {
     /// options.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let (path, options) = input.into_delete_input();
-        let op = OpDelete::from_options(options, &self.capability)
+        let op = OpDelete::from_options(&self.capability, options)
             .map_err(|err| err.with_context("service", self.scheme))?;
         self.deleter.delete(&path, op).await?;
         Ok(())

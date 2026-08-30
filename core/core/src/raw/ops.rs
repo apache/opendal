@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::types::compact::CompactValues;
 use crate::types::metadata::user_metadata_encoded_len;
 use crate::types::metadata::write_user_metadata;
-use crate::{Capability, Result};
+use crate::{Capability, Error, ErrorKind, Result};
 
 use std::collections::HashMap;
 
@@ -107,18 +107,60 @@ impl OpDelete {
     ///
     /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
     pub fn from_options(
-        mut options: options::DeleteOptions,
         capability: &Capability,
+        mut options: options::DeleteOptions,
     ) -> Result<Self> {
-        options::lower_if_not_changed(
-            &mut options.if_not_changed,
-            &mut options.if_match,
-            &mut options.if_version_match,
-            capability.delete_with_if_match,
-            capability.delete_with_if_version_match,
-            Operation::Delete,
-        )?;
-        Ok(Self::from_lowered_options(options))
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.delete_with_if_version_match
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.if_version_match, version, "if_version_match")
+            } else if capability.delete_with_if_match
+                && let Some(etag) = metadata.etag()
+            {
+                (&mut options.if_match, etag, "if_match")
+            } else if !capability.delete_with_if_version_match && !capability.delete_with_if_match {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "service does not support delete with if_not_changed",
+                )
+                .with_operation(Operation::Delete));
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata does not contain an identity supported by delete",
+                )
+                .with_operation(Operation::Delete));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Delete));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
+        let fields = [
+            options.version.as_deref().map(str::as_bytes),
+            options.if_match.as_deref().map(str::as_bytes),
+            options.if_none_match.as_deref().map(str::as_bytes),
+            options.if_version_match.as_deref().map(str::as_bytes),
+            options.if_version_not_match.as_deref().map(str::as_bytes),
+        ];
+        Ok(Self {
+            flags: if options.recursive {
+                OP_DELETE_RECURSIVE
+            } else {
+                0
+            },
+            values: CompactValues::encode(&fields),
+        })
     }
 }
 
@@ -173,25 +215,6 @@ impl OpDelete {
             .values
             .replace(DeleteField::Version as usize, version.as_bytes());
         self
-    }
-
-    fn from_lowered_options(value: options::DeleteOptions) -> Self {
-        debug_assert!(value.if_not_changed.is_none());
-        let fields = [
-            value.version.as_deref().map(str::as_bytes),
-            value.if_match.as_deref().map(str::as_bytes),
-            value.if_none_match.as_deref().map(str::as_bytes),
-            value.if_version_match.as_deref().map(str::as_bytes),
-            value.if_version_not_match.as_deref().map(str::as_bytes),
-        ];
-        Self {
-            flags: if value.recursive {
-                OP_DELETE_RECURSIVE
-            } else {
-                0
-            },
-            values: CompactValues::encode(&fields),
-        }
     }
 }
 
@@ -754,21 +777,86 @@ impl OpWrite {
     ///
     /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
     pub fn from_options(
-        mut options: options::WriteOptions,
         capability: &Capability,
+        mut options: options::WriteOptions,
     ) -> Result<(Self, OpWriter)> {
-        options::lower_if_not_changed(
-            &mut options.if_not_changed,
-            &mut options.if_match,
-            &mut options.if_version_match,
-            capability.write_with_if_match,
-            capability.write_with_if_version_match,
-            Operation::Write,
-        )?;
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.write_with_if_version_match
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.if_version_match, version, "if_version_match")
+            } else if capability.write_with_if_match
+                && let Some(etag) = metadata.etag()
+            {
+                (&mut options.if_match, etag, "if_match")
+            } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "service does not support write with if_not_changed",
+                )
+                .with_operation(Operation::Write));
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata does not contain an identity supported by write",
+                )
+                .with_operation(Operation::Write));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Write));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
         let writer = OpWriter {
             chunk: options.chunk,
         };
-        Ok((Self::from_lowered_options(options), writer))
+        let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
+        let mut flags = 0;
+        if options.append {
+            flags |= OP_WRITE_APPEND;
+        }
+        if options.if_not_exists {
+            flags |= OP_WRITE_IF_NOT_EXISTS;
+        }
+        let fields = [
+            options.content_type.as_deref().map(str::as_bytes),
+            options.content_disposition.as_deref().map(str::as_bytes),
+            options.content_encoding.as_deref().map(str::as_bytes),
+            options.cache_control.as_deref().map(str::as_bytes),
+            options.if_match.as_deref().map(str::as_bytes),
+            options.if_none_match.as_deref().map(str::as_bytes),
+            options.if_version_match.as_deref().map(str::as_bytes),
+            options.if_version_not_match.as_deref().map(str::as_bytes),
+            None,
+        ];
+        let mut lengths = fields.map(|value| value.map(<[u8]>::len));
+        lengths[WriteField::UserMetadata as usize] =
+            user_metadata.as_deref().map(user_metadata_encoded_len);
+        let args = Self {
+            concurrent: options.concurrent.max(1),
+            flags,
+            values: CompactValues::encode_with(&lengths, |field, output| match field {
+                field if field == WriteField::UserMetadata as usize => {
+                    write_user_metadata(
+                        user_metadata.as_deref().expect("present field has a value"),
+                        output,
+                    );
+                }
+                _ => {
+                    output.write(fields[field].expect("present field has a value"));
+                }
+            }),
+        };
+        Ok((args, writer))
     }
 
     /// Get the append from op.
@@ -854,47 +942,6 @@ impl OpWrite {
             .replace(WriteField::ContentType as usize, value.as_bytes());
         self
     }
-
-    fn from_lowered_options(mut value: options::WriteOptions) -> Self {
-        debug_assert!(value.if_not_changed.is_none());
-        let user_metadata = value.user_metadata.take().map(sorted_user_metadata);
-        let mut flags = 0;
-        if value.append {
-            flags |= OP_WRITE_APPEND;
-        }
-        if value.if_not_exists {
-            flags |= OP_WRITE_IF_NOT_EXISTS;
-        }
-        let fields = [
-            value.content_type.as_deref().map(str::as_bytes),
-            value.content_disposition.as_deref().map(str::as_bytes),
-            value.content_encoding.as_deref().map(str::as_bytes),
-            value.cache_control.as_deref().map(str::as_bytes),
-            value.if_match.as_deref().map(str::as_bytes),
-            value.if_none_match.as_deref().map(str::as_bytes),
-            value.if_version_match.as_deref().map(str::as_bytes),
-            value.if_version_not_match.as_deref().map(str::as_bytes),
-            None,
-        ];
-        let mut lengths = fields.map(|value| value.map(<[u8]>::len));
-        lengths[WriteField::UserMetadata as usize] =
-            user_metadata.as_deref().map(user_metadata_encoded_len);
-        Self {
-            concurrent: value.concurrent.max(1),
-            flags,
-            values: CompactValues::encode_with(&lengths, |field, output| match field {
-                field if field == WriteField::UserMetadata as usize => {
-                    write_user_metadata(
-                        user_metadata.as_deref().expect("present field has a value"),
-                        output,
-                    );
-                }
-                _ => {
-                    output.write(fields[field].expect("present field has a value"));
-                }
-            }),
-        }
-    }
 }
 
 /// Arguments for `writer` operation.
@@ -969,18 +1016,63 @@ impl OpCopy {
     ///
     /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
     pub fn from_options(
-        mut options: options::CopyOptions,
         capability: &Capability,
+        mut options: options::CopyOptions,
     ) -> Result<Self> {
-        options::lower_if_not_changed(
-            &mut options.if_not_changed,
-            &mut options.if_match,
-            &mut options.if_version_match,
-            capability.copy_with_if_match,
-            capability.copy_with_if_version_match,
-            Operation::Copy,
-        )?;
-        Ok(Self::from_lowered_options(options))
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.copy_with_if_version_match
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.if_version_match, version, "if_version_match")
+            } else if capability.copy_with_if_match
+                && let Some(etag) = metadata.etag()
+            {
+                (&mut options.if_match, etag, "if_match")
+            } else if !capability.copy_with_if_version_match && !capability.copy_with_if_match {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "service does not support copy with if_not_changed",
+                )
+                .with_operation(Operation::Copy));
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata does not contain an identity supported by copy",
+                )
+                .with_operation(Operation::Copy));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Copy));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
+        let fields = [
+            options.if_match.as_deref().map(str::as_bytes),
+            options.if_none_match.as_deref().map(str::as_bytes),
+            options.if_version_match.as_deref().map(str::as_bytes),
+            options.if_version_not_match.as_deref().map(str::as_bytes),
+            options.source_version.as_deref().map(str::as_bytes),
+        ];
+        Ok(Self {
+            concurrent: options.concurrent.max(1),
+            chunk: options.chunk,
+            source_content_length_hint: options.source_content_length_hint,
+            flags: if options.if_not_exists {
+                OP_COPY_IF_NOT_EXISTS
+            } else {
+                0
+            },
+            values: CompactValues::encode(&fields),
+        })
     }
 
     /// Get if_not_exists flag.
@@ -1032,28 +1124,6 @@ impl OpCopy {
     /// Get source content length hint from the copy operation.
     pub fn source_content_length_hint(&self) -> Option<u64> {
         self.source_content_length_hint
-    }
-
-    fn from_lowered_options(value: options::CopyOptions) -> Self {
-        debug_assert!(value.if_not_changed.is_none());
-        let fields = [
-            value.if_match.as_deref().map(str::as_bytes),
-            value.if_none_match.as_deref().map(str::as_bytes),
-            value.if_version_match.as_deref().map(str::as_bytes),
-            value.if_version_not_match.as_deref().map(str::as_bytes),
-            value.source_version.as_deref().map(str::as_bytes),
-        ];
-        Self {
-            concurrent: value.concurrent.max(1),
-            chunk: value.chunk,
-            source_content_length_hint: value.source_content_length_hint,
-            flags: if value.if_not_exists {
-                OP_COPY_IF_NOT_EXISTS
-            } else {
-                0
-            },
-            values: CompactValues::encode(&fields),
-        }
     }
 }
 
@@ -1205,6 +1275,7 @@ mod tests {
     #[test]
     fn write_options_preserve_owned_views() {
         let (args, _) = OpWrite::from_options(
+            &Capability::default(),
             options::WriteOptions {
                 append: true,
                 concurrent: 4,
@@ -1220,7 +1291,6 @@ mod tests {
                 user_metadata: Some(HashMap::from([("owner".to_owned(), "opendal".to_owned())])),
                 ..Default::default()
             },
-            &Capability::default(),
         )
         .unwrap();
 
@@ -1249,33 +1319,33 @@ mod tests {
             ..Default::default()
         };
         let (write, _) = OpWrite::from_options(
+            &capability,
             options::WriteOptions {
                 if_not_changed: Some(condition.clone()),
                 ..Default::default()
             },
-            &capability,
         )
         .unwrap();
         assert_eq!(write.if_match(), None);
         assert_eq!(write.if_version_match(), Some("version"));
 
         let delete = OpDelete::from_options(
+            &capability,
             options::DeleteOptions {
                 if_not_changed: Some(condition.clone()),
                 ..Default::default()
             },
-            &capability,
         )
         .unwrap();
         assert_eq!(delete.if_match(), Some("etag"));
         assert_eq!(delete.if_version_match(), None);
 
         let copy = OpCopy::from_options(
+            &capability,
             options::CopyOptions {
                 if_not_changed: Some(condition),
                 ..Default::default()
             },
-            &capability,
         )
         .unwrap();
         assert_eq!(copy.if_match(), Some("etag"));
@@ -1285,13 +1355,13 @@ mod tests {
     #[test]
     fn delete_copy_list_and_restore_options_roundtrip() {
         let delete = OpDelete::from_options(
+            &Capability::default(),
             options::DeleteOptions {
                 version: Some("version".to_owned()),
                 recursive: true,
                 if_match: Some("etag".to_owned()),
                 ..Default::default()
             },
-            &Capability::default(),
         )
         .unwrap();
         assert_eq!(delete.version(), Some("version"));
@@ -1299,13 +1369,13 @@ mod tests {
         assert_eq!(delete.if_match(), Some("etag"));
 
         let copy = OpCopy::from_options(
+            &Capability::default(),
             options::CopyOptions {
                 if_not_exists: true,
                 if_version_match: Some("destination-version".to_owned()),
                 source_version: Some("source-version".to_owned()),
                 ..Default::default()
             },
-            &Capability::default(),
         )
         .unwrap();
         assert!(copy.if_not_exists());

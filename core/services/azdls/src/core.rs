@@ -429,7 +429,16 @@ impl AzdlsCore {
             })?;
 
         match resource {
-            FILE => Ok(meta.build()),
+            FILE => {
+                let content_length = parse_content_length(headers)?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "azdls file response does not contain content length",
+                    )
+                })?;
+                meta.set_file(content_length);
+                Ok(meta.build())
+            }
             DIRECTORY => {
                 meta.set_dir();
                 Ok(meta.build())

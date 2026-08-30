@@ -410,7 +410,9 @@ impl GdriveCore {
             "addParents": [target_parent_id],
         });
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{source_file_id}?fields=id,name,mimeType,size,modifiedTime,parents"
+        );
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
             .extension(ServiceOperation("MoveFile"))
@@ -556,7 +558,9 @@ impl GdriveCore {
 
         self.trash_path_if_exists(ctx, &to_path).await?;
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{from_file_id}/copy?fields=id,name,mimeType,size,modifiedTime,parents"
+        );
 
         let request_body = &json!({
             "name": to_name,

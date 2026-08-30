@@ -365,12 +365,12 @@ impl Service for WebdavBackend {
             let to = to.clone();
 
             async move {
-                let resp = core.webdav_copy(&ctx, &from, &to).await?;
+                let (resp, source_metadata) = core.webdav_copy(&ctx, &from, &to).await?;
                 let status = resp.status();
 
                 match status {
                     StatusCode::CREATED | StatusCode::NO_CONTENT => {
-                        Ok(MetadataBuilder::unknown().build())
+                        Ok(MetadataBuilder::file(source_metadata.content_length()).build())
                     }
                     _ => Err(parse_error(
                         ErrorContext::new(ServiceOperation("Copy")),

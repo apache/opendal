@@ -764,18 +764,40 @@ impl Service for OssBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => {
+                    let stat_args: OpStat = options::StatOptions {
+                        version: args.source_version().map(str::to_owned),
+                        ..Default::default()
+                    }
+                    .into();
+                    let resp = core.oss_head_object(&ctx, &from, &stat_args).await?;
+                    match resp.status() {
+                        StatusCode::OK => {
+                            parse_into_metadata(&from, resp.headers())?.content_length()
+                        }
+                        _ => {
+                            return Err(parse_error(
+                                ErrorContext::new(ServiceOperation("HeadObject")),
+                                resp,
+                            ));
+                        }
+                    }
+                }
+            };
             let resp = core.oss_copy_object(&ctx, &from, &to).await?;
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
+                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,

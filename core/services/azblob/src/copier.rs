@@ -53,7 +53,13 @@ pub fn new_azblob_copier(
 
     let Some(chunk) = chunk else {
         return Ok(TwoWays::One(oio::OneShotCopier::new(async move {
-            copier.copy_once().await
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => copier.source_metadata().await?.content_length(),
+            };
+            let mut metadata = copier.copy_once().await?.into_builder();
+            metadata.set_file(source_size);
+            Ok(metadata.build())
         })));
     };
 

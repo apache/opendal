@@ -223,7 +223,7 @@ impl FsCore {
         }
     }
 
-    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<u64> {
         let from = self.root_join(from)?;
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
@@ -232,7 +232,7 @@ impl FsCore {
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
 
-        tokio::fs::copy(&from, &to)
+        let size = tokio::fs::copy(&from, &to)
             .await
             .map_err(new_std_io_error)?;
 
@@ -246,7 +246,7 @@ impl FsCore {
             }
         }
 
-        Ok(())
+        Ok(size)
     }
 
     pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {

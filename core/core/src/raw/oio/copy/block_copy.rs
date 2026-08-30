@@ -280,10 +280,29 @@ where
             self.next().await?;
         }
 
-        Ok(self
+        let metadata = self
             .metadata
             .clone()
-            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build()))
+            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build());
+        let Some(source_size) = self.source_size else {
+            return Ok(metadata);
+        };
+        if metadata.has_content_length() {
+            if metadata.content_length() != source_size {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block copy result content length does not match source",
+                )
+                .with_context("expected", source_size)
+                .with_context("actual", metadata.content_length()));
+            }
+            return Ok(metadata);
+        }
+
+        let mut builder = metadata.into_builder();
+        builder.mode(EntryMode::FILE);
+        builder.content_length(source_size);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -384,6 +403,9 @@ mod tests {
             completed_ranges,
             vec![BytesRange::new(0, Some(2)), BytesRange::new(2, Some(2))]
         );
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 4);
 
         Ok(())
     }

@@ -1325,12 +1325,14 @@ impl Service for S3Backend {
         args: OpRestore,
     ) -> Result<RpRestore> {
         if let Some(version) = args.version() {
-            let copy_args: OpCopy = options::CopyOptions {
-                source_version: Some(version.to_owned()),
-                if_not_exists: args.if_not_exists(),
-                ..Default::default()
-            }
-            .into();
+            let copy_args = OpCopy::from_options(
+                options::CopyOptions {
+                    source_version: Some(version.to_owned()),
+                    if_not_exists: args.if_not_exists(),
+                    ..Default::default()
+                },
+                &self.capability(),
+            )?;
             let mut copier = new_s3_copier(self.core.clone(), ctx, path, path, copy_args)?;
 
             return match copier.close().await {
@@ -1385,11 +1387,13 @@ impl Service for S3Backend {
             ));
         };
 
-        let delete_args = options::DeleteOptions {
-            version: Some(marker.version_id.clone()),
-            ..Default::default()
-        }
-        .into();
+        let delete_args = OpDelete::from_options(
+            options::DeleteOptions {
+                version: Some(marker.version_id.clone()),
+                ..Default::default()
+            },
+            &self.capability(),
+        )?;
         let resp = self.core.s3_delete_object(ctx, path, &delete_args).await?;
         match resp.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpRestore::new()),
@@ -2108,11 +2112,14 @@ mod tests {
             .build()
             .expect("build");
 
-        let (op, _) = options::WriteOptions {
-            content_type: Some("application/json".to_owned()),
-            ..Default::default()
-        }
-        .into();
+        let (op, _) = OpWrite::from_options(
+            options::WriteOptions {
+                content_type: Some("application/json".to_owned()),
+                ..Default::default()
+            },
+            &backend.capability(),
+        )
+        .unwrap();
         let args = OpPresign::new(op, Duration::from_secs(3600));
         let ctx = OperationContext::new();
         let presigned = backend

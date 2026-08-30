@@ -353,10 +353,29 @@ where
             self.next().await?;
         }
 
-        Ok(self
+        let metadata = self
             .metadata
             .clone()
-            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build()))
+            .unwrap_or_else(|| Metadata::builder(EntryMode::Unknown).build());
+        let Some(source_size) = self.source_size else {
+            return Ok(metadata);
+        };
+        if metadata.has_content_length() {
+            if metadata.content_length() != source_size {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart copy result content length does not match source",
+                )
+                .with_context("expected", source_size)
+                .with_context("actual", metadata.content_length()));
+            }
+            return Ok(metadata);
+        }
+
+        let mut builder = metadata.into_builder();
+        builder.mode(EntryMode::FILE);
+        builder.content_length(source_size);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -446,9 +465,11 @@ mod tests {
         let inner = TestCopy::new(8);
         let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), Some(8), 8, 8, 1);
 
-        assert_eq!(copier.next().await?, None);
+        let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
         Ok(())
     }
 
@@ -457,9 +478,11 @@ mod tests {
         let inner = TestCopy::new(8);
         let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), None, 8, 8, 1);
 
-        assert_eq!(copier.next().await?, None);
+        let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
         Ok(())
     }
 

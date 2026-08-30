@@ -94,11 +94,14 @@ impl oio::BatchDelete for OssDeleter {
 
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
-            let op = options::DeleteOptions {
-                version: i.version_id,
-                ..Default::default()
-            }
-            .into();
+            let op = OpDelete::from_options(
+                options::DeleteOptions {
+                    version: i.version_id,
+                    ..Default::default()
+                },
+                &Capability::default(),
+            )
+            .expect("delete result does not contain a logical condition");
             let object = (path, op);
             keys.remove(&object);
             batched_result.succeeded.push(object);

@@ -426,8 +426,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         let op_args = options::DeleteOptions {
             version: Some(version.to_owned()),
             ..Default::default()
-        }
-        .into();
+        };
         files.push((path, op_args));
     }
 
@@ -438,7 +437,7 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
     for (path, args) in files {
         let stat = op
             .stat_with(path.as_str())
-            .version(args.version().unwrap())
+            .version(args.version.as_deref().unwrap())
             .await;
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
@@ -546,16 +545,14 @@ pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
                 options::DeleteOptions {
                     if_match: Some(matching_etag.clone()),
                     ..Default::default()
-                }
-                .into(),
+                },
             ),
             (
                 stale_path.clone(),
                 options::DeleteOptions {
                     if_match: Some(stale_etag.clone()),
                     ..Default::default()
-                }
-                .into(),
+                },
             ),
         ])
         .await
@@ -631,16 +628,14 @@ pub async fn test_batch_delete_with_if_none_match(op: Operator) -> Result<()> {
             options::DeleteOptions {
                 if_none_match: Some("\"different-etag\"".to_owned()),
                 ..Default::default()
-            }
-            .into(),
+            },
         ),
         (
             missing_path,
             options::DeleteOptions {
                 if_none_match: Some("\"different-etag\"".to_owned()),
                 ..Default::default()
-            }
-            .into(),
+            },
         ),
     ])
     .await?;
@@ -759,7 +754,7 @@ pub async fn test_delete_if_not_changed(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// `Deleter` should lower and preserve `if_not_changed` for queued deletes.
+/// `Deleter` should lower `if_not_changed` before passing a delete to the raw queue.
 pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&path, content).await?;
@@ -767,7 +762,13 @@ pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
 
     let mut deleter = op.deleter().await?;
     deleter
-        .delete(DeleteInput::new(path.clone()).with_if_not_changed(&expected))
+        .delete((
+            path.clone(),
+            options::DeleteOptions {
+                if_not_changed: Some(expected),
+                ..Default::default()
+            },
+        ))
         .await?;
     deleter.close().await?;
     assert!(!op.exists(&path).await?);

@@ -344,7 +344,12 @@ impl Service for DropboxBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
+                StatusCode::OK => {
+                    let decoded_response: DropboxMetadataResponse =
+                        serde_json::from_reader(resp.into_body().reader())
+                            .map_err(new_json_deserialize_error)?;
+                    DropboxWriter::parse_metadata(decoded_response)
+                }
                 _ => {
                     let err = parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp);
                     match err.kind() {

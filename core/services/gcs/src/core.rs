@@ -1176,12 +1176,12 @@ mod tests {
     }
 
     fn write_args(options: options::WriteOptions) -> OpWrite {
-        let (args, _) = options.into();
+        let (args, _) = OpWrite::from_options(options, &Capability::default()).unwrap();
         args
     }
 
     fn copy_args(options: options::CopyOptions) -> OpCopy {
-        options.into()
+        OpCopy::from_options(options, &Capability::default()).unwrap()
     }
 
     #[tokio::test]
@@ -1287,11 +1287,14 @@ mod tests {
         let delete = core
             .gcs_delete_object_request(
                 "object",
-                &options::DeleteOptions {
-                    if_version_not_match: Some("456".to_owned()),
-                    ..Default::default()
-                }
-                .into(),
+                &OpDelete::from_options(
+                    options::DeleteOptions {
+                        if_version_not_match: Some("456".to_owned()),
+                        ..Default::default()
+                    },
+                    &Capability::default(),
+                )
+                .unwrap(),
             )
             .expect("delete request must build");
         assert!(

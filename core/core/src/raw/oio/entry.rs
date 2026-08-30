@@ -40,11 +40,19 @@ impl Eq for Entry {}
 
 impl Entry {
     /// Create a new entry by its corresponding underlying storage.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact metadata block containing `path` exceeds `u16::MAX` bytes.
     pub fn new(path: &str, meta: Metadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new entry with given value.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact metadata block containing `path` exceeds `u16::MAX` bytes.
     pub fn with(mut path: String, meta: Metadata) -> Entry {
         // Normalize path as `/` if it's empty.
         if path.is_empty() {
@@ -66,6 +74,10 @@ impl Entry {
     }
 
     /// Set path for entry.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the resulting compact metadata block exceeds `u16::MAX` bytes.
     pub fn set_path(&mut self, path: &str) -> &mut Self {
         let mut builder = self.meta.clone().into_builder();
         builder.path(path);

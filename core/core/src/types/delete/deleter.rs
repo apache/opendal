@@ -100,68 +100,16 @@ impl Deleter {
         })
     }
 
-    /// Delete a path.
+    /// Delete a path with default or per-entry options.
+    ///
+    /// Pass a path directly to use [`options::DeleteOptions::default`]. Pass
+    /// `(String, DeleteOptions)` when this entry needs version or condition
+    /// options.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
-        let input = input.into_delete_input();
-        let opts = options::DeleteOptions {
-            version: input.version,
-            recursive: input.recursive,
-            if_match: input.if_match,
-            if_none_match: input.if_none_match,
-            if_version_match: input.if_version_match,
-            if_version_not_match: input.if_version_not_match,
-            if_not_changed: input.if_not_changed,
-        };
-        let mut op: OpDelete = opts.into();
-        if op.has_if_not_changed() {
-            if self.capability.delete_with_if_version_match
-                && let Some(version) = op.if_not_changed_version()
-            {
-                if let Some(explicit) = op.if_version_match() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    op.set_if_version_match_from_if_not_changed();
-                }
-            } else if self.capability.delete_with_if_match
-                && let Some(etag) = op.if_not_changed_etag()
-            {
-                if let Some(explicit) = op.if_match() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    op.set_if_match_from_if_not_changed();
-                }
-            } else if !self.capability.delete_with_if_version_match
-                && !self.capability.delete_with_if_match
-            {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation delete with if_not_changed",
-                        self.scheme
-                    ),
-                )
-                .with_operation(Operation::Delete.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by delete",
-                )
-                .with_operation(Operation::Delete.into_static()));
-            }
-        }
-        self.deleter.delete(&input.path, op).await?;
+        let (path, options) = input.into_delete_input();
+        let op = OpDelete::from_options(options, &self.capability)
+            .map_err(|err| err.with_context("service", self.scheme))?;
+        self.deleter.delete(&path, op).await?;
         Ok(())
     }
 

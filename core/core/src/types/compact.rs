@@ -30,13 +30,13 @@ impl CompactValues {
     pub(crate) fn encode<const N: usize>(fields: &[Option<&[u8]>; N]) -> Self {
         let lengths = fields.map(|value| value.map(<[u8]>::len));
         Self::encode_with(&lengths, |index, output| {
-            write_bytes(output, fields[index].expect("present field has a value"));
+            output.write(fields[index].expect("present field has a value"));
         })
     }
 
     pub(crate) fn encode_with<const N: usize>(
         lengths: &[Option<usize>; N],
-        write_field: impl FnMut(usize, &mut [MaybeUninit<u8>]),
+        write_field: impl FnMut(usize, &mut CompactFieldWriter<'_>),
     ) -> Self {
         let layout = encoded_layout(lengths);
         let total_len = layout.2;
@@ -51,18 +51,6 @@ impl CompactValues {
         // `write_encoded` initializes every byte in the bitmap, offsets, and payload.
         let encoded = unsafe { encoded.assume_init() };
         Self(Some(encoded))
-    }
-
-    pub(crate) fn encoded_len<const N: usize>(lengths: &[Option<usize>; N]) -> usize {
-        encoded_layout(lengths).2
-    }
-
-    pub(crate) fn write_encoded<const N: usize>(
-        lengths: &[Option<usize>; N],
-        output: &mut [MaybeUninit<u8>],
-        write_field: impl FnMut(usize, &mut [MaybeUninit<u8>]),
-    ) {
-        write_encoded(lengths, output, write_field)
     }
 
     #[inline]
@@ -97,29 +85,17 @@ impl CompactValues {
         })
     }
 
-    #[inline]
-    pub(crate) fn contains(&self, field: usize) -> bool {
+    pub(crate) fn replace(&self, field: usize, value: &[u8]) -> Self {
         assert!(field < u16::BITS as usize);
-        self.0
-            .as_deref()
-            .is_some_and(|encoded| read_present(encoded) & (1_u16 << field) != 0)
-    }
-
-    pub(crate) fn replace<const N: usize>(&self, field: usize, value: &[u8]) -> Self {
-        assert!(field < N);
-        let mut fields = self.fields::<N>();
+        let mut fields = self.fields::<{ u16::BITS as usize }>();
         fields[field] = Some(value);
         Self::encode(&fields)
     }
 
     #[inline]
     pub(crate) fn get(&self, field: usize) -> Option<&[u8]> {
-        Self::get_encoded(self.0.as_deref()?, field)
-    }
-
-    #[inline]
-    pub(crate) fn get_encoded(encoded: &[u8], field: usize) -> Option<&[u8]> {
         assert!(field < u16::BITS as usize);
+        let encoded = self.0.as_deref()?;
         if encoded.is_empty() {
             return None;
         }
@@ -141,17 +117,10 @@ impl CompactValues {
         Some(&encoded[start..end])
     }
 
+    #[cfg(test)]
     #[inline]
     pub(crate) fn as_encoded(&self) -> Option<&[u8]> {
         self.0.as_deref()
-    }
-
-    pub(crate) fn from_encoded(encoded: &[u8]) -> Self {
-        if encoded.is_empty() {
-            Self::default()
-        } else {
-            Self(Some(Arc::from(encoded)))
-        }
     }
 }
 
@@ -186,20 +155,11 @@ fn encoded_layout(lengths: &[Option<usize>]) -> (u16, usize, usize) {
     (present, header_len, total_len)
 }
 
-fn write_encoded(
-    lengths: &[Option<usize>],
-    output: &mut [MaybeUninit<u8>],
-    write_field: impl FnMut(usize, &mut [MaybeUninit<u8>]),
-) {
-    let layout = encoded_layout(lengths);
-    write_encoded_with_layout(lengths, output, layout, write_field);
-}
-
 fn write_encoded_with_layout(
     lengths: &[Option<usize>],
     output: &mut [MaybeUninit<u8>],
     (present, header_len, total_len): (u16, usize, usize),
-    mut write_field: impl FnMut(usize, &mut [MaybeUninit<u8>]),
+    mut write_field: impl FnMut(usize, &mut CompactFieldWriter<'_>),
 ) {
     assert_eq!(output.len(), total_len);
     if total_len == 0 {
@@ -211,10 +171,10 @@ fn write_encoded_with_layout(
     let mut value_index = 0;
     for (field, value_len) in lengths.iter().enumerate() {
         if let Some(value_len) = value_len {
-            write_field(
-                field,
-                &mut output[payload_offset..payload_offset + value_len],
-            );
+            let mut writer =
+                CompactFieldWriter::new(&mut output[payload_offset..payload_offset + value_len]);
+            write_field(field, &mut writer);
+            writer.finish();
             payload_offset += value_len;
             let end = u16::try_from(payload_offset).expect("value block length was validated");
             let offset = BITMAP_SIZE + value_index * OFFSET_SIZE;
@@ -227,15 +187,48 @@ fn write_encoded_with_layout(
 }
 
 fn write_slice(output: &mut [MaybeUninit<u8>], offset: usize, value: &[u8]) {
-    write_bytes(&mut output[offset..offset + value.len()], value);
+    initialize_bytes(&mut output[offset..offset + value.len()], value);
 }
 
-pub(crate) fn write_bytes(output: &mut [MaybeUninit<u8>], value: &[u8]) {
-    debug_assert_eq!(output.len(), value.len());
-    // The slices have equal lengths and cannot overlap because `output` belongs to the new
-    // compact allocation while `value` belongs to an input field.
-    unsafe {
-        std::ptr::copy_nonoverlapping(value.as_ptr(), output.as_mut_ptr().cast(), value.len());
+fn initialize_bytes(output: &mut [MaybeUninit<u8>], value: &[u8]) {
+    assert_eq!(output.len(), value.len());
+    for (output, value) in output.iter_mut().zip(value) {
+        output.write(*value);
+    }
+}
+
+pub(crate) struct CompactFieldWriter<'a> {
+    output: &'a mut [MaybeUninit<u8>],
+    initialized: usize,
+}
+
+impl<'a> CompactFieldWriter<'a> {
+    fn new(output: &'a mut [MaybeUninit<u8>]) -> Self {
+        Self {
+            output,
+            initialized: 0,
+        }
+    }
+
+    pub(crate) fn write(&mut self, value: &[u8]) {
+        let end = self
+            .initialized
+            .checked_add(value.len())
+            .expect("compact field length overflowed");
+        assert!(
+            end <= self.output.len(),
+            "compact field wrote too many bytes"
+        );
+        initialize_bytes(&mut self.output[self.initialized..end], value);
+        self.initialized = end;
+    }
+
+    fn finish(self) {
+        assert_eq!(
+            self.initialized,
+            self.output.len(),
+            "compact field did not initialize its declared length"
+        );
     }
 }
 
@@ -281,7 +274,7 @@ mod tests {
     #[test]
     fn compact_values_replace_present_field() {
         let values = CompactValues::encode(&[Some(b"first"), None, Some(b"third")]);
-        let values = values.replace::<3>(2, b"changed");
+        let values = values.replace(2, b"changed");
 
         assert_eq!(
             values.fields::<3>(),
@@ -292,7 +285,7 @@ mod tests {
     #[test]
     fn compact_values_insert_absent_field() {
         let values = CompactValues::encode(&[Some(b"first"), None, Some(b"third")]);
-        let values = values.replace::<3>(1, b"second");
+        let values = values.replace(1, b"second");
 
         assert_eq!(
             values.fields::<3>(),
@@ -302,6 +295,15 @@ mod tests {
                 Some(b"third".as_slice()),
             ]
         );
+    }
+
+    #[test]
+    fn compact_values_replace_preserves_high_fields() {
+        let values = CompactValues::encode(&[Some(b"first"), None, None, Some(b"fourth")]);
+        let values = values.replace(0, b"changed");
+
+        assert_eq!(values.get(0), Some(b"changed".as_slice()));
+        assert_eq!(values.get(3), Some(b"fourth".as_slice()));
     }
 
     #[test]
@@ -317,5 +319,11 @@ mod tests {
     fn compact_values_reject_oversized_block() {
         let value = vec![0; u16::MAX as usize - BITMAP_SIZE - OFFSET_SIZE + 1];
         CompactValues::encode(&[Some(&value)]);
+    }
+
+    #[test]
+    #[should_panic(expected = "compact field did not initialize its declared length")]
+    fn compact_values_reject_incomplete_encoder() {
+        CompactValues::encode_with(&[Some(1)], |_, _| {});
     }
 }

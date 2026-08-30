@@ -37,11 +37,19 @@ Operator runtime resources now live in `OperationContext`, which is exported fro
 
 Every file `Metadata` returned through an `Operator` must contain an explicit full-object content length. Raw services that omit it now return `Unexpected` at the completion boundary.
 
+Compact metadata and finalized raw-operation value blocks are limited to `u16::MAX` encoded bytes, including indexes. `MetadataBuilder::build`, raw option freezing, and raw listed-entry construction panic when a block exceeds this bound.
+
+### Delete inputs use `DeleteOptions`
+
+`DeleteInput` has been removed. Pass `(String, DeleteOptions)` to `Deleter`, delete iterators, streams, and sinks when an entry needs options. Plain paths and `Entry` values remain supported through `IntoDeleteInput`. `(String, OpDelete)` is no longer accepted by the public delete APIs because raw arguments are already capability-resolved.
+
 ## Raw API
 
 ### Services and layers use the new composition boundary
 
 Out-of-tree services must implement `raw::Service` instead of the old accessor pipeline. Services now return immutable identity through `ServiceInfo`, report availability through `capability()`, and receive `&OperationContext` at each operation boundary.
+
+`WriteOptions`, `DeleteOptions`, and `CopyOptions` no longer implement direct conversion into their raw operation arguments. Use `OpWrite::from_options`, `OpDelete::from_options`, or `OpCopy::from_options` with the composed `Capability`. These constructors lower `if_not_changed` before freezing, so raw arguments contain only service-ready primitive conditions.
 
 Out-of-tree layers must implement `Layer::apply_service` and, when they replace runtime resources, `Layer::apply_context`. The old typed layer pipeline, including `TypedLayer`, `RuntimeResourceLayer`, `TypeEraseLayer`, `OperatorBuilder<S>`, and `typed_layer`, has been removed.
 
@@ -55,7 +63,7 @@ The unused `raw::AtomicContentLength`, `raw::PathCacher`, and `raw::PathQuery` h
 
 ### Raw operation arguments are frozen from public options
 
-Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, `OpList`, and `OpRestore`. Construct non-empty raw arguments by converting the corresponding public `*Options`; `new` and `Default` remain available for empty arguments. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
+Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, `OpList`, and `OpRestore`. Construct non-empty read, stat, list, and restore arguments by converting the corresponding public `*Options`. Use the capability-aware `from_options` constructors described above for write, delete, and copy; `new` and `Default` remain available for empty arguments. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
 
 # Upgrade to v0.57
 
@@ -400,7 +408,7 @@ The following new APIs have been added:
 - [`Deleter::flush`]
 - [`Deleter::close`]
 - [`Deleter::into_sink`]
-- [`DeleteInput`]
+- `DeleteInput`
 - [`IntoDeleteInput`]
 - [`FuturesDeleteSink`]
 

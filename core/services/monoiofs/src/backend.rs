@@ -250,12 +250,16 @@ impl Service for MonoiofsBackend {
                         buf.clear();
                     }
                     core.buf_pool.put(buf);
-                    Ok(())
+                    Ok(pos)
                 }
             })
             .await
-            .map_err(new_std_io_error)?;
-            Ok(Metadata::builder(EntryMode::Unknown).build())
+            .map_err(new_std_io_error)
+            .map(|size| {
+                let mut metadata = Metadata::builder(EntryMode::FILE);
+                metadata.content_length(size);
+                metadata.build()
+            })
         });
 
         Ok(copier)

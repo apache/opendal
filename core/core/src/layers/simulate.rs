@@ -283,7 +283,7 @@ impl SimulateService {
             let entry = entry.into_entry();
             let mut entry_args = non_recursive.clone();
             if let Some(version) = entry.metadata().version() {
-                entry_args.set_version(version);
+                entry_args = entry_args.into_version(version);
             }
             deleter.delete(entry.path(), entry_args).await?;
         }

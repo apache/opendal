@@ -17,10 +17,58 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::Metadata;
+use crate::raw::Operation;
 use crate::raw::Timestamp;
 use crate::types::BytesRange;
+use crate::{Error, ErrorKind, Metadata, Result};
 use std::collections::HashMap;
+
+pub(crate) fn lower_if_not_changed(
+    condition: &mut Option<Metadata>,
+    if_match: &mut Option<String>,
+    if_version_match: &mut Option<String>,
+    supports_etag: bool,
+    supports_version: bool,
+    operation: Operation,
+) -> Result<()> {
+    let Some(metadata) = condition.take() else {
+        return Ok(());
+    };
+
+    let (target, identity, name) = if supports_version && let Some(version) = metadata.version() {
+        (if_version_match, version, "if_version_match")
+    } else if supports_etag && let Some(etag) = metadata.etag() {
+        (if_match, etag, "if_match")
+    } else if !supports_version && !supports_etag {
+        return Err(Error::new(
+            ErrorKind::Unsupported,
+            format!("service does not support {operation} with if_not_changed"),
+        )
+        .with_operation(operation.into_static()));
+    } else {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!(
+                "if_not_changed metadata does not contain an identity supported by {operation}"
+            ),
+        )
+        .with_operation(operation.into_static()));
+    };
+
+    if let Some(explicit) = target {
+        if explicit != identity {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                format!("if_not_changed conflicts with {name}"),
+            )
+            .with_operation(operation.into_static()));
+        }
+    } else {
+        *target = Some(identity.to_owned());
+    }
+
+    Ok(())
+}
 
 /// Options for delete operations.
 ///

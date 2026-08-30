@@ -267,6 +267,7 @@ impl Service for AliyunDriveBackend {
                 let res = core.get_by_path(&ctx, &from).await?;
                 let file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+                let source_content_length = file.size;
                 // copy can overwrite.
                 match core.get_by_path(&ctx, &to).await {
                     Err(err) if err.kind() == ErrorKind::NotFound => {}
@@ -300,7 +301,11 @@ impl Service for AliyunDriveBackend {
                     core.update_path(&ctx, &file_id, to_name).await?;
                 }
 
-                Ok(Metadata::builder(EntryMode::Unknown).build())
+                let mut metadata = Metadata::builder(EntryMode::FILE);
+                if let Some(size) = source_content_length {
+                    metadata.content_length(size);
+                }
+                Ok(metadata.build())
             }
         }))
     }

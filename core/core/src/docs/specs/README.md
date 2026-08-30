@@ -30,3 +30,5 @@ behavior tests, API documentation, and specification change land together.
 - [Conditional operations](https://opendal.apache.org/docs/specifications/conditional-operations/)
   define portable predicate, error, and atomicity semantics, including the
   behavior when the file does not exist.
+- [Metadata](https://opendal.apache.org/docs/specifications/metadata/) defines
+  owned metadata, compact construction limits, and result completion semantics.

@@ -16,13 +16,12 @@
 // under the License.
 
 use std::fmt;
-use std::mem::MaybeUninit;
 use std::str;
 
 use crate::EntryMode;
 use crate::raw::Timestamp;
+use crate::types::compact::CompactFieldWriter;
 use crate::types::compact::CompactValues;
-use crate::types::compact::write_bytes;
 
 const MODE_MASK: u16 = 0b11;
 const MODE_FILE: u16 = 0b01;
@@ -352,88 +351,6 @@ impl Metadata {
     fn string(&self, field: ValueField) -> Option<&str> {
         self.values.get_str(field as usize)
     }
-
-    #[cfg(test)]
-    pub(crate) fn encode_compact(&self) -> Vec<u8> {
-        let len = self.compact_encoded_len();
-        let mut encoded = Vec::with_capacity(len);
-        self.write_compact(&mut encoded.spare_capacity_mut()[..len]);
-        // `write_compact` initializes exactly the capacity reserved above.
-        unsafe { encoded.set_len(len) };
-        encoded
-    }
-
-    pub(crate) fn compact_encoded_len(&self) -> usize {
-        if !self.values.contains(ValueField::Path as usize) {
-            return 22 + self.values.as_encoded().map_or(0, <[u8]>::len);
-        }
-        let fields = self.logical_value_fields();
-        let lengths = fields.map(|value| value.map(<[u8]>::len));
-        22 + CompactValues::encoded_len(&lengths)
-    }
-
-    pub(crate) fn write_compact(&self, output: &mut [MaybeUninit<u8>]) {
-        debug_assert_eq!(output.len(), self.compact_encoded_len());
-        write_bytes(&mut output[..8], &self.header.content_length.to_le_bytes());
-        write_bytes(
-            &mut output[8..16],
-            &self.header.last_modified_seconds.to_le_bytes(),
-        );
-        write_bytes(
-            &mut output[16..20],
-            &self.header.last_modified_nanoseconds.to_le_bytes(),
-        );
-        write_bytes(&mut output[20..22], &self.header.flags.to_le_bytes());
-        if !self.values.contains(ValueField::Path as usize) {
-            write_bytes(
-                &mut output[22..],
-                self.values.as_encoded().unwrap_or_default(),
-            );
-            return;
-        }
-        let fields = self.logical_value_fields();
-        let lengths = fields.map(|value| value.map(<[u8]>::len));
-        CompactValues::write_encoded(&lengths, &mut output[22..], |field, output| {
-            write_bytes(output, fields[field].expect("present field has a value"));
-        });
-    }
-
-    fn logical_value_fields(&self) -> [Option<&[u8]>; ValueField::Path as usize] {
-        let fields = self.values.fields::<VALUE_FIELD_COUNT>();
-        std::array::from_fn(|field| fields[field])
-    }
-
-    pub(crate) fn decode_compact(encoded: &[u8]) -> Self {
-        assert!(encoded.len() >= 22, "encoded metadata header is incomplete");
-        Self {
-            header: MetadataHeader {
-                content_length: u64::from_le_bytes(encoded[0..8].try_into().unwrap()),
-                last_modified_seconds: i64::from_le_bytes(encoded[8..16].try_into().unwrap()),
-                last_modified_nanoseconds: u32::from_le_bytes(encoded[16..20].try_into().unwrap()),
-                flags: u16::from_le_bytes(encoded[20..22].try_into().unwrap()),
-            },
-            values: CompactValues::from_encoded(&encoded[22..]),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn compact_etag(encoded: &[u8]) -> Option<&str> {
-        Self::compact_string(encoded, ValueField::Etag)
-    }
-
-    #[inline]
-    pub(crate) fn compact_version(encoded: &[u8]) -> Option<&str> {
-        Self::compact_string(encoded, ValueField::Version)
-    }
-
-    #[inline]
-    fn compact_string(encoded: &[u8], field: ValueField) -> Option<&str> {
-        assert!(encoded.len() >= 22, "encoded metadata header is incomplete");
-        CompactValues::get_encoded(&encoded[22..], field as usize).map(|value| {
-            // Compact metadata encodes strings that were already validated as UTF-8.
-            unsafe { str::from_utf8_unchecked(value) }
-        })
-    }
 }
 
 /// Mutable construction state for [`Metadata`].
@@ -538,6 +455,10 @@ impl MetadataBuilder {
     /// Set user metadata from owned key-value pairs.
     ///
     /// Duplicate keys are rejected because user metadata has map semantics.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `values` contains duplicate keys.
     pub fn user_metadata(
         &mut self,
         values: impl IntoIterator<Item = (String, String)>,
@@ -553,6 +474,10 @@ impl MetadataBuilder {
     }
 
     /// Finish this builder as immutable metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
     pub fn build(self) -> Metadata {
         let Self {
             header,
@@ -589,7 +514,7 @@ impl MetadataBuilder {
             {
                 write_user_metadata(user_metadata, output);
             } else {
-                write_bytes(output, fields[field].expect("present field has a value"));
+                output.write(fields[field].expect("present field has a value"));
             }
         });
 
@@ -734,28 +659,27 @@ pub(crate) fn user_metadata_encoded_len(values: &[(String, String)]) -> usize {
     total_len
 }
 
-pub(crate) fn write_user_metadata(values: &[(String, String)], output: &mut [MaybeUninit<u8>]) {
-    debug_assert_eq!(output.len(), user_metadata_encoded_len(values));
-    let total_len = output.len();
+pub(crate) fn write_user_metadata(
+    values: &[(String, String)],
+    output: &mut CompactFieldWriter<'_>,
+) {
     let count = u16::try_from(values.len()).expect("user metadata contains too many pairs");
     let header_len = size_of::<u16>() + values.len() * 2 * size_of::<u16>();
-    write_bytes(&mut output[..2], &count.to_le_bytes());
+    output.write(&count.to_le_bytes());
+
     let mut payload_offset = header_len;
-    let mut index = 0;
     for (key, value) in values {
         for part in [key.as_bytes(), value.as_bytes()] {
-            write_bytes(
-                &mut output[payload_offset..payload_offset + part.len()],
-                part,
-            );
             payload_offset += part.len();
             let end = u16::try_from(payload_offset).expect("user metadata length was validated");
-            let offset = 2 + index * 2;
-            write_bytes(&mut output[offset..offset + 2], &end.to_le_bytes());
-            index += 1;
+            output.write(&end.to_le_bytes());
         }
     }
-    debug_assert_eq!(payload_offset, total_len);
+
+    for (key, value) in values {
+        output.write(key.as_bytes());
+        output.write(value.as_bytes());
+    }
 }
 
 #[inline]
@@ -870,6 +794,32 @@ mod tests {
     }
 
     #[test]
+    fn into_builder_does_not_mutate_shared_packed_values() {
+        let mut builder = Metadata::builder(EntryMode::FILE);
+        builder.etag("original").version("version").user_metadata([
+            ("owner".to_string(), "opendal".to_string()),
+            ("region".to_string(), "us-east-1".to_string()),
+        ]);
+        let original = builder.build();
+
+        let mut builder = original.clone().into_builder();
+        builder
+            .etag("changed")
+            .user_metadata([("owner".to_string(), "another-owner".to_string())]);
+        let changed = builder.build();
+
+        assert_eq!(original.etag(), Some("original"));
+        assert_eq!(original.version(), Some("version"));
+        assert_eq!(original.user_metadata().unwrap().len(), 2);
+        assert_eq!(changed.etag(), Some("changed"));
+        assert_eq!(changed.version(), Some("version"));
+        assert_eq!(
+            changed.user_metadata().unwrap().get("owner"),
+            Some("another-owner")
+        );
+    }
+
+    #[test]
     fn empty_user_metadata_is_present() {
         let mut builder = Metadata::builder(EntryMode::FILE);
         builder.user_metadata([]);
@@ -886,9 +836,5 @@ mod tests {
         let metadata_with_path = builder.build();
 
         assert_eq!(metadata, metadata_with_path);
-        assert_eq!(
-            Metadata::decode_compact(&metadata_with_path.encode_compact()).path(),
-            None
-        );
     }
 }

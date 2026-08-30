@@ -60,7 +60,7 @@ impl Service for CompleteService {
     type Writer = CompleteWriter<oio::Writer>;
     type Lister = CompleteLister;
     type Deleter = oio::Deleter;
-    type Copier = oio::Copier;
+    type Copier = CompleteCopier;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -97,7 +97,9 @@ impl Service for CompleteService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args)
+        let source_content_length_hint = args.source_content_length_hint();
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(CompleteCopier::new(copier, source_content_length_hint))
     }
 
     async fn rename(
@@ -141,6 +143,78 @@ impl Service for CompleteService {
         args: OpPresign,
     ) -> Result<RpPresign> {
         self.inner.presign(ctx, path, args).await
+    }
+}
+
+pub struct CompleteCopier {
+    inner: oio::Copier,
+    source_content_length_hint: Option<u64>,
+    copied: Option<u64>,
+}
+
+impl CompleteCopier {
+    fn new(inner: oio::Copier, source_content_length_hint: Option<u64>) -> Self {
+        Self {
+            inner,
+            source_content_length_hint,
+            copied: None,
+        }
+    }
+
+    fn complete_metadata(&self, metadata: Metadata) -> Result<Metadata> {
+        if metadata.has_content_length() {
+            if let Some(copied) = self.copied
+                && metadata.content_length() != copied
+            {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "copy result content length does not match copied bytes",
+                )
+                .with_operation("CompleteCopier::close")
+                .with_context("expected", copied)
+                .with_context("actual", metadata.content_length()));
+            }
+
+            if metadata.is_file() {
+                return Ok(metadata);
+            }
+
+            let mut builder = metadata.into_builder();
+            builder.mode(EntryMode::FILE);
+            return Ok(builder.build());
+        }
+
+        let Some(copied) = self.copied.or(self.source_content_length_hint) else {
+            ensure_file_content_length(&metadata, "CompleteCopier::close")?;
+            return Ok(metadata);
+        };
+        let mut builder = metadata.into_builder();
+        builder.mode(EntryMode::FILE);
+        builder.content_length(copied);
+        Ok(builder.build())
+    }
+}
+
+impl oio::Copy for CompleteCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        let progress = self.inner.next().await?;
+        if let Some(progress) = progress {
+            let copied = self.copied.unwrap_or_default();
+            self.copied = Some(copied.checked_add(progress as u64).ok_or_else(|| {
+                Error::new(ErrorKind::Unexpected, "copied byte count overflowed u64")
+                    .with_operation("CompleteCopier::next")
+            })?);
+        }
+        Ok(progress)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let metadata = self.inner.close().await?;
+        self.complete_metadata(metadata)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }
 
@@ -475,8 +549,97 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use super::*;
+    use crate::raw::oio::Copy as _;
     use crate::raw::oio::Write as _;
+
+    struct MockCopier {
+        progress: VecDeque<usize>,
+        metadata: Metadata,
+    }
+
+    impl MockCopier {
+        fn new(progress: impl IntoIterator<Item = usize>, metadata: Metadata) -> Self {
+            Self {
+                progress: progress.into_iter().collect(),
+                metadata,
+            }
+        }
+    }
+
+    impl oio::Copy for MockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.progress.pop_front())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(self.metadata.clone())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn incomplete_copy_metadata() -> Metadata {
+        Metadata::builder(EntryMode::Unknown).build()
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_source_content_length_hint() -> Result<()> {
+        let inner = Box::new(MockCopier::new([], incomplete_copy_metadata()));
+        let mut copier = CompleteCopier::new(inner, Some(8));
+
+        let metadata = copier.close().await?;
+
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_reported_progress() -> Result<()> {
+        let inner = Box::new(MockCopier::new([3, 5], incomplete_copy_metadata()));
+        let mut copier = CompleteCopier::new(inner, Some(7));
+
+        while copier.next().await?.is_some() {}
+        let metadata = copier.close().await?;
+
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_result_metadata_over_source_hint() -> Result<()> {
+        let mut metadata = Metadata::builder(EntryMode::FILE);
+        metadata.content_length(8);
+        let inner = Box::new(MockCopier::new([], metadata.build()));
+        let mut copier = CompleteCopier::new(inner, Some(7));
+
+        let metadata = copier.close().await?;
+
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_requires_known_content_length() {
+        let inner = Box::new(MockCopier::new(
+            [],
+            Metadata::builder(EntryMode::FILE).build(),
+        ));
+        let mut copier = CompleteCopier::new(inner, None);
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("copy without a known content length must fail");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
 
     struct UnsupportedCopyWriter;
 

@@ -412,9 +412,10 @@ impl Service for GdriveBackend {
                     } else {
                         core.cache_file_id(&to_path, &meta.id).await;
                     }
-                    core.record_recent_upsert(&to_path, metadata.build()).await;
+                    let metadata = metadata.build();
+                    core.record_recent_upsert(&to_path, metadata.clone()).await;
 
-                    Ok(Metadata::builder(EntryMode::Unknown).build())
+                    Ok(metadata)
                 }
                 StatusCode::NOT_FOUND => {
                     core.refresh_path(&source).await;
@@ -445,9 +446,10 @@ impl Service for GdriveBackend {
                             } else {
                                 core.cache_file_id(&to_path, &meta.id).await;
                             }
-                            core.record_recent_upsert(&to_path, metadata.build()).await;
+                            let metadata = metadata.build();
+                            core.record_recent_upsert(&to_path, metadata.clone()).await;
 
-                            Ok(Metadata::builder(EntryMode::Unknown).build())
+                            Ok(metadata)
                         }
                         _ => Err(parse_error(
                             ErrorContext::new(ServiceOperation("CopyFile")),

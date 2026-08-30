@@ -326,6 +326,7 @@ impl Service for B2Backend {
         Ok(oio::OneShotCopier::new(async move {
             let file_info = core.get_file_info(&ctx, &from, None).await?;
             let source_file_id = file_info.file_id;
+            let source_content_length = file_info.content_length;
 
             let Some(source_file_id) = source_file_id else {
                 return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
@@ -336,7 +337,11 @@ impl Service for B2Backend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::builder(EntryMode::Unknown).build()),
+                StatusCode::OK => {
+                    let mut metadata = Metadata::builder(EntryMode::FILE);
+                    metadata.content_length(source_content_length);
+                    Ok(metadata.build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyFile")),
                     resp,

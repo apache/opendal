@@ -42,7 +42,7 @@ impl DropboxWriter {
         }
     }
 
-    fn parse_metadata(decoded_response: DropboxMetadataResponse) -> Result<Metadata> {
+    pub(crate) fn parse_metadata(decoded_response: DropboxMetadataResponse) -> Result<Metadata> {
         let mut metadata = Metadata::builder(EntryMode::Unknown);
 
         if let Some(size) = decoded_response.size {

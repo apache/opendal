@@ -200,9 +200,11 @@ impl Service for CompfsBackend {
                     .await?;
 
                 let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
-                compio::io::copy(&mut from, &mut to).await?;
+                let size = compio::io::copy(&mut from, &mut to).await?;
 
-                Ok(Metadata::builder(EntryMode::Unknown).build())
+                let mut metadata = Metadata::builder(EntryMode::FILE);
+                metadata.content_length(size);
+                Ok(metadata.build())
             })
             .await
         }))

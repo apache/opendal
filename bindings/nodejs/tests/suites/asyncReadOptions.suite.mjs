@@ -197,7 +197,8 @@ export function run(op) {
         ifMatch: '"invalid_etag"',
       }
 
-      await expect(op.reader(filename, invalidOptions)).rejects.toThrowError('ConditionNotMatch')
+      const invalidReader = await op.reader(filename, invalidOptions)
+      await expect(invalidReader.read(Buffer.alloc(1))).rejects.toThrowError('ConditionNotMatch')
 
       const r = await op.reader(filename, { ifMatch: meta.etag })
       const rs = r.createReadStream()
@@ -227,7 +228,8 @@ export function run(op) {
       await op.write(filename, content)
       const meta = await op.stat(filename)
 
-      await expect(op.reader(filename, { ifNoneMatch: meta.etag })).rejects.toThrowError('ConditionNotMatch')
+      const invalidReader = await op.reader(filename, { ifNoneMatch: meta.etag })
+      await expect(invalidReader.read(Buffer.alloc(1))).rejects.toThrowError('ConditionNotMatch')
 
       const r = await op.reader(filename, { ifNoneMatch: '"invalid_etag"' })
       const rs = r.createReadStream()
@@ -280,9 +282,8 @@ export function run(op) {
 
       const sinceAdd = new Date(meta.lastModified)
       sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)
-      await expect(op.reader(filename, { ifModifiedSince: sinceAdd.toISOString() })).rejects.toThrowError(
-        'ConditionNotMatch',
-      )
+      const invalidReader = await op.reader(filename, { ifModifiedSince: sinceAdd.toISOString() })
+      await expect(invalidReader.read(Buffer.alloc(1))).rejects.toThrowError('ConditionNotMatch')
 
       await op.delete(filename)
     })
@@ -298,9 +299,8 @@ export function run(op) {
       const sinceMinus = new Date(meta.lastModified)
       sinceMinus.setSeconds(sinceMinus.getSeconds() - 1)
 
-      await expect(op.reader(filename, { ifUnmodifiedSince: sinceMinus.toISOString() })).rejects.toThrowError(
-        'ConditionNotMatch',
-      )
+      const invalidReader = await op.reader(filename, { ifUnmodifiedSince: sinceMinus.toISOString() })
+      await expect(invalidReader.read(Buffer.alloc(1))).rejects.toThrowError('ConditionNotMatch')
 
       await setTimeout(1000)
 

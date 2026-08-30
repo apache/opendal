@@ -45,3 +45,20 @@ uv run benchmark/blocking_gil_benchmark.py \
 
 Run the same command from an unchanged baseline checkout to compare
 single-thread overhead and concurrency speedup with identical local I/O.
+
+## File Open and Read over HTTP
+
+The repository's nginx fixture provides a reproducible benchmark for opening a
+Python file object and reading its first byte:
+
+```shell
+docker compose -f fixtures/http/docker-compose-nginx.yml up -d --wait
+
+cd bindings/python
+uv run maturin develop
+uv run python benchmark/file_open_read_benchmark.py
+```
+
+The benchmark reports the per-operation latency for synchronous and asynchronous
+file APIs. The nginx access log can be used to verify the corresponding HTTP
+request count.

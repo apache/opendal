@@ -31,6 +31,7 @@ pub struct Composer {
     composer: oio::Composer,
     to: String,
     scheme: &'static str,
+    prefer_source_version: bool,
     accepted: usize,
     metadata: Option<Metadata>,
     errored: bool,
@@ -44,12 +45,14 @@ impl Composer {
         args: OpCompose,
     ) -> Result<Self> {
         let scheme = srv.info().scheme();
+        let prefer_source_version = srv.capability().compose_with_source_version;
         let composer = srv.compose(&ctx, &to, args)?;
 
         Ok(Self {
             composer,
             to,
             scheme,
+            prefer_source_version,
             accepted: 0,
             metadata: None,
             errored: false,
@@ -132,7 +135,12 @@ impl Composer {
         let mut version = options.version;
         let mut if_match = options.if_match;
         if let Some(metadata) = options.if_not_changed {
-            if let Some(metadata_version) = metadata.version() {
+            let metadata_version = metadata.version();
+            let metadata_etag = metadata.etag();
+            let use_version = metadata_version.is_some()
+                && (self.prefer_source_version || metadata_etag.is_none());
+
+            if use_version && let Some(metadata_version) = metadata_version {
                 if let Some(explicit) = version.as_deref() {
                     if explicit != metadata_version {
                         return Err(Error::new(
@@ -144,7 +152,7 @@ impl Composer {
                 } else {
                     version = Some(metadata_version.to_string());
                 }
-            } else if let Some(metadata_etag) = metadata.etag() {
+            } else if let Some(metadata_etag) = metadata_etag {
                 if let Some(explicit) = if_match.as_deref() {
                     if explicit != metadata_etag {
                         return Err(Error::new(

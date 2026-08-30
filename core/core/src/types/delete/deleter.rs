@@ -83,13 +83,18 @@ use crate::*;
 /// ```
 pub struct Deleter {
     deleter: oio::Deleter,
+    prefer_version: bool,
 }
 
 impl Deleter {
     pub(crate) fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
+        let prefer_version = srv.capability().delete_with_if_version_match;
         let deleter = srv.delete(&ctx)?;
 
-        Ok(Self { deleter })
+        Ok(Self {
+            deleter,
+            prefer_version,
+        })
     }
 
     /// Delete a path.
@@ -108,6 +113,7 @@ impl Deleter {
             options::lower_if_not_changed(
                 Operation::Delete,
                 &metadata,
+                self.prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;
@@ -246,6 +252,7 @@ mod tests {
 
         let deleter = Deleter {
             deleter: Box::new(mock),
+            prefer_version: false,
         };
         let mut sink = deleter.into_sink::<String>();
 

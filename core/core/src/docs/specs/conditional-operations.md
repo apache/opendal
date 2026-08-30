@@ -83,10 +83,12 @@ version does not exist.
 `if_not_changed(metadata)` is a positive identity condition derived from
 metadata previously returned by OpenDAL. OpenDAL lowers it as follows:
 
-1. Use a version match when the metadata contains a version.
+1. Use a version match when the operation advertises version matching and the
+   metadata contains a version.
 2. Otherwise, use an ETag match when the metadata contains an ETag.
-3. Return `ConfigInvalid` when the metadata contains neither identity token.
-4. Validate the derived primitive condition normally and return `Unsupported`
+3. Otherwise, use a version match when the metadata contains a version.
+4. Return `ConfigInvalid` when the metadata contains neither identity token.
+5. Validate the derived primitive condition normally and return `Unsupported`
    when the operation does not support it.
 
 An identical explicit equality condition is redundant. A conflicting equality

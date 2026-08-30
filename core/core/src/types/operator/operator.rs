@@ -1152,9 +1152,11 @@ impl Operator {
 
         let mut opts = opts;
         if let Some(metadata) = opts.if_not_changed.take() {
+            let prefer_version = srv.capability().write_with_if_version_match;
             options::lower_if_not_changed(
                 Operation::Write,
                 &metadata,
+                prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;
@@ -1311,9 +1313,11 @@ impl Operator {
         }
 
         if let Some(metadata) = opts.if_not_changed.take() {
+            let prefer_version = srv.capability().compose_with_if_version_match;
             options::lower_if_not_changed(
                 Operation::Compose,
                 &metadata,
+                prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;
@@ -1564,9 +1568,11 @@ impl Operator {
 
         let mut opts = opts;
         if let Some(metadata) = opts.if_not_changed.take() {
+            let prefer_version = srv.capability().copy_with_if_version_match;
             options::lower_if_not_changed(
                 Operation::Copy,
                 &metadata,
+                prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;
@@ -2735,9 +2741,11 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let mut opts = opts;
         if let Some(metadata) = opts.if_not_changed.take() {
+            let prefer_version = srv.capability().write_with_if_version_match;
             options::lower_if_not_changed(
                 Operation::Write,
                 &metadata,
+                prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;
@@ -2857,9 +2865,11 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let mut opts = opts;
         if let Some(metadata) = opts.if_not_changed.take() {
+            let prefer_version = srv.capability().delete_with_if_version_match;
             options::lower_if_not_changed(
                 Operation::Delete,
                 &metadata,
+                prefer_version,
                 &mut opts.if_version_match,
                 &mut opts.if_match,
             )?;

@@ -965,7 +965,6 @@ mod tests {
         let metadata = Metadata::default()
             .with_etag("etag".to_string())
             .with_version("version".to_string());
-        let etag_metadata = Metadata::default().with_etag("etag".to_string());
 
         let err = op
             .write_with("path", "")
@@ -990,24 +989,24 @@ mod tests {
 
         op.copy_with("from", "to")
             .if_match("etag")
-            .if_not_changed(&etag_metadata)
+            .if_not_changed(&metadata)
             .await?;
         let err = op
             .copy_with("from", "to")
             .if_match("other-etag")
-            .if_not_changed(&etag_metadata)
+            .if_not_changed(&metadata)
             .await
             .expect_err("different selected etag must fail");
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
         op.delete_with("path")
             .if_match("etag")
-            .if_not_changed(&etag_metadata)
+            .if_not_changed(&metadata)
             .await?;
         let err = op
             .delete_with("path")
             .if_match("other-etag")
-            .if_not_changed(&etag_metadata)
+            .if_not_changed(&metadata)
             .await
             .expect_err("different selected etag must fail");
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
@@ -1025,53 +1024,37 @@ mod tests {
             ..Default::default()
         });
 
-        let err = op
-            .write_with("path", "")
+        op.write_with("path", "")
+            .if_match("etag")
             .if_not_changed(&metadata)
-            .await
-            .expect_err("metadata version must lower before capability validation");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .await?;
 
-        let err = op
-            .copy_with("from", "to")
+        op.copy_with("from", "to")
+            .if_match("etag")
             .if_not_changed(&metadata)
-            .await
-            .expect_err("metadata version must lower before capability validation");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .await?;
 
-        let err = op
-            .delete_with("path")
+        op.delete_with("path")
+            .if_match("etag")
             .if_not_changed(&metadata)
-            .await
-            .expect_err("metadata version must lower before capability validation");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .await?;
 
-        let err = op
-            .compose_with(["from"], "to")
+        op.compose_with(["from"], "to")
+            .if_match("etag")
             .if_not_changed(&metadata)
-            .await
-            .expect_err("destination version must lower before capability validation");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .await?;
 
-        let err = op
-            .compose(
-                [(
-                    "from",
-                    options::ComposeSourceOptions {
-                        if_not_changed: Some(metadata.clone()),
-                        ..Default::default()
-                    },
-                )],
-                "to",
-            )
-            .await
-            .expect_err("source version must lower before capability validation");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("source_version"));
+        op.compose(
+            [(
+                "from",
+                options::ComposeSourceOptions {
+                    if_not_changed: Some(metadata.clone()),
+                    ..Default::default()
+                },
+            )],
+            "to",
+        )
+        .await?;
 
         let err = op
             .compose(
@@ -1087,6 +1070,62 @@ mod tests {
             .await
             .expect_err("source metadata without an identity must fail during lowering");
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let op = new_test_operator(Capability {
+            write: true,
+            delete: true,
+            copy: true,
+            compose: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .write_with("path", "")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("the derived write condition must be capability checked");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .copy_with("from", "to")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("the derived copy condition must be capability checked");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .delete_with("path")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("the derived delete condition must be capability checked");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .compose_with(["from"], "to")
+            .if_not_changed(&metadata)
+            .await
+            .expect_err("the derived destination condition must be capability checked");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .compose(
+                [(
+                    "from",
+                    options::ComposeSourceOptions {
+                        if_not_changed: Some(metadata),
+                        ..Default::default()
+                    },
+                )],
+                "to",
+            )
+            .await
+            .expect_err("the derived source condition must be capability checked");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("source_if_match"));
 
         Ok(())
     }
@@ -1153,9 +1192,8 @@ mod tests {
                 },
             )
             .await
-            .expect_err("derived version must be checked by correctness layer");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
 
         let op = new_test_operator(Capability {
             delete_with_if_match: true,
@@ -1171,9 +1209,8 @@ mod tests {
                 },
             )
             .await
-            .expect_err("derived version must be checked by correctness layer");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.to_string().contains("if_version_match"));
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
     }
 
     #[tokio::test]

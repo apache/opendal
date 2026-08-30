@@ -1249,11 +1249,14 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         to: String,
-        (opts, inputs): (options::ComposeOptions, Vec<ComposeInput>),
+        (opts, inputs): (
+            options::ComposeOptions,
+            Vec<(String, options::ComposeSourceOptions)>,
+        ),
     ) -> Result<Metadata> {
         let mut composer = Self::composer_inner(ctx, srv, to, opts).await?;
-        for input in inputs {
-            composer.compose(input).await?;
+        for (path, options) in inputs {
+            composer.compose_options(&path, options).await?;
         }
         composer.close().await
     }

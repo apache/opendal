@@ -17,7 +17,7 @@
 
 mod composer;
 pub use composer::Composer;
+pub use composer::FutureComposeSource;
 
 mod input;
-pub use input::ComposeInput;
 pub use input::IntoComposeInput;

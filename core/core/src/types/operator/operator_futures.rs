@@ -1524,8 +1524,14 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
 /// [`Operator::compose_with`] returns this future.
 ///
 /// Use its methods to configure the destination before awaiting it.
-pub type FutureCompose<F> =
-    OperatorFuture<(options::ComposeOptions, Vec<ComposeInput>), Metadata, F>;
+pub type FutureCompose<F> = OperatorFuture<
+    (
+        options::ComposeOptions,
+        Vec<(String, options::ComposeSourceOptions)>,
+    ),
+    Metadata,
+    F,
+>;
 
 impl<F: Future<Output = Result<Metadata>>> FutureCompose<F> {
     /// Set destination Cache-Control metadata.

@@ -81,7 +81,9 @@ pub async fn test_compose_incrementally(op: Operator) -> Result<()> {
 
     let mut composer = op.composer_with(&target).concurrent(2).await?;
     composer.compose(first.as_str()).await?;
-    composer.compose(second.as_str()).await?;
+    composer
+        .compose_options(second.as_str(), options::ComposeSourceOptions::default())
+        .await?;
     let metadata = composer.close().await?;
 
     assert_eq!(metadata.content_length(), 2);
@@ -160,8 +162,12 @@ pub async fn test_compose_with_source_version(op: Operator) -> Result<()> {
         .version()
         .expect("source version capability requires stat to return a version");
 
-    op.compose([ComposeInput::new(&source).with_version(version)], &target)
+    let mut composer = op.composer(&target).await?;
+    composer
+        .compose_with(source.as_str())
+        .version(version)
         .await?;
+    composer.close().await?;
 
     assert_eq!(op.read(&target).await?.to_bytes().as_ref(), b"content");
     Ok(())

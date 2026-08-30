@@ -15,90 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{Entry, Metadata};
+use crate::Entry;
+use crate::options::ComposeSourceOptions;
 
-/// A complete source object accepted by composition operations.
-///
-/// Composition reads the whole selected object. `version`, `if_match`, and
-/// `if_not_changed` identify the source; they do not apply to the destination.
-#[non_exhaustive]
-#[derive(Default, Debug)]
-pub struct ComposeInput {
-    /// The source object path.
-    pub path: String,
-    /// The source object version to compose.
-    pub version: Option<String>,
-    /// Compose only when the selected source has this exact ETag.
-    pub if_match: Option<String>,
-    /// Compose only when the selected source still has this metadata identity.
-    ///
-    /// OpenDAL selects the metadata version when present and otherwise selects
-    /// its ETag. The operation returns [`crate::ErrorKind::Unsupported`] when
-    /// the service does not support the derived source condition, and
-    /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
-    /// identity.
-    pub if_not_changed: Option<Metadata>,
-}
-
-impl ComposeInput {
-    /// Create a composition input for `path`.
-    pub fn new(path: impl Into<String>) -> Self {
-        Self {
-            path: path.into(),
-            ..Default::default()
-        }
-    }
-
-    /// Select the source object version to compose.
-    pub fn with_version(mut self, version: impl Into<String>) -> Self {
-        self.version = Some(version.into());
-        self
-    }
-
-    /// Require the selected source to have this exact ETag.
-    pub fn with_if_match(mut self, etag: impl Into<String>) -> Self {
-        self.if_match = Some(etag.into());
-        self
-    }
-
-    /// Require the selected source to retain the identity in `metadata`.
-    pub fn with_if_not_changed(mut self, metadata: &Metadata) -> Self {
-        self.if_not_changed = Some(metadata.clone());
-        self
-    }
-}
-
-/// Converts a value into a [`ComposeInput`].
+/// Converts a value into an owned source path and its composition options.
 pub trait IntoComposeInput: Send + Sync + Unpin {
-    /// Convert `self` into a composition input.
-    fn into_compose_input(self) -> ComposeInput;
-}
-
-impl IntoComposeInput for ComposeInput {
-    fn into_compose_input(self) -> ComposeInput {
-        self
-    }
+    /// Convert `self` into a source path and options.
+    fn into_compose_input(self) -> (String, ComposeSourceOptions);
 }
 
 impl IntoComposeInput for &str {
-    fn into_compose_input(self) -> ComposeInput {
-        ComposeInput::new(self)
+    fn into_compose_input(self) -> (String, ComposeSourceOptions) {
+        (self.to_owned(), ComposeSourceOptions::default())
     }
 }
 
 impl IntoComposeInput for String {
-    fn into_compose_input(self) -> ComposeInput {
-        ComposeInput::new(self)
+    fn into_compose_input(self) -> (String, ComposeSourceOptions) {
+        (self, ComposeSourceOptions::default())
+    }
+}
+
+impl<P> IntoComposeInput for (P, ComposeSourceOptions)
+where
+    P: Into<String> + Send + Sync + Unpin,
+{
+    fn into_compose_input(self) -> (String, ComposeSourceOptions) {
+        (self.0.into(), self.1)
     }
 }
 
 impl IntoComposeInput for Entry {
-    fn into_compose_input(self) -> ComposeInput {
+    fn into_compose_input(self) -> (String, ComposeSourceOptions) {
         let (path, metadata) = self.into_parts();
-        let mut input = ComposeInput::new(path);
-        if let Some(version) = metadata.version() {
-            input.version = Some(version.to_string());
-        }
-        input
+        let options = ComposeSourceOptions {
+            version: metadata.version().map(ToOwned::to_owned),
+            ..Default::default()
+        };
+        (path, options)
     }
 }

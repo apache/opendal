@@ -575,7 +575,6 @@ impl<T: oio::Compose> oio::Compose for CheckWrapper<T> {
 mod tests {
     use super::*;
     use crate::Capability;
-    use crate::ComposeInput;
     use crate::EntryMode;
     use crate::Metadata;
     use crate::Operator;
@@ -839,9 +838,29 @@ mod tests {
         });
 
         let err = op
-            .compose([ComposeInput::new("from").with_version("version")], "to")
+            .compose(
+                [(
+                    "from",
+                    options::ComposeSourceOptions {
+                        version: Some("version".to_string()),
+                        ..Default::default()
+                    },
+                )],
+                "to",
+            )
             .await
             .expect_err("source version must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let mut composer = op
+            .composer("etag-target")
+            .await
+            .expect("compose capability must create a composer");
+        let err = composer
+            .compose_with("from")
+            .if_match("etag")
+            .await
+            .expect_err("source ETag must require a capability");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
         let err = op
@@ -869,10 +888,19 @@ mod tests {
             compose_with_content_type: true,
             ..Default::default()
         });
-        op.compose_with([ComposeInput::new("from").with_version("version")], "to")
-            .content_type("text/plain")
-            .await
-            .expect("supported compose options must be forwarded");
+        op.compose_with(
+            [(
+                "from",
+                options::ComposeSourceOptions {
+                    version: Some("version".to_string()),
+                    ..Default::default()
+                },
+            )],
+            "to",
+        )
+        .content_type("text/plain")
+        .await
+        .expect("supported compose options must be forwarded");
     }
 
     #[tokio::test]
@@ -1031,7 +1059,13 @@ mod tests {
 
         let err = op
             .compose(
-                [ComposeInput::new("from").with_if_not_changed(&metadata)],
+                [(
+                    "from",
+                    options::ComposeSourceOptions {
+                        if_not_changed: Some(metadata.clone()),
+                        ..Default::default()
+                    },
+                )],
                 "to",
             )
             .await
@@ -1041,7 +1075,13 @@ mod tests {
 
         let err = op
             .compose(
-                [ComposeInput::new("from").with_if_not_changed(&Metadata::default())],
+                [(
+                    "from",
+                    options::ComposeSourceOptions {
+                        if_not_changed: Some(Metadata::default()),
+                        ..Default::default()
+                    },
+                )],
                 "to",
             )
             .await

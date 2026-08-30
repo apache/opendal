@@ -869,6 +869,36 @@ pub struct WriteOptions {
     pub chunk: Option<usize>,
 }
 
+/// Options for one complete source object in a composition.
+///
+/// These options select or constrain the source object. They do not apply to
+/// the destination object.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct ComposeSourceOptions {
+    /// Compose this version of the source object.
+    ///
+    /// This selects which stored version the composition reads; it is not a
+    /// condition on the destination object.
+    ///
+    /// Check [`crate::Capability::compose_with_source_version`] before using
+    /// this option.
+    pub version: Option<String>,
+    /// Compose only when the selected source has this exact ETag.
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::compose_with_source_if_match`].
+    pub if_match: Option<String>,
+    /// Compose only when the selected source retains this metadata identity.
+    ///
+    /// OpenDAL selects the metadata version when present and otherwise
+    /// requires its ETag. The operation returns
+    /// [`crate::ErrorKind::Unsupported`] when the service does not support the
+    /// derived source option, and [`crate::ErrorKind::ConfigInvalid`] when the
+    /// metadata contains neither identity.
+    pub if_not_changed: Option<Metadata>,
+}
+
 /// Options for composing complete source objects into one destination object.
 ///
 /// Metadata fields apply only to the destination. Conditions check the

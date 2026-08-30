@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::Future;
+use std::future::IntoFuture;
+
 use crate::raw::oio::Compose;
 use crate::raw::*;
 use crate::*;
@@ -59,6 +62,41 @@ impl Composer {
     /// may still be pending. This method applies backpressure when the
     /// configured concurrency window is full.
     pub async fn compose(&mut self, input: impl IntoComposeInput) -> Result<()> {
+        self.compose_with(input).await
+    }
+
+    /// Accept one complete source object with additional options.
+    ///
+    /// Visit [`options::ComposeSourceOptions`] for all available options.
+    pub fn compose_with(
+        &mut self,
+        input: impl IntoComposeInput,
+    ) -> FutureComposeSource<'_, impl Future<Output = Result<()>> + '_> {
+        let (path, options) = input.into_compose_input();
+        FutureComposeSource {
+            composer: self,
+            path,
+            options,
+            f: Self::compose_inner,
+        }
+    }
+
+    async fn compose_inner(
+        composer: &mut Composer,
+        path: String,
+        options: options::ComposeSourceOptions,
+    ) -> Result<()> {
+        composer.compose_options(&path, options).await
+    }
+
+    /// Accept one complete source object with explicit options.
+    ///
+    /// Visit [`options::ComposeSourceOptions`] for all available options.
+    pub async fn compose_options(
+        &mut self,
+        path: &str,
+        options: options::ComposeSourceOptions,
+    ) -> Result<()> {
         if self.errored {
             return Err(
                 Error::new(ErrorKind::Unexpected, "composer has already failed")
@@ -72,8 +110,7 @@ impl Composer {
             );
         }
 
-        let input = input.into_compose_input();
-        let path = normalize_path(&input.path);
+        let path = normalize_path(path);
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "source path is a directory")
@@ -92,9 +129,9 @@ impl Composer {
             .with_context("path", path));
         }
 
-        let mut version = input.version;
-        let mut if_match = input.if_match;
-        if let Some(metadata) = input.if_not_changed {
+        let mut version = options.version;
+        let mut if_match = options.if_match;
+        if let Some(metadata) = options.if_not_changed {
             if let Some(metadata_version) = metadata.version() {
                 if let Some(explicit) = version.as_deref() {
                     if explicit != metadata_version {
@@ -188,5 +225,50 @@ impl Composer {
                     .with_context("to", &self.to))
             }
         }
+    }
+}
+
+/// [`Composer::compose_with`] returns this future.
+///
+/// Use its methods to configure one source object before awaiting it.
+pub struct FutureComposeSource<'a, F: Future<Output = Result<()>>> {
+    composer: &'a mut Composer,
+    path: String,
+    options: options::ComposeSourceOptions,
+    f: fn(&'a mut Composer, String, options::ComposeSourceOptions) -> F,
+}
+
+impl<F: Future<Output = Result<()>>> FutureComposeSource<'_, F> {
+    /// Compose this version of the source object.
+    pub fn version(mut self, value: &str) -> Self {
+        self.options.version = Some(value.to_string());
+        self
+    }
+
+    /// Require this source ETag.
+    pub fn if_match(mut self, value: &str) -> Self {
+        self.options.if_match = Some(value.to_string());
+        self
+    }
+
+    /// Require the source to retain the identity in `metadata`.
+    pub fn if_not_changed(mut self, metadata: &Metadata) -> Self {
+        self.options.if_not_changed = Some(metadata.clone());
+        self
+    }
+}
+
+impl<F: Future<Output = Result<()>>> IntoFuture for FutureComposeSource<'_, F> {
+    type Output = Result<()>;
+    type IntoFuture = F;
+
+    fn into_future(self) -> Self::IntoFuture {
+        let Self {
+            composer,
+            path,
+            options,
+            f,
+        } = self;
+        (f)(composer, path, options)
     }
 }

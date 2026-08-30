@@ -102,7 +102,7 @@ impl Service for OpfsBackend {
             meta.last_modified(t);
         }
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<OpfsReader> = {

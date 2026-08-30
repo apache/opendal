@@ -144,7 +144,11 @@ impl oio::PageList for S3ListerV1 {
                 path = "/".to_string();
             }
 
-            let mut meta = MetadataBuilder::file(object.size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.size)
+            };
             meta.is_current(Some(true));
             if let Some(etag) = &object.etag {
                 meta.etag(etag);
@@ -257,7 +261,11 @@ impl oio::PageList for S3ListerV2 {
                 path = "/".to_string();
             }
 
-            let mut meta = MetadataBuilder::file(object.size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.size)
+            };
             meta.is_current(Some(true));
             if let Some(etag) = &object.etag {
                 meta.etag(etag);
@@ -376,7 +384,11 @@ impl oio::PageList for S3ObjectVersionsLister {
                 path = "/".to_owned();
             }
 
-            let mut meta = MetadataBuilder::file(version_object.size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(version_object.size)
+            };
             meta.version(&version_object.version_id)
                 .is_current(Some(version_object.is_latest))
                 .last_modified(version_object.last_modified.parse::<Timestamp>()?);
@@ -396,7 +408,11 @@ impl oio::PageList for S3ObjectVersionsLister {
                     path = "/".to_owned();
                 }
 
-                let mut meta = MetadataBuilder::file(0);
+                let mut meta = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(0)
+                };
                 meta.version(&delete_marker.version_id)
                     .is_deleted(true)
                     .is_current(Some(delete_marker.is_latest))

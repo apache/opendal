@@ -115,7 +115,11 @@ impl oio::PageList for SwiftLister {
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let mut meta = MetadataBuilder::file(bytes);
+                    let mut meta = if path.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bytes)
+                    };
                     meta.content_md5(hash.as_str());
 
                     // OpenStack Swift returns time without 'Z' at the end,

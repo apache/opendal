@@ -229,10 +229,14 @@ impl Service for SqliteBackend {
         } else {
             let length = self.core.get_length(&p).await?;
             match length {
-                Some(length) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(length as u64);
-                    metadata.build()
-                })),
+                Some(length) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(length as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => {
                     // Check if this might be a directory by looking for keys with this prefix
                     let dir_path = if p.ends_with('/') {

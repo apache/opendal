@@ -49,11 +49,12 @@ impl oio::Write for RedisWriter {
         let length = buf.len() as u64;
         self.core.set(&self.path, buf).await?;
 
-        let meta = {
-            let metadata = MetadataBuilder::file(length);
-            metadata.build()
+        let metadata = if self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(length)
         };
-        Ok(meta)
+        Ok(metadata.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

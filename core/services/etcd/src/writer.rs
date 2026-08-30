@@ -48,7 +48,11 @@ impl oio::Write for EtcdWriter {
 
         self.core.set(&self.path, buf.clone()).await?;
 
-        let metadata = MetadataBuilder::file(buf.len() as u64);
+        let metadata = if self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(buf.len() as u64)
+        };
 
         Ok(metadata.build())
     }

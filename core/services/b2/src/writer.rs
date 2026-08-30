@@ -48,8 +48,12 @@ impl B2Writer {
         }
     }
 
-    pub fn parse_body_into_meta(_path: &str, resp: UploadResponse) -> Metadata {
-        let mut meta = MetadataBuilder::file(resp.content_length);
+    pub fn parse_body_into_meta(path: &str, resp: UploadResponse) -> Metadata {
+        let mut meta = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(resp.content_length)
+        };
 
         if let Some(md5) = resp.content_md5 {
             meta.content_md5(&md5);

@@ -123,7 +123,11 @@ impl oio::MultipartCopy for TosCopier {
                     .set_temporary());
                 }
 
-                let mut meta = MetadataBuilder::unknown();
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
                 meta.etag(result.etag.trim_matches('"'));
                 Ok(meta.build())
             }
@@ -229,7 +233,11 @@ impl oio::MultipartCopy for TosCopier {
                     return Err(Error::new(ErrorKind::Unexpected, ret.message));
                 }
 
-                let mut meta = MetadataBuilder::unknown();
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
                 if !ret.etag.is_empty() {
                     meta.etag(ret.etag.trim_matches('"'));
                 }

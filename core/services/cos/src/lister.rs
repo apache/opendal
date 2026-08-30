@@ -107,7 +107,11 @@ impl oio::PageList for CosLister {
                 path = "/".to_string();
             }
 
-            let mut meta = MetadataBuilder::file(object.size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.size)
+            };
             meta.last_modified(object.last_modified.parse::<Timestamp>()?);
             if let Some(etag) = object.etag {
                 meta.etag(&etag);
@@ -224,7 +228,11 @@ impl oio::PageList for CosObjectVersionsLister {
                 path = "/".to_owned();
             }
 
-            let mut meta = MetadataBuilder::file(version_object.size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(version_object.size)
+            };
             meta.version(&version_object.version_id);
             meta.is_current(Some(version_object.is_latest));
             meta.last_modified(version_object.last_modified.parse::<Timestamp>()?);
@@ -244,7 +252,11 @@ impl oio::PageList for CosObjectVersionsLister {
                     path = "/".to_owned();
                 }
 
-                let mut meta = MetadataBuilder::file(0);
+                let mut meta = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(0)
+                };
                 meta.version(&delete_marker.version_id);
                 meta.is_deleted(true);
                 meta.is_current(Some(delete_marker.is_latest));

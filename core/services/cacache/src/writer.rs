@@ -50,11 +50,12 @@ impl oio::Write for CacacheWriter {
 
         self.core.set(&self.path, buf.to_bytes()).await?;
 
-        let meta = {
-            let metadata = MetadataBuilder::file(length);
-            metadata.build()
+        let metadata = if self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(length)
         };
-        Ok(meta)
+        Ok(metadata.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

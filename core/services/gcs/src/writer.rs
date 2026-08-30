@@ -163,7 +163,11 @@ impl oio::MultipartWrite for GcsWriter {
                 resp,
             ));
         }
-        let mut metadata = MetadataBuilder::unknown();
+        let mut metadata = if self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::unknown()
+        };
         if let Some(etag) = parse_etag(resp.headers())? {
             metadata.etag(etag);
         }

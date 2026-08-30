@@ -51,7 +51,11 @@ impl oio::Write for MokaWriter {
         let length = buf.len() as u64;
 
         // Build metadata with write options
-        let mut metadata = MetadataBuilder::file(length);
+        let mut metadata = if self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(length)
+        };
 
         if let Some(content_type) = self.op.content_type() {
             metadata.content_type(content_type);

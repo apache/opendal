@@ -246,7 +246,11 @@ impl Service for EtcdBackend {
         // First check if it's a direct key
         match self.core.get(&abs_path).await? {
             Some(buffer) => {
-                let metadata = MetadataBuilder::file(buffer.len() as u64);
+                let metadata = if abs_path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(buffer.len() as u64)
+                };
                 Ok(RpStat::new(metadata.build()))
             }
             None => {

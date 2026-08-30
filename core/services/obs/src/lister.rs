@@ -106,10 +106,12 @@ impl oio::PageList for ObsLister {
                 path = "/".to_string();
             }
 
-            let meta = {
-                let metadata = MetadataBuilder::file(object.size);
-                metadata.build()
+            let metadata = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.size)
             };
+            let meta = metadata.build();
 
             let de = oio::Entry::with(path, meta);
 

@@ -152,7 +152,11 @@ impl oio::MultipartCopy for S3Copier {
                     };
                 }
 
-                let mut meta = MetadataBuilder::unknown();
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
                 meta.etag(&result.etag);
                 if !result.last_modified.is_empty() {
                     meta.last_modified(result.last_modified.parse()?);
@@ -304,7 +308,11 @@ impl oio::MultipartCopy for S3Copier {
                     };
                 }
 
-                let mut meta = MetadataBuilder::unknown();
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
                 meta.etag(&ret.etag);
                 if let Some(version) = version {
                     meta.version(&version);

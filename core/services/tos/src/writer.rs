@@ -46,16 +46,21 @@ impl TosWriter {
         }
     }
 
-    fn parse_header_into_meta(_path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut meta = MetadataBuilder::unknown();
+    fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut meta = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::unknown()
+        };
         if let Some(etag) = tos_parse_etag(headers)? {
             meta.etag(etag);
         }
         if let Some(version) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
             meta.version(version);
         }
-        if let Some(value) =
-            parse_header_to_str(headers, X_TOS_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
+        if !path.ends_with('/')
+            && let Some(value) =
+                parse_header_to_str(headers, X_TOS_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
         {
             meta.set_file(value);
         }

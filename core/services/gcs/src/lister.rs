@@ -119,7 +119,11 @@ impl oio::PageList for GcsLister {
             let size = object.size.parse().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
             })?;
-            let mut meta = MetadataBuilder::file(size);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(size)
+            };
 
             // set metadata fields
             meta.content_md5(object.md5_hash.as_str());

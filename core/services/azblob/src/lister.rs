@@ -106,7 +106,11 @@ impl oio::PageList for AzblobLister {
                 path = "/".to_string();
             }
 
-            let mut meta = MetadataBuilder::file(object.properties.content_length);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.properties.content_length)
+            };
             meta.etag(format!("\"{}\"", object.properties.etag.as_str()))
                 .content_md5(object.properties.content_md5)
                 .content_type(object.properties.content_type)

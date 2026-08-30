@@ -948,12 +948,16 @@ impl GcsCore {
 }
 
 impl GetObjectJsonResponse {
-    fn into_metadata(self, _path: &str) -> Result<Metadata> {
+    fn into_metadata(self, path: &str) -> Result<Metadata> {
         let size = self
             .size
             .parse::<u64>()
             .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-        let mut m = MetadataBuilder::file(size);
+        let mut m = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(size)
+        };
 
         m.etag(&self.etag);
         m.content_md5(&self.md5_hash);

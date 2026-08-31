@@ -41,8 +41,26 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_compose_with_source_version));
     }
 
+    if cap.read
+        && cap.write
+        && cap.stat
+        && cap.compose
+        && (cap.compose_with_source_version || cap.compose_with_source_if_match)
+    {
+        tests.extend(async_trials!(op, test_compose_with_source_if_not_changed));
+    }
+
     if cap.read && cap.write && cap.stat && cap.compose && cap.compose_with_if_version_match {
         tests.extend(async_trials!(op, test_compose_with_if_version_match));
+    }
+
+    if cap.read
+        && cap.write
+        && cap.stat
+        && cap.compose
+        && (cap.compose_with_if_version_match || cap.compose_with_if_match)
+    {
+        tests.extend(async_trials!(op, test_compose_with_if_not_changed));
     }
 
     if cap.read && cap.write && cap.compose && cap.compose_with_if_not_exists {
@@ -173,6 +191,52 @@ pub async fn test_compose_with_source_version(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_compose_with_source_if_not_changed(op: Operator) -> Result<()> {
+    let source = TEST_FIXTURE.new_file_path();
+    let other = TEST_FIXTURE.new_file_path();
+    let target = TEST_FIXTURE.new_file_path();
+    let rejected_target = TEST_FIXTURE.new_file_path();
+
+    op.write(&source, "source").await?;
+    let expected = op.stat(&source).await?;
+
+    op.write(&other, "other").await?;
+    op.write(&other, "unrelated").await?;
+    let unrelated = op.stat(&other).await?;
+
+    op.compose(
+        [(
+            source.as_str(),
+            options::ComposeSourceOptions {
+                if_not_changed: Some(expected),
+                ..Default::default()
+            },
+        )],
+        &target,
+    )
+    .await?;
+
+    assert_eq!(op.read(&target).await?.to_bytes().as_ref(), b"source");
+    assert_eq!(op.read(&source).await?.to_bytes().as_ref(), b"source");
+
+    op.compose(
+        [(
+            source.as_str(),
+            options::ComposeSourceOptions {
+                if_not_changed: Some(unrelated),
+                ..Default::default()
+            },
+        )],
+        &rejected_target,
+    )
+    .await
+    .expect_err("an unrelated source identity must not be ignored");
+
+    assert!(!op.exists(&rejected_target).await?);
+    assert_eq!(op.read(&source).await?.to_bytes().as_ref(), b"source");
+    Ok(())
+}
+
 pub async fn test_compose_with_if_version_match(op: Operator) -> Result<()> {
     let source = TEST_FIXTURE.new_file_path();
     let target = TEST_FIXTURE.new_file_path();
@@ -188,6 +252,31 @@ pub async fn test_compose_with_if_version_match(op: Operator) -> Result<()> {
         .await?;
 
     assert_eq!(op.read(&target).await?.to_bytes().as_ref(), b"new");
+    Ok(())
+}
+
+pub async fn test_compose_with_if_not_changed(op: Operator) -> Result<()> {
+    let source = TEST_FIXTURE.new_file_path();
+    let target = TEST_FIXTURE.new_file_path();
+
+    op.write(&source, "composed").await?;
+    op.write(&target, "initial").await?;
+    let expected = op.stat(&target).await?;
+
+    op.compose_with([source.as_str()], &target)
+        .if_not_changed(&expected)
+        .await?;
+    assert_eq!(op.read(&target).await?.to_bytes().as_ref(), b"composed");
+
+    let stale = op.stat(&target).await?;
+    op.write(&target, "replacement").await?;
+    let err = op
+        .compose_with([source.as_str()], &target)
+        .if_not_changed(&stale)
+        .await
+        .expect_err("stale destination metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(op.read(&target).await?.to_bytes().as_ref(), b"replacement");
     Ok(())
 }
 

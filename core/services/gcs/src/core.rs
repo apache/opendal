@@ -58,6 +58,10 @@ pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+
+    pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
+    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
 pub struct GcsCore {
@@ -211,7 +215,33 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::get(&url);
 
@@ -575,7 +605,33 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
 
@@ -1616,6 +1672,64 @@ mod tests {
             )
             .expect("create request must build");
         assert_eq!(create.headers()["x-goog-if-generation-match"], "0");
+    }
+
+    #[test]
+    fn test_gcs_get_object_xml_request_with_response_overrides() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_xml_request(
+                "object",
+                BytesRange::default(),
+                &read_args(options::ReadOptions {
+                    override_content_disposition: Some(
+                        "attachment; filename=\"other.txt\"".to_string(),
+                    ),
+                    override_content_type: Some("application/pdf".to_string()),
+                    override_cache_control: Some("max-age=3600".to_string()),
+                    ..Default::default()
+                }),
+            )
+            .expect("read request must build");
+
+        let query = read.uri().query().unwrap();
+        assert!(
+            query.contains(
+                "response-content-disposition=attachment%3B%20filename%3D%22other.txt%22"
+            )
+        );
+        assert!(query.contains("response-content-type=application/pdf"));
+        assert!(query.contains("response-cache-control=max-age%3D3600"));
+    }
+
+    #[test]
+    fn test_gcs_head_object_xml_request_with_response_overrides() {
+        let core = test_core();
+
+        let stat = core
+            .gcs_head_object_xml_request(
+                "object",
+                &options::StatOptions {
+                    override_content_disposition: Some(
+                        "attachment; filename=\"other.txt\"".to_string(),
+                    ),
+                    override_content_type: Some("application/pdf".to_string()),
+                    override_cache_control: Some("max-age=3600".to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+
+        let query = stat.uri().query().unwrap();
+        assert!(
+            query.contains(
+                "response-content-disposition=attachment%3B%20filename%3D%22other.txt%22"
+            )
+        );
+        assert!(query.contains("response-content-type=application/pdf"));
+        assert!(query.contains("response-cache-control=max-age%3D3600"));
     }
 
     #[test]

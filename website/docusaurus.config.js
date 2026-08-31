@@ -28,6 +28,10 @@ const {
   getWebsiteSettings,
   orderByPathDepth,
 } = require("./config/site-helpers");
+const {
+  parseSpecificationFrontMatter,
+  remarkIncludeSpecification,
+} = require("./plugins/specifications-docs-plugin");
 
 const repoAddress = "https://github.com/apache/opendal";
 
@@ -55,6 +59,7 @@ const config = {
   onBrokenLinks: "throw",
   markdown: {
     format: "detect",
+    parseFrontMatter: parseSpecificationFrontMatter,
     hooks: {
       onBrokenMarkdownLinks: "throw",
     }
@@ -84,6 +89,7 @@ const config = {
           editUrl: "https://github.com/apache/opendal/tree/main/website/",
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
+          beforeDefaultRemarkPlugins: [remarkIncludeSpecification],
           remarkPlugins: [require("./plugins/remark-include-code")],
         },
         blog: {
@@ -112,19 +118,7 @@ const config = {
   ],
 
   plugins: [
-    [
-      "@docusaurus/plugin-content-docs",
-      {
-        id: "specifications",
-        path: "../core/core/src/docs/specs",
-        routeBasePath: "docs/specifications",
-        sidebarPath: require.resolve("./specifications.sidebars.js"),
-        editUrl: ({ docPath }) =>
-          `${repoAddress}/edit/main/core/core/src/docs/specs/${docPath}`,
-        showLastUpdateAuthor: true,
-        showLastUpdateTime: true,
-      },
-    ],
+    require.resolve("./plugins/specifications-docs-plugin"),
     [
       "@docusaurus/plugin-content-docs",
       {

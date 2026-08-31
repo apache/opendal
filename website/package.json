@@ -27,7 +27,10 @@
     "prism-react-renderer": "^2.4.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "semver": "^7.8.4"
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "semver": "^7.8.4",
+    "unified": "^11.0.4"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.10.1",

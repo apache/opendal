@@ -75,7 +75,8 @@ impl oio::StreamRead for OnedriveReader {
                 let (part, mut body) = response.into_parts();
                 let buf = body.to_buffer().await?;
                 return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("DownloadContent")),
+                    ErrorContext::new(ServiceOperation("DownloadContent"))
+                        .with_caller_condition(args.is_conditional()),
                     Response::from_parts(part, buf),
                 ));
             }

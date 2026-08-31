@@ -143,11 +143,7 @@ impl GcsComposer {
         if !resp.status().is_success() {
             return Err(parse_error(
                 ErrorContext::new(ServiceOperation("ComposeObject"))
-                    .with_if_not_exists(self.args.if_not_exists())
-                    .with_if_match(self.args.if_match().is_some())
-                    .with_if_none_match(self.args.if_none_match().is_some())
-                    .with_if_version_match(self.args.if_version_match().is_some())
-                    .with_if_version_not_match(self.args.if_version_not_match().is_some()),
+                    .with_caller_condition(self.args.is_conditional()),
                 resp,
             ));
         }
@@ -297,11 +293,16 @@ impl GcsComposeTask {
         if !resp.status().is_success() {
             let err = parse_error(
                 ErrorContext::new(ServiceOperation("ComposeObject"))
-                    .with_if_not_exists(self.args.if_not_exists())
-                    .with_if_version_match(self.args.if_version_match().is_some()),
+                    .with_caller_condition(self.args.is_conditional())
+                    .with_internal_condition(self.token.is_some()),
                 resp,
             );
-            if err.kind() == ErrorKind::ConditionNotMatch
+            let recoverable_condition = if self.token.is_some() {
+                ErrorKind::Conflict
+            } else {
+                ErrorKind::ConditionNotMatch
+            };
+            if err.kind() == recoverable_condition
                 && let Some(source) = self.recover_completed_intermediate().await?
             {
                 return Ok(source);

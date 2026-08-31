@@ -66,7 +66,8 @@ impl oio::StreamRead for AzdlsReader {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
                 return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("ReadFile")),
+                    ErrorContext::new(ServiceOperation("ReadFile"))
+                        .with_caller_condition(args.is_conditional()),
                     Response::from_parts(part, buf),
                 ));
             }

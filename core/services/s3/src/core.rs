@@ -2151,56 +2151,27 @@ pub struct S3Error {
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorContext {
     service_operation: ServiceOperation,
-    if_match: bool,
-    if_none_match: bool,
-    if_modified_since: bool,
-    if_unmodified_since: bool,
-    if_not_exists: bool,
+    caller_condition: bool,
+    source_if_match: bool,
 }
 
 impl ErrorContext {
     pub const fn new(service_operation: ServiceOperation) -> Self {
         Self {
             service_operation,
-            if_match: false,
-            if_none_match: false,
-            if_modified_since: false,
-            if_unmodified_since: false,
-            if_not_exists: false,
+            caller_condition: false,
+            source_if_match: false,
         }
     }
 
-    pub const fn with_if_match(mut self, if_match: bool) -> Self {
-        self.if_match = if_match;
+    pub const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
         self
     }
 
-    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
-        self.if_none_match = if_none_match;
+    pub const fn with_source_if_match(mut self, source_if_match: bool) -> Self {
+        self.source_if_match = source_if_match;
         self
-    }
-
-    pub const fn with_if_modified_since(mut self, if_modified_since: bool) -> Self {
-        self.if_modified_since = if_modified_since;
-        self
-    }
-
-    pub const fn with_if_unmodified_since(mut self, if_unmodified_since: bool) -> Self {
-        self.if_unmodified_since = if_unmodified_since;
-        self
-    }
-
-    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
-        self.if_not_exists = if_not_exists;
-        self
-    }
-
-    const fn has_condition(self) -> bool {
-        self.if_match
-            || self.if_none_match
-            || self.if_modified_since
-            || self.if_unmodified_since
-            || self.if_not_exists
     }
 }
 
@@ -2212,7 +2183,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
-        304 | 412 if ctx.has_condition() => (ErrorKind::ConditionNotMatch, false),
+        304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
         // Service like R2 could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
@@ -2295,13 +2266,45 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         | "ExceedBucketQPSLimit"
         | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
         "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
-        "PreconditionFailed" | "412 Precondition Failed" => {
+        "PreconditionFailed" | "412 Precondition Failed" if ctx.caller_condition => {
             Some((ErrorKind::ConditionNotMatch, false))
+        }
+        "PreconditionFailed" | "412 Precondition Failed" if ctx.source_if_match => {
+            Some((ErrorKind::Conflict, false))
         }
         "ConditionalRequestConflict" => Some((
             ErrorKind::Conflict,
             ctx.service_operation == ServiceOperation("PutObject"),
         )),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn precondition_failed_uses_operation_context() {
+        let caller_condition = ErrorContext::new(ServiceOperation("CopyObject"))
+            .with_caller_condition(true)
+            .with_source_if_match(true);
+        assert_eq!(
+            parse_s3_error_code(caller_condition, "PreconditionFailed"),
+            Some((ErrorKind::ConditionNotMatch, false))
+        );
+
+        let internal_source_condition =
+            ErrorContext::new(ServiceOperation("CopyObject")).with_source_if_match(true);
+        assert_eq!(
+            parse_s3_error_code(internal_source_condition, "PreconditionFailed"),
+            Some((ErrorKind::Conflict, false))
+        );
+
+        let no_condition = ErrorContext::new(ServiceOperation("CopyObject"));
+        assert_eq!(
+            parse_s3_error_code(no_condition, "PreconditionFailed"),
+            None
+        );
     }
 }

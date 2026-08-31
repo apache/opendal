@@ -685,7 +685,8 @@ impl Service for OssBackend {
                 Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("HeadObject")),
+                ErrorContext::new(ServiceOperation("HeadObject"))
+                    .with_caller_condition(args.is_conditional()),
                 resp,
             )),
         }

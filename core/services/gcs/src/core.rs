@@ -1628,16 +1628,11 @@ mod tests {
             parse_error(ctx, resp).kind()
         };
 
-        for ctx in [
-            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_match(true),
-            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_not_match(true),
-        ] {
-            assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
-        }
+        let read_ctx = ErrorContext::new(ServiceOperation("GetObject")).with_caller_condition(true);
+        assert_eq!(parse_missing(read_ctx), ErrorKind::NotFound);
 
-        let delete_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
-            .with_if_version_match(true)
-            .with_delete();
+        let delete_ctx =
+            ErrorContext::new(ServiceOperation("DeleteObject")).with_delete_match_condition(true);
         assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
     }
 
@@ -1845,63 +1840,35 @@ mod tests {
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorContext {
     service_operation: ServiceOperation,
-    if_match: bool,
-    if_none_match: bool,
-    if_not_exists: bool,
-    if_version_match: bool,
-    if_version_not_match: bool,
-    is_delete: bool,
+    caller_condition: bool,
+    delete_match_condition: bool,
+    internal_condition: bool,
 }
 
 impl ErrorContext {
     pub const fn new(service_operation: ServiceOperation) -> Self {
         Self {
             service_operation,
-            if_match: false,
-            if_none_match: false,
-            if_not_exists: false,
-            if_version_match: false,
-            if_version_not_match: false,
-            is_delete: false,
+            caller_condition: false,
+            delete_match_condition: false,
+            internal_condition: false,
         }
     }
 
-    pub const fn with_if_match(mut self, if_match: bool) -> Self {
-        self.if_match = if_match;
+    pub const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
         self
     }
 
-    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
-        self.if_none_match = if_none_match;
+    pub const fn with_delete_match_condition(mut self, delete_match_condition: bool) -> Self {
+        self.caller_condition = self.caller_condition || delete_match_condition;
+        self.delete_match_condition = delete_match_condition;
         self
     }
 
-    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
-        self.if_not_exists = if_not_exists;
+    pub const fn with_internal_condition(mut self, internal_condition: bool) -> Self {
+        self.internal_condition = internal_condition;
         self
-    }
-
-    pub const fn with_if_version_match(mut self, if_version_match: bool) -> Self {
-        self.if_version_match = if_version_match;
-        self
-    }
-
-    pub const fn with_if_version_not_match(mut self, if_version_not_match: bool) -> Self {
-        self.if_version_not_match = if_version_not_match;
-        self
-    }
-
-    pub const fn with_delete(mut self) -> Self {
-        self.is_delete = true;
-        self
-    }
-
-    const fn has_condition(self) -> bool {
-        self.if_match
-            || self.if_none_match
-            || self.if_not_exists
-            || self.if_version_match
-            || self.if_version_not_match
     }
 }
 
@@ -1937,12 +1904,15 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.is_delete && (ctx.if_match || ctx.if_version_match) => {
+        StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.internal_condition => {
+            (ErrorKind::Conflict, false)
+        }
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
@@ -1965,7 +1935,13 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             .iter()
             .any(|detail| detail.reason == "conditionNotMet")
         {
-            (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            if ctx.internal_condition {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            } else if ctx.caller_condition {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            } else {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
         } else if gcs_error
             .error
             .errors
@@ -1998,6 +1974,43 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    fn condition_not_met(ctx: ErrorContext) -> Error {
+        let body = Buffer::from(
+            r#"{"error":{"code":412,"message":"condition failed","errors":[{"reason":"conditionNotMet"}]}}"#,
+        );
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn condition_not_met_uses_operation_context() {
+        let caller =
+            ErrorContext::new(ServiceOperation("ComposeObject")).with_caller_condition(true);
+        assert_eq!(
+            condition_not_met(caller).kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let internal = ErrorContext::new(ServiceOperation("ComposeObject"))
+            .with_caller_condition(true)
+            .with_internal_condition(true);
+        assert_eq!(condition_not_met(internal).kind(), ErrorKind::Conflict);
+
+        let no_condition = ErrorContext::new(ServiceOperation("ComposeObject"));
+        assert_eq!(
+            condition_not_met(no_condition).kind(),
+            ErrorKind::Unexpected
+        );
+    }
 }
 
 mod uri {

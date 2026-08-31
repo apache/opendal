@@ -71,8 +71,7 @@ impl AzblobWriter {
 
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
         ErrorContext::new(service_operation)
-            .with_if_match(self.op.if_match().is_some())
-            .with_if_none_match(self.op.if_none_match().is_some())
+            .with_caller_condition(self.op.is_conditional())
             .with_if_not_exists(self.op.if_not_exists())
     }
 }
@@ -88,6 +87,12 @@ impl oio::AppendWrite for AzblobWriter {
 
         match status {
             StatusCode::OK => {
+                if self.op.if_not_exists() {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "the blob already exists",
+                    ));
+                }
                 let headers = resp.headers();
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
                 if blob_type != Some("AppendBlob") {
@@ -113,6 +118,7 @@ impl oio::AppendWrite for AzblobWriter {
                     _ => {
                         return Err(parse_error(
                             ErrorContext::new(ServiceOperation("PutBlob"))
+                                .with_if_not_exists(self.op.if_not_exists())
                                 .with_append_blob_initialization(true),
                             resp,
                         ));

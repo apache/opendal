@@ -147,22 +147,43 @@ fn build_routing_header(parameters: &[(&str, &str)]) -> Option<String> {
     })
 }
 
-pub(crate) fn parse_status(status: tonic::Status) -> Error {
+#[derive(Clone, Copy)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+    if_not_exists: bool,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+}
+
+pub(crate) fn parse_status(ctx: ErrorContext, status: tonic::Status) -> Error {
     use tonic::Code;
 
     let kind = match status.code() {
         Code::NotFound => ErrorKind::NotFound,
+        Code::AlreadyExists if ctx.if_not_exists => ErrorKind::ConditionNotMatch,
         Code::AlreadyExists => ErrorKind::AlreadyExists,
         Code::PermissionDenied | Code::Unauthenticated => ErrorKind::PermissionDenied,
-        Code::FailedPrecondition => ErrorKind::ConditionNotMatch,
+        Code::FailedPrecondition if ctx.if_not_exists => ErrorKind::ConditionNotMatch,
+        Code::FailedPrecondition | Code::Aborted => ErrorKind::Conflict,
         Code::OutOfRange => ErrorKind::RangeNotSatisfied,
         Code::ResourceExhausted => ErrorKind::RateLimited,
         _ => ErrorKind::Unexpected,
     };
     let temporary = matches!(
         status.code(),
-        Code::Aborted
-            | Code::Cancelled
+        Code::Cancelled
             | Code::DeadlineExceeded
             | Code::Internal
             | Code::ResourceExhausted
@@ -170,7 +191,8 @@ pub(crate) fn parse_status(status: tonic::Status) -> Error {
             | Code::Unknown
     );
     let mut err = Error::new(kind, status.message().to_string())
-        .with_context("grpc_code", status.code().description());
+        .with_context("grpc_code", status.code().description())
+        .with_context("service_operation", ctx.service_operation.0);
     if temporary {
         err = err.set_temporary();
     }
@@ -248,5 +270,29 @@ mod tests {
                 "source_bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket&bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket"
             )
         );
+    }
+
+    #[test]
+    fn status_classification_uses_operation_context() {
+        let caller = ErrorContext::new(ServiceOperation("WriteObject")).with_if_not_exists(true);
+        let err = parse_status(
+            caller,
+            tonic::Status::failed_precondition("generation mismatch"),
+        );
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+
+        let state_conflict = ErrorContext::new(ServiceOperation("QueryWriteStatus"));
+        let err = parse_status(
+            state_conflict,
+            tonic::Status::failed_precondition("upload is not active"),
+        );
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+
+        let concurrent = ErrorContext::new(ServiceOperation("RewriteObject"));
+        let err = parse_status(concurrent, tonic::Status::aborted("concurrent update"));
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
     }
 }

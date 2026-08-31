@@ -353,7 +353,8 @@ impl Service for CosBackend {
                 Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("HeadObject")),
+                ErrorContext::new(ServiceOperation("HeadObject"))
+                    .with_caller_condition(args.is_conditional()),
                 resp,
             )),
         }
@@ -468,7 +469,8 @@ impl Service for CosBackend {
             match status {
                 StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
                 _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    ErrorContext::new(ServiceOperation("CopyObject"))
+                        .with_if_not_exists(args.if_not_exists()),
                     resp,
                 )),
             }

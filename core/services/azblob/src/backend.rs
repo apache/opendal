@@ -492,8 +492,7 @@ impl Service for AzblobBackend {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let error_ctx = ErrorContext::new(ServiceOperation("GetBlobProperties"))
-            .with_if_match(args.if_match().is_some())
-            .with_if_none_match(args.if_none_match().is_some());
+            .with_caller_condition(args.is_conditional());
         let resp = self
             .core
             .azblob_get_blob_properties(ctx, path, &args)

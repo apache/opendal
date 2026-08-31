@@ -51,8 +51,7 @@ impl oio::OneShotDelete for AzdlsDeleter {
         } else {
             ServiceOperation("DeletePath")
         })
-        .with_if_match(args.if_match().is_some())
-        .with_delete();
+        .with_delete_match_condition(args.if_match().is_some());
 
         match status {
             StatusCode::OK => Ok(()),

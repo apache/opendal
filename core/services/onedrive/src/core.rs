@@ -199,7 +199,8 @@ impl OneDriveCore {
         let response = ctx.http_transport().send(request).await?;
         if !response.status().is_success() {
             return Err(parse_error(
-                ErrorContext::new(ServiceOperation("GetItem")),
+                ErrorContext::new(ServiceOperation("GetItem"))
+                    .with_caller_condition(args.is_conditional()),
                 response,
             ));
         }
@@ -942,6 +943,55 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(err.is_temporary());
     }
+
+    #[test]
+    fn conflict_classification_uses_native_code() {
+        let parse_conflict = |code: &str, operation| {
+            let body = Buffer::from(format!(r#"{{"error":{{"code":"{code}"}}}}"#));
+            let response = Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(body)
+                .expect("response must build");
+            parse_error(ErrorContext::new(operation), response)
+        };
+
+        let concurrent = parse_conflict(
+            "Directory_ConcurrencyViolation",
+            ServiceOperation("CreateFolder"),
+        );
+        assert_eq!(concurrent.kind(), ErrorKind::Conflict);
+        assert!(concurrent.is_temporary());
+
+        let name_conflict = parse_conflict("nameAlreadyExists", ServiceOperation("UploadFragment"));
+        assert_eq!(name_conflict.kind(), ErrorKind::Conflict);
+        assert!(!name_conflict.is_temporary());
+
+        assert_eq!(
+            parse_conflict("unknownConflict", ServiceOperation("MoveItem")).kind(),
+            ErrorKind::Unexpected
+        );
+    }
+
+    #[test]
+    fn precondition_failed_requires_caller_condition() {
+        let response = || {
+            Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .body(Buffer::new())
+                .expect("response must build")
+        };
+        let caller =
+            ErrorContext::new(ServiceOperation("UploadContent")).with_caller_condition(true);
+        assert_eq!(
+            parse_error(caller, response()).kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        let no_condition = ErrorContext::new(ServiceOperation("UploadFragment"));
+        assert_eq!(
+            parse_error(no_condition, response()).kind(),
+            ErrorKind::Unexpected
+        );
+    }
 }
 
 use crate::graph_model::GraphErrorResponse;
@@ -950,11 +1000,20 @@ use crate::graph_model::GraphErrorResponse;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    caller_condition: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            caller_condition: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
     }
 }
 
@@ -963,26 +1022,28 @@ pub(crate) fn parse_error(ctx: ErrorContext, response: Response<Buffer>) -> Erro
     let (parts, body) = response.into_parts();
     let bs = body.to_bytes();
 
-    let consistency_lag = parts.status == StatusCode::BAD_REQUEST
-        && serde_json::from_slice::<GraphErrorResponse>(&bs)
-            .is_ok_and(|response| response.error.code == "invalidRequest");
+    let graph_error = serde_json::from_slice::<GraphErrorResponse>(&bs).ok();
+    let graph_code = graph_error
+        .as_ref()
+        .map(|response| response.error.code.as_str());
+    let consistency_lag =
+        parts.status == StatusCode::BAD_REQUEST && graph_code == Some("invalidRequest");
 
     let (kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        // The OneDrive service replaces resources.
-        // However, the Onedrive doesn't have Strong Read-After-Write properties,
-        // the concurrent requests to create directories might result in errors.
-        //
-        // Running behavior tests can yield HTTP 409 Conflict because of the consistency guarantee.
-        //
-        // Read more about `REPLACE_EXISTING_ITEM_WHEN_CONFLICT` in `graph_model.rs`.
-        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, true),
+        StatusCode::CONFLICT if graph_code == Some("Directory_ConcurrencyViolation") => {
+            (ErrorKind::Conflict, true)
+        }
+        StatusCode::CONFLICT if graph_code == Some("nameAlreadyExists") => {
+            (ErrorKind::Conflict, false)
+        }
+        StatusCode::CONFLICT => (ErrorKind::Unexpected, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         _ => (ErrorKind::Unexpected, false),

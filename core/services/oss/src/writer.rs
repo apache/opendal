@@ -77,7 +77,8 @@ impl oio::MultipartWrite for OssWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutObject")),
+                ErrorContext::new(ServiceOperation("PutObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -102,7 +103,8 @@ impl oio::MultipartWrite for OssWriter {
                 Ok(result.upload_id)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -184,7 +186,8 @@ impl oio::MultipartWrite for OssWriter {
         match status {
             StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }

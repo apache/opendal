@@ -1534,7 +1534,7 @@ mod tests {
 
         let err = parse_error(ErrorContext::new(ServiceOperation("Test")), parts);
 
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
         assert!(err.is_temporary());
     }
 
@@ -1549,7 +1549,7 @@ mod tests {
 
         let err = parse_error(ErrorContext::new(ServiceOperation("Test")), parts);
 
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
     }
 }
@@ -1591,7 +1591,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, parts: http::response::Parts) -> Er
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, branch_updated_conflict),
+        StatusCode::PRECONDITION_FAILED if branch_updated_conflict => (ErrorKind::Conflict, true),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::Unexpected, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

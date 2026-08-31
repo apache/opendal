@@ -408,6 +408,58 @@ impl OpRead {
         Self::default()
     }
 
+    /// Lower compose source `options` against `capability` and freeze them into
+    /// service-ready read arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit source equality condition.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub(crate) fn from_compose_source_options(
+        capability: &Capability,
+        mut options: options::ComposeSourceOptions,
+    ) -> Result<Self> {
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.compose_with_source_version
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.version, version, "source version")
+            } else if let Some(etag) = metadata.etag() {
+                (&mut options.if_match, etag, "source if_match")
+            } else if let Some(version) = metadata.version() {
+                (&mut options.version, version, "source version")
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata contains neither version nor ETag",
+                )
+                .with_operation(Operation::Compose));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Compose));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
+        Ok(Self::from_read_options(options::ReadOptions {
+            version: options.version,
+            if_match: options.if_match,
+            ..Default::default()
+        }))
+    }
+
     /// Returns the content-disposition header that should be sent back by the remote read
     /// operation.
     #[inline]
@@ -1546,13 +1598,38 @@ mod tests {
         let compose = OpCompose::from_options(
             &capability,
             options::ComposeOptions {
-                if_not_changed: Some(condition),
+                if_not_changed: Some(condition.clone()),
                 ..Default::default()
             },
         )
         .unwrap();
         assert_eq!(compose.if_match(), Some("etag"));
         assert_eq!(compose.if_version_match(), None);
+
+        let compose_source = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: Some(condition.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose_source.if_match(), Some("etag"));
+        assert_eq!(compose_source.version(), None);
+
+        let compose_source = OpRead::from_compose_source_options(
+            &Capability {
+                compose_with_source_version: true,
+                ..Default::default()
+            },
+            options::ComposeSourceOptions {
+                if_not_changed: Some(condition),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose_source.if_match(), None);
+        assert_eq!(compose_source.version(), Some("version"));
     }
 
     #[test]

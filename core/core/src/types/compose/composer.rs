@@ -26,15 +26,12 @@ use crate::*;
 ///
 /// [`Composer::compose`] accepts sources incrementally and may start backend
 /// work before returning. [`Composer::close`] waits for pending work and commits
-/// the destination. A composer becomes terminal after an error.
+/// the destination.
 pub struct Composer {
     composer: oio::Composer,
     to: String,
     scheme: &'static str,
-    prefer_source_version: bool,
-    accepted: usize,
-    metadata: Option<Metadata>,
-    errored: bool,
+    capability: Capability,
 }
 
 impl Composer {
@@ -45,17 +42,14 @@ impl Composer {
         args: OpCompose,
     ) -> Result<Self> {
         let scheme = srv.info().scheme();
-        let prefer_source_version = srv.capability().compose_with_source_version;
+        let capability = srv.capability();
         let composer = srv.compose(&ctx, &to, args)?;
 
         Ok(Self {
             composer,
             to,
             scheme,
-            prefer_source_version,
-            accepted: 0,
-            metadata: None,
-            errored: false,
+            capability,
         })
     }
 
@@ -100,19 +94,6 @@ impl Composer {
         path: &str,
         options: options::ComposeSourceOptions,
     ) -> Result<()> {
-        if self.errored {
-            return Err(
-                Error::new(ErrorKind::Unexpected, "composer has already failed")
-                    .with_operation(Operation::Compose.into_static()),
-            );
-        }
-        if self.metadata.is_some() {
-            return Err(
-                Error::new(ErrorKind::Unexpected, "composer is already closed")
-                    .with_operation(Operation::Compose.into_static()),
-            );
-        }
-
         let path = normalize_path(path);
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
@@ -132,106 +113,27 @@ impl Composer {
             .with_context("path", path));
         }
 
-        let mut version = options.version;
-        let mut if_match = options.if_match;
-        if let Some(metadata) = options.if_not_changed {
-            let metadata_version = metadata.version();
-            let metadata_etag = metadata.etag();
-            let use_version = metadata_version.is_some()
-                && (self.prefer_source_version || metadata_etag.is_none());
-
-            if use_version && let Some(metadata_version) = metadata_version {
-                if let Some(explicit) = version.as_deref() {
-                    if explicit != metadata_version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with source version",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    version = Some(metadata_version.to_string());
-                }
-            } else if let Some(metadata_etag) = metadata_etag {
-                if let Some(explicit) = if_match.as_deref() {
-                    if explicit != metadata_etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with source if_match",
-                        )
-                        .with_operation(Operation::Compose.into_static()));
-                    }
-                } else {
-                    if_match = Some(metadata_etag.to_string());
-                }
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
-                )
-                .with_operation(Operation::Compose.into_static()));
-            }
-        }
-
-        let (_, args, _) = crate::options::ReadOptions {
-            version,
-            if_match,
-            ..Default::default()
-        }
-        .into();
-
-        if let Err(err) = self.composer.compose(&path, args).await {
-            self.errored = true;
-            return Err(err
-                .with_operation(Operation::Compose.into_static())
+        let args = OpRead::from_compose_source_options(&self.capability, options)
+            .map_err(|err| err.with_context("service", self.scheme))?;
+        self.composer.compose(&path, args).await.map_err(|err| {
+            err.with_operation(Operation::Compose.into_static())
                 .with_context("service", self.scheme)
                 .with_context("from", path)
-                .with_context("to", &self.to));
-        }
-        self.accepted += 1;
+                .with_context("to", &self.to)
+        })?;
         Ok(())
     }
 
     /// Commit all accepted sources and return destination metadata.
     ///
     /// Closing a composer with no accepted sources returns
-    /// [`ErrorKind::ConfigInvalid`]. Repeated successful calls return the same
-    /// metadata.
+    /// [`ErrorKind::ConfigInvalid`].
     pub async fn close(&mut self) -> Result<Metadata> {
-        if self.errored {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "composer has already failed and can't be closed",
-            )
-            .with_operation(Operation::Compose.into_static()));
-        }
-        if let Some(metadata) = self.metadata.clone() {
-            return Ok(metadata);
-        }
-        if self.accepted == 0 {
-            self.errored = true;
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "compose requires at least one source object",
-            )
-            .with_operation(Operation::Compose.into_static())
-            .with_context("service", self.scheme)
-            .with_context("to", &self.to));
-        }
-
-        match self.composer.close().await {
-            Ok(metadata) => {
-                self.metadata = Some(metadata.clone());
-                Ok(metadata)
-            }
-            Err(err) => {
-                self.errored = true;
-                Err(err
-                    .with_operation(Operation::Compose.into_static())
-                    .with_context("service", self.scheme)
-                    .with_context("to", &self.to))
-            }
-        }
+        self.composer.close().await.map_err(|err| {
+            err.with_operation(Operation::Compose.into_static())
+                .with_context("service", self.scheme)
+                .with_context("to", &self.to)
+        })
     }
 }
 

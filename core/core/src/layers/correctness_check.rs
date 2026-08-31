@@ -638,7 +638,7 @@ mod tests {
         }
 
         fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<Self::Composer> {
-            Ok(MockComposer)
+            Ok(MockComposer::default())
         }
 
         async fn rename(
@@ -711,14 +711,24 @@ mod tests {
         }
     }
 
-    struct MockComposer;
+    #[derive(Default)]
+    struct MockComposer {
+        accepted: usize,
+    }
 
     impl oio::Compose for MockComposer {
         async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            self.accepted += 1;
             Ok(())
         }
 
         async fn close(&mut self) -> Result<Metadata> {
+            if self.accepted == 0 {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "compose requires at least one source object",
+                ));
+            }
             Ok(MetadataBuilder::file(0).build())
         }
     }

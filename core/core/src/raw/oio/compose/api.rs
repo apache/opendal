@@ -37,6 +37,8 @@ pub trait Compose: Unpin + Send + Sync {
     ) -> impl Future<Output = Result<()>> + MaybeSend + 'a;
 
     /// Commit all accepted sources and return destination metadata.
+    ///
+    /// Return [`ErrorKind::ConfigInvalid`] if no source has been accepted.
     fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 }
 

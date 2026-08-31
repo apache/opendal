@@ -2,9 +2,20 @@
 
 ## Public API
 
-### `Metadata` uses immutable builder-based construction
+### Construct `Metadata` with `MetadataBuilder`
 
-`Metadata::new`, `Metadata::builder`, `Default`, direct metadata setters, and `with_*` have been removed. Construct metadata with `MetadataBuilder::file(content_length)`, `MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, then call `build()` after setting optional fields. Consume existing metadata with `into_builder()` when creating a modified value; use `set_file(content_length)`, `set_dir()`, or `set_unknown()` to change its mode.
+`Metadata::new`, `Default`, direct metadata setters, and `with_*` methods have been removed. Construct metadata with `MetadataBuilder::file(content_length)`, `MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, set optional fields on the builder, then call `build()`:
+
+```diff
+-let mut metadata = Metadata::new(EntryMode::FILE);
+-metadata.set_content_length(size);
+-metadata.set_content_type("text/plain");
++let mut builder = MetadataBuilder::file(size);
++builder.content_type("text/plain");
++let metadata = builder.build();
+```
+
+Consume existing metadata with `into_builder()` when creating a modified value. Use `set_file(content_length)`, `set_dir()`, or `set_unknown()` on the builder to change its mode.
 
 `Metadata::user_metadata()` now returns a borrowed `UserMetadata` view instead of `&HashMap<String, String>`. The view supports `get`, `len`, `is_empty`, and `IntoIterator`; collect owned string pairs at boundaries that require a map.
 
@@ -14,17 +25,91 @@ Compact metadata and finalized raw-operation value blocks are limited to `u16::M
 
 ### Delete inputs use `DeleteOptions`
 
-`DeleteInput` has been removed. Pass `(String, DeleteOptions)` to `Deleter`, delete iterators, streams, and sinks when an entry needs options. Plain paths and `Entry` values remain supported through `IntoDeleteInput`. `(String, OpDelete)` is no longer accepted by the public delete APIs because raw arguments are already capability-resolved.
+`DeleteInput` has been removed. Pass `(String, DeleteOptions)` to `Deleter`, delete iterators, streams, and sinks when an entry needs options. Plain paths and `Entry` values remain supported through `IntoDeleteInput`. Custom `IntoDeleteInput` implementations must now return `(String, DeleteOptions)` from `into_delete_input`. `(String, OpDelete)` is no longer accepted by the public delete APIs because raw arguments are already capability-resolved.
+
+```diff
+-deleter.delete(DeleteInput {
+-    path,
+-    version,
+-    recursive: false,
+-});
++deleter.delete((
++    path,
++    DeleteOptions {
++        version,
++        ..Default::default()
++    },
++));
+```
+
+### Existing option and capability literals require defaults
+
+OpenDAL added fields to `Capability`, `ReadOptions`, `ReaderOptions`, `StatOptions`, `WriteOptions`, `DeleteOptions`, and `CopyOptions`. Code that constructs any of these types with an exhaustive struct literal must initialize the new fields. Prefer update syntax so later additions remain source-compatible:
+
+```rust
+use opendal_core::Capability;
+use opendal_core::options::DeleteOptions;
+
+let options = DeleteOptions {
+    recursive: true,
+    ..Default::default()
+};
+
+let capability = Capability {
+    read: true,
+    ..Default::default()
+};
+```
+
+### Conditional errors distinguish conflicts
+
+Failed conditions supplied through operation options return `ErrorKind::ConditionNotMatch`. Conflicts reported independently by a service return the new `ErrorKind::Conflict`; inspect `Error::is_temporary()` to decide whether the receiving OpenDAL layer can replay the same operation. Unsupported conditions return `ErrorKind::Unsupported`, and a missing target observed by `stat` or `read` remains `ErrorKind::NotFound` even when the request was conditional. Update error recovery code that previously treated every service conflict as `ConditionNotMatch` or `Unexpected`.
 
 ## Raw API
 
 ### `OpCopier` merged into `OpCopy`
 
-`OpCopier` has been removed. `Service::copy` now receives a single `OpCopy` argument, and raw services read `chunk`, `concurrent`, and `source_content_length_hint` from `OpCopy`.
+`OpCopier` has been removed. `Service::copy` and `ServiceDyn::copy_dyn` now receive a single `OpCopy` argument, and raw services read `chunk`, `concurrent`, and `source_content_length_hint` from `OpCopy`.
 
 ### Raw operation arguments are frozen from public options
 
-Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, `OpList`, and `OpRestore`. Construct non-empty read, stat, list, and restore arguments by converting the corresponding public `*Options`. Use `OpWrite::from_options`, `OpDelete::from_options`, or `OpCopy::from_options` with the composed `Capability`; `new` and `Default` remain available for empty arguments. These constructors lower `if_not_changed` before freezing, so raw arguments contain only service-ready primitive conditions. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
+Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, and `OpList`. Construct non-empty read, stat, list, and restore arguments by converting the corresponding public `*Options`. Use the capability-aware `from_options(&capability, options)` constructors for `OpWrite`, `OpDelete`, `OpCopy`, and `OpCompose`; `new` and `Default` remain available for empty arguments.
+
+The direct `From<WriteOptions>`, `From<DeleteOptions>`, and `From<CopyOptions>` conversions have been removed. The capability-aware constructors lower `if_not_changed` before freezing, so raw arguments contain only service-ready primitive conditions. `OpWrite::from_options` still returns `(OpWrite, OpWriter)`, while copy execution settings now live directly in `OpCopy`. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
+
+### Listed entries contain finalized metadata
+
+`raw::oio::Entry::set_mode` and `metadata_mut` have been removed. Build the final `Metadata` first and pass it to `raw::oio::Entry::new` or `with`. To modify an existing raw entry, consume it with `into_parts`, rebuild its metadata, and construct a replacement entry:
+
+```rust
+use opendal_core::MetadataBuilder;
+use opendal_core::raw;
+
+let entry = raw::oio::Entry::new("path", MetadataBuilder::file(0).build());
+let (path, metadata) = entry.into_parts();
+let mut builder = metadata.into_builder();
+builder.content_type("text/plain");
+let entry = raw::oio::Entry::new(&path, builder.build());
+```
+
+The metadata mode must continue to match the path: directory paths end in `/`, while file paths do not.
+
+### Do not use numeric `Operation` discriminants
+
+The new `Compose` and `Restore` variants changed the implicit numeric discriminants of later `Operation` variants. Code that casts `Operation` with `as usize` must migrate to `Operation::into_static()` or `Display` for stable operation names. `Operation` has no numeric representation contract.
+
+## Services
+
+### Duration config fields use `SignedDuration`
+
+The public `default_ttl` fields on `CloudflareKvConfig`, `MemcachedConfig`, and `RedisConfig` now use `Option<raw::SignedDuration>` instead of `Option<std::time::Duration>`. This allows configuration maps and serialized configuration to parse duration strings. Direct config construction can use the re-exported duration type:
+
+```diff
+-default_ttl: Some(std::time::Duration::from_secs(30)),
++default_ttl: Some(opendal::raw::SignedDuration::from_secs(30)),
+```
+
+The corresponding builder methods continue to accept `std::time::Duration`.
 
 # Upgrade to v0.58
 

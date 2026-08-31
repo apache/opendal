@@ -326,9 +326,7 @@ impl WebdavCore {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-    ) -> Result<(Response<Buffer>, Metadata)> {
-        // Check if source file exists.
-        let source_metadata = self.webdav_stat(ctx, from).await?;
+    ) -> Result<Response<Buffer>> {
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
@@ -353,8 +351,7 @@ impl WebdavCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = ctx.http_transport().send(req).await?;
-        Ok((resp, source_metadata))
+        ctx.http_transport().send(req).await
     }
 
     pub async fn webdav_move(

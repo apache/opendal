@@ -40,10 +40,12 @@ boundary that owns an authoritative length:
   files with the stat result's length.
 - write completion uses the number of bytes written for replacements. Append
   adapters use the final object offset instead of the number of appended bytes.
-- copy completion uses a service result length, the source-length hint, the
-  source length discovered by a segmented copier, or successful copy progress.
-  It does not issue a target `stat` and fails when none of these sources can
-  provide an authoritative length.
+- copy completion uses an authoritative service result or successful copy
+  progress when the copy protocol provides one. Otherwise, it trusts a
+  caller-asserted source length without reading source metadata, or reads source
+  metadata before copying when no assertion is present. It does not issue a
+  target `stat` and fails when none of these sources can provide an authoritative
+  length.
 
 Delete markers that do not carry an object length use a content length of zero.
 

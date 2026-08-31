@@ -776,13 +776,15 @@ impl S3Core {
         ctx: &OperationContext,
         from: &str,
         to: &str,
+        source_version: Option<&str>,
+        source_if_match: Option<&str>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
-        let source = if let Some(version) = args.source_version() {
+        let source = if let Some(version) = source_version {
             QueryPairsWriter::new(&source)
                 .push(
                     constants::S3_QUERY_VERSION_ID,
@@ -802,6 +804,9 @@ impl S3Core {
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(source_if_match) = source_if_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, source_if_match);
         }
 
         // Set SSE headers.

@@ -300,17 +300,28 @@ impl Service for OnedriveBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             let monitor_url = core.initialize_copy(&ctx, &from, &to).await?;
             core.wait_until_complete(&ctx, monitor_url).await?;
-            Ok(MetadataBuilder::unknown().build())
+            Ok(MetadataBuilder::file(source_size).build())
         }))
     }
 

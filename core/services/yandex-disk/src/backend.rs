@@ -184,14 +184,25 @@ impl Service for YandexDiskBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             core.ensure_dir_exists(&ctx, &to).await?;
 
             let resp = core.copy(&ctx, &from, &to).await?;
@@ -199,7 +210,9 @@ impl Service for YandexDiskBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK | StatusCode::CREATED => Ok(MetadataBuilder::unknown().build()),
+                StatusCode::OK | StatusCode::CREATED => {
+                    Ok(MetadataBuilder::file(source_size).build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyResource")),
                     resp,

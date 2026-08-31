@@ -253,21 +253,29 @@ impl Service for AliyunDriveBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let res = core.get_by_path(&ctx, &from).await?;
+            let file: AliyunDriveFile =
+                serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
+            let source_content_length =
+                file.size.or(source_content_length_hint).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Aliyun Drive source file does not contain a size",
+                    )
+                })?;
+
             if from == to {
-                Ok(MetadataBuilder::unknown().build())
+                Ok(MetadataBuilder::file(source_content_length).build())
             } else {
-                let res = core.get_by_path(&ctx, &from).await?;
-                let file: AliyunDriveFile =
-                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)?;
-                let source_content_length = file.size;
                 // copy can overwrite.
                 match core.get_by_path(&ctx, &to).await {
                     Err(err) if err.kind() == ErrorKind::NotFound => {}
@@ -301,9 +309,7 @@ impl Service for AliyunDriveBackend {
                     core.update_path(&ctx, &file_id, to_name).await?;
                 }
 
-                let metadata = source_content_length
-                    .map_or_else(MetadataBuilder::unknown, MetadataBuilder::file);
-                Ok(metadata.build())
+                Ok(MetadataBuilder::file(source_content_length).build())
             }
         }))
     }

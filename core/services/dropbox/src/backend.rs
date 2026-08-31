@@ -352,13 +352,10 @@ impl Service for DropboxBackend {
                             .map_err(new_json_deserialize_error)?;
                     DropboxWriter::parse_metadata(decoded_response)
                 }
-                _ => {
-                    let err = parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp);
-                    match err.kind() {
-                        ErrorKind::NotFound => Ok(MetadataBuilder::unknown().build()),
-                        _ => Err(err),
-                    }
-                }
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyFile")),
+                    resp,
+                )),
             }
         }))
     }

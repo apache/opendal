@@ -279,14 +279,29 @@ impl Service for PcloudBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = if from.ends_with('/') {
+                None
+            } else {
+                Some(match source_content_length_hint {
+                    Some(size) => size,
+                    None => backend
+                        .stat(&ctx, &from, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length(),
+                })
+            };
+
             core.ensure_dir_exists(&ctx, &to).await?;
 
             let resp = if from.ends_with('/') {
@@ -308,7 +323,9 @@ impl Service for PcloudBackend {
                     } else if result != 0 {
                         Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")))
                     } else {
-                        Ok(MetadataBuilder::unknown().build())
+                        let metadata =
+                            source_size.map_or_else(MetadataBuilder::dir, MetadataBuilder::file);
+                        Ok(metadata.build())
                     }
                 }
                 _ => Err(parse_error(

@@ -1,7 +1,7 @@
 - Proposal Name: `ffi_plugin_abi`
 - Start Date: 2026-08-25
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- RFC PR: [apache/opendal#8207](https://github.com/apache/opendal/pull/8207)
+- Tracking Issue: #0000
 
 # Summary
 

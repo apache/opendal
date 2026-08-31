@@ -1471,6 +1471,8 @@ mod tests {
     #[derive(Clone)]
     struct S3ExpressMockTransport {
         outcome: CreateSessionOutcome,
+        source_content_length: u64,
+        source_version: Option<&'static str>,
         requests: Arc<Mutex<Vec<CapturedRequest>>>,
     }
 
@@ -1478,8 +1480,20 @@ mod tests {
         fn new(outcome: CreateSessionOutcome) -> Self {
             Self {
                 outcome,
+                source_content_length: 1,
+                source_version: None,
                 requests: Arc::new(Mutex::new(Vec::new())),
             }
+        }
+
+        fn with_source_content_length(mut self, source_content_length: u64) -> Self {
+            self.source_content_length = source_content_length;
+            self
+        }
+
+        fn with_source_version(mut self, source_version: &'static str) -> Self {
+            self.source_version = Some(source_version);
+            self
         }
 
         fn requests(&self) -> Vec<CapturedRequest> {
@@ -1536,6 +1550,32 @@ mod tests {
                     )
                     .set_temporary()),
                 };
+            }
+
+            if req.method() == Method::HEAD {
+                let mut response = Self::response(StatusCode::OK, Bytes::new());
+                response.headers_mut().insert(
+                    http::header::CONTENT_LENGTH,
+                    self.source_content_length
+                        .to_string()
+                        .parse()
+                        .expect("source content length must be a valid header"),
+                );
+                response.headers_mut().insert(
+                    http::header::ETAG,
+                    "\"source-etag\""
+                        .parse()
+                        .expect("source ETag must be a valid header"),
+                );
+                if let Some(version) = self.source_version {
+                    response.headers_mut().insert(
+                        constants::X_AMZ_VERSION_ID,
+                        version
+                            .parse()
+                            .expect("source version must be a valid header"),
+                    );
+                }
+                return Ok(response);
             }
 
             let query = req.uri().query().unwrap_or_default();
@@ -1709,6 +1749,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_s3_copy_hint_skips_source_snapshot() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        let metadata = op
+            .copy_with("source", "target")
+            .source_content_length_hint(7)
+            .await
+            .expect("copy must succeed");
+
+        assert_eq!(metadata.content_length(), 7);
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::PUT);
+        assert!(
+            !requests[0]
+                .headers
+                .contains_key(constants::X_AMZ_COPY_SOURCE_IF_MATCH)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_copy_hint_preserves_explicit_source_version() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .source_version("source-version")
+            .source_content_length_hint(7)
+            .await
+            .expect("copy must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(
+            header(&requests[0], constants::X_AMZ_COPY_SOURCE).contains("versionId=source-version")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_copy_without_hint_pins_source_etag() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(7);
+        let op = s3_general_operator(transport.clone());
+
+        let metadata = op
+            .copy("source", "target")
+            .await
+            .expect("copy must succeed");
+
+        assert_eq!(metadata.content_length(), 7);
+        let requests = transport.requests();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request.method == Method::HEAD)
+                .count(),
+            1
+        );
+        let copy = requests
+            .iter()
+            .find(|request| request.headers.contains_key(constants::X_AMZ_COPY_SOURCE))
+            .expect("CopyObject request must be captured");
+        assert_eq!(
+            header(copy, constants::X_AMZ_COPY_SOURCE_IF_MATCH),
+            "\"source-etag\""
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_copy_uses_version_from_source_snapshot() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_version("source-version");
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .await
+            .expect("copy must succeed");
+
+        let requests = transport.requests();
+        let copy = requests
+            .iter()
+            .find(|request| request.headers.contains_key(constants::X_AMZ_COPY_SOURCE))
+            .expect("CopyObject request must be captured");
+        assert!(header(copy, constants::X_AMZ_COPY_SOURCE).contains("versionId=source-version"));
+        assert_eq!(
+            header(copy, constants::X_AMZ_COPY_SOURCE_IF_MATCH),
+            "\"source-etag\""
+        );
+    }
+
+    #[tokio::test]
     async fn test_s3_express_copy_and_presign_use_iam_credentials() {
         let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
         let op = s3_express_operator(transport.clone());
@@ -1724,7 +1856,7 @@ mod tests {
                 .filter(|request| request.uri.query() == Some("session"))
                 .count(),
             0,
-            "CopyObject must not create an S3 Express session"
+            "a source length hint must skip HeadObject"
         );
         let copy = requests
             .iter()
@@ -1733,6 +1865,11 @@ mod tests {
         assert_eq!(header(copy, "x-amz-security-token"), "source-session-token");
         assert!(!copy.headers.contains_key("x-amz-s3session-token"));
         assert!(header(copy, "authorization").contains("source-access-key/"));
+        assert!(
+            !copy
+                .headers
+                .contains_key(constants::X_AMZ_COPY_SOURCE_IF_MATCH)
+        );
 
         let presigned = op
             .presign_read("source", Duration::from_secs(60))
@@ -1748,12 +1885,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
-        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let source_content_length = 5 * 1024 * 1024 + 1;
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(source_content_length);
         let op = s3_express_operator(transport.clone());
 
         op.copy_with("source", "target")
             .chunk(5 * 1024 * 1024)
-            .source_content_length_hint(5 * 1024 * 1024 + 1)
+            .source_content_length_hint(source_content_length)
             .await
             .expect("multipart copy must succeed");
 
@@ -1776,6 +1915,11 @@ mod tests {
             );
             assert!(!request.headers.contains_key("x-amz-s3session-token"));
             assert!(header(request, "authorization").contains("source-access-key/"));
+            assert!(
+                !request
+                    .headers
+                    .contains_key(constants::X_AMZ_COPY_SOURCE_IF_MATCH)
+            );
         }
         assert_eq!(
             requests
@@ -1785,6 +1929,38 @@ mod tests {
             1,
             "session operations in multipart copy must share one session"
         );
+    }
+
+    #[tokio::test]
+    async fn test_s3_multipart_copy_without_hint_pins_every_part() {
+        let source_content_length = 5 * 1024 * 1024 + 1;
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(source_content_length);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .chunk(5 * 1024 * 1024)
+            .await
+            .expect("multipart copy must succeed");
+
+        let requests = transport.requests();
+        let part_copies = requests
+            .iter()
+            .filter(|request| {
+                request.headers.contains_key(constants::X_AMZ_COPY_SOURCE)
+                    && request
+                        .uri
+                        .query()
+                        .is_some_and(|query| query.contains("partNumber="))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(part_copies.len(), 2);
+        for request in part_copies {
+            assert_eq!(
+                header(request, constants::X_AMZ_COPY_SOURCE_IF_MATCH),
+                "\"source-etag\""
+            );
+        }
     }
 
     #[tokio::test]

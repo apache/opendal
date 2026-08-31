@@ -1005,11 +1005,21 @@ pub struct CopyOptions {
     /// this option.
     pub source_version: Option<String>,
 
-    /// Known content length of the source object.
+    /// Asserted complete content length of the source object.
     ///
-    /// This is an execution hint that allows OpenDAL to avoid extra metadata
-    /// requests while planning copy operations. It must not be used as an object
-    /// identity or consistency condition.
+    /// OpenDAL may trust this value without reading source metadata. It can use
+    /// the value to plan copied ranges and to construct the returned metadata.
+    /// An incorrect value can therefore cause incomplete copy planning, failed
+    /// requests, or incorrect result metadata.
+    ///
+    /// A service can ignore this value when its copy operation already reports
+    /// an authoritative copied size.
+    ///
+    /// This option does not pin the source object or protect the copy from a
+    /// concurrent source change. Set it only when the caller can guarantee that
+    /// the value describes the object that the service will copy, for example by
+    /// selecting an immutable [`Self::source_version`]. Otherwise omit it if the
+    /// source can change.
     pub source_content_length_hint: Option<u64>,
 
     /// Sets concurrent copy operations for this copier.

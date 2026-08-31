@@ -299,17 +299,28 @@ impl Service for KoofrBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             core.ensure_dir_exists(&ctx, &to).await?;
             if from == to {
-                Ok(MetadataBuilder::unknown().build())
+                Ok(MetadataBuilder::file(source_size).build())
             } else {
                 let resp = core.remove(&ctx, &to).await?;
 
@@ -326,7 +337,7 @@ impl Service for KoofrBackend {
                     let status = resp.status();
 
                     match status {
-                        StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
+                        StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
                         _ => Err(parse_error(
                             ErrorContext::new(ServiceOperation("FilesCopy")),
                             resp,

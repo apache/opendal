@@ -141,6 +141,7 @@ impl Service for FastraceAccessor {
     type Lister = FastraceWrapper<oio::Lister>;
     type Deleter = FastraceWrapper<oio::Deleter>;
     type Copier = FastraceWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -148,6 +149,10 @@ impl Service for FastraceAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(

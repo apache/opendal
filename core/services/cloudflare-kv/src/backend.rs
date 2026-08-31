@@ -198,6 +198,7 @@ impl Service for CloudflareKvBackend {
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

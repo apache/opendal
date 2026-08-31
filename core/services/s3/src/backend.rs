@@ -1177,6 +1177,7 @@ impl Service for S3Backend {
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
     type Copier = S3Copiers;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

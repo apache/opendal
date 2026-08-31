@@ -241,7 +241,7 @@ mod tests {
 
         let deleter = Deleter {
             deleter: Box::new(mock),
-            scheme: "test",
+            scheme: "memory",
             capability: Capability::default(),
         };
         let mut sink = deleter.into_sink::<String>();

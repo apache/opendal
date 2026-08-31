@@ -6957,6 +6957,7 @@ version = "0.58.2"
 dependencies = [
  "async-trait",
  "bytes",
+ "futures",
  "http 1.4.2",
  "log",
  "opendal-core",
@@ -6968,6 +6969,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

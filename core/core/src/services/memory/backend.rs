@@ -103,6 +103,7 @@ impl Service for MemoryBackend {
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

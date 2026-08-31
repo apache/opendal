@@ -187,6 +187,7 @@ impl Service for PostgresqlBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

@@ -668,6 +668,76 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
+    pub fn gcs_compose_object_request(
+        &self,
+        sources: &[GcsComposeSource],
+        to: &str,
+        args: &OpCompose,
+    ) -> Result<Request<Buffer>> {
+        let destination = build_abs_path(&self.root, to);
+        let base = format!(
+            "{}/storage/v1/b/{}/o/{}/compose",
+            self.endpoint,
+            self.bucket,
+            gcs_percent_encode_path(&destination)
+        );
+        let mut url = QueryPairsWriter::new(&base);
+        if let Some(acl) = &self.predefined_acl {
+            url = url.push("destinationPredefinedAcl", acl);
+        }
+        if let Some(version) = args.if_version_match() {
+            url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
+        } else if args.if_not_exists() {
+            url = url.push("ifGenerationMatch", "0");
+        }
+
+        let source_objects = sources
+            .iter()
+            .map(|source| ComposeSourceObject {
+                name: build_abs_path(&self.root, &source.path),
+                generation: source.version.clone(),
+                object_preconditions: source.if_version_match.as_ref().map(|version| {
+                    ComposeSourceObjectPreconditions {
+                        if_generation_match: version.clone(),
+                    }
+                }),
+            })
+            .collect();
+        let request = ComposeRequest {
+            source_objects,
+            destination: ComposeDestination {
+                storage_class: self.default_storage_class.as_deref(),
+                cache_control: args.cache_control(),
+                content_type: Some(args.content_type().unwrap_or("application/octet-stream")),
+                content_disposition: args.content_disposition(),
+                content_encoding: args.content_encoding(),
+                metadata: args.user_metadata(),
+            },
+            delete_source_objects: false,
+        };
+        let body = serde_json::to_vec(&request).map_err(new_json_serialize_error)?;
+
+        Request::post(url.finish())
+            .header(CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(CONTENT_LENGTH, body.len())
+            .extension(Operation::Compose)
+            .extension(ServiceOperation("ComposeObject"))
+            .body(Buffer::from(Bytes::from(body)))
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn gcs_compose_object(
+        &self,
+        ctx: &OperationContext,
+        sources: &[GcsComposeSource],
+        to: &str,
+        args: &OpCompose,
+    ) -> Result<Response<Buffer>> {
+        let req = self.gcs_compose_object_request(sources, to, args)?;
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
     pub fn gcs_rewrite_object_request(
         &self,
         from: &str,
@@ -1032,6 +1102,54 @@ impl InsertRequestMetadata<'_> {
             && self.metadata.is_none()
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct GcsComposeSource {
+    pub path: String,
+    pub version: Option<String>,
+    pub if_version_match: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComposeRequest<'a> {
+    source_objects: Vec<ComposeSourceObject>,
+    destination: ComposeDestination<'a>,
+    delete_source_objects: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComposeSourceObject {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    object_preconditions: Option<ComposeSourceObjectPreconditions>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComposeSourceObjectPreconditions {
+    if_generation_match: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComposeDestination<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_class: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_disposition: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_encoding: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<UserMetadata<'a>>,
+}
 /// Response JSON from GCS list objects API.
 ///
 /// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
@@ -1353,6 +1471,74 @@ mod tests {
         let query = rewrite.uri().query().unwrap();
         assert!(query.contains("ifGenerationMatch=123"));
         assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+    }
+
+    #[test]
+    fn test_compose_object_request() {
+        let mut core = test_core();
+        core.default_storage_class = Some("NEARLINE".to_string());
+        let sources = [
+            GcsComposeSource {
+                path: "source/one".to_string(),
+                version: Some("11".to_string()),
+                if_version_match: None,
+            },
+            GcsComposeSource {
+                path: "source two".to_string(),
+                version: None,
+                if_version_match: Some("22".to_string()),
+            },
+        ];
+        let args = OpCompose::from_options(
+            &Capability::default(),
+            options::ComposeOptions {
+                if_version_match: Some("33".to_string()),
+                cache_control: Some("no-cache".to_string()),
+                content_type: Some("text/plain".to_string()),
+                content_disposition: Some("attachment".to_string()),
+                content_encoding: Some("gzip".to_string()),
+                user_metadata: Some(HashMap::from([("key".to_string(), "value".to_string())])),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let req = core
+            .gcs_compose_object_request(&sources, "target/object #1", &args)
+            .expect("compose request must build");
+
+        assert_eq!(req.method(), http::Method::POST);
+        assert!(
+            req.uri()
+                .path()
+                .ends_with("/o/target%2Fobject%20%231/compose")
+        );
+        let query = req.uri().query().expect("compose query must exist");
+        assert!(query.contains("ifGenerationMatch=33"));
+
+        let body: serde_json::Value = serde_json::from_slice(&req.body().to_bytes())
+            .expect("compose body must be valid JSON");
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "sourceObjects": [
+                    {"name": "source/one", "generation": "11"},
+                    {
+                        "name": "source two",
+                        "objectPreconditions": {"ifGenerationMatch": "22"}
+                    }
+                ],
+                "destination": {
+                    "storageClass": "NEARLINE",
+                    "cacheControl": "no-cache",
+                    "contentType": "text/plain",
+                    "contentDisposition": "attachment",
+                    "contentEncoding": "gzip",
+                    "metadata": {"key": "value"}
+                },
+                "deleteSourceObjects": false
+            })
+        );
     }
 
     #[test]

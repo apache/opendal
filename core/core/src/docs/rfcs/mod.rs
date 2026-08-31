@@ -349,6 +349,12 @@ pub mod rfc_7948_s3_provider_presets {}
 #[doc = include_str!("8109_writer_copy_from.md")]
 pub mod rfc_8109_writer_copy_from {}
 
+<<<<<<< HEAD
 /// Conflict Error Kind
 #[doc = include_str!("8145_conflict_error_kind.md")]
 pub mod rfc_8145_conflict_error_kind {}
+=======
+/// FFI Plugin ABI
+#[doc = include_str!("XXXX_ffi_plugin_abi.md")]
+pub mod rfc_XXXX_ffi_plugin_abi {}
+>>>>>>> 4866188b2 (docs(rfc): add FFI plugin ABI RFC)

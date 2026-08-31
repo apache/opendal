@@ -11,4 +11,7 @@
 "prism-react-renderer@2.4.1","MIT","https://github.com/FormidableLabs/prism-react-renderer"
 "react-dom@19.2.7","MIT","https://github.com/facebook/react"
 "react@19.2.7","MIT","https://github.com/facebook/react"
+"remark-gfm@4.0.1","MIT","https://github.com/remarkjs/remark-gfm"
+"remark-parse@11.0.0","MIT","https://github.com/remarkjs/remark/tree/main/packages/remark-parse"
 "semver@7.8.4","ISC","https://github.com/npm/node-semver"
+"unified@11.0.4","MIT","https://github.com/unifiedjs/unified"

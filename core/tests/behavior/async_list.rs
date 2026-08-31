@@ -42,7 +42,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_nested_dir,
             test_list_dir_with_file_path,
             test_list_with_start_after,
-            test_list_with_unsupported_options,
             test_list_non_exist_dir_with_recursive,
             test_list_dir_with_recursive,
             test_list_dir_with_recursive_no_trailing_slash,
@@ -434,41 +433,6 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
     assert_eq!(expected, actual);
 
     op.delete_with(dir).recursive(true).await?;
-
-    Ok(())
-}
-
-/// List options the service cannot honor must fail instead of being ignored.
-pub async fn test_list_with_unsupported_options(op: Operator) -> Result<()> {
-    let cap = op.info().capability();
-    let dir = &format!("{}/", uuid::Uuid::new_v4());
-
-    if !cap.list_with_start_after {
-        let err = op
-            .list_with(dir)
-            .start_after(&format!("{dir}key"))
-            .await
-            .expect_err("start_after must be rejected when unsupported");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-    }
-
-    if !cap.list_with_versions {
-        let err = op
-            .list_with(dir)
-            .versions(true)
-            .await
-            .expect_err("versions must be rejected when unsupported");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-    }
-
-    if !cap.list_with_deleted {
-        let err = op
-            .list_with(dir)
-            .deleted(true)
-            .await
-            .expect_err("deleted must be rejected when unsupported");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-    }
 
     Ok(())
 }

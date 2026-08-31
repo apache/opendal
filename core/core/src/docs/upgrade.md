@@ -1,3 +1,116 @@
+# Upgrade to v0.59
+
+## Public API
+
+### Construct `Metadata` with `MetadataBuilder`
+
+`Metadata::new`, `Default`, direct metadata setters, and `with_*` methods have been removed. Construct metadata with `MetadataBuilder::file(content_length)`, `MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, set optional fields on the builder, then call `build()`:
+
+```diff
+-let mut metadata = Metadata::new(EntryMode::FILE);
+-metadata.set_content_length(size);
+-metadata.set_content_type("text/plain");
++let mut builder = MetadataBuilder::file(size);
++builder.content_type("text/plain");
++let metadata = builder.build();
+```
+
+Consume existing metadata with `into_builder()` when creating a modified value. Use `set_file(content_length)`, `set_dir()`, or `set_unknown()` on the builder to change its mode.
+
+`Metadata::user_metadata()` now returns a borrowed `UserMetadata` view instead of `&HashMap<String, String>`. The view supports `get`, `len`, `is_empty`, and `IntoIterator`; collect owned string pairs at boundaries that require a map.
+
+Every file `Metadata` contains an explicit full-object content length by construction. Raw services use `Unknown` for incomplete metadata and promote it with `set_file(content_length)` only when the full length is authoritative.
+
+Compact metadata and finalized raw-operation value blocks are limited to `u16::MAX` encoded bytes, including indexes. `MetadataBuilder::build`, raw option freezing, and raw listed-entry construction panic when a block exceeds this bound.
+
+### Delete inputs use `DeleteOptions`
+
+`DeleteInput` has been removed. Pass `(String, DeleteOptions)` to `Deleter`, delete iterators, streams, and sinks when an entry needs options. Plain paths and `Entry` values remain supported through `IntoDeleteInput`. Custom `IntoDeleteInput` implementations must now return `(String, DeleteOptions)` from `into_delete_input`. `(String, OpDelete)` is no longer accepted by the public delete APIs because raw arguments are already capability-resolved.
+
+```diff
+-deleter.delete(DeleteInput {
+-    path,
+-    version,
+-    recursive: false,
+-});
++deleter.delete((
++    path,
++    DeleteOptions {
++        version,
++        ..Default::default()
++    },
++));
+```
+
+### Existing option and capability literals require defaults
+
+OpenDAL added fields to `Capability`, `ReadOptions`, `ReaderOptions`, `StatOptions`, `WriteOptions`, `DeleteOptions`, and `CopyOptions`. Code that constructs any of these types with an exhaustive struct literal must initialize the new fields. Prefer update syntax so later additions remain source-compatible:
+
+```rust
+use opendal_core::Capability;
+use opendal_core::options::DeleteOptions;
+
+let options = DeleteOptions {
+    recursive: true,
+    ..Default::default()
+};
+
+let capability = Capability {
+    read: true,
+    ..Default::default()
+};
+```
+
+### Conditional errors distinguish conflicts
+
+Failed conditions supplied through operation options return `ErrorKind::ConditionNotMatch`. Conflicts reported independently by a service return the new `ErrorKind::Conflict`; inspect `Error::is_temporary()` to decide whether the receiving OpenDAL layer can replay the same operation. Unsupported conditions return `ErrorKind::Unsupported`, and a missing target observed by `stat` or `read` remains `ErrorKind::NotFound` even when the request was conditional. Update error recovery code that previously treated every service conflict as `ConditionNotMatch` or `Unexpected`.
+
+## Raw API
+
+### `OpCopier` merged into `OpCopy`
+
+`OpCopier` has been removed. `Service::copy` and `ServiceDyn::copy_dyn` now receive a single `OpCopy` argument, and raw services read `chunk`, `concurrent`, and `source_content_length_hint` from `OpCopy`.
+
+### Raw operation arguments are frozen from public options
+
+Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, and `OpList`. Construct non-empty read, stat, list, and restore arguments by converting the corresponding public `*Options`. Use the capability-aware `from_options(&capability, options)` constructors for `OpWrite`, `OpDelete`, `OpCopy`, and `OpCompose`; `new` and `Default` remain available for empty arguments.
+
+The direct `From<WriteOptions>`, `From<DeleteOptions>`, and `From<CopyOptions>` conversions have been removed. The capability-aware constructors lower `if_not_changed` before freezing, so raw arguments contain only service-ready primitive conditions. `OpWrite::from_options` still returns `(OpWrite, OpWriter)`, while copy execution settings now live directly in `OpCopy`. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
+
+### Listed entries contain finalized metadata
+
+`raw::oio::Entry::set_mode` and `metadata_mut` have been removed. Build the final `Metadata` first and pass it to `raw::oio::Entry::new` or `with`. To modify an existing raw entry, consume it with `into_parts`, rebuild its metadata, and construct a replacement entry:
+
+```rust
+use opendal_core::MetadataBuilder;
+use opendal_core::raw;
+
+let entry = raw::oio::Entry::new("path", MetadataBuilder::file(0).build());
+let (path, metadata) = entry.into_parts();
+let mut builder = metadata.into_builder();
+builder.content_type("text/plain");
+let entry = raw::oio::Entry::new(&path, builder.build());
+```
+
+The metadata mode must continue to match the path: directory paths end in `/`, while file paths do not.
+
+### Do not use numeric `Operation` discriminants
+
+The new `Compose` and `Restore` variants changed the implicit numeric discriminants of later `Operation` variants. Code that casts `Operation` with `as usize` must migrate to `Operation::into_static()` or `Display` for stable operation names. `Operation` has no numeric representation contract.
+
+## Services
+
+### Duration config fields use `SignedDuration`
+
+The public `default_ttl` fields on `CloudflareKvConfig`, `MemcachedConfig`, and `RedisConfig` now use `Option<raw::SignedDuration>` instead of `Option<std::time::Duration>`. This allows configuration maps and serialized configuration to parse duration strings. Direct config construction can use the re-exported duration type:
+
+```diff
+-default_ttl: Some(std::time::Duration::from_secs(30)),
++default_ttl: Some(opendal::raw::SignedDuration::from_secs(30)),
+```
+
+The corresponding builder methods continue to accept `std::time::Duration`.
+
 # Upgrade to v0.58
 
 ## Public API
@@ -29,27 +142,11 @@ Operator runtime resources now live in `OperationContext`, which is exported fro
 
 `BytesRange` is now part of the public type layer. Reader APIs accept values convertible into `BytesRange`, and suffix reads can be requested with `BytesRange::suffix(size)`. Code that imported raw HTTP range helpers should use `opendal::BytesRange` instead.
 
-### `Metadata` uses immutable builder-based construction
-
-`Metadata::new`, `Metadata::builder`, `Default`, direct metadata setters, and `with_*` have been removed. Construct metadata with `MetadataBuilder::file(content_length)`, `MetadataBuilder::dir()`, or `MetadataBuilder::unknown()`, then call `build()` after setting optional fields. Consume existing metadata with `into_builder()` when creating a modified value; use `set_file(content_length)`, `set_dir()`, or `set_unknown()` to change its mode.
-
-`Metadata::user_metadata()` now returns a borrowed `UserMetadata` view instead of `&HashMap<String, String>`. The view supports `get`, `len`, `is_empty`, and `IntoIterator`; collect owned string pairs at boundaries that require a map.
-
-Every file `Metadata` contains an explicit full-object content length by construction. Raw services use `Unknown` for incomplete metadata and promote it with `set_file(content_length)` only when the full length is authoritative.
-
-Compact metadata and finalized raw-operation value blocks are limited to `u16::MAX` encoded bytes, including indexes. `MetadataBuilder::build`, raw option freezing, and raw listed-entry construction panic when a block exceeds this bound.
-
-### Delete inputs use `DeleteOptions`
-
-`DeleteInput` has been removed. Pass `(String, DeleteOptions)` to `Deleter`, delete iterators, streams, and sinks when an entry needs options. Plain paths and `Entry` values remain supported through `IntoDeleteInput`. `(String, OpDelete)` is no longer accepted by the public delete APIs because raw arguments are already capability-resolved.
-
 ## Raw API
 
 ### Services and layers use the new composition boundary
 
 Out-of-tree services must implement `raw::Service` instead of the old accessor pipeline. Services now return immutable identity through `ServiceInfo`, report availability through `capability()`, and receive `&OperationContext` at each operation boundary.
-
-`WriteOptions`, `DeleteOptions`, and `CopyOptions` no longer implement direct conversion into their raw operation arguments. Use `OpWrite::from_options`, `OpDelete::from_options`, or `OpCopy::from_options` with the composed `Capability`. These constructors lower `if_not_changed` before freezing, so raw arguments contain only service-ready primitive conditions.
 
 Out-of-tree layers must implement `Layer::apply_service` and, when they replace runtime resources, `Layer::apply_context`. The old typed layer pipeline, including `TypedLayer`, `RuntimeResourceLayer`, `TypeEraseLayer`, `OperatorBuilder<S>`, and `typed_layer`, has been removed.
 
@@ -60,10 +157,6 @@ Out-of-tree layers must implement `Layer::apply_service` and, when they replace 
 ### Removed raw helpers
 
 The unused `raw::AtomicContentLength`, `raw::PathCacher`, and `raw::PathQuery` helpers have been removed. The `internal-path-cache` feature has also been removed.
-
-### Raw operation arguments are frozen from public options
-
-Public `with_*` mutation methods have been removed from `OpRead`, `OpStat`, `OpWrite`, `OpDelete`, `OpCopy`, `OpList`, and `OpRestore`. Construct non-empty read, stat, list, and restore arguments by converting the corresponding public `*Options`. Use the capability-aware `from_options` constructors described above for write, delete, and copy; `new` and `Default` remain available for empty arguments. `OpWrite::user_metadata()` returns the same borrowed `UserMetadata` view as `Metadata`.
 
 # Upgrade to v0.57
 

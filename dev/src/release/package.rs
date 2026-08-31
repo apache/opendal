@@ -87,26 +87,26 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.58.2", vec![]);
+    let core = make_package("core", "0.59.0", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.7.5", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.59.0", vec![core.clone()])
+    let dav_server = make_package("integrations/dav-server", "0.7.6", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.60.0", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "object_store"]);
-    let parquet = make_package("integrations/parquet", "0.9.1", vec![core.clone()])
+    let parquet = make_package("integrations/parquet", "0.10.0", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "parquet"]);
-    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.5", vec![core.clone()]);
+    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.6", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
-    let c = make_package("bindings/c", "0.47.2", vec![core.clone()]);
-    let cpp = make_package("bindings/cpp", "0.45.29", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.50.2", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.49.7", vec![core.clone()]);
-    let python = make_package("bindings/python", "0.47.6", vec![core.clone()]);
-    let ruby = make_package("bindings/ruby", "0.1.10", vec![core.clone()]);
-    let dotnet = make_package("bindings/dotnet", "0.1.2", vec![core.clone()]);
+    let c = make_package("bindings/c", "0.47.3", vec![core.clone()]);
+    let cpp = make_package("bindings/cpp", "0.45.30", vec![core.clone()]);
+    let java = make_package("bindings/java", "0.50.3", vec![core.clone()]);
+    let nodejs = make_package("bindings/nodejs", "0.49.8", vec![core.clone()]);
+    let python = make_package("bindings/python", "0.47.7", vec![core.clone()]);
+    let ruby = make_package("bindings/ruby", "0.1.11", vec![core.clone()]);
+    let dotnet = make_package("bindings/dotnet", "0.2.0", vec![core.clone()]);
 
     vec![
         core,
@@ -226,22 +226,12 @@ fn update_dependency_version(
     manifest_dir: &Path,
     dependency: &Package,
 ) -> bool {
-    let Some(crate_name) = dependency.crate_name() else {
-        return false;
-    };
-
-    update_dependency_version_in_table(
-        manifest.as_table_mut(),
-        manifest_dir,
-        crate_name,
-        dependency,
-    )
+    update_dependency_version_in_table(manifest.as_table_mut(), manifest_dir, dependency)
 }
 
 fn update_dependency_version_in_table(
     table: &mut dyn TableLike,
     manifest_dir: &Path,
-    crate_name: &str,
     dependency: &Package,
 ) -> bool {
     let mut updated = false;
@@ -251,12 +241,8 @@ fn update_dependency_version_in_table(
             continue;
         };
 
-        updated |= update_dependency_version_in_dependencies(
-            dependencies,
-            manifest_dir,
-            crate_name,
-            dependency,
-        );
+        updated |=
+            update_dependency_version_in_dependencies(dependencies, manifest_dir, dependency);
     }
 
     let Some(targets) = table.get_mut("target").and_then(Item::as_table_like_mut) else {
@@ -267,7 +253,7 @@ fn update_dependency_version_in_table(
         let Some(target) = target.as_table_like_mut() else {
             continue;
         };
-        updated |= update_dependency_version_in_table(target, manifest_dir, crate_name, dependency);
+        updated |= update_dependency_version_in_table(target, manifest_dir, dependency);
     }
 
     updated
@@ -276,43 +262,42 @@ fn update_dependency_version_in_table(
 fn update_dependency_version_in_dependencies(
     dependencies: &mut dyn TableLike,
     manifest_dir: &Path,
-    crate_name: &str,
     dependency: &Package,
 ) -> bool {
-    let Some(entry) = dependencies.get_mut(crate_name) else {
-        return false;
-    };
-    let Some(entry) = entry.as_table_like_mut() else {
-        return false;
-    };
-    let Some(path) = entry.get("path").and_then(Item::as_str) else {
-        return false;
-    };
-    if !path_points_to(manifest_dir, path, &dependency.path) {
-        return false;
+    let mut updated = false;
+
+    for (crate_name, entry) in dependencies.iter_mut() {
+        let Some(entry) = entry.as_table_like_mut() else {
+            continue;
+        };
+        let Some(path) = entry.get("path").and_then(Item::as_str) else {
+            continue;
+        };
+        if !path_points_into(manifest_dir, path, &dependency.path) {
+            continue;
+        }
+        let Some(value) = entry.get_mut("version") else {
+            continue;
+        };
+
+        let old_version = match value.as_str().map(Version::parse) {
+            Some(Ok(version)) => version,
+            _ => continue,
+        };
+
+        if old_version == dependency.version {
+            continue;
+        }
+
+        *value = toml_edit::value(dependency.version.to_string());
+        println!(
+            "updating dependency version for crate: {} from {} to {}",
+            crate_name, old_version, dependency.version
+        );
+        updated = true;
     }
-    let Some(value) = entry.get_mut("version") else {
-        return false;
-    };
 
-    let old_version = match value.as_str() {
-        Some(version) => match Version::parse(version) {
-            Ok(version) => version,
-            Err(_) => return false,
-        },
-        None => panic!("missing dependency version for crate: {crate_name}"),
-    };
-
-    if old_version == dependency.version {
-        return false;
-    }
-
-    *value = toml_edit::value(dependency.version.to_string());
-    println!(
-        "updating dependency version for crate: {} from {} to {}",
-        crate_name, old_version, dependency.version
-    );
-    true
+    updated
 }
 
 fn is_core_workspace_root(path: &Path) -> bool {
@@ -457,12 +442,8 @@ fn sync_workspace_internal_dependency_versions_in_dependencies(
     updated
 }
 
-fn path_points_to(manifest_dir: &Path, raw_path: &str, expected: &Path) -> bool {
-    normalize_path(&manifest_dir.join(raw_path)) == normalize_path(expected)
-}
-
 fn path_points_into(manifest_dir: &Path, raw_path: &str, workspace_root: &Path) -> bool {
-    normalize_path(&manifest_dir.join(raw_path)).starts_with(workspace_root)
+    normalize_path(&manifest_dir.join(raw_path)).starts_with(normalize_path(workspace_root))
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
@@ -706,6 +687,7 @@ version = "0.8.0"
 
 [dependencies]
 opendal = { version = "0.55.0", path = "../../core" }
+opendal-core = { version = "0.55.0", path = "../../core/core" }
 serde = "1"
 
 [dev-dependencies]
@@ -730,6 +712,11 @@ opendal = { version = "0.55.0", path = "../core" }
             dependencies: vec![],
             public_compat_dependencies: &[],
         };
+        assert!(path_points_into(
+            dir.as_path(),
+            "../../core",
+            &dependency.path
+        ));
 
         let updated = update_cargo_version(
             dir.as_path(),
@@ -743,6 +730,10 @@ opendal = { version = "0.55.0", path = "../core" }
 
         assert_eq!(
             manifest["dependencies"]["opendal"]["version"].as_str(),
+            Some("0.56.0")
+        );
+        assert_eq!(
+            manifest["dependencies"]["opendal-core"]["version"].as_str(),
             Some("0.56.0")
         );
         assert_eq!(

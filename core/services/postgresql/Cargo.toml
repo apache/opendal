@@ -33,7 +33,7 @@ all-features = true
 
 [dependencies]
 asyncband = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "postgres"] }
 

@@ -29,6 +29,7 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::IF_MATCH;
@@ -421,22 +422,36 @@ impl GcsCore {
         total: Option<u64>,
     ) -> Result<Response<Buffer>> {
         let end = offset + body.len() as u64;
-        let content_range = if body.is_empty() {
-            format!("bytes */{}", total.unwrap_or_default())
-        } else {
-            format!(
-                "bytes {}-{}/{}",
-                offset,
-                end - 1,
-                total.map_or_else(|| "*".to_string(), |v| v.to_string())
-            )
-        };
+        let mut content_range = BytesContentRange::default();
+        if !body.is_empty() {
+            content_range = content_range.with_range(offset, end - 1);
+        }
+        if let Some(total) = total {
+            content_range = content_range.with_size(total);
+        }
         let req = Request::put(session_uri)
             .header(CONTENT_LENGTH, body.len())
-            .header("content-range", content_range)
+            .header(CONTENT_RANGE, content_range.to_header())
             .extension(Operation::Write)
             .extension(ServiceOperation("UploadResumableChunk"))
             .body(body)
+            .map_err(new_request_build_error)?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn gcs_query_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        total: u64,
+    ) -> Result<Response<Buffer>> {
+        let content_range = BytesContentRange::default().with_size(total);
+        let req = Request::put(session_uri)
+            .header(CONTENT_LENGTH, 0)
+            .header(CONTENT_RANGE, content_range.to_header())
+            .extension(Operation::Write)
+            .extension(ServiceOperation("QueryResumableUpload"))
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
         self.send(ctx, req).await
     }

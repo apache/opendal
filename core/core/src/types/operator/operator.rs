@@ -1159,6 +1159,158 @@ impl Operator {
         Ok(w)
     }
 
+    /// Compose complete source objects into `to` in iteration order.
+    ///
+    /// The input must be non-empty, and `to` must not be one of the inputs.
+    /// Composition preserves every source object. It does not read source bytes
+    /// through the client when the service supports native composition.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _metadata = op
+    ///     .compose(["parts/0", "parts/1", "parts/2"], "result")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn compose<I, D>(&self, inputs: I, to: &str) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        self.compose_with(inputs, to).await
+    }
+
+    /// Compose complete source objects into `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn compose_with<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+    ) -> FutureCompose<impl Future<Output = Result<Metadata>>>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (options::ComposeOptions::default(), inputs),
+            Self::compose_inner,
+        )
+    }
+
+    /// Compose complete source objects into `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn compose_options<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+        Self::compose_inner(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (opts, inputs),
+        )
+        .await
+    }
+
+    async fn compose_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        (opts, inputs): (
+            options::ComposeOptions,
+            Vec<(String, options::ComposeSourceOptions)>,
+        ),
+    ) -> Result<Metadata> {
+        let mut composer = Self::composer_inner(ctx, srv, to, opts).await?;
+        for (path, options) in inputs {
+            composer.compose_options(&path, options).await?;
+        }
+        composer.close().await
+    }
+
+    /// Create a [`Composer`] that accepts ordered source objects for `to`.
+    pub async fn composer(&self, to: &str) -> Result<Composer> {
+        self.composer_with(to).await
+    }
+
+    /// Create a [`Composer`] for `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn composer_with(
+        &self,
+        to: &str,
+    ) -> FutureComposer<impl Future<Output = Result<Composer>>> {
+        let to = normalize_path(to);
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            options::ComposeOptions::default(),
+            Self::composer_inner,
+        )
+    }
+
+    /// Create a [`Composer`] for `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn composer_options(
+        &self,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        let to = normalize_path(to);
+        Self::composer_inner(self.context().clone(), self.service().clone(), to, opts).await
+    }
+
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
+    async fn composer_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "destination path is a directory")
+                    .with_operation(Operation::Compose.into_static())
+                    .with_context("service", srv.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        let args = OpCompose::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Composer::create(ctx, srv, to, args)
+    }
+
     /// Copy a file from `from` to `to`.
     ///
     /// # Notes

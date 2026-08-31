@@ -196,6 +196,7 @@ impl Service for RouteAccessor {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -204,6 +205,19 @@ impl Service for RouteAccessor {
     fn capability(&self) -> Capability {
         let mut capability = self.inner.capability();
         capability.write_can_copy_from = false;
+        capability.compose = false;
+        capability.compose_with_content_type = false;
+        capability.compose_with_content_disposition = false;
+        capability.compose_with_content_encoding = false;
+        capability.compose_with_cache_control = false;
+        capability.compose_with_user_metadata = false;
+        capability.compose_with_if_match = false;
+        capability.compose_with_if_none_match = false;
+        capability.compose_with_if_version_match = false;
+        capability.compose_with_if_version_not_match = false;
+        capability.compose_with_if_not_exists = false;
+        capability.compose_with_source_version = false;
+        capability.compose_with_source_if_match = false;
         capability
     }
 
@@ -480,6 +494,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             self.info.clone()

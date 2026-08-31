@@ -307,6 +307,7 @@ impl Service for GoosefsBackend {
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

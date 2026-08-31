@@ -191,6 +191,7 @@ impl Service for LakefsBackend {
     type Lister = oio::PageLister<LakefsLister>;
     type Deleter = oio::OneShotDeleter<LakefsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

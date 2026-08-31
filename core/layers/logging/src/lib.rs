@@ -267,6 +267,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     type Lister = LoggingLister<oio::Lister, I>;
     type Deleter = LoggingDeleter<oio::Deleter, I>;
     type Copier = LoggingCopier<oio::Copier, I>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -274,6 +275,10 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(

@@ -155,6 +155,7 @@ impl Service for ImmutableIndexService {
     type Lister = ImmutableDir;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -165,6 +166,10 @@ impl Service for ImmutableIndexService {
         capability.list = true;
         capability.list_with_recursive = true;
         capability
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -297,6 +302,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")

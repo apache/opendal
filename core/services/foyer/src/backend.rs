@@ -245,6 +245,7 @@ impl Service for FoyerBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

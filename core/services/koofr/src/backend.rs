@@ -190,6 +190,7 @@ impl Service for KoofrBackend {
     type Lister = oio::PageLister<KoofrLister>;
     type Deleter = oio::OneShotDeleter<KoofrDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

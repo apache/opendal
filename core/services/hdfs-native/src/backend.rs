@@ -167,6 +167,7 @@ impl Service for HdfsNativeBackend {
     type Lister = HdfsNativeLazyLister;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

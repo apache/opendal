@@ -49,6 +49,9 @@ pub use list::Lister;
 mod copy;
 pub use copy::Copier;
 
+mod compose;
+pub use compose::*;
+
 mod delete;
 pub use delete::*;
 

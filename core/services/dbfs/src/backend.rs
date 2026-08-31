@@ -144,6 +144,7 @@ impl Service for DbfsBackend {
     type Lister = oio::PageLister<DbfsLister>;
     type Deleter = oio::OneShotDeleter<DbfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::new(DBFS_SCHEME, &self.core.root, "")

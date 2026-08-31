@@ -179,6 +179,7 @@ impl Service for PcloudBackend {
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

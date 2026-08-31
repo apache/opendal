@@ -246,6 +246,7 @@ impl Service for WebhdfsBackend {
     type Lister = oio::PageLister<WebhdfsLister>;
     type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

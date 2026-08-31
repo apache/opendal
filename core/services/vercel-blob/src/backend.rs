@@ -138,6 +138,7 @@ impl Service for VercelBlobBackend {
     type Lister = oio::PageLister<VercelBlobLister>;
     type Deleter = oio::OneShotDeleter<VercelBlobDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

@@ -298,6 +298,7 @@ impl Service for SimulateService {
     type Lister = SimulateLister;
     type Deleter = SimulateDeleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.srv.info()
@@ -344,6 +345,10 @@ impl Service for SimulateService {
         args: OpCopy,
     ) -> Result<Self::Copier> {
         self.srv.copy(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.srv.compose(ctx, to, args)
     }
 
     async fn rename(
@@ -669,6 +674,7 @@ mod tests {
         type Lister = MockLister;
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")

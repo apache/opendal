@@ -215,6 +215,7 @@ impl Service for GdriveBackend {
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

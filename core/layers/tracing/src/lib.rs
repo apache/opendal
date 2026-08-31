@@ -224,6 +224,7 @@ impl Service for TracingService {
     type Lister = TracingWrapper<oio::Lister>;
     type Deleter = TracingWrapper<oio::Deleter>;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -231,6 +232,10 @@ impl Service for TracingService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(

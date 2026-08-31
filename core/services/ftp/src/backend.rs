@@ -191,6 +191,7 @@ impl Service for FtpBackend {
     type Lister = FtpLazyLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info()

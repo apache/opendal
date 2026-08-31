@@ -306,6 +306,7 @@ impl Service for GcsGrpcBackend {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

@@ -100,8 +100,8 @@ impl OpDelete {
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` cannot be represented by a supported
-    /// primitive condition or conflicts with an explicit equality condition.
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit equality condition.
     ///
     /// # Panics
     ///
@@ -115,20 +115,14 @@ impl OpDelete {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
+            } else if let Some(etag) = metadata.etag() {
                 (&mut options.if_match, etag, "if_match")
-            } else if !capability.delete_with_if_version_match && !capability.delete_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "service does not support delete with if_not_changed",
-                )
-                .with_operation(Operation::Delete));
+            } else if let Some(version) = metadata.version() {
+                (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by delete",
+                    "if_not_changed metadata contains neither version nor ETag",
                 )
                 .with_operation(Operation::Delete));
             };
@@ -412,6 +406,58 @@ impl OpRead {
     /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Lower compose source `options` against `capability` and freeze them into
+    /// service-ready read arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit source equality condition.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub(crate) fn from_compose_source_options(
+        capability: &Capability,
+        mut options: options::ComposeSourceOptions,
+    ) -> Result<Self> {
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.compose_with_source_version
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.version, version, "source version")
+            } else if let Some(etag) = metadata.etag() {
+                (&mut options.if_match, etag, "source if_match")
+            } else if let Some(version) = metadata.version() {
+                (&mut options.version, version, "source version")
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata contains neither version nor ETag",
+                )
+                .with_operation(Operation::Compose));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Compose));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
+        Ok(Self::from_read_options(options::ReadOptions {
+            version: options.version,
+            if_match: options.if_match,
+            ..Default::default()
+        }))
     }
 
     /// Returns the content-disposition header that should be sent back by the remote read
@@ -770,8 +816,8 @@ impl OpWrite {
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` cannot be represented by a supported
-    /// primitive condition or conflicts with an explicit equality condition.
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit equality condition.
     ///
     /// # Panics
     ///
@@ -785,20 +831,14 @@ impl OpWrite {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if capability.write_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
+            } else if let Some(etag) = metadata.etag() {
                 (&mut options.if_match, etag, "if_match")
-            } else if !capability.write_with_if_version_match && !capability.write_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "service does not support write with if_not_changed",
-                )
-                .with_operation(Operation::Write));
+            } else if let Some(version) = metadata.version() {
+                (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by write",
+                    "if_not_changed metadata contains neither version nor ETag",
                 )
                 .with_operation(Operation::Write));
             };
@@ -978,6 +1018,181 @@ impl OpWriter {
     }
 }
 
+/// Arguments for `compose` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCompose {
+    concurrent: usize,
+    flags: u8,
+    values: CompactValues,
+}
+
+const OP_COMPOSE_IF_NOT_EXISTS: u8 = 1;
+
+#[repr(usize)]
+enum ComposeField {
+    ContentType,
+    ContentDisposition,
+    ContentEncoding,
+    CacheControl,
+    IfMatch,
+    IfNoneMatch,
+    IfVersionMatch,
+    IfVersionNotMatch,
+    UserMetadata,
+}
+
+impl OpCompose {
+    /// Create a new `OpCompose`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Lower `options` against `capability` and freeze them into service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit equality condition.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn from_options(
+        capability: &Capability,
+        mut options: options::ComposeOptions,
+    ) -> Result<Self> {
+        if let Some(metadata) = options.if_not_changed.take() {
+            let (target, identity, name) = if capability.compose_with_if_version_match
+                && let Some(version) = metadata.version()
+            {
+                (&mut options.if_version_match, version, "if_version_match")
+            } else if let Some(etag) = metadata.etag() {
+                (&mut options.if_match, etag, "if_match")
+            } else if let Some(version) = metadata.version() {
+                (&mut options.if_version_match, version, "if_version_match")
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "if_not_changed metadata contains neither version nor ETag",
+                )
+                .with_operation(Operation::Compose));
+            };
+
+            if let Some(explicit) = target {
+                if explicit != identity {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        format!("if_not_changed conflicts with {name}"),
+                    )
+                    .with_operation(Operation::Compose));
+                }
+            } else {
+                *target = Some(identity.to_owned());
+            }
+        }
+
+        let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
+        let fields = [
+            options.content_type.as_deref().map(str::as_bytes),
+            options.content_disposition.as_deref().map(str::as_bytes),
+            options.content_encoding.as_deref().map(str::as_bytes),
+            options.cache_control.as_deref().map(str::as_bytes),
+            options.if_match.as_deref().map(str::as_bytes),
+            options.if_none_match.as_deref().map(str::as_bytes),
+            options.if_version_match.as_deref().map(str::as_bytes),
+            options.if_version_not_match.as_deref().map(str::as_bytes),
+            None,
+        ];
+        let mut lengths = fields.map(|value| value.map(<[u8]>::len));
+        lengths[ComposeField::UserMetadata as usize] =
+            user_metadata.as_deref().map(user_metadata_encoded_len);
+        Ok(Self {
+            concurrent: options.concurrent.max(1),
+            flags: if options.if_not_exists {
+                OP_COMPOSE_IF_NOT_EXISTS
+            } else {
+                0
+            },
+            values: CompactValues::encode_with(&lengths, |field, output| match field {
+                field if field == ComposeField::UserMetadata as usize => {
+                    write_user_metadata(
+                        user_metadata.as_deref().expect("present field has a value"),
+                        output,
+                    );
+                }
+                _ => {
+                    output.write(fields[field].expect("present field has a value"));
+                }
+            }),
+        })
+    }
+
+    /// Get the maximum concurrent composition task count.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent.max(1)
+    }
+
+    /// Get destination Content-Type metadata.
+    pub fn content_type(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::ContentType as usize)
+    }
+
+    /// Get destination Content-Disposition metadata.
+    pub fn content_disposition(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::ContentDisposition as usize)
+    }
+
+    /// Get destination Content-Encoding metadata.
+    pub fn content_encoding(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::ContentEncoding as usize)
+    }
+
+    /// Get destination Cache-Control metadata.
+    pub fn cache_control(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::CacheControl as usize)
+    }
+
+    /// Get destination user metadata.
+    pub fn user_metadata(&self) -> Option<UserMetadata<'_>> {
+        self.values
+            .get(ComposeField::UserMetadata as usize)
+            .map(UserMetadata::new)
+    }
+
+    /// Get the destination ETag match condition.
+    pub fn if_match(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::IfMatch as usize)
+    }
+
+    /// Get the destination ETag non-match condition.
+    pub fn if_none_match(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::IfNoneMatch as usize)
+    }
+
+    /// Get the destination version match condition.
+    pub fn if_version_match(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::IfVersionMatch as usize)
+    }
+
+    /// Get the destination version non-match condition.
+    pub fn if_version_not_match(&self) -> Option<&str> {
+        string_value(&self.values, ComposeField::IfVersionNotMatch as usize)
+    }
+
+    /// Get whether composition requires a missing destination.
+    pub fn if_not_exists(&self) -> bool {
+        self.flags & OP_COMPOSE_IF_NOT_EXISTS != 0
+    }
+
+    #[doc(hidden)]
+    pub fn into_content_type(mut self, value: &str) -> Self {
+        self.values = self
+            .values
+            .replace(ComposeField::ContentType as usize, value.as_bytes());
+        self
+    }
+}
+
 /// Arguments for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {
@@ -1009,8 +1224,8 @@ impl OpCopy {
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` cannot be represented by a supported
-    /// primitive condition or conflicts with an explicit equality condition.
+    /// Returns an error when `if_not_changed` contains no identity or conflicts
+    /// with an explicit equality condition.
     ///
     /// # Panics
     ///
@@ -1024,20 +1239,14 @@ impl OpCopy {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if capability.copy_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
+            } else if let Some(etag) = metadata.etag() {
                 (&mut options.if_match, etag, "if_match")
-            } else if !capability.copy_with_if_version_match && !capability.copy_with_if_match {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "service does not support copy with if_not_changed",
-                )
-                .with_operation(Operation::Copy));
+            } else if let Some(version) = metadata.version() {
+                (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by copy",
+                    "if_not_changed metadata contains neither version nor ETag",
                 )
                 .with_operation(Operation::Copy));
             };
@@ -1233,6 +1442,7 @@ mod tests {
         assert_eq!(size_of::<OpRead>(), 16);
         assert_eq!(size_of::<OpStat>(), 16);
         assert_eq!(size_of::<OpWrite>(), 32);
+        assert_eq!(size_of::<OpCompose>(), 32);
         assert_eq!(size_of::<OpDelete>(), 24);
         assert_eq!(size_of::<OpCopy>(), 64);
         assert_eq!(size_of::<OpList>(), 32);
@@ -1309,6 +1519,40 @@ mod tests {
     }
 
     #[test]
+    fn compose_options_preserve_owned_views() {
+        let args = OpCompose::from_options(
+            &Capability::default(),
+            options::ComposeOptions {
+                concurrent: 4,
+                content_type: Some("text/plain".to_owned()),
+                content_disposition: Some("attachment".to_owned()),
+                content_encoding: Some("gzip".to_owned()),
+                cache_control: Some("no-cache".to_owned()),
+                if_match: Some("etag".to_owned()),
+                if_none_match: Some("other-etag".to_owned()),
+                if_version_match: Some("version-match".to_owned()),
+                if_version_not_match: Some("version-not-match".to_owned()),
+                if_not_exists: true,
+                user_metadata: Some(HashMap::from([("owner".to_owned(), "opendal".to_owned())])),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(args.concurrent(), 4);
+        assert_eq!(args.content_type(), Some("text/plain"));
+        assert_eq!(args.content_disposition(), Some("attachment"));
+        assert_eq!(args.content_encoding(), Some("gzip"));
+        assert_eq!(args.cache_control(), Some("no-cache"));
+        assert_eq!(args.if_match(), Some("etag"));
+        assert_eq!(args.if_none_match(), Some("other-etag"));
+        assert_eq!(args.if_version_match(), Some("version-match"));
+        assert_eq!(args.if_version_not_match(), Some("version-not-match"));
+        assert!(args.if_not_exists());
+        assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+    }
+
+    #[test]
     fn options_lower_if_not_changed_before_freeze() {
         let condition = condition_metadata();
         let capability = Capability {
@@ -1343,13 +1587,49 @@ mod tests {
         let copy = OpCopy::from_options(
             &capability,
             options::CopyOptions {
-                if_not_changed: Some(condition),
+                if_not_changed: Some(condition.clone()),
                 ..Default::default()
             },
         )
         .unwrap();
         assert_eq!(copy.if_match(), Some("etag"));
         assert_eq!(copy.if_version_match(), None);
+
+        let compose = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: Some(condition.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose.if_match(), Some("etag"));
+        assert_eq!(compose.if_version_match(), None);
+
+        let compose_source = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: Some(condition.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose_source.if_match(), Some("etag"));
+        assert_eq!(compose_source.version(), None);
+
+        let compose_source = OpRead::from_compose_source_options(
+            &Capability {
+                compose_with_source_version: true,
+                ..Default::default()
+            },
+            options::ComposeSourceOptions {
+                if_not_changed: Some(condition),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose_source.if_match(), None);
+        assert_eq!(compose_source.version(), Some("version"));
     }
 
     #[test]

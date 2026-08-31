@@ -115,6 +115,7 @@ impl Service for ObjectStoreService {
     type Lister = ObjectStoreLister;
     type Deleter = BatchDeleter<ObjectStoreDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()

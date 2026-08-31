@@ -117,6 +117,8 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     type Deleter: oio::Delete;
     /// Copier returned by `copy`.
     type Copier: oio::Copy;
+    /// Composer returned by `compose`.
+    type Composer: oio::Compose;
 
     /// Return the immutable identity and configuration for this service.
     fn info(&self) -> ServiceInfo;
@@ -213,6 +215,21 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier>;
+
+    /// Invoke the `compose` operation for the specified destination path.
+    ///
+    /// Requires [`Capability::compose`].
+    fn compose(
+        &self,
+        _ctx: &OperationContext,
+        _to: &str,
+        _args: OpCompose,
+    ) -> Result<Self::Composer> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
     ///
@@ -322,6 +339,14 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         args: OpCopy,
     ) -> Result<oio::Copier>;
 
+    /// Dyn version of [`Service::compose`].
+    fn compose_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        to: &'a str,
+        args: OpCompose,
+    ) -> Result<oio::Composer>;
+
     /// Dyn version of [`Service::rename`].
     fn rename_dyn<'a>(
         &'a self,
@@ -419,6 +444,15 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         Ok(Box::new(self.copy(ctx, from, to, args)?) as oio::Copier)
     }
 
+    fn compose_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        to: &'a str,
+        args: OpCompose,
+    ) -> Result<oio::Composer> {
+        Ok(Box::new(self.compose(ctx, to, args)?) as oio::Composer)
+    }
+
     fn rename_dyn<'a>(
         &'a self,
         ctx: &'a OperationContext,
@@ -455,6 +489,7 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.as_ref().info_dyn()
@@ -503,6 +538,10 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         self.as_ref().copy_dyn(ctx, from, to, args)
     }
 
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<oio::Composer> {
+        self.as_ref().compose_dyn(ctx, to, args)
+    }
+
     async fn rename(
         &self,
         ctx: &OperationContext,
@@ -539,6 +578,7 @@ impl Service for () {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::with_scheme("dummy")

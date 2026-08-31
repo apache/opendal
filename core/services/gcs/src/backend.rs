@@ -36,6 +36,7 @@ use reqsign_google::TokenCredentialProvider;
 use reqsign_google::VmMetadataCredentialProvider;
 
 use super::GCS_SCHEME;
+use super::composer::GcsComposer;
 use super::config::GcsConfig;
 use super::copier::GcsCopier;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
@@ -395,6 +396,16 @@ impl Builder for GcsBuilder {
             copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
             copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
 
+            compose: true,
+            compose_with_content_type: true,
+            compose_with_content_disposition: true,
+            compose_with_content_encoding: true,
+            compose_with_cache_control: true,
+            compose_with_user_metadata: true,
+            compose_with_if_not_exists: true,
+            compose_with_if_version_match: true,
+            compose_with_source_version: true,
+
             list: true,
             list_with_limit: true,
             list_with_start_after: true,
@@ -441,6 +452,7 @@ impl Service for GcsBackend {
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
     type Copier = GcsCopier;
+    type Composer = GcsComposer;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -556,6 +568,19 @@ impl Service for GcsBackend {
         }?;
 
         Ok(output)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_version_not_match().is_some()
+        {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS compose does not support the requested destination option",
+            ));
+        }
+        Ok(GcsComposer::new(self.core.clone(), ctx.clone(), to, args))
     }
 
     async fn rename(

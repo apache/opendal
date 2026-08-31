@@ -47,7 +47,9 @@ reqsign-google = { version = "3.0.3", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
+uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
+futures = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }

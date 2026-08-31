@@ -94,6 +94,7 @@ impl Service for OtelTraceService {
     type Lister = OtelTraceWrapper<oio::Lister>;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         let tracer = global::tracer("opendal");
@@ -102,6 +103,10 @@ impl Service for OtelTraceService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(

@@ -61,6 +61,7 @@ impl Service for CompleteService {
     type Lister = CompleteLister;
     type Deleter = oio::Deleter;
     type Copier = CompleteCopier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -100,6 +101,10 @@ impl Service for CompleteService {
         let source_content_length_hint = args.source_content_length_hint();
         let copier = self.inner.copy(ctx, from, to, args)?;
         Ok(CompleteCopier::new(copier, source_content_length_hint))
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn rename(

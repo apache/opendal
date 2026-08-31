@@ -133,6 +133,7 @@ impl Service for AlluxioBackend {
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()

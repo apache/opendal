@@ -34,7 +34,7 @@ use opendal_core::*;
 use crate::GCS_GRPC_SCHEME;
 use crate::config::GcsGrpcConfig;
 use crate::copier::new_gcs_grpc_copier;
-use crate::core::{GcsGrpcCore, parse_generation, parse_object, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_generation, parse_object, parse_status};
 use crate::deleter::GcsGrpcDeleter;
 use crate::generated::google::storage::v2::GetObjectRequest;
 use crate::lister::GcsGrpcLister;
@@ -347,7 +347,9 @@ impl Service for GcsGrpcBackend {
             .client()
             .get_object(request)
             .await
-            .map_err(parse_status)?;
+            .map_err(|status| {
+                parse_status(ErrorContext::new(ServiceOperation("GetObject")), status)
+            })?;
         Ok(RpStat::new(parse_object(response.get_ref())))
     }
 

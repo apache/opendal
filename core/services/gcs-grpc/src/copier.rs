@@ -20,7 +20,7 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use crate::core::{GcsGrpcCore, parse_generation, parse_object, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_generation, parse_object, parse_status};
 use crate::generated::google::storage::v2::RewriteObjectRequest;
 
 pub(super) fn new_gcs_grpc_copier(
@@ -71,7 +71,13 @@ async fn copy_object(
             .client()
             .rewrite_object(tonic_request)
             .await
-            .map_err(parse_status)?
+            .map_err(|status| {
+                parse_status(
+                    ErrorContext::new(ServiceOperation("RewriteObject"))
+                        .with_if_not_exists(args.if_not_exists()),
+                    status,
+                )
+            })?
             .into_inner();
         if response.done {
             return response.resource.as_ref().map(parse_object).ok_or_else(|| {

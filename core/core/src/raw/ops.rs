@@ -195,6 +195,15 @@ impl OpDelete {
         string_value(&self.values, DeleteField::IfVersionNotMatch as usize)
     }
 
+    /// Returns whether at least one value-bearing conditional option is set.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+    }
+
     pub(crate) fn set_recursive(&mut self, recursive: bool) {
         if recursive {
             self.flags |= OP_DELETE_RECURSIVE;
@@ -519,6 +528,17 @@ impl OpRead {
             .map(decode_timestamp)
     }
 
+    /// Returns whether at least one value-bearing conditional option is set.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+            || self.if_modified_since().is_some()
+            || self.if_unmodified_since().is_some()
+    }
+
     /// Get version from option
     #[inline]
     pub fn version(&self) -> Option<&str> {
@@ -720,6 +740,17 @@ impl OpStat {
         self.values
             .get(ReadField::IfUnmodifiedSince as usize)
             .map(decode_timestamp)
+    }
+
+    /// Returns whether at least one value-bearing conditional option is set.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+            || self.if_modified_since().is_some()
+            || self.if_unmodified_since().is_some()
     }
 
     /// Returns the content-disposition header that should be sent back by the remote read
@@ -967,6 +998,19 @@ impl OpWrite {
         self.flags & OP_WRITE_IF_NOT_EXISTS != 0
     }
 
+    /// Returns whether at least one conditional option is set.
+    ///
+    /// Value-bearing options are set when present. Boolean options are set only
+    /// when their value is `true`.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_not_exists()
+            || self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+    }
+
     /// Get the user defined metadata from the op
     #[inline]
     pub fn user_metadata(&self) -> Option<UserMetadata<'_>> {
@@ -1184,6 +1228,19 @@ impl OpCompose {
         self.flags & OP_COMPOSE_IF_NOT_EXISTS != 0
     }
 
+    /// Returns whether at least one conditional option is set.
+    ///
+    /// Value-bearing options are set when present. Boolean options are set only
+    /// when their value is `true`.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_not_exists()
+            || self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+    }
+
     #[doc(hidden)]
     pub fn into_content_type(mut self, value: &str) -> Self {
         self.values = self
@@ -1314,6 +1371,19 @@ impl OpCopy {
         string_value(&self.values, CopyField::IfVersionNotMatch as usize)
     }
 
+    /// Returns whether at least one conditional option is set.
+    ///
+    /// Value-bearing options are set when present. Boolean options are set only
+    /// when their value is `true`.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_not_exists()
+            || self.if_match().is_some()
+            || self.if_none_match().is_some()
+            || self.if_version_match().is_some()
+            || self.if_version_not_match().is_some()
+    }
+
     /// Get source version from the operation.
     #[inline]
     pub fn source_version(&self) -> Option<&str> {
@@ -1371,6 +1441,12 @@ impl OpRename {
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
     }
+
+    /// Returns whether the boolean conditional option is set to `true`.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_not_exists()
+    }
 }
 
 impl From<options::RenameOptions> for OpRename {
@@ -1406,6 +1482,12 @@ impl OpRestore {
     #[inline]
     pub fn if_not_exists(&self) -> bool {
         self.flags & OP_RESTORE_IF_NOT_EXISTS != 0
+    }
+
+    /// Returns whether the boolean conditional option is set to `true`.
+    #[inline]
+    pub fn is_conditional(&self) -> bool {
+        self.if_not_exists()
     }
 }
 
@@ -1480,6 +1562,7 @@ mod tests {
         assert_eq!(args.override_content_type(), Some("text/plain"));
         assert_eq!(args.override_cache_control(), Some("no-cache"));
         assert_eq!(args.override_content_disposition(), Some("attachment"));
+        assert!(args.is_conditional());
     }
 
     #[test]
@@ -1516,6 +1599,7 @@ mod tests {
         assert_eq!(args.if_version_not_match(), Some("version-not-match"));
         assert!(args.if_not_exists());
         assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+        assert!(args.is_conditional());
     }
 
     #[test]
@@ -1550,6 +1634,7 @@ mod tests {
         assert_eq!(args.if_version_not_match(), Some("version-not-match"));
         assert!(args.if_not_exists());
         assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+        assert!(args.is_conditional());
     }
 
     #[test]
@@ -1647,6 +1732,7 @@ mod tests {
         assert_eq!(delete.version(), Some("version"));
         assert!(delete.recursive());
         assert_eq!(delete.if_match(), Some("etag"));
+        assert!(delete.is_conditional());
 
         let copy = OpCopy::from_options(
             &Capability::default(),
@@ -1661,6 +1747,7 @@ mod tests {
         assert!(copy.if_not_exists());
         assert_eq!(copy.if_version_match(), Some("destination-version"));
         assert_eq!(copy.source_version(), Some("source-version"));
+        assert!(copy.is_conditional());
 
         let list: OpList = options::ListOptions {
             limit: Some(100),
@@ -1683,5 +1770,6 @@ mod tests {
         .into();
         assert_eq!(restore.version(), Some("version"));
         assert!(restore.if_not_exists());
+        assert!(restore.is_conditional());
     }
 }

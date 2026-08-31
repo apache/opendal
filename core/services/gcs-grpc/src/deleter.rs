@@ -20,7 +20,7 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use crate::core::{GcsGrpcCore, parse_generation, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_generation, parse_status};
 use crate::generated::google::storage::v2::DeleteObjectRequest;
 
 pub(super) struct GcsGrpcDeleter {
@@ -52,7 +52,10 @@ impl oio::Delete for GcsGrpcDeleter {
         match self.core.client().delete_object(request).await {
             Ok(_) => Ok(()),
             Err(status) if status.code() == tonic::Code::NotFound => Ok(()),
-            Err(status) => Err(parse_status(status)),
+            Err(status) => Err(parse_status(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                status,
+            )),
         }
     }
 

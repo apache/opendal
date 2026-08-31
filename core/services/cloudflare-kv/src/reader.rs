@@ -66,11 +66,7 @@ impl oio::StreamRead for CloudflareKvReader {
 
         let resp_body = resp.into_body();
 
-        if args.if_match().is_some()
-            || args.if_none_match().is_some()
-            || args.if_modified_since().is_some()
-            || args.if_unmodified_since().is_some()
-        {
+        if args.is_conditional() {
             let meta_resp = backend.core.metadata(&self.ctx, &path).await?;
 
             if meta_resp.status() != StatusCode::OK {

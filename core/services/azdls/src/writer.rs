@@ -77,16 +77,20 @@ impl AzdlsWriter {
             .await?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            StatusCode::CONFLICT if self.op.if_not_exists() => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CreateFile")),
-                resp,
-            )
-            .with_operation("Backend::azdls_create_request")),
-            StatusCode::CONFLICT => Ok(()),
-            _ => Err(
-                parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp)
-                    .with_operation("Backend::azdls_create_request"),
-            ),
+            _ => {
+                let err = parse_error(
+                    ErrorContext::new(ServiceOperation("CreateFile"))
+                        .with_caller_condition(self.op.is_conditional())
+                        .with_if_not_exists(self.op.if_not_exists()),
+                    resp,
+                )
+                .with_operation("Backend::azdls_create_request");
+                if err.kind() == ErrorKind::AlreadyExists {
+                    Ok(())
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 

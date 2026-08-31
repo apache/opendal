@@ -888,11 +888,28 @@ struct CosError {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    caller_condition: bool,
+    if_not_exists: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            caller_condition: false,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
     }
 }
 
@@ -901,10 +918,12 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, retryable) = match parts.status {
+    let cos_error = de::from_reader::<_, CosError>(bs.clone().reader()).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::INTERNAL_SERVER_ERROR
@@ -917,9 +936,38 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match de::from_reader::<_, CosError>(bs.clone().reader()) {
-        Ok(cos_error) => format!("{cos_error:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    if let Some(cos_error) = &cos_error {
+        match cos_error.code.as_str() {
+            "PreconditionFailed" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists"
+            | "PathConflict"
+            | "UploadConflict"
+            | "InvalidBucketState"
+            | "ObjectLocked"
+            | "InvalidObjectState"
+            | "RestoreAlreadyInProgress"
+            | "ObjectNotAppendable" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
+    }
+
+    let message = match cos_error {
+        Some(cos_error) => format!("{cos_error:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
     };
 
     let mut err = Error::new(kind, message);
@@ -931,4 +979,56 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         err = err.set_temporary();
     }
     err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    fn parse_cos_error(ctx: ErrorContext, status: StatusCode, code: &str) -> Error {
+        let body = Buffer::from(format!(
+            "<Error><Code>{code}</Code><Message>test</Message></Error>"
+        ));
+        let resp = Response::builder()
+            .status(status)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn conflict_classification_uses_native_code_and_condition() {
+        let conditional = ErrorContext::new(ServiceOperation("PutObject")).with_if_not_exists(true);
+        assert_eq!(
+            parse_cos_error(conditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        assert_eq!(
+            parse_cos_error(
+                conditional,
+                StatusCode::PRECONDITION_FAILED,
+                "PreconditionFailed"
+            )
+            .kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("PutObject"));
+        for code in [
+            "PathConflict",
+            "UploadConflict",
+            "ObjectLocked",
+            "InvalidObjectState",
+        ] {
+            assert_eq!(
+                parse_cos_error(unconditional, StatusCode::CONFLICT, code).kind(),
+                ErrorKind::Conflict,
+                "native code {code}"
+            );
+        }
+        assert_eq!(
+            parse_cos_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
+    }
 }

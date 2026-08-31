@@ -21,7 +21,7 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use crate::core::{GcsGrpcCore, parse_object, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_object, parse_status};
 use crate::generated::google::storage::v2::ListObjectsRequest;
 
 pub(super) struct GcsGrpcLister {
@@ -83,7 +83,9 @@ impl GcsGrpcLister {
             .client()
             .list_objects(request)
             .await
-            .map_err(parse_status)?
+            .map_err(|status| {
+                parse_status(ErrorContext::new(ServiceOperation("ListObjects")), status)
+            })?
             .into_inner();
         self.page_token = response.next_page_token;
         self.done = self.page_token.is_empty();

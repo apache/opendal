@@ -33,40 +33,15 @@ pub struct FsCore {
 }
 
 impl FsCore {
-    /// Join a caller-supplied key onto a base directory while keeping the result
-    /// confined to that base.
-    ///
-    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
-    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
-    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
-    /// configured `root` at syscall time. The fs backend documents that "all
-    /// operations will happen under this root", so we reject any key whose
-    /// components include a `..` (parent-dir) traversal.
-    pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
-        use std::path::Component;
-        let trimmed = path.trim_end_matches('/');
-        if Path::new(trimmed)
-            .components()
-            .any(|c| matches!(c, Component::ParentDir))
-        {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "path escapes the configured root via `..`",
-            )
-            .with_context("path", path));
-        }
-        Ok(base.join(trimmed))
-    }
-
-    /// Join a caller-supplied key onto `self.root`, rejecting `..` traversal.
+    /// Join a path to root safely. Rejects `..` traversal beyond root.
     #[inline]
     pub fn root_join(&self, path: &str) -> Result<PathBuf> {
-        Self::confined_join(&self.root, path)
+        confined_join(&self.root, path)
     }
 
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = Self::confined_join(parent, path)?;
+        let p = confined_join(parent, path)?;
 
         // Create dir before write path.
         //

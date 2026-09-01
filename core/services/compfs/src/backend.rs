@@ -137,7 +137,7 @@ impl Service for CompfsBackend {
         path: &str,
         _: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
 
         self.core
             .exec(move || async move { compio::fs::create_dir_all(path).await })
@@ -147,7 +147,7 @@ impl Service for CompfsBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let path = self.core.prepare_path(path)?;
+        let path = self.core.root_join(path)?;
         let meta = self
             .core
             .exec(move || async move { compio::fs::metadata(path).await })
@@ -188,8 +188,8 @@ impl Service for CompfsBackend {
         _: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
-        let from = self.core.prepare_path(from)?;
-        let to = self.core.prepare_path(to)?;
+        let from = self.core.root_join(from)?;
+        let to = self.core.root_join(to)?;
 
         Ok(oio::OneShotCopier::new(async move {
             core.exec(move || async move {
@@ -221,8 +221,8 @@ impl Service for CompfsBackend {
         to: &str,
         _: OpRename,
     ) -> Result<RpRename> {
-        let from = self.core.prepare_path(from)?;
-        let to = self.core.prepare_path(to)?;
+        let from = self.core.root_join(from)?;
+        let to = self.core.root_join(to)?;
 
         self.core
             .exec(move || async move {
@@ -238,14 +238,14 @@ impl Service for CompfsBackend {
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
         Ok(oio::PositionReader::new(CompfsReader::new(
             self.core.clone(),
-            self.core.prepare_path(path)?,
+            self.core.root_join(path)?,
         )))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         Ok(CompfsLazyWriter::new(
             self.core.clone(),
-            self.core.prepare_path(path)?,
+            self.core.root_join(path)?,
             args,
         ))
     }
@@ -253,7 +253,7 @@ impl Service for CompfsBackend {
     fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
         Ok(CompfsLazyLister::new(
             self.core.clone(),
-            self.core.prepare_path(path)?,
+            self.core.root_join(path)?,
         ))
     }
 

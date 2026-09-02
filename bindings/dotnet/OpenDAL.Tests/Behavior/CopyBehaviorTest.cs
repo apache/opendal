@@ -42,7 +42,12 @@ public sealed class CopyBehaviorTest : BehaviorTestBase
         var content = RandomBytes(256);
 
         Op.Write(sourcePath, content);
-        Op.Copy(sourcePath, targetPath);
+        var meta = Op.Copy(sourcePath, targetPath);
+
+        if (meta.IsFile)
+        {
+            Assert.Equal((ulong)content.Length, meta.ContentLength);
+        }
 
         Assert.Equal(content, Op.Read(targetPath));
     }
@@ -60,7 +65,12 @@ public sealed class CopyBehaviorTest : BehaviorTestBase
         var content = RandomBytes(256);
 
         await Op.WriteAsync(sourcePath, content, CT);
-        await Op.CopyAsync(sourcePath, targetPath, CT);
+        var meta = await Op.CopyAsync(sourcePath, targetPath, CT);
+
+        if (meta.IsFile)
+        {
+            Assert.Equal((ulong)content.Length, meta.ContentLength);
+        }
 
         Assert.Equal(content, await Op.ReadAsync(targetPath, CT));
     }

@@ -108,6 +108,14 @@ impl OpendalMetadata {
     }
 }
 
+/// Convert OpenDAL metadata into an owned FFI pointer.
+///
+/// The returned pointer must be released by `metadata_free`, which
+/// `opendal_metadata_result_release` performs for result payloads.
+pub fn into_metadata_ptr(metadata: opendal::Metadata) -> *mut OpendalMetadata {
+    Box::into_raw(Box::new(OpendalMetadata::from_metadata(metadata)))
+}
+
 /// Convert an optional Rust string into an owned UTF-8 C string pointer.
 ///
 /// Returns null when the option is `None`.

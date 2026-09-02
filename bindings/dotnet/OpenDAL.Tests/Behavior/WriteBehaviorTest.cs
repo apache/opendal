@@ -352,6 +352,54 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public void WriteBehavior_ReturnsMetadataOfWrittenObject()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-returns-metadata");
+        var content = RandomBytes(512);
+
+        var meta = Op.Write(path, content);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_ReturnsMetadataOfWrittenObjectAsync()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-returns-metadata-async");
+        var content = RandomBytes(512);
+
+        var meta = await Op.WriteAsync(path, content, CT);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_ReturnsMetadataAsync()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-returns-metadata");
+        var content = RandomBytes(300);
+
+        var meta = await Op.WriteAsync(path, writer => writer.Write(content), cancellationToken: CT);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
     public void WriteBehavior_WithUserMetadata_RoundtripsThroughStat()
     {
         if (!Supports(c => c.Write && c.Stat && c.WriteWithUserMetadata))

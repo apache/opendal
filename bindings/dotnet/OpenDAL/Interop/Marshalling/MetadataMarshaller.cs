@@ -37,7 +37,7 @@ internal static class MetadataMarshaller
     {
         if (ptr == IntPtr.Zero)
         {
-            throw new InvalidOperationException("stat returned null metadata pointer");
+            throw new InvalidOperationException("native call returned null metadata pointer");
         }
 
         var payload = Unsafe.Read<OpenDALMetadata>((void*)ptr);
@@ -51,13 +51,6 @@ internal static class MetadataMarshaller
     /// <returns>A managed <see cref="Metadata"/> instance.</returns>
     internal static Metadata ToMetadata(OpenDALMetadata payload)
     {
-        DateTimeOffset? lastModified = null;
-        if (payload.LastModifiedHasValue != 0)
-        {
-            lastModified = DateTimeOffset.FromUnixTimeSeconds(payload.LastModifiedSecond)
-                .AddTicks(payload.LastModifiedNanosecond / 100);
-        }
-
         var mode = payload.Mode switch
         {
             0 => EntryMode.File,
@@ -65,17 +58,40 @@ internal static class MetadataMarshaller
             _ => EntryMode.Unknown,
         };
 
+        bool? isCurrent = payload.IsCurrentHasValue != 0 ? payload.IsCurrent != 0 : null;
+
+        DateTimeOffset? lastModified = null;
+        if (payload.LastModifiedHasValue != 0)
+        {
+            lastModified = DateTimeOffset.FromUnixTimeSeconds(payload.LastModifiedSecond)
+                .AddTicks(payload.LastModifiedNanosecond / 100);
+        }
+
+        IReadOnlyDictionary<string, string>? userMetadata = null;
+        if (payload.UserMetadataHasValue != 0)
+        {
+            userMetadata = Utilities.ReadStringPairs(
+                payload.UserMetadataKeys,
+                payload.UserMetadataValues,
+                payload.UserMetadataLen,
+                StringComparer.Ordinal
+            );
+        }
+
         return new Metadata(
             mode,
+            isCurrent,
+            payload.IsDeleted != 0,
+            Utilities.ReadNullableUtf8(payload.CacheControl),
             payload.ContentLength,
-            Utilities.ReadNullableUtf8(payload.ContentDisposition),
             Utilities.ReadNullableUtf8(payload.ContentMd5),
             Utilities.ReadNullableUtf8(payload.ContentType),
             Utilities.ReadNullableUtf8(payload.ContentEncoding),
-            Utilities.ReadNullableUtf8(payload.CacheControl),
-            Utilities.ReadNullableUtf8(payload.ETag),
             lastModified,
-            Utilities.ReadNullableUtf8(payload.Version)
+            Utilities.ReadNullableUtf8(payload.ETag),
+            Utilities.ReadNullableUtf8(payload.ContentDisposition),
+            Utilities.ReadNullableUtf8(payload.Version),
+            userMetadata
         );
     }
 }

@@ -22,7 +22,8 @@ compatibility against the binding's version, not the core's.
 
 ## Status
 
-Released and stable, published to [PyPI](https://pypi.org/project/opendal/).
+Released and stable, published to [PyPI](https://pypi.org/project/opendal/) and
+[conda-forge](https://anaconda.org/conda-forge/opendal).
 
 ## Capabilities
 
@@ -35,8 +36,16 @@ Released and stable, published to [PyPI](https://pypi.org/project/opendal/).
 
 ## Installation
 
+Install from PyPI:
+
 ```shell
 pip install opendal
+```
+
+Or install from conda-forge:
+
+```shell
+conda install conda-forge::opendal
 ```
 
 ## Useful Links

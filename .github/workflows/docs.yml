@@ -225,7 +225,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup doxygen
-        run: sudo apt-get install doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen
 
       - name: Build Docs
         working-directory: bindings/c
@@ -244,7 +246,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup lua-ldoc
-        run: sudo apt-get install lua-ldoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua-ldoc
 
       - name: Build Docs
         working-directory: "bindings/lua"
@@ -334,7 +338,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install doxygen graphviz ninja-build
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz ninja-build
 
       - name: Build Cpp docs
         working-directory: "bindings/cpp"

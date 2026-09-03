@@ -62,6 +62,7 @@ jobs:
       - name: Set Rust Fuzz
         shell: bash
         run: |
+          sudo apt-get update
           sudo apt-get install -y libfuzzer-14-dev
           rustup install ${{ env.RUST_TOOLCHAIN }}
           cargo +${{ env.RUST_TOOLCHAIN }} install cargo-fuzz

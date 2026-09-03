@@ -140,8 +140,7 @@ This service is covered by all three OpenDAL test layers:
    `create_dir`). Start the fixture and point the harness at it:
 
    ```shell
-   # Start a single-container GooseFS (master + worker + job_master +
-   # job_worker + table_master)
+   # Start a single-container GooseFS (master + worker; see start-default.sh)
    docker compose -f fixtures/goosefs/docker-compose-goosefs.yml up -d --wait
 
    OPENDAL_TEST=goosefs \
@@ -158,7 +157,7 @@ This service is covered by all three OpenDAL test layers:
 3. **GitHub CI** — `.github/services/goosefs/goosefs/action.yml` is picked up
    automatically by `.github/scripts/test_behavior/plan.py::provided_cases()`
    and runs the fixture + behavior suite on every PR. The fixture image
-   (`goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0`) is public so no secrets
+   (`ghcr.io/tencent/tencent-goosefs-rust-sdk/goosefs:v2.0.0`) is public so no secrets
    are needed.
 
 The fixture also exposes a `distributed` compose profile (separate master /

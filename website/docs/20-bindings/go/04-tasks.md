@@ -165,8 +165,9 @@ err := op.Remove([]string{"a.txt", "b.txt", "c.txt"})
 ```
 
 `Remove` deletes the paths in batches on services that support batch deletion,
-such as S3. It is not atomic: queueing stops at the first path the service
-rejects, but an earlier batch may already be gone.
+such as S3. It hands the whole slice to the C library in one call, so prefer it
+over looping when you already know the paths. It is not atomic: queueing stops at
+the first path the service rejects, but an earlier batch may already be gone.
 
 Use `WithDeleter` when you queue paths as you discover them, or when you need
 per-path options. It flushes the queue when your function returns nil, skips the
@@ -203,7 +204,7 @@ err := op.WithDeleter(func(d *opendal.Deleter) error {
 Driving the deleter yourself gives you `Flush`, which reports the deletions
 without releasing the deleter, so you can retry a failed batch. Queue paths one
 at a time only when you discover them as you go; for a slice you already hold,
-prefer `Remove`:
+`Remove` crosses into the C library once instead of once per path:
 
 ```go
 func deleteAsDiscovered(op *opendal.Operator, paths []string) error {

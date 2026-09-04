@@ -945,6 +945,7 @@ typedef struct opendal_result_operator_copier {
  *
  * @see opendal_operator_deleter()
  * @see opendal_deleter_delete()
+ * @see opendal_deleter_delete_many()
  * @see opendal_deleter_delete_with()
  * @see opendal_deleter_flush()
  */
@@ -3202,6 +3203,44 @@ void opendal_copier_free(struct opendal_copier *ptr);
  * * If the `path` points to NULL, this function panics
  */
 struct opendal_error *opendal_deleter_delete(struct opendal_deleter *self, const char *path);
+
+/**
+ * \brief Queue multiple paths for deletion.
+ *
+ * This function queues every path in one call. Callers deleting a known set
+ * of paths should prefer it over calling `opendal_deleter_delete` in a loop:
+ * it crosses the C boundary once instead of once per path, and it queues the
+ * whole set inside a single blocking call rather than one per path. The paths
+ * are not necessarily removed when this function returns: call
+ * `opendal_deleter_flush` to hand the queue to the service and wait for the
+ * deletions to complete.
+ *
+ * Every path is queued with default options. Use `opendal_deleter_delete_with`
+ * for a path that needs its own version or recursive flag.
+ *
+ * Queueing stops at the first path the service rejects, so the paths after it
+ * are never queued.
+ *
+ * @param paths The designated paths you want to delete
+ * @param paths_len The number of paths in `paths`
+ * @return NULL if all paths are queued, otherwise it contains the error code
+ * and error message.
+ *
+ * # Safety
+ *
+ * * When `paths_len` is greater than zero, `paths` must point to an array of
+ *   `paths_len` pointers.
+ * * Every pointer in `paths` must point to a string with a valid nul
+ *   terminator.
+ *
+ * # Panic
+ *
+ * * If `paths` or any pointer in `paths` is NULL when `paths_len` is greater
+ *   than zero, this function panics.
+ */
+struct opendal_error *opendal_deleter_delete_many(struct opendal_deleter *self,
+                                                  const char *const *paths,
+                                                  uintptr_t paths_len);
 
 /**
  * \brief Queue `path` for deletion with options.

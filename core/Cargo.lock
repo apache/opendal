@@ -553,7 +553,7 @@ dependencies = [
  "http 0.2.12",
  "http 1.4.2",
  "http-body 0.4.6",
- "lru",
+ "lru 0.12.5",
  "percent-encoding",
  "regex-lite",
  "sha2 0.10.9",
@@ -3847,20 +3847,21 @@ dependencies = [
 
 [[package]]
 name = "goosefs-sdk"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9bc9414e3b2cb0bd08dfe0eb315b177e86b119c7fa5e16179c92fc7b184860"
+checksum = "e1ea4eee6dcbc31b25ab4fd577adc55b677d2bed3aa3016c44c58fbe1b2298a5"
 dependencies = [
  "arc-swap",
  "async-trait",
  "bytes",
  "dashmap 6.2.1",
+ "fastrand",
  "futures",
  "hostname",
  "io-uring 0.7.12",
  "itoa",
  "libc",
- "lru",
+ "lru 0.18.4",
  "memmap2 0.9.11",
  "moka",
  "prost 0.14.3",
@@ -4045,6 +4046,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hashlink"
@@ -5418,6 +5424,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
 dependencies = [
  "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "lru"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff9840bcc50b71349309900da0ce7279aa336ae71d73250b07998932c7d97c25"
+dependencies = [
+ "hashbrown 0.17.1",
 ]
 
 [[package]]

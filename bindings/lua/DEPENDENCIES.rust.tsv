@@ -3,7 +3,7 @@ aes@0.8.4	X									X
 aho-corasick@1.1.5										X			X
 anyhow@1.0.104	X									X			
 async-trait@0.1.92	X									X			
-asyncband@0.7.0	X												
+asyncband@0.7.1	X												
 atomic-waker@1.1.2	X									X			
 autocfg@1.5.1	X									X			
 aws-lc-rs@1.18.0	X							X					

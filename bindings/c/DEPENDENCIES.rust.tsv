@@ -5,7 +5,7 @@ anstyle-parse@1.0.0	X							X
 anstyle-query@1.1.5	X							X				
 anstyle-wincon@3.0.11	X							X				
 anyhow@1.0.104	X							X				
-asyncband@0.7.0	X											
+asyncband@0.7.1	X											
 atomic-waker@1.1.2	X							X				
 aws-lc-rs@1.18.0	X					X						
 aws-lc-sys@0.44.0	X		X			X		X	X			

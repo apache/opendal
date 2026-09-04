@@ -15,7 +15,7 @@ async-recursion@0.3.2		X									X
 async-stream@0.3.6											X					
 async-stream-impl@0.3.6											X					
 async-trait@0.1.92		X									X					
-asyncband@0.7.0		X														
+asyncband@0.7.1		X														
 atoi@2.0.0											X					
 atomic-waker@1.1.2		X									X					
 auto-const-array@0.2.2		X									X					

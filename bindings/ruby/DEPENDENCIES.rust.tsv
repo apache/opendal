@@ -4,7 +4,7 @@ aho-corasick@1.1.4										X			X
 allocator-api2@0.2.21	X									X				
 anyhow@1.0.103	X									X				
 async-trait@0.1.89	X									X				
-asyncband@0.7.0	X													
+asyncband@0.7.1	X													
 atomic-waker@1.1.2	X									X				
 autocfg@1.5.1	X									X				
 aws-lc-rs@1.17.1	X							X						

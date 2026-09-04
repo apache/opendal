@@ -12,7 +12,7 @@ arcstr@1.2.0	X									X					X
 arrayvec@0.7.8	X									X					
 async-lock@3.4.2	X									X					
 async-trait@0.1.92	X									X					
-asyncband@0.7.0	X														
+asyncband@0.7.1	X														
 atoi@2.0.0										X					
 atomic-waker@1.1.2	X									X					
 autocfg@1.5.1	X									X					

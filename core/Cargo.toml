@@ -42,7 +42,7 @@ rust-version = "1.91"
 version = "0.59.0"
 
 [workspace.dependencies]
-asyncband = { version = "0.7" }
+asyncband = { version = "0.7.1" }
 base64 = "0.23"
 bytes = "1.10"
 ctor = "1.0.7"

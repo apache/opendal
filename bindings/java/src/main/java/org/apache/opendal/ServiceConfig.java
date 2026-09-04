@@ -1501,12 +1501,17 @@ public interface ServiceConfig {
          * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
          * <a href="https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md">goosefs-sdk <code>docs/CLIENT_CONFIGURATION.md</code></a> §1:</p>
          * <ol>
-         * <li>This field (when set on the builder / OpenDAL config map)</li>
          * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>
          * <li><code>goosefs.master.rpc.addresses</code> / <code>goosefs.master.hostname</code> in
          * <code>goosefs-site.properties</code></li>
+         * <li>This field (from the builder, the OpenDAL config map, or the URI
+         * authority of <code>goosefs://host:port/path</code>)</li>
          * </ol>
-         * <p><code>build()</code> fails with <code>ConfigInvalid</code> only when <strong>none</strong> of the above
+         * <p>A site file that declares masters therefore outranks this field: the
+         * file carries the deployment's whole HA master list, which a single URI
+         * authority cannot express. Set <code>GOOSEFS_MASTER_ADDR</code> to override a
+         * deployed site file for one process.</p>
+         * <p><code>build()</code> fails with <code>ConfigInvalid</code> when <strong>none</strong> of the above
          * supplies a master address.</p>
          */
         public final String masterAddr;

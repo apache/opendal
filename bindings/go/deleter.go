@@ -137,6 +137,23 @@ func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
 	return err
 }
 
+// deleteMany queues every path in one crossing of the FFI boundary.
+//
+// Queueing paths one at a time costs a boundary crossing and a blocking call per
+// path, which dominates on services whose queueing is just a buffer insert. This
+// hands the whole slice over at once. Every path is queued with default options,
+// so callers that need per-path options must use Delete.
+func (d *Deleter) deleteMany(paths []string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.inner == nil {
+		return ErrDeleterClosed
+	}
+	// An empty slice is handled by the FFI wrapper and the C side; Remove, the
+	// only caller, already skips creating a deleter for it.
+	return ffiDeleterDeleteMany.symbol(d.ctx)(d.inner, paths)
+}
+
 // Flush hands the queued deletions to the service, waits for them to complete,
 // and keeps the Deleter usable.
 //
@@ -244,6 +261,9 @@ func (op *Operator) WithDeleter(fn func(d *Deleter) error) error {
 // waits for the deletions. Services that support batch deletion remove the paths
 // in batches.
 //
+// Remove queues the whole slice in one crossing of the FFI boundary rather than
+// one per path.
+//
 // Remove is not atomic. Queueing stops at the first path the service rejects, but
 // the service may already have deleted an earlier batch, so a failed Remove can
 // still leave some paths gone. Every path is deleted with default options; use
@@ -270,12 +290,7 @@ func (op *Operator) Remove(paths []string) error {
 		return nil
 	}
 	return op.WithDeleter(func(d *Deleter) error {
-		for _, path := range paths {
-			if err := d.Delete(path); err != nil {
-				return err
-			}
-		}
-		return nil
+		return d.deleteMany(paths)
 	})
 }
 
@@ -313,6 +328,43 @@ var ffiDeleterDelete = newFFI(ffiOpts{
 			unsafe.Pointer(&d),
 			unsafe.Pointer(&bytePath),
 		)
+		return parseError(ctx, e)
+	}
+})
+
+var ffiDeleterDeleteMany = newFFI(ffiOpts{
+	sym:    "opendal_deleter_delete_many",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(d *opendalDeleter, paths []string) error {
+	return func(d *opendalDeleter, paths []string) error {
+		pathData := make([][]byte, len(paths))
+		pathPointers := make([]*byte, len(paths))
+		for i, path := range paths {
+			data, err := byteSliceFromString(path)
+			if err != nil {
+				return err
+			}
+			pathData[i] = data
+			pathPointers[i] = &data[0]
+		}
+
+		var pathsPtr **byte
+		if len(pathPointers) > 0 {
+			pathsPtr = &pathPointers[0]
+		}
+		var e *opendalError
+		pathsLen := uint(len(paths))
+		ffiCall(
+			unsafe.Pointer(&e),
+			unsafe.Pointer(&d),
+			unsafe.Pointer(&pathsPtr),
+			unsafe.Pointer(&pathsLen),
+		)
+		// The C side reads through pathsPtr into the Go buffers behind pathData.
+		// Keep both reachable until the native call above has returned.
+		runtime.KeepAlive(pathData)
+		runtime.KeepAlive(pathPointers)
 		return parseError(ctx, e)
 	}
 })

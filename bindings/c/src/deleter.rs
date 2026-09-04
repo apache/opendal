@@ -39,6 +39,7 @@ use super::*;
 ///
 /// @see opendal_operator_deleter()
 /// @see opendal_deleter_delete()
+/// @see opendal_deleter_delete_many()
 /// @see opendal_deleter_delete_with()
 /// @see opendal_deleter_flush()
 #[repr(C)]
@@ -89,6 +90,66 @@ impl opendal_deleter {
         // Deleting with default options is the same operation, so keep one copy
         // of the path decoding and dispatch.
         self.opendal_deleter_delete_with(path, std::ptr::null())
+    }
+
+    /// \brief Queue multiple paths for deletion.
+    ///
+    /// This function queues every path in one call. Callers deleting a known set
+    /// of paths should prefer it over calling `opendal_deleter_delete` in a loop:
+    /// it crosses the C boundary once instead of once per path, and it queues the
+    /// whole set inside a single blocking call rather than one per path. The paths
+    /// are not necessarily removed when this function returns: call
+    /// `opendal_deleter_flush` to hand the queue to the service and wait for the
+    /// deletions to complete.
+    ///
+    /// Every path is queued with default options. Use `opendal_deleter_delete_with`
+    /// for a path that needs its own version or recursive flag.
+    ///
+    /// Queueing stops at the first path the service rejects, so the paths after it
+    /// are never queued.
+    ///
+    /// @param paths The designated paths you want to delete
+    /// @param paths_len The number of paths in `paths`
+    /// @return NULL if all paths are queued, otherwise it contains the error code
+    /// and error message.
+    ///
+    /// # Safety
+    ///
+    /// * When `paths_len` is greater than zero, `paths` must point to an array of
+    ///   `paths_len` pointers.
+    /// * Every pointer in `paths` must point to a string with a valid nul
+    ///   terminator.
+    ///
+    /// # Panic
+    ///
+    /// * If `paths` or any pointer in `paths` is NULL when `paths_len` is greater
+    ///   than zero, this function panics.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_delete_many(
+        &mut self,
+        paths: *const *const c_char,
+        paths_len: usize,
+    ) -> *mut opendal_error {
+        if paths_len == 0 {
+            return std::ptr::null_mut();
+        }
+
+        assert!(!paths.is_null());
+        let paths = std::slice::from_raw_parts(paths, paths_len)
+            .iter()
+            .map(|path| {
+                assert!(!path.is_null());
+                std::ffi::CStr::from_ptr(*path)
+                    .to_str()
+                    .expect("malformed path")
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+
+        match self.deref_mut().delete_iter(paths) {
+            Ok(()) => std::ptr::null_mut(),
+            Err(e) => opendal_error::new(e),
+        }
     }
 
     /// \brief Queue `path` for deletion with options.

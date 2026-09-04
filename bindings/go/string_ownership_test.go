@@ -1624,6 +1624,7 @@ func TestFfiDeleterSignatures(t *testing.T) {
 	}{
 		{name: "ffiOperatorDeleter", opts: ffiOperatorDeleter.opts, rType: &typeResultOperatorDeleter, aTypesLen: 1},
 		{name: "ffiDeleterDelete", opts: ffiDeleterDelete.opts, rType: &ffi.TypePointer, aTypesLen: 2},
+		{name: "ffiDeleterDeleteMany", opts: ffiDeleterDeleteMany.opts, rType: &ffi.TypePointer, aTypesLen: 3},
 		{name: "ffiDeleterDeleteWith", opts: ffiDeleterDeleteWith.opts, rType: &ffi.TypePointer, aTypesLen: 3},
 		{name: "ffiDeleterFlush", opts: ffiDeleterFlush.opts, rType: &ffi.TypePointer, aTypesLen: 1},
 		{name: "ffiDeleterFree", opts: ffiDeleterFree.opts, rType: &ffi.TypeVoid, aTypesLen: 1},
@@ -1640,6 +1641,58 @@ func TestFfiDeleterSignatures(t *testing.T) {
 				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", tc.name, i, at)
 			}
 		}
+	}
+}
+
+func TestFfiDeleterDeleteManyMarshalsPaths(t *testing.T) {
+	deleterInner := newTestDeleterHandle()
+	want := []string{"a.txt", "b.txt", "nested/c.txt"}
+	calls := 0
+
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+		calls++
+		if len(aValues) != 3 {
+			t.Fatalf("delete many received %d arguments, want 3", len(aValues))
+		}
+		if got := *(**opendalDeleter)(aValues[0]); got != deleterInner {
+			t.Fatalf("deleter = %p, want %p", got, deleterInner)
+		}
+
+		pathsLen := *(*uint)(aValues[2])
+		if pathsLen != uint(len(want)) {
+			t.Fatalf("paths len = %d, want %d", pathsLen, len(want))
+		}
+		pathsPtr := *(***byte)(aValues[1])
+		paths := unsafe.Slice(pathsPtr, int(pathsLen))
+		for i, path := range paths {
+			if got := BytePtrToString(path); got != want[i] {
+				t.Fatalf("path[%d] = %q, want %q", i, got, want[i])
+			}
+		}
+		*(**opendalError)(rValue) = nil
+	})
+
+	if err := deleteMany(deleterInner, want); err != nil {
+		t.Fatalf("delete many failed: %v", err)
+	}
+	// One crossing for the whole slice is the point of this entry point.
+	if calls != 1 {
+		t.Fatalf("delete many called FFI %d times, want 1", calls)
+	}
+}
+
+func TestFfiDeleterDeleteManyRejectsNulBeforeCall(t *testing.T) {
+	called := false
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(unsafe.Pointer, ...unsafe.Pointer) {
+		called = true
+	})
+
+	err := deleteMany(newTestDeleterHandle(), []string{"a.txt", "bad\x00path"})
+	if err == nil {
+		t.Fatal("delete many with a nul path succeeded")
+	}
+	if called {
+		t.Fatal("delete many called FFI after path validation failed")
 	}
 }
 
@@ -1820,7 +1873,7 @@ func TestDeleterFlushKeepsDeleterUsable(t *testing.T) {
 	}
 }
 
-func TestRemoveQueuesEveryPathThenCloses(t *testing.T) {
+func TestRemoveQueuesEveryPathInOneCrossingThenCloses(t *testing.T) {
 	deleterInner := newTestDeleterHandle()
 	var calls deleterCalls
 
@@ -1831,8 +1884,13 @@ func TestRemoveQueuesEveryPathThenCloses(t *testing.T) {
 		t.Fatalf("Remove failed: %v", err)
 	}
 	assertPaths(t, calls.deleted, []string{"a.txt", "b.txt", "c.txt"})
-	if calls.perPath != 3 {
-		t.Fatalf("Remove queued %d paths, want 3", calls.perPath)
+	// Remove exists to hand the whole slice over at once. Queueing per path would
+	// still pass the assertion above, so pin the crossing count down too.
+	if calls.bulk != 1 {
+		t.Fatalf("Remove made %d bulk calls, want 1", calls.bulk)
+	}
+	if calls.perPath != 0 {
+		t.Fatalf("Remove queued %d paths one at a time, want 0", calls.perPath)
 	}
 	if calls.flushes != 1 || calls.freed != 1 {
 		t.Fatalf("deleter flushed %d times and freed %d times, want 1 and 1", calls.flushes, calls.freed)
@@ -1932,9 +1990,12 @@ func newTestDeleterHandle() *opendalDeleter {
 	return (*opendalDeleter)(unsafe.Pointer(new(byte)))
 }
 
-// deleterCalls records what the stubbed deleter FFI saw.
+// deleterCalls records what the stubbed deleter FFI saw. Separating bulk from
+// perPath is what lets a test tell "queued the slice at once" apart from "queued
+// the same paths one crossing at a time".
 type deleterCalls struct {
 	deleted []string
+	bulk    int
 	perPath int
 	flushes int
 	freed   int
@@ -1958,6 +2019,17 @@ func newDeleterTestContext(t *testing.T, inner *opendalDeleter, calls *deleterCa
 		calls.deleted = append(calls.deleted, path)
 		if deleteFn != nil {
 			return deleteFn([]string{path})
+		}
+		return nil
+	})
+	ctx = context.WithValue(ctx, ffiDeleterDeleteMany.opts.sym, func(d *opendalDeleter, paths []string) error {
+		if d != inner {
+			t.Fatalf("deleter = %p, want %p", d, inner)
+		}
+		calls.bulk++
+		calls.deleted = append(calls.deleted, paths...)
+		if deleteFn != nil {
+			return deleteFn(paths)
 		}
 		return nil
 	})

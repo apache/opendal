@@ -86,7 +86,7 @@ impl HfLister {
         recursive: bool,
         cursor: Option<&str>,
     ) -> Result<FileTree> {
-        let uri = self.core.canonical_uri(&self.ctx, path).await?;
+        let uri = self.core.uri(path);
         let url = uri.file_tree_url(&self.core.endpoint, recursive, cursor);
 
         let req = self
@@ -94,7 +94,7 @@ impl HfLister {
             .request(http::Method::GET, &url, Operation::List, "FileTree")?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let resp = self.ctx.http_transport().fetch(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
         if !resp.status().is_success() {
             let (parts, _) = resp.into_parts();
             return Err(parse_error(

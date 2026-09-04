@@ -55,6 +55,44 @@ public static class Utilities
 	}
 
 	/// <summary>
+	/// Reads two parallel native arrays of UTF-8 C strings into a dictionary.
+	/// </summary>
+	/// <param name="keysPtr">Pointer to an array of <paramref name="len"/> key string pointers.</param>
+	/// <param name="valuesPtr">Pointer to an array of <paramref name="len"/> value string pointers.</param>
+	/// <param name="len">Number of pairs.</param>
+	/// <param name="comparer">Key comparer for the resulting dictionary.</param>
+	/// <returns>A dictionary holding the decoded pairs; a later duplicate key wins.</returns>
+	/// <exception cref="InvalidOperationException"><paramref name="len"/> exceeds <see cref="int.MaxValue"/>.</exception>
+	internal static unsafe Dictionary<string, string> ReadStringPairs(
+		IntPtr keysPtr,
+		IntPtr valuesPtr,
+		nuint len,
+		StringComparer comparer)
+	{
+		if (len == 0 || keysPtr == IntPtr.Zero || valuesPtr == IntPtr.Zero)
+		{
+			return new Dictionary<string, string>(comparer);
+		}
+
+		if (len > int.MaxValue)
+		{
+			throw new InvalidOperationException("Native string pair array exceeds supported size");
+		}
+
+		var count = (int)len;
+		var keys = new ReadOnlySpan<IntPtr>((void*)keysPtr, count);
+		var values = new ReadOnlySpan<IntPtr>((void*)valuesPtr, count);
+
+		var result = new Dictionary<string, string>(count, comparer);
+		for (var index = 0; index < count; index++)
+		{
+			result[ReadUtf8(keys[index])] = ReadUtf8(values[index]);
+		}
+
+		return result;
+	}
+
+	/// <summary>
 	/// Formats a managed value into the option string expected by OpenDAL service configs.
 	/// </summary>
 	/// <param name="value">Managed value to format.</param>

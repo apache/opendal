@@ -126,6 +126,15 @@ var (
 		}[0],
 	}
 
+	typeResultOperatorDeleter = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeResultCopierNext = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -339,6 +348,13 @@ type resultCopierNext struct {
 	size     uint
 	has_next uint8
 	error    *opendalError
+}
+
+type opendalDeleter struct{}
+
+type resultOperatorDeleter struct {
+	deleter *opendalDeleter
+	error   *opendalError
 }
 
 type resultReaderRead struct {

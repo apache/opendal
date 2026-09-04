@@ -24,6 +24,7 @@ use serde::Serialize;
 use std::fmt::Debug;
 
 use super::HUGGINGFACE_SCHEME;
+use opendal_core::raw::SignedDuration;
 
 /// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,6 +61,19 @@ pub struct HfConfig {
     ///
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
+    /// How long a path's XET classification is reused before a read probes
+    /// it again.
+    ///
+    /// In `xet` download mode every read first asks `/resolve` whether the
+    /// path is XET-backed. The answer is cached per path on the operator so
+    /// callers that open a fresh reader per range pay for it once. Writes
+    /// and deletes through this operator drop their own paths immediately;
+    /// this bounds how long a change made elsewhere to a floating revision
+    /// such as `main` can stay invisible. `0s` disables the cache.
+    ///
+    /// Default is `10s`. Accepts humantime-style strings such as `500ms`
+    /// or `2m` when set through a URI or `from_iter`.
+    pub resolve_cache_ttl: Option<SignedDuration>,
 }
 
 impl Debug for HfConfig {
@@ -73,6 +87,7 @@ impl Debug for HfConfig {
             .field("revision", &self.revision)
             .field("root", &self.root)
             .field("download_mode", &self.download_mode)
+            .field("resolve_cache_ttl", &self.resolve_cache_ttl)
             .finish_non_exhaustive()
     }
 }
@@ -105,6 +120,19 @@ impl opendal_core::Configurator for HfConfig {
             .get("download_mode")
             .map(|s| HfDownloadMode::parse(s))
             .transpose()?;
+        let resolve_cache_ttl = opts
+            .get("resolve_cache_ttl")
+            .map(|s| {
+                s.parse::<SignedDuration>().map_err(|err| {
+                    opendal_core::Error::new(
+                        opendal_core::ErrorKind::ConfigInvalid,
+                        "failed to parse resolve_cache_ttl",
+                    )
+                    .with_context("service", HUGGINGFACE_SCHEME)
+                    .set_source(err)
+                })
+            })
+            .transpose()?;
 
         if !path.is_empty() {
             // Full URI like "hf://datasets/user/repo@rev/path"
@@ -117,6 +145,7 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                resolve_cache_ttl,
             })
         } else {
             // Bare scheme from via_iter, all config is in options.
@@ -138,12 +167,16 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                resolve_cache_ttl,
             })
         }
     }
 
     fn into_builder(self) -> Self::Builder {
-        HfBuilder { config: self }
+        HfBuilder {
+            config: self,
+            resolve_cache_ttl: None,
+        }
     }
 }
 
@@ -152,6 +185,16 @@ mod tests {
     use super::*;
     use opendal_core::Configurator;
     use opendal_core::OperatorUri;
+
+    #[test]
+    fn from_iter_parses_resolve_cache_ttl() -> opendal_core::Result<()> {
+        let cfg = HfConfig::from_iter([("resolve_cache_ttl".to_string(), "500ms".to_string())])?;
+        assert_eq!(
+            cfg.resolve_cache_ttl,
+            Some(SignedDuration::from_millis(500))
+        );
+        Ok(())
+    }
 
     #[test]
     fn from_uri_with_all_components() {
@@ -190,6 +233,38 @@ mod tests {
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/huggingface-testdata"));
         assert_eq!(cfg.revision.as_deref(), Some("main"));
         assert_eq!(cfg.root.as_deref(), Some("/testdata/"));
+    }
+
+    #[test]
+    fn from_uri_parses_resolve_cache_ttl() {
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "dataset".to_string()),
+                ("repo_id".to_string(), "user/repo".to_string()),
+                ("resolve_cache_ttl".to_string(), "2m".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = HfConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.resolve_cache_ttl, Some(SignedDuration::from_mins(2)));
+    }
+
+    #[test]
+    fn from_uri_rejects_malformed_resolve_cache_ttl() {
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "dataset".to_string()),
+                ("repo_id".to_string(), "user/repo".to_string()),
+                ("resolve_cache_ttl".to_string(), "soon".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let err = HfConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
     }
 
     #[test]

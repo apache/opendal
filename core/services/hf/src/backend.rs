@@ -17,13 +17,14 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use log::debug;
 
 use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
-use super::core::HfDownloadMode;
+use super::core::{DEFAULT_RESOLVE_CACHE_TTL, HfDownloadMode};
 use super::core::{HfRepo, HfRepoType};
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
@@ -37,6 +38,7 @@ use opendal_core::*;
 #[derive(Debug, Default)]
 pub struct HfBuilder {
     pub(super) config: HfConfig,
+    pub(super) resolve_cache_ttl: Option<Duration>,
 }
 
 impl HfBuilder {
@@ -160,6 +162,26 @@ impl HfBuilder {
             .to_string()
     }
 
+    /// Set how long a path's XET classification is reused before a read
+    /// probes `/resolve` again. See [`HfConfig::resolve_cache_ttl`] for what
+    /// the cache covers and what it does not. `Duration::ZERO` disables it.
+    ///
+    /// Default is 10 seconds. Takes precedence over the config value.
+    pub fn resolve_cache_ttl(mut self, ttl: Duration) -> Self {
+        self.resolve_cache_ttl = Some(ttl);
+        self
+    }
+
+    /// Resolve the classification cache TTL: the builder value wins, then the
+    /// config value, then the default.
+    fn hf_resolve_cache_ttl(&self) -> Result<Duration> {
+        match (self.resolve_cache_ttl, self.config.resolve_cache_ttl) {
+            (Some(ttl), _) => Ok(ttl),
+            (None, Some(ttl)) => signed_duration_to_duration(ttl),
+            (None, None) => Ok(DEFAULT_RESOLVE_CACHE_TTL),
+        }
+    }
+
     /// Resolve the download mode: an explicit config value wins; otherwise a set,
     /// non-empty HF_HUB_DISABLE_XET (a huggingface_hub env var) forces http; default Xet.
     fn hf_download_mode(&self) -> HfDownloadMode {
@@ -222,6 +244,7 @@ impl Builder for HfBuilder {
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
         let download_mode = self.hf_download_mode();
+        let resolve_cache_ttl = self.hf_resolve_cache_ttl()?;
 
         let repo_type = self.config.repo_type.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "repo_type is required")
@@ -248,6 +271,7 @@ impl Builder for HfBuilder {
         debug!("backend use token: {}", token.is_some());
         debug!("backend use endpoint: {}", endpoint);
         debug!("backend use download_mode: {:?}", download_mode);
+        debug!("backend use resolve_cache_ttl: {:?}", resolve_cache_ttl);
 
         let info = ServiceInfo::new(HF_SCHEME, "", "");
         let capability = Capability {
@@ -275,6 +299,7 @@ impl Builder for HfBuilder {
                 token,
                 endpoint,
                 download_mode,
+                resolve_cache_ttl,
             )?),
         })
     }
@@ -416,7 +441,7 @@ impl Service for HfBackend {
 pub(super) mod test_utils {
     use std::sync::Arc;
 
-    use super::super::core::{HfCore, HfDownloadMode};
+    use super::super::core::{DEFAULT_RESOLVE_CACHE_TTL, HfCore, HfDownloadMode};
     use super::super::core::{HfRepo, HfRepoType};
     use super::HfBuilder;
     use opendal_core::Capability;
@@ -477,6 +502,7 @@ pub(super) mod test_utils {
                 Some(token),
                 "https://huggingface.co".to_string(),
                 HfDownloadMode::Xet,
+                DEFAULT_RESOLVE_CACHE_TTL,
             )
             .expect("failed to build HfCore"),
         )
@@ -595,6 +621,30 @@ mod tests {
         let result = HfBuilder::default().hf_endpoint();
         unsafe { std::env::remove_var("HF_ENDPOINT") };
         assert_eq!(result, "https://env.example.com");
+    }
+
+    #[test]
+    fn hf_resolve_cache_ttl_defaults_builder_wins_over_config() -> Result<()> {
+        assert_eq!(
+            HfBuilder::default().hf_resolve_cache_ttl()?,
+            DEFAULT_RESOLVE_CACHE_TTL
+        );
+
+        let mut from_config = HfBuilder::default();
+        from_config.config.resolve_cache_ttl = Some(SignedDuration::from_secs(2));
+        assert_eq!(from_config.hf_resolve_cache_ttl()?, Duration::from_secs(2));
+
+        let mut both = HfBuilder::default().resolve_cache_ttl(Duration::ZERO);
+        both.config.resolve_cache_ttl = Some(SignedDuration::from_secs(2));
+        assert_eq!(both.hf_resolve_cache_ttl()?, Duration::ZERO);
+
+        let mut negative = HfBuilder::default();
+        negative.config.resolve_cache_ttl = Some(SignedDuration::from_secs(-1));
+        assert_eq!(
+            negative.hf_resolve_cache_ttl().unwrap_err().kind(),
+            ErrorKind::ConfigInvalid
+        );
+        Ok(())
     }
 
     #[test]

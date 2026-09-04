@@ -45,6 +45,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? RepoType { get; init; }
         /// <summary>
+        /// How long a path's XET classification is reused before a read probes it again. In `xet` download mode every read first asks `/resolve` whether the path is XET-backed. The answer is cached per path on the operator so callers that open a fresh reader per range pay for it once. Writes and deletes through this operator drop their own paths immediately; this bounds how long a change made elsewhere to a floating revision such as `main` can stay invisible. `0s` disables the cache. Default is `10s`. Accepts humantime-style strings such as `500ms` or `2m` when set through a URI or `from_iter`.
+        /// </summary>
+        public string? ResolveCacheTtl { get; init; }
+        /// <summary>
         /// Revision of this backend. Default is main.
         /// </summary>
         public string? Revision { get; init; }
@@ -77,6 +81,10 @@ namespace OpenDAL.ServiceConfig
             if (RepoType is not null)
             {
                 map["repo_type"] = Utilities.ToOptionString(RepoType);
+            }
+            if (ResolveCacheTtl is not null)
+            {
+                map["resolve_cache_ttl"] = Utilities.ToOptionString(ResolveCacheTtl);
             }
             if (Revision is not null)
             {

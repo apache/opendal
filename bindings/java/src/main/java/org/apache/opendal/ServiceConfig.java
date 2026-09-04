@@ -1696,6 +1696,19 @@ public interface ServiceConfig {
          */
         public final String repoType;
         /**
+         * <p>How long a path's XET classification is reused before a read probes
+         * it again.</p>
+         * <p>In <code>xet</code> download mode every read first asks <code>/resolve</code> whether the
+         * path is XET-backed. The answer is cached per path on the operator so
+         * callers that open a fresh reader per range pay for it once. Writes
+         * and deletes through this operator drop their own paths immediately;
+         * this bounds how long a change made elsewhere to a floating revision
+         * such as <code>main</code> can stay invisible. <code>0s</code> disables the cache.</p>
+         * <p>Default is <code>10s</code>. Accepts humantime-style strings such as <code>500ms</code>
+         * or <code>2m</code> when set through a URI or <code>from_iter</code>.</p>
+         */
+        public final Duration resolveCacheTtl;
+        /**
          * <p>Revision of this backend.</p>
          * <p>Default is main.</p>
          */
@@ -1730,6 +1743,9 @@ public interface ServiceConfig {
             }
             if (repoType != null) {
                 map.put("repo_type", repoType);
+            }
+            if (resolveCacheTtl != null) {
+                map.put("resolve_cache_ttl", resolveCacheTtl.toString());
             }
             if (revision != null) {
                 map.put("revision", revision);

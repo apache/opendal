@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
 use suppaftp::FtpError;
 use suppaftp::Status;
 use suppaftp::tokio::AsyncRustlsConnector;

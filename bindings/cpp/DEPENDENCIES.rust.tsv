@@ -1,6 +1,6 @@
 crate	Apache-2.0	Apache-2.0 WITH LLVM-exception	BSD-3-Clause	CC0-1.0	CDLA-Permissive-2.0	ISC	LGPL-2.1-or-later	MIT	MIT-0	Unicode-3.0	Unlicense	Zlib
 anyhow@1.0.104	X							X				
-asyncband@0.6.7	X											
+asyncband@0.7.0	X											
 atomic-waker@1.1.2	X							X				
 aws-lc-rs@1.18.0	X					X						
 aws-lc-sys@0.44.0	X		X			X		X	X			

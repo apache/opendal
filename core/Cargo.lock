@@ -353,13 +353,9 @@ dependencies = [
 
 [[package]]
 name = "asyncband"
-version = "0.6.7"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a214ba60d6231afd0e805e3c27c45a1626d9debaa5a5061c45a1ea1b2f1ed0"
-dependencies = [
- "hashbrown 0.17.1",
- "slab",
-]
+checksum = "9c0760bfe4d98dc80094270772af5a31eb431bb2212d2ce559a3af18d04632fb"
 
 [[package]]
 name = "atoi"
@@ -3038,16 +3034,6 @@ dependencies = [
  "bnum",
  "num-integer",
  "num-traits",
-]
-
-[[package]]
-name = "fastpool"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "505402589aaeb2f89357bf8dfb259046c693a3c9a68b874a0ca8c0fb99e0fb4c"
-dependencies = [
- "mea",
- "scopeguard",
 ]
 
 [[package]]
@@ -6892,8 +6878,8 @@ dependencies = [
 name = "opendal-service-etcd"
 version = "0.59.0"
 dependencies = [
+ "asyncband",
  "etcd-client",
- "fastpool",
  "opendal-core",
  "serde",
  "tokio",
@@ -6940,8 +6926,8 @@ dependencies = [
 name = "opendal-service-ftp"
 version = "0.59.0"
 dependencies = [
+ "asyncband",
  "bytes",
- "fastpool",
  "http 1.4.2",
  "log",
  "opendal-core",
@@ -7177,7 +7163,7 @@ dependencies = [
 name = "opendal-service-memcached"
 version = "0.59.0"
 dependencies = [
- "fastpool",
+ "asyncband",
  "opendal-core",
  "serde",
  "tokio",
@@ -7350,8 +7336,8 @@ dependencies = [
 name = "opendal-service-redis"
 version = "0.59.0"
 dependencies = [
+ "asyncband",
  "bytes",
- "fastpool",
  "http 1.4.2",
  "opendal-core",
  "redis",
@@ -7411,8 +7397,8 @@ name = "opendal-service-sftp"
 version = "0.59.0"
 dependencies = [
  "anyhow",
+ "asyncband",
  "bytes",
- "fastpool",
  "futures",
  "log",
  "opendal-core",
@@ -7551,7 +7537,6 @@ name = "opendal-service-webdav"
 version = "0.59.0"
 dependencies = [
  "anyhow",
- "asyncband",
  "bytes",
  "http 1.4.2",
  "log",

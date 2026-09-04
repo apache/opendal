@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use asyncband::pool::ManageObject;
+use asyncband::pool::ObjectStatus;
+use asyncband::pool::bounded;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
 use std::fmt::Debug;
 use std::sync::Arc;
 

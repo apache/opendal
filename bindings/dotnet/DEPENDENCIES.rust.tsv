@@ -15,7 +15,7 @@ async-recursion@0.3.2		X									X
 async-stream@0.3.6											X					
 async-stream-impl@0.3.6											X					
 async-trait@0.1.92		X									X					
-asyncband@0.6.7		X														
+asyncband@0.7.0		X														
 atoi@2.0.0											X					
 atomic-waker@1.1.2		X									X					
 auto-const-array@0.2.2		X									X					
@@ -136,7 +136,6 @@ etcetera@0.8.0		X									X
 event-listener@5.4.2		X									X					
 event-listener-strategy@0.5.4		X									X					
 fail@0.4.0		X														
-fastpool@1.1.1		X														
 fastrand@2.5.0		X									X					
 find-msvc-tools@0.1.11		X									X					
 fixedbitset@0.5.7		X									X					

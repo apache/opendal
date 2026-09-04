@@ -32,7 +32,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-fastpool = "1.0.2"
+asyncband = { workspace = true, features = ["pool"] }
 opendal-core = { path = "../../core", version = "0.59.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["io-util", "macros", "net", "time"] }

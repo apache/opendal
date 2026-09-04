@@ -12,7 +12,7 @@ arcstr@1.2.0	X									X					X
 arrayvec@0.7.8	X									X					
 async-lock@3.4.2	X									X					
 async-trait@0.1.92	X									X					
-asyncband@0.6.7	X														
+asyncband@0.7.0	X														
 atoi@2.0.0										X					
 atomic-waker@1.1.2	X									X					
 autocfg@1.5.1	X									X					
@@ -115,7 +115,6 @@ error-chain@0.12.4	X									X
 etcetera@0.8.0	X									X					
 event-listener@5.4.2	X									X					
 event-listener-strategy@0.5.4	X									X					
-fastpool@1.1.1	X														
 fastrand@2.5.0	X									X					
 find-msvc-tools@0.1.11	X									X					
 flume@0.11.1	X									X					

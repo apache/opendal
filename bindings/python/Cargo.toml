@@ -200,7 +200,7 @@ doc = false
 name = "_opendal"
 
 [dependencies]
-asyncband = { version = "0.6" }
+asyncband = { version = "0.7", features = ["mutex"] }
 bytes = "1.10.1"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }

@@ -45,6 +45,7 @@
         <None Include="../README.md" Pack="true" PackagePath="" />
         <None Include="../LICENSE" Pack="true" PackagePath="" />
         <None Include="../LICENSE-MPL-2.0.txt" Pack="true" PackagePath="" />
+        <None Include="../LICENSE-CC0-1.0.txt" Pack="true" PackagePath="" />
         <None Include="../NOTICE" Pack="true" PackagePath="" />
         <None Include="runtimes\win-x64\native\opendal_dotnet.dll"
             Pack="true"

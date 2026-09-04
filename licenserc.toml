@@ -44,3 +44,8 @@ excludes = [
   "bindings/dart/opendal_api.dart",
   "*generated*",
 ]
+
+# HawkEye's default mapping does not cover .NET project and solution files,
+# which are XML documents and accept XML comments.
+[mapping.XML_STYLE]
+extensions = ["csproj", "slnx"]

@@ -118,6 +118,20 @@ The `oio::Read`, `oio::Write`, and `oio::List` traits are asynchronous. A C ABI 
 - A `Ready` poll clones and allocates nothing: the plugin fills `out` and returns. The plugin clones the waker into an owned form only when it returns `Pending`, so it can wake the task once the parked work makes progress. The host then polls again.
 - The host wraps the future handle in a Rust `Future`, so the plugin drives both the asynchronous operator and the blocking operator through the same handle.
 
+```text
+host (Rust Future)                         plugin.so (future handle)
+  |  poll(handle, &waker, out) ----------->|  work not done yet
+  |                                         |  clone waker -> owned
+  |<-- Pending -----------------------------|  park, return
+  |  (task suspends)                        |
+  |                                    ...  |  parked work makes progress
+  |<-- wake() ------------------------------|  owned waker fires
+  |  poll(handle, &waker, out) ----------->|  work done
+  |                                         |  fill out, no clone, no alloc
+  |<-- Ready -------------------------------|  return
+  |  drop(handle) ------------------------->|  release future resources
+```
+
 The RFC selects the poll model over a blocking-thread model. In the blocking-thread model each plugin operation blocks and the host runs it with `spawn_blocking`, which has a smaller ABI surface but blocks one runtime worker for each operation in flight. It does not scale for a service with high concurrency, such as S3. The poll model keeps true asynchronous behavior and uses no extra threads, at the cost of more ABI surface.
 
 The host owns the one tokio runtime. A plugin never starts its own runtime and never blocks inside a `poll` call, so the whole process shares that single runtime. A plugin that wraps a native asynchronous dependency bridges it to the poll model behind its own handle rather than start a second runtime.

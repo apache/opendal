@@ -104,6 +104,9 @@ jobs:
           sccache: true
           manylinux: ${{ matrix.manylinux || 'auto' }}
 
+      - name: Identify bundled wheel runtimes
+        run: python .github/scripts/release_python/wheels.py bindings/python/dist
+
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:

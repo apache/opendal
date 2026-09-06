@@ -92,5 +92,5 @@ components. Their source code is available from the linked project pages:
 The distribution includes the MPL-2.0 text in `LICENSE-MPL-2.0.txt`.
 
 Musllinux wheels also bundle `libgcc_s`, the [GCC runtime library](https://gcc.gnu.org/),
-licensed under `GPL-3.0-or-later WITH GCC-exception-3.1`. Its license and exception
-texts are included in `LICENSE-GPL-3.0.txt` and `LICENSE-GCC-exception-3.1.txt`.
+licensed under `GPL-3.0-or-later WITH GCC-exception-3.1`. The complete license and
+exception texts are included in `LICENSE-libgcc.txt`.

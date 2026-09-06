@@ -28,8 +28,7 @@ description = "Apache OpenDAL™ Python Binding"
 license = "Apache-2.0"
 license-files = [
   "LICENSE",
-  "LICENSE-GCC-exception-3.1.txt",
-  "LICENSE-GPL-3.0.txt",
+  "LICENSE-libgcc.txt",
   "LICENSE-MPL-2.0.txt",
   "NOTICE",
 ]

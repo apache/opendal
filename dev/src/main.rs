@@ -62,7 +62,13 @@ enum Commands {
     /// Update the version of all packages.
     UpdateVersion,
     /// Create all the release artifacts.
-    Release,
+    Release {
+        /// Build source archives without invoking GPG.
+        #[arg(long)]
+        unsigned: bool,
+    },
+    /// Print the source package inventory as JSON.
+    ReleasePackages,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -71,6 +77,7 @@ fn main() -> anyhow::Result<()> {
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
         Commands::UpdateVersion => release::update_version(),
-        Commands::Release => release::archive_package(),
+        Commands::Release { unsigned } => release::archive_package(!unsigned),
+        Commands::ReleasePackages => release::print_packages(),
     }
 }

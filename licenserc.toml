@@ -20,7 +20,7 @@ headerPath = "Apache-2.0-ASF.txt"
 excludes = [
   # Preserve third-party license headers.
   "core/services/gcs-grpc/proto/google/storage/v2/storage.proto",
-  ".github/scripts/release_python/licenses/**",
+  "bindings/python/LICENSE-*.txt",
 
   # Well known generated files
   "**/Cargo.lock",

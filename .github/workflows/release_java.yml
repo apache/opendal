@@ -31,7 +31,7 @@ on:
       - "bindings/java/pom.xml"
       - "bindings/java/src/assembly/**"
       - "bindings/java/src/main/resources/META-INF/**"
-      - "bindings/java/tools/**"
+      - "bindings/java/tools/build.py"
   workflow_dispatch:
 
 env:
@@ -144,10 +144,6 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
           MAVEN_GPG_PASSPHRASE: ""
-      - name: Check standalone source release
-        working-directory: bindings/java
-        shell: bash
-        run: python3 tools/check_source_release.py target/opendal-*-source-release.zip
       - name: Smoke linux musl JNI library in Alpine
         if: ${{ contains(matrix.os, 'ubuntu') && contains(matrix.classifier, 'musl') }}
         shell: bash

@@ -207,6 +207,17 @@ fn write_archive(
     Ok(())
 }
 
+fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = digest.as_ref();
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,15 +292,4 @@ mod tests {
         assert!(archive_entries(b"160000 a 0\tsubmodule\0").is_err());
         Ok(())
     }
-}
-
-fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
-    use std::fmt::Write;
-
-    let digest = digest.as_ref();
-    let mut output = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
-    }
-    output
 }

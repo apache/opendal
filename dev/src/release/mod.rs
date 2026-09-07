@@ -26,9 +26,34 @@ use std::path::Path;
 mod bump;
 mod package;
 
-pub fn update_version() -> anyhow::Result<()> {
-    let packages = package::all_packages();
-    bump::validate_release_versions(&packages)?;
+pub fn update_version(baseline: Option<&str>, patch: bool) -> anyhow::Result<()> {
+    let baseline = baseline
+        .map(str::to_owned)
+        .map_or_else(bump::latest_final_release_tag, Ok)?;
+    let mut packages = package::all_packages();
+    let inventory = if patch {
+        let mut command = find_command("git", workspace_dir());
+        let output = command
+            .args(["show", &format!("{baseline}:dev/src/release/package.rs")])
+            .output()?;
+        anyhow::ensure!(
+            output.status.success(),
+            "failed to read baseline package inventory"
+        );
+        Some(package::prepare_patch_versions(
+            &mut packages,
+            std::str::from_utf8(&output.stdout)?,
+        )?)
+    } else {
+        None
+    };
+    bump::validate_release_versions(&packages, Some(&baseline))?;
+    if let Some(inventory) = inventory {
+        std::fs::write(
+            workspace_dir().join("dev/src/release/package.rs"),
+            inventory,
+        )?;
+    }
 
     let mut updated = false;
     for package in packages {

@@ -60,7 +60,14 @@ enum Commands {
         language: String,
     },
     /// Update the version of all packages.
-    UpdateVersion,
+    UpdateVersion {
+        /// Compare versions against the last successful release.
+        #[arg(long)]
+        baseline: Option<String>,
+        /// Prepare at least a patch increment from the baseline for every package.
+        #[arg(long)]
+        patch: bool,
+    },
     /// Create all the release artifacts.
     Release {
         /// Build source archives without invoking GPG.
@@ -76,7 +83,9 @@ fn main() -> anyhow::Result<()> {
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
-        Commands::UpdateVersion => release::update_version(),
+        Commands::UpdateVersion { baseline, patch } => {
+            release::update_version(baseline.as_deref(), patch)
+        }
         Commands::Release { unsigned } => release::archive_package(!unsigned),
         Commands::ReleasePackages => release::print_packages(),
     }

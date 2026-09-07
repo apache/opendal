@@ -29,6 +29,18 @@ on:
         type: string
         required: true
 
+  workflow_call:
+    inputs:
+      candidate:
+        type: string
+        required: true
+      rc:
+        type: string
+        required: true
+    secrets:
+      GPG_SECRET_KEY:
+        required: true
+
 permissions:
   contents: read
 
@@ -38,7 +50,7 @@ concurrency:
 
 jobs:
   source_bundle:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'apache/opendal'
+    if: github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.candidate }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v6
@@ -62,7 +74,9 @@ jobs:
           import os, re, subprocess
           assert re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE"]), "full candidate SHA required"
           assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*", os.environ["RC"]), "RC version required"
-          subprocess.run(["git", "merge-base", "--is-ancestor", os.environ["CANDIDATE"], "HEAD"], check=True)
+          if os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch" and os.environ["GITHUB_WORKFLOW"] == "Compose source candidate on ATR":
+              subprocess.run(["git", "merge-base", "--is-ancestor", os.environ["CANDIDATE"], os.environ["GITHUB_SHA"]], check=True)
+          subprocess.run(["git", "cat-file", "-e", os.environ["CANDIDATE"] + "^{commit}"], check=True)
           PYTHON
       - uses: ./.github/actions/setup
       - name: Prepare unsigned candidate without signing credentials
@@ -89,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.candidate }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v6

@@ -23,7 +23,7 @@ Three jobs separate credentials and responsibilities:
 1. The build job runs the reproduction tool on the candidate in two independent
    checkouts. It retains the complete unsigned source bundle and report as an
    immutable Actions artifact. It has neither signing secrets nor OIDC permission.
-2. The protected `source-release` job downloads that artifact by ID, validates its
+2. The signing job downloads that artifact by ID, validates its
    commit, reproduction report, package inventory and SHA-512 checksums, and signs
    only the expected `.tar.gz` files. Trusted tooling comes from the workflow's
    `main` checkout; candidate scripts are not executed with the key. The public
@@ -70,12 +70,7 @@ reviewed again before upgrading.
    | Vote workflows | Leave empty |
    | Finish workflows | Leave empty |
 
-5. Confirm that the `source-release` environment protection from `.asf.yaml` is
-   active, including main-only deployment and required reviewers. A YAML change
-   alone is not evidence that GitHub applied the protection. The signing key is a
-   repository secret under the documented Infra procedure, so also restrict and
-   review changes to workflows that could access repository secrets.
-6. Set the repository variable `SOURCE_RELEASE_ENABLED=true` only after these
+5. Set the repository variable `SOURCE_RELEASE_ENABLED=true` only after these
    prerequisites are verified. Leave it unset to keep compose disabled.
 
 The repository secret's existence and the public key in KEYS have been verified.

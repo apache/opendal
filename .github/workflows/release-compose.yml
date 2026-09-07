@@ -86,9 +86,6 @@ jobs:
       contents: read
     outputs:
       artifact-id: ${{ steps.signed.outputs.artifact-id }}
-    environment:
-      name: source-release
-      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v7
         with:

@@ -62,15 +62,6 @@ github:
         policies:
           - name: main
             type: branch
-    source-release:
-      required_reviewers: []
-      wait_timer: 0
-      prevent_self_review: false
-      deployment_branch_policy:
-        protected_branches: false
-        policies:
-          - name: main
-            type: branch
   custom_subjects:
     new_discussion: "{title}"
     edit_discussion: "Re: {title}"

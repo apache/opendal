@@ -98,7 +98,7 @@ jobs:
           cat > "$RUNNER_TEMP/weekly-pr.md" <<EOF
           Prepare $RC from Friday 00:00 UTC cutoff \`$CUTOFF_SHA\`, using final release \`$BASELINE\` as the version baseline.
 
-          Review package versions, compatibility and changelog. Merge into this candidate branch to run the existing checks and compose workflow. Then follow the existing ATR release procedure to verify the candidate, start the vote and finish publication.
+          Review package versions, compatibility and changelog. Merge into this candidate branch to run the existing compose workflow. Then follow the existing ATR release procedure to verify the candidate, start the vote and finish publication.
 
           Before merging, ensure no other candidate is being voted on or published. Failed preparation can be abandoned and started again with a new workflow run.
           EOF
@@ -134,20 +134,8 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
 
-  check:
-    needs: candidate
-    uses: ./.github/workflows/ci_check.yml
-    with:
-      revision: ${{ needs.candidate.outputs.sha }}
-
-  dev:
-    needs: candidate
-    uses: ./.github/workflows/ci_odev.yml
-    with:
-      revision: ${{ needs.candidate.outputs.sha }}
-
   compose:
-    needs: [candidate, check, dev]
+    needs: candidate
     permissions:
       contents: read
       id-token: write

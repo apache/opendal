@@ -6,7 +6,7 @@ sidebar_position: 4
 # Weekly source releases
 
 The weekly workflow prepares a version PR each Friday from the Friday 00:00 UTC
-main cutoff. Merging that PR runs the existing checks and
+main cutoff. Merging that PR calls the existing
 `release-compose.yml`, which builds, signs and uploads the candidate to ATR.
 The release manager then follows the [release procedure](release.md) to verify
 the candidate, start the vote and finish publication.

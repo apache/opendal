@@ -7,7 +7,8 @@ sidebar_position: 4
 
 The weekly workflow prepares a release branch each Friday from the Friday
 00:00 UTC main cutoff and directly calls the existing `release-compose.yml` to
-build, sign and upload the candidate to ATR. Manual dispatch runs the same flow.
+build, sign and upload the candidate to ATR. Manual dispatch runs the same flow
+from the selected branch commit at the time of dispatch.
 Preparation creates no version PR and requires no manual merge.
 
 The release manager then follows the [release procedure](release.md) to verify
@@ -15,10 +16,12 @@ the candidate, start the vote and finish publication.
 
 ## Preparation
 
-The workflow selects the latest recorded main push at or before the cutoff.
+Scheduled runs select the latest recorded main push at or before the cutoff.
 Push-run timestamps record arrival on main; commit dates do not. Keep that run
 history until preparation finishes. The first week requires a recorded push before
-the cutoff. Manual dispatch uses the same cutoff and starts a fresh attempt.
+the cutoff. Manual dispatch starts a fresh attempt without requiring earlier push
+history. It uses the dispatch commit even if the branch advances while the run
+is queued.
 
 `update-version --patch` prepares at least a patch increment for each package from
 the latest reachable final release tag, preserving higher inventory versions and

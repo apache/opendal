@@ -1,105 +1,106 @@
 ---
-title: Source archive CI signing proposal
+title: Source archive trusted publishing
 sidebar_position: 6
 ---
 
-# Source archive CI signing proposal
+# Source archive trusted publishing
 
-This proposal requests review of automated OpenPGP signing for OpenDAL source
-`.tar.gz` release archives in `apache/opendal`. It does not enable signing, request
-credentials, introduce a new workflow, or change the release cadence. ASF Security
-review and Infra provisioning are prerequisites for implementation.
+The manually dispatched `release-compose.yml` workflow prepares signed source
+candidates on Apache Trusted Releases (ATR). It remains disabled until ASF Security
+approves the workflow and Infra provisions the project signing key. Normal CI
+continues to build unsigned archives. This workflow does not schedule releases,
+start votes, finish releases, or publish language packages.
 
-## Scope and integration point
+## Workflow boundary
 
-Sign only the source archives enumerated by `dev/src/release/package.rs`, after
-`odev release --unsigned` finishes and the complete artifact inventory and hashes
-are validated. This currently covers 12 core, integration and binding source
-archives. Generate one ASCII-armored detached `.asc` per archive; retain its
-`.sha512` file. Do not sign Git tags, approval documents, wheels, JARs, registry
-packages, arbitrary uploaded files, or executable build tools with this key.
+Dispatch the workflow from `main` with a full reviewed candidate commit SHA and an
+`X.Y.Z-rc.N` candidate version. Initially, the candidate must be reachable from
+`main`, and its core package version must equal `X.Y.Z`. Candidate branches and
+automatic version selection require a separate extension.
 
-The proposed integration extends the existing source packaging and reproduction
-path in `.github/workflows/ci_odev.yml`. Normal pull-request and push checks remain
-unsigned. A later implementation would add a release-manager-initiated run from
-trusted `main`, identifying the exact reviewed candidate commit, and a separately
-protected signing job after packaging. No release signing step is added by this PR.
+Three jobs separate credentials and responsibilities:
 
-Candidate code runs only in the unsigned build job. The signing job downloads that
-run's frozen artifact bundle and verifies the inventory and SHA-512 manifest using
-trusted tooling. It must not execute candidate-provided scripts while holding the
-key. The job's reviewed implementation, allowed refs, environment protection and
-secret scope must be agreed with Security and Infra before activation. Neither a
-PR run nor a tag push by itself authorizes use of the signing key.
+1. The build job runs the reproduction tool on the candidate in two independent
+   checkouts. It retains the complete unsigned source bundle and report as an
+   immutable Actions artifact. It has neither signing secrets nor OIDC permission.
+2. The protected `source-release` job downloads that artifact by ID, validates its
+   commit, reproduction report, package inventory and SHA-512 checksums, and signs
+   only the expected `.tar.gz` files. Trusted tooling comes from the workflow's
+   `main` checkout; candidate scripts are not executed with the key. The public
+   key must already be in OpenDAL KEYS. Each generated signature is verified
+   against the configured primary fingerprint before the signed bundle is saved.
+3. The upload job downloads the signed bundle by ID and uses the commit-pinned
+   `apache/tooling-actions/upload-to-atr` action. GitHub OIDC authorizes a temporary
+   SSH key, and rsync transfers the bundle to ATR compose. This job receives
+   `id-token: write`, but no GPG private key. No SVN credentials or persistent ATR
+   token are needed.
 
-## Human verification and publication
+The signed bundle contains only source `.tar.gz`, `.sha512` and `.asc` files.
+Build logs and reproduction reports stay in Actions. An upload success does not
+mean ATR checks passed: inspect the candidate revision and check results in ATR.
+The upstream upload action is experimental; its pinned implementation must be
+reviewed again before upgrading.
 
-The release manager downloads the signed candidate and uploads the same bytes to
-ASF SVN `dist/dev/opendal` using local credentials. The application should explicitly
-ask Security whether this manual staging handoff is acceptable under the automated
-signing guidance's CI staging requirement; it must not be presented as an already
-approved arrangement. This proposal requests no CI SVN credentials and does not
-require ATR.
+## Enablement
 
-Before official publication, a release reviewer independently rebuilds every
-candidate source archive from the exact commit on trusted hardware outside GitHub
-Actions. The reviewer compares the entire filename set and SHA-512 digests with
-the staged candidate, verifies OpenPGP signatures against OpenDAL KEYS, and records
-the evidence in the release vote. A missing or mismatching artifact blocks release.
-CI-to-CI agreement is useful regression coverage but is not this human verification.
+1. Send ASF Security the workflow and the reproduction evidence in
+   [PR #8232](https://github.com/apache/opendal/pull/8232). Explain that reviewers
+   will independently rebuild the actual staged archives on trusted hardware
+   outside Actions before publication. Obtain workflow approval before use.
+2. Request a project signing key through Infra Jira, referencing Security's review.
+   Ask Infra to provision the private key in `apache/opendal` as
+   `SOURCE_SIGNING_KEY`, with `SOURCE_SIGNING_PASSPHRASE` if needed. These names are
+   proposed integration names and must be agreed with Infra. Request the UID
+   `OpenDAL Automated Release Signing <private@opendal.apache.org>`.
+3. Add the public key to the committee KEYS file and import it into ATR using the
+   committee's configured KEYS management mode. Do not use the individual public
+   key form for this automated project key. Set the repository variable
+   `SOURCE_SIGNING_FINGERPRINT` to the full uppercase primary fingerprint.
+4. In the OpenDAL project's ATR settings, under Trusted Publishing, configure:
 
-The release manager reviews reproduction evidence, source/license verification,
-unresolved objections and the PMC vote before approving publication. The signing
-job cannot publish stable tags or packages, write ASF `dist/release`, update the
-public download page, or send a release announcement. Signing failure leaves an
-incomplete candidate; it cannot silently fall back to unsigned publication.
+   | Setting | Value |
+   | --- | --- |
+   | Repository name | `opendal` |
+   | Repository branch | `main` |
+   | Compose workflows | `.github/workflows/release-compose.yml` |
+   | Vote workflows | Leave empty |
+   | Finish workflows | Leave empty |
 
-## Evidence for the application
+5. Confirm that the `source-release` environment protection from `.asf.yaml` is
+   active, including main-only deployment and required reviewers. A YAML change
+   alone is not evidence that GitHub applied the protection. The signing key is a
+   repository secret under the documented Infra procedure, so also restrict and
+   review changes to workflows that could access repository secrets.
+6. Set the repository variable `SOURCE_RELEASE_ENABLED=true` only after these
+   prerequisites are verified. Leave it unset to keep compose disabled.
 
-See [Source archive reproduction evidence](./source-reproduction-evidence.md) for
-an exact-commit comparison between Linux CI, macOS CI and a local macOS rebuild.
-The checks use [the documented reproduction procedure](./reproducible-source.md).
-This is evidence for the source packaging implementation, not an approved release
-vote or a claim about binary reproducibility. Each actual release still requires
-its own trusted-hardware comparison against the staged files.
+OpenDAL's live ATR settings, key provisioning and an authenticated end-to-end
+upload have not been verified by this PR. No Security or Infra request is sent by
+the workflow.
 
-## Proposed Security review request
+## Rehearsal and release handoff
 
-Subject: Review request: automated signing of Apache OpenDAL source archives
+For a rehearsal, use a candidate version and run the real compose workflow. Inspect
+ATR checks, download the complete staged revision, and use the
+[reproduction procedure](./reproducible-source.md) to compare every source archive.
+Verify the signatures against KEYS. Stop in compose: do not start a vote or finish
+the release. This exercises staging without publishing an official release; it
+still creates real candidate data in ATR. If signing or upload fails, treat the
+candidate as incomplete and inspect ATR before retrying. Reuploads can create a
+new ATR revision; the workflow does not automatically delete or approve revisions.
 
-We would like to request review of automated signing for Apache OpenDAL's source
-release archives. The proposed key would sign only the `.tar.gz` files produced
-by our source packager, not convenience binaries or Git tags.
+For a real release, reviewers perform the same independent rebuild on trusted
+hardware and record the exact candidate revision and results for the PMC vote.
+Link the vote to ATR's pinned candidate revision. CI-to-CI agreement alone does
+not replace that verification. After a passing vote, a release manager can use
+ATR's finish page to publish the approved files. ATR handles the distribution SVN
+write; this compose workflow has no finish permission. Check the destination
+layout before publication so it matches OpenDAL's release directory conventions.
 
-PR #8232 normalizes archive metadata and adds independent-checkout and cross-platform
-reproduction checks. The linked evidence compares all 12 archives from one exact
-commit across Linux CI, macOS CI and a local machine outside GitHub Actions.
+## References
 
-We propose to place signing after unsigned source packaging in the existing CI
-path, using a protected job that does not execute candidate code with the key.
-Pull-request checks would remain unsigned. Before each official release, a reviewer
-would independently reproduce all staged archives on trusted hardware, compare
-their hashes, verify signatures and record the results for the PMC vote.
-
-The release manager would initially upload the signed candidate to ASF SVN dev
-using local credentials. Please confirm whether this manual staging handoff is
-acceptable, and what workflow and environment restrictions you require before
-Infra provisions the project key. We will submit the concrete signing job for
-review before enabling it. No key or remote signing configuration is requested by
-this PR itself.
-
-## Infra request after Security review
-
-Open an Infra Jira request referencing Security's review and the final workflow.
-Identify `apache/opendal`, the source-only artifact inventory, the agreed workflow
-and protected job, and the verified reproduction procedure. Ask Infra to generate
-a project signing-only key, provision it to the approved CI scope, and provide the
-public key for OpenDAL KEYS. Secret names and any passphrase handling must be agreed
-with Infra rather than assumed by the implementation. Do not supply a personal
-release-manager private key.
-
-The [ASF automated signing procedure](https://infra.apache.org/release-signing.html#automated-release-signing)
-specifies a 4096-bit RSA signing-only key, Infra custody of the private key, and
-PGP-encrypted revocation material in the project's private repository. Security
-approval is needed before the workflow is put into use. Confirm these provisions
-in the request; this document does not assert that approval has been granted.
+- [ATR Trusted Publishing](https://releases.apache.org/docs/trusted-publishing)
+- [ATR staging and voting](https://releases.apache.org/docs/staging-and-voting)
+- [ATR publication and KEYS management](https://releases.apache.org/docs/promoting-to-release)
+- [ASF automated signing procedure](https://infra.apache.org/release-signing.html#automated-release-signing)
+- [Official upload action](https://github.com/apache/tooling-actions/tree/fa721a0b176d713807b574da721b96545b587eea/upload-to-atr)

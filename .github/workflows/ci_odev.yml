@@ -30,6 +30,9 @@ on:
       - "dev/Cargo.toml"
       - "dev/Cargo.lock"
       - "scripts/verify_source_reproducibility.py"
+      - "scripts/sign_source_release.py"
+      - "scripts/test_sign_source_release.py"
+      - ".github/workflows/release-compose.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -54,6 +57,15 @@ jobs:
       - name: Cargo clippy
         working-directory: dev
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test_signing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s scripts -p 'test_sign_source_release.py'
 
   test_dev:
     runs-on: ubuntu-latest

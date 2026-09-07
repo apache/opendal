@@ -69,6 +69,6 @@ odev CI performs the same check on Linux and macOS and compares
 their manifests. A CI-to-CI comparison is regression coverage; it does not replace
 the required independent reproduction on trusted hardware before publication.
 
-See [the recorded reproduction evidence](./source-reproduction-evidence.md) and
-[the proposed CI signing application](./ci-signing-proposal.md) for the current
-source-only signing preparation.
+See [PR #8232](https://github.com/apache/opendal/pull/8232) for the recorded
+reproduction evidence and [the trusted publishing procedure](./ci-signing-proposal.md)
+for source-only signing and staging.

@@ -47,6 +47,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
+        with:
+          need-deny: true
       - name: Select source commit and release baseline
         env:
           GH_TOKEN: ${{ github.token }}

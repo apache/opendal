@@ -60,6 +60,70 @@ class SourceSigningTests(unittest.TestCase):
     def write_report(self):
         (self.bundle / "report.json").write_text(json.dumps(self.report))
 
+    def test_dispatch_from_release_branch(self):
+        repository = self.root / "repository"
+        repository.mkdir()
+        previous = Path.cwd()
+        try:
+            os.chdir(repository)
+            signing.run("git", "init", "-b", "main")
+            signing.run(
+                "git",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.org",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "Initial",
+            )
+            signing.run("git", "checkout", "-b", "release/0.59.2")
+            signing.run(
+                "git",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.org",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "Bump version",
+            )
+            candidate = signing.run("git", "rev-parse", "HEAD").decode().strip()
+            argv = [
+                "sign_source_release.py",
+                str(self.bundle),
+                candidate,
+                self.rc,
+                str(self.root / "signed"),
+            ]
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "GITHUB_REF": "refs/heads/release/0.59.2",
+                        "GITHUB_EVENT_NAME": "workflow_dispatch",
+                    },
+                ),
+                patch("sys.argv", argv),
+                patch.object(signing, "sign") as sign,
+            ):
+                signing.main()
+                sign.assert_called_once()
+                # The same candidate is not reachable when dispatching from main.
+                signing.run("git", "checkout", "main")
+                sign.reset_mock()
+                with self.assertRaises(RuntimeError):
+                    signing.main()
+                sign.assert_not_called()
+        finally:
+            os.chdir(previous)
+
     def test_complete_inventory(self):
         self.assertEqual(
             signing.validate(self.bundle, self.candidate, self.rc), self.files

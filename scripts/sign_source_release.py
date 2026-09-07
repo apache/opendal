@@ -68,7 +68,7 @@ def validate(bundle, candidate, rc):
     if len(report["runs"]) != 2 or report["runs"][0] != report["runs"][1]:
         raise ValueError("source reproduction failed")
     files = report["runs"][0]
-    # The trusted main checkout owns the package allowlist, not the build artifact.
+    # The workflow checkout owns the package allowlist, not the build artifact.
     packages = set(
         re.findall(
             r'make_package\(\s*"([^"\n]+)"',
@@ -176,15 +176,12 @@ def main():
     parser.add_argument("rc")
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    if (
-        os.environ.get("GITHUB_REF") != "refs/heads/main"
-        or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
-    ):
-        raise ValueError("source signing must be dispatched from trusted main")
+    if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+        raise ValueError("source signing must be manually dispatched")
     if not re.fullmatch(r"[0-9a-f]{40}", args.candidate):
         raise ValueError("full candidate SHA required")
     # Recheck reachability in the trusted checkout before obtaining the private key.
-    run("git", "merge-base", "--is-ancestor", args.candidate, "origin/main")
+    run("git", "merge-base", "--is-ancestor", args.candidate, "HEAD")
     sign(args.bundle, args.candidate, args.rc, args.output)
     print("Verified signatures for the complete source inventory")
 

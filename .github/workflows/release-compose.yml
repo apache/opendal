@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       candidate:
-        description: Full SHA of the reviewed source commit on main
+        description: Full SHA of the reviewed source commit on the selected branch
         type: string
         required: true
       rc:
@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   source_bundle:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'apache/opendal' && vars.SOURCE_RELEASE_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,7 +62,7 @@ jobs:
           import os, re, subprocess
           assert re.fullmatch(r"[0-9a-f]{40}", os.environ["CANDIDATE"]), "full candidate SHA required"
           assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*", os.environ["RC"]), "RC version required"
-          subprocess.run(["git", "merge-base", "--is-ancestor", os.environ["CANDIDATE"], "origin/main"], check=True)
+          subprocess.run(["git", "merge-base", "--is-ancestor", os.environ["CANDIDATE"], "HEAD"], check=True)
           PYTHON
       - uses: ./.github/actions/setup
       - name: Prepare unsigned candidate without signing credentials

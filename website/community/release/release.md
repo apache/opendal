@@ -6,6 +6,9 @@ sidebar_position: 3
 This document mainly introduces how the release manager
 releases a new version of Apache OpenDAL™ in accordance with the Apache requirements.
 
+See [Reproducible source archives](./reproducible-source.md) for rebuilding and
+comparing the source packages before signing.
+
 ## Introduction
 
 `Source Release` is the key point which Apache values, and is also necessary for an ASF release.

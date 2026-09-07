@@ -23,9 +23,6 @@ on:
   schedule:
     - cron: '7 0 * * 5'
   workflow_dispatch:
-  pull_request:
-    types: [closed]
-    branches: ['release-candidates/**']
 
 permissions:
   contents: read
@@ -40,7 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+    outputs:
+      sha: ${{ steps.candidate.outputs.sha }}
+      rc: ${{ steps.candidate.outputs.rc }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -86,7 +85,8 @@ jobs:
           p = Path("CHANGELOG.md")
           p.write_text(f"# v{os.environ['RC'].split('-rc.')[0]}\n\n- [Changes since {os.environ['BASELINE']}](https://github.com/apache/opendal/compare/{os.environ['BASELINE']}...{os.environ['CUTOFF_SHA']})\n\n" + p.read_text())
           PYTHON
-      - name: Open candidate version PR
+      - name: Push prepared candidate
+        id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -94,54 +94,22 @@ jobs:
           git config user.email 'dev@opendal.apache.org'
           git add --all
           git -c commit.gpgsign=false commit -m "Prepare $RC"
-          git -c 'credential.helper=!gh auth git-credential' push origin "$CUTOFF_SHA:refs/heads/$CANDIDATE_BRANCH" "HEAD:refs/heads/$CANDIDATE_BRANCH-bump"
-          cat > "$RUNNER_TEMP/weekly-pr.md" <<EOF
-          Prepare $RC from Friday 00:00 UTC cutoff \`$CUTOFF_SHA\`, using final release \`$BASELINE\` as the version baseline.
-
-          Review package versions, compatibility and changelog. Merge into this candidate branch to run the existing compose workflow. Then follow the existing ATR release procedure to verify the candidate, start the vote and finish publication.
-
-          Before merging, ensure no other candidate is being voted on or published. Failed preparation can be abandoned and started again with a new workflow run.
-          EOF
-          gh pr create --repo apache/opendal --base "$CANDIDATE_BRANCH" --head "$CANDIDATE_BRANCH-bump" --title "chore(release): prepare $RC" --body-file "$RUNNER_TEMP/weekly-pr.md"
-
-  candidate:
-    if: github.repository == 'apache/opendal' && github.event_name == 'pull_request' && github.event.pull_request.merged
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: ${{ steps.candidate.outputs.sha }}
-      rc: ${{ steps.candidate.outputs.rc }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
-          persist-credentials: false
-      - name: Select reviewed candidate
-        id: candidate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          branch=$(jq -r '.pull_request.base.ref' "$GITHUB_EVENT_PATH")
-          jq -e --arg branch "$branch" '.pull_request | .head.repo.full_name == "apache/opendal" and .head.ref == ($branch + "-bump")' "$GITHUB_EVENT_PATH"
-          [[ "$branch" =~ ^release-candidates/weekly-([0-9]+)-([0-9]+)$ ]]
-          attempt="$((BASH_REMATCH[1] * 1000 + BASH_REMATCH[2]))"
-          sha=$(git rev-parse HEAD)
-          test "$(gh api "repos/apache/opendal/git/ref/heads/$branch" --jq '.object.sha')" = "$sha"
-          version=$(sed -n 's/.*let core = make_package("core", "\([0-9.]*\)".*/\1/p' dev/src/release/package.rs)
-          rc="$version-rc.$attempt"
-          gh api --method POST repos/apache/opendal/git/refs -f ref="refs/tags/v$rc" -f sha="$sha"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          git -c tag.gpgsign=false tag "v$RC"
+          git -c 'credential.helper=!gh auth git-credential' push --atomic origin "HEAD:refs/heads/$CANDIDATE_BRANCH" "refs/tags/v$RC"
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "rc=$RC"
+          } >> "$GITHUB_OUTPUT"
+          echo "Prepared $RC on $CANDIDATE_BRANCH from cutoff $CUTOFF_SHA. Continuing to ATR compose." >> "$GITHUB_STEP_SUMMARY"
 
   compose:
-    needs: candidate
+    needs: prepare
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/release-compose.yml
     with:
-      candidate: ${{ needs.candidate.outputs.sha }}
-      rc: ${{ needs.candidate.outputs.rc }}
+      candidate: ${{ needs.prepare.outputs.sha }}
+      rc: ${{ needs.prepare.outputs.rc }}
     secrets:
       GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}

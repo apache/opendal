@@ -68,3 +68,7 @@ the release review. Reproducibility does not replace license review or testing.
 odev CI performs the same check on Linux and macOS and compares
 their manifests. A CI-to-CI comparison is regression coverage; it does not replace
 the required independent reproduction on trusted hardware before publication.
+
+See [the recorded reproduction evidence](./source-reproduction-evidence.md) and
+[the proposed CI signing application](./ci-signing-proposal.md) for the current
+source-only signing preparation.

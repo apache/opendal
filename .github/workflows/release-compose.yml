@@ -24,10 +24,6 @@ on:
         description: Full SHA of the reviewed source commit on the selected branch
         type: string
         required: true
-      version-directory:
-        description: Stage under the stable version directory for weekly publication
-        type: boolean
-        default: false
       rc:
         description: Candidate version, for example 0.59.2-rc.1
         type: string
@@ -41,9 +37,6 @@ on:
       rc:
         type: string
         required: true
-      version-directory:
-        type: boolean
-        default: false
     secrets:
       GPG_SECRET_KEY:
         required: true
@@ -148,28 +141,12 @@ jobs:
           artifact-ids: ${{ needs.source_sign.outputs.artifact-id }}
           path: ${{ runner.temp }}/signed-source
           merge-multiple: true
-      - name: Arrange source publication directory
-        env:
-          RC: ${{ inputs.rc }}
-          VERSION_DIRECTORY: ${{ inputs.version-directory }}
-        run: |
-          python3 - <<'PYTHON'
-          import os, re, shutil
-          from pathlib import Path
-          rc = os.environ["RC"]
-          assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*", rc)
-          root = Path(os.environ["RUNNER_TEMP"])
-          target = root / "atr-source"
-          if os.environ["VERSION_DIRECTORY"] == "true":
-              target /= rc.split("-rc.")[0]
-          shutil.copytree(root / "signed-source", target)
-          PYTHON
       - name: Upload candidate to ATR compose
         uses: apache/tooling-actions/upload-to-atr@fa721a0b176d713807b574da721b96545b587eea
         with:
           project: opendal
           version: ${{ inputs.rc }}
-          src: ${{ runner.temp }}/atr-source
+          src: ${{ runner.temp }}/signed-source
       - name: Record staging handoff
         run: |
           echo 'Candidate uploaded to ATR compose. Inspect ATR checks and independently rebuild the downloaded files before starting a vote. This workflow does not vote or finish a release.' >> "$GITHUB_STEP_SUMMARY"

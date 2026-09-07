@@ -94,7 +94,7 @@ fn validate_package(package: &Package, baseline: &str) -> anyhow::Result<Option<
     ))
 }
 
-fn latest_final_release_tag() -> anyhow::Result<String> {
+pub(super) fn latest_final_release_tag() -> anyhow::Result<String> {
     let mut cmd = find_command("git", workspace_dir());
     cmd.args([
         "describe",

@@ -47,10 +47,24 @@ retains its caller's identity. The actor initiating a manual run or owning the
 schedule must have the required ASF-linked project permissions. An RM should
 maintain the cron expression, which determines the scheduled actor.
 
-The workflow ends at ATR compose. It does not start votes, announce releases,
-create final tags, synchronize main or publish language packages. These remain
-steps in the existing release procedure. Keep the candidate branch and signed
-artifacts until that procedure is complete.
+After pushing the RC tag, the workflow explicitly dispatches the existing tag
+builds, binding checks and documentation workflow against that tag. GitHub does
+not trigger downstream push workflows for tags created with `GITHUB_TOKEN`.
+These dispatches retain the RC behavior: Java stages to Nexus, Python uses
+TestPyPI, NodeJS performs a publish dry run, Ruby and .NET retain artifacts, and
+Rust does not publish. Documentation retains RC staging without deploying to
+nightlies. A retry skips workflows already dispatched for the candidate commit;
+rerun failed downstream jobs from their own runs.
+
+After ATR upload and dispatch succeed, the workflow posts a candidate preparation
+notice in GitHub Discussions with the ATR, tag, source artifact and build links.
+It reuses an existing notice for the same RC when retried. This notice does not
+assert that downstream builds or ATR checks passed. The RM verifies those results
+and the candidate before starting the formal vote.
+
+The workflow does not start votes, announce final releases, create final tags or
+synchronize main. These remain steps in the existing release procedure. Keep the
+candidate branch and signed artifacts until that procedure is complete.
 
 Installing this workflow on main activates the schedule. The initiating actor and
 reusable workflow's ATR OIDC identity still require a live rehearsal; local checks

@@ -12,10 +12,12 @@ start votes, finish releases, or publish language packages.
 
 ## Workflow boundary
 
-Dispatch the workflow from `main` with a full reviewed candidate commit SHA and an
-`X.Y.Z-rc.N` candidate version. Initially, the candidate must be reachable from
-`main`, and its core package version must equal `X.Y.Z`. Candidate branches and
-automatic version selection require a separate extension.
+Dispatch the workflow from the release branch with a full reviewed candidate
+commit SHA and an `X.Y.Z-rc.N` candidate version. The candidate must be reachable
+from the workflow commit, and its core package version must equal `X.Y.Z`.
+Merge the version bump PR into the release branch before preparing the candidate.
+After the release succeeds, merge the release branch back into `main` to carry
+the version updates forward. Automatic version selection is not implemented.
 
 Three jobs separate credentials and responsibilities:
 
@@ -24,8 +26,9 @@ Three jobs separate credentials and responsibilities:
    immutable Actions artifact. It has neither signing secrets nor OIDC permission.
 2. The signing job downloads that artifact by ID, validates its
    commit, reproduction report, package inventory and SHA-512 checksums, and signs
-   only the expected `.tar.gz` files. Trusted tooling comes from the workflow's
-   `main` checkout; candidate scripts are not executed with the key. The public
+   only the expected `.tar.gz` files. Signing tooling comes from the workflow
+   commit on the selected branch and must be reviewed there. Candidate build
+   scripts run only in the build job, without the key. The public
    key must already be in OpenDAL KEYS. Each generated signature is verified
    against the configured primary fingerprint before the signed bundle is saved.
 3. The upload job downloads the signed bundle by ID and uses the commit-pinned
@@ -64,7 +67,7 @@ reviewed again before upgrading.
    | Setting | Value |
    | --- | --- |
    | Repository name | `opendal` |
-   | Repository branch | `main` |
+   | Repository branch | Leave empty to allow release branches |
    | Compose workflows | `.github/workflows/release-compose.yml` |
    | Vote workflows | Leave empty |
    | Finish workflows | Leave empty |
@@ -72,16 +75,17 @@ reviewed again before upgrading.
 ## Trigger a candidate
 
 Open the `Compose source candidate on ATR` workflow in GitHub Actions, select
-**Run workflow**, choose `main`, and enter the candidate commit SHA and RC version.
+**Run workflow**, choose the release branch, and enter the candidate commit SHA
+and RC version.
 No repository enablement switch or environment approval is required.
 
-Alternatively, set `CANDIDATE_SHA` and `RC_VERSION` to the reviewed commit and
-candidate version, then run:
+Alternatively, set `RELEASE_BRANCH`, `CANDIDATE_SHA` and `RC_VERSION` to the release
+branch, reviewed commit and candidate version, then run:
 
 ```bash
 gh workflow run release-compose.yml \
   --repo apache/opendal \
-  --ref main \
+  --ref "$RELEASE_BRANCH" \
   -f candidate="$CANDIDATE_SHA" \
   -f rc="$RC_VERSION"
 ```

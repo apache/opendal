@@ -1,3 +1,11 @@
+# Unreleased
+
+## Raw API
+
+### Submit tasks through `ConcurrentTasks::execute`
+
+`raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.
+
 # Upgrade to v0.59
 
 ## Public API

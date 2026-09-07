@@ -63,7 +63,10 @@ impl<T: Send> MaybeSend for T {}
 #[cfg(target_arch = "wasm32")]
 impl<T> MaybeSend for T {}
 
-/// ConcurrentTasks is used to execute tasks concurrently.
+/// ConcurrentTasks executes tasks concurrently and collects outputs in submission order.
+///
+/// Submit inputs with [`Self::execute`] and collect outputs with [`Self::next`].
+/// The queue owns the task handles and tracks their completion for concurrency control.
 ///
 /// ConcurrentTasks has two generic types:
 ///
@@ -200,17 +203,6 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     #[inline]
     pub fn has_result(&self) -> bool {
         !self.results.is_empty()
-    }
-
-    /// Create a task with given input.
-    pub fn create_task(&self, input: I) -> Task<(I, Result<O>)> {
-        let completed = self.completed_but_unretrieved.clone();
-
-        let fut = (self.factory)(input).inspect(move |_| {
-            completed.fetch_add(1, Ordering::Relaxed);
-        });
-
-        self.executor.execute(fut)
     }
 
     fn spawn_task(&self, input: I) -> Task<Result<O, (I, Error)>> {

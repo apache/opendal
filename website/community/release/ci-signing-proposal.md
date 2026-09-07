@@ -6,9 +6,8 @@ sidebar_position: 6
 # Source archive trusted publishing
 
 The manually dispatched `release-compose.yml` workflow prepares signed source
-candidates on Apache Trusted Releases (ATR). It remains disabled until ASF Security
-approves the workflow and the live GitHub/ATR configuration is verified. Normal CI
-continues to build unsigned archives. This workflow does not schedule releases,
+candidates on Apache Trusted Releases (ATR). A maintainer dispatch starts the
+build, signing and upload pipeline. Normal CI continues to build unsigned archives. This workflow does not schedule releases,
 start votes, finish releases, or publish language packages.
 
 ## Workflow boundary
@@ -41,7 +40,7 @@ mean ATR checks passed: inspect the candidate revision and check results in ATR.
 The upstream upload action is experimental; its pinned implementation must be
 reviewed again before upgrading.
 
-## Enablement
+## Prerequisites
 
 1. Send ASF Security the workflow and the reproduction evidence in
    [PR #8232](https://github.com/apache/opendal/pull/8232). Explain that reviewers
@@ -70,13 +69,22 @@ reviewed again before upgrading.
    | Vote workflows | Leave empty |
    | Finish workflows | Leave empty |
 
-5. Set the repository variable `SOURCE_RELEASE_ENABLED=true` only after these
-   prerequisites are verified. Leave it unset to keep compose disabled.
+## Trigger a candidate
 
-The repository secret's existence and the public key in KEYS have been verified.
-An authenticated end-to-end source upload and the live ATR configuration have not
-yet been verified by this PR. No Security or Infra request is sent by
-the workflow.
+Open the `Compose source candidate on ATR` workflow in GitHub Actions, select
+**Run workflow**, choose `main`, and enter the candidate commit SHA and RC version.
+No repository enablement switch or environment approval is required.
+
+Alternatively, set `CANDIDATE_SHA` and `RC_VERSION` to the reviewed commit and
+candidate version, then run:
+
+```bash
+gh workflow run release-compose.yml \
+  --repo apache/opendal \
+  --ref main \
+  -f candidate="$CANDIDATE_SHA" \
+  -f rc="$RC_VERSION"
+```
 
 ## Rehearsal and release handoff
 

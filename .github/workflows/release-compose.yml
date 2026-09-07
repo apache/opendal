@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   source_bundle:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'apache/opendal' && vars.SOURCE_RELEASE_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
     permissions:
       contents: read

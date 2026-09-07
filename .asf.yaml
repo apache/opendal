@@ -63,21 +63,9 @@ github:
           - name: main
             type: branch
     source-release:
-      required_reviewers:
-        - id: Xuanwo
-          type: User
-        - id: dentiny
-          type: User
-        - id: erickguan
-          type: User
-        - id: tisonkun
-          type: User
-        - id: koushiro
-          type: User
-        - id: PsiACE
-          type: User
+      required_reviewers: []
       wait_timer: 0
-      prevent_self_review: true
+      prevent_self_review: false
       deployment_branch_policy:
         protected_branches: false
         policies:

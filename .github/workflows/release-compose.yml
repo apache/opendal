@@ -108,8 +108,8 @@ jobs:
           CANDIDATE: ${{ inputs.candidate }}
           RC: ${{ inputs.rc }}
           SOURCE_SIGNING_FINGERPRINT: ${{ vars.SOURCE_SIGNING_FINGERPRINT }}
-          SOURCE_SIGNING_KEY: ${{ secrets.SOURCE_SIGNING_KEY }}
-          SOURCE_SIGNING_PASSPHRASE: ${{ secrets.SOURCE_SIGNING_PASSPHRASE }}
+          SOURCE_SIGNING_KEY: ${{ secrets.GPG_SECRET_KEY }}
+          SOURCE_SIGNING_PASSPHRASE: ""
         run: python3 scripts/sign_source_release.py "$RUNNER_TEMP/source-bundle" "$CANDIDATE" "$RC" "$RUNNER_TEMP/signed-source"
       - uses: actions/upload-artifact@v7
         id: signed

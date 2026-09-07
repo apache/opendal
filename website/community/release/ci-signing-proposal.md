@@ -7,7 +7,7 @@ sidebar_position: 6
 
 The manually dispatched `release-compose.yml` workflow prepares signed source
 candidates on Apache Trusted Releases (ATR). It remains disabled until ASF Security
-approves the workflow and Infra provisions the project signing key. Normal CI
+approves the workflow and the live GitHub/ATR configuration is verified. Normal CI
 continues to build unsigned archives. This workflow does not schedule releases,
 start votes, finish releases, or publish language packages.
 
@@ -47,15 +47,19 @@ reviewed again before upgrading.
    [PR #8232](https://github.com/apache/opendal/pull/8232). Explain that reviewers
    will independently rebuild the actual staged archives on trusted hardware
    outside Actions before publication. Obtain workflow approval before use.
-2. Request a project signing key through Infra Jira, referencing Security's review.
-   Ask Infra to provision the private key in `apache/opendal` as
-   `SOURCE_SIGNING_KEY`, with `SOURCE_SIGNING_PASSPHRASE` if needed. These names are
-   proposed integration names and must be agreed with Infra. Request the UID
-   `OpenDAL Automated Release Signing <private@opendal.apache.org>`.
-3. Add the public key to the committee KEYS file and import it into ATR using the
-   committee's configured KEYS management mode. Do not use the individual public
-   key form for this automated project key. Set the repository variable
-   `SOURCE_SIGNING_FINGERPRINT` to the full uppercase primary fingerprint.
+2. Reuse the Infra-managed `GPG_SECRET_KEY` repository secret originally
+   provisioned in [INFRA-24880](https://issues.apache.org/jira/browse/INFRA-24880).
+   The existing Java release workflow uses this key with an empty passphrase;
+   source signing uses the same configuration. Do not export or replace the
+   private key. No new key or secret is requested.
+3. Verify that the existing public key is available in OpenDAL KEYS and associated
+   with the committee in ATR:
+   - UID: `ASF OpenDAL Services RM <private@opendal.apache.org>`.
+   - Primary fingerprint: `F70370C26871BFCC47D121A626143ED2AE57525E`.
+   Set `SOURCE_SIGNING_FINGERPRINT` to this fingerprint. ATR recognizes the legacy
+   `Services RM` naming convention. Preserve the existing KEYS management mode.
+   The historical JAR signing approval does not by itself document approval of
+   this source archive workflow.
 4. In the OpenDAL project's ATR settings, under Trusted Publishing, configure:
 
    | Setting | Value |
@@ -74,8 +78,9 @@ reviewed again before upgrading.
 6. Set the repository variable `SOURCE_RELEASE_ENABLED=true` only after these
    prerequisites are verified. Leave it unset to keep compose disabled.
 
-OpenDAL's live ATR settings, key provisioning and an authenticated end-to-end
-upload have not been verified by this PR. No Security or Infra request is sent by
+The repository secret's existence and the public key in KEYS have been verified.
+An authenticated end-to-end source upload and the live ATR configuration have not
+yet been verified by this PR. No Security or Infra request is sent by
 the workflow.
 
 ## Rehearsal and release handoff

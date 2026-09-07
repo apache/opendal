@@ -1,0 +1,118 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Weekly source release
+run-name: Weekly source release ${{ inputs.operation || github.event_name }}
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Reconcile, rehearse, or recover a candidate
+        type: choice
+        options: [tick, rehearsal, retry-dispatch, cancel, retry-announce]
+        default: tick
+      candidate:
+        description: Candidate ID for recovery
+        type: string
+      workflow:
+        description: Confirmed missing dispatch to retry
+        type: choice
+        options: [ci_odev.yml, ci_check.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-source-release
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    # Push run metadata records the cutoff even when a scheduler starts late.
+    if: github.repository == 'apache/opendal' && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      discussions: write
+      actions: write
+      id-token: write
+    outputs:
+      compose: ${{ steps.reconcile.outputs.compose }}
+      candidate: ${{ steps.reconcile.outputs.candidate }}
+      rc: ${{ steps.reconcile.outputs.rc }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: ./.github/actions/setup
+      - name: Reconcile the weekly release
+        id: reconcile
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation || 'tick' }}
+          CANDIDATE: ${{ inputs.candidate }}
+          WORKFLOW: ${{ inputs.workflow }}
+        run: |
+          python3 .github/scripts/weekly_release/controller.py "$OPERATION" \
+            --candidate "$CANDIDATE" --workflow "${WORKFLOW:-ci_odev.yml}"
+      - name: Upload RM vote handoff
+        if: hashFiles('vote-request.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekly-vote-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: vote-request.json
+      - name: Announce the published source release through ATR
+        if: steps.reconcile.outputs.announce == 'true'
+        uses: apache/tooling-actions/release-on-atr@fa721a0b176d713807b574da721b96545b587eea
+        with:
+          version: ${{ steps.reconcile.outputs.rc }}
+          announce: 'true'
+          announce-revision: ${{ steps.reconcile.outputs.revision }}
+          announce-email-to: announce@apache.org
+          announce-path-suffix: ${{ steps.reconcile.outputs.version }}
+          announce-body: |
+            Apache OpenDAL ${{ steps.reconcile.outputs.version }} is available.
+
+            Downloads: https://downloads.apache.org/opendal/${{ steps.reconcile.outputs.version }}/
+
+            Apache OpenDAL provides a unified interface for accessing data across storage services.
+
+  compose:
+    needs: reconcile
+    if: needs.reconcile.outputs.compose == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/release-compose.yml
+    with:
+      candidate: ${{ needs.reconcile.outputs.candidate }}
+      rc: ${{ needs.reconcile.outputs.rc }}
+      version-directory: true
+    secrets:
+      GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}

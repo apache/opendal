@@ -23,8 +23,21 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use toml_edit::{DocumentMut, Item};
 
-pub fn validate_release_versions(packages: &[Package]) -> anyhow::Result<()> {
-    let baseline = latest_final_release_tag()?;
+pub fn validate_release_versions(
+    packages: &[Package],
+    baseline: Option<&str>,
+) -> anyhow::Result<()> {
+    let baseline = match baseline {
+        Some(tag) => {
+            let version = Version::parse(tag.strip_prefix('v').unwrap_or(tag))?;
+            anyhow::ensure!(
+                version.pre.is_empty() && version.build.is_empty(),
+                "baseline must be a final release"
+            );
+            tag.to_string()
+        }
+        None => latest_final_release_tag()?,
+    };
     let mut violations = Vec::new();
 
     for package in packages {

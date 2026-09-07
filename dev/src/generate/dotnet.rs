@@ -233,7 +233,11 @@ fn pascalize_backticks(text: &str) -> String {
         result.push_str(&rest[..start]);
         let after = &rest[start + 1..];
         match after.find('`') {
-            Some(end) if after[..end].chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') => {
+            Some(end)
+                if after[..end]
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') =>
+            {
                 result.push_str(&heck::AsUpperCamelCase(&after[..end]).to_string());
                 rest = &after[end + 1..];
             }

@@ -26,9 +26,9 @@ use std::path::Path;
 mod bump;
 mod package;
 
-pub fn update_version() -> anyhow::Result<()> {
+pub fn update_version(baseline: Option<&str>) -> anyhow::Result<()> {
     let packages = package::all_packages();
-    bump::validate_release_versions(&packages)?;
+    bump::validate_release_versions(&packages, baseline)?;
 
     let mut updated = false;
     for package in packages {
